@@ -1,0 +1,31 @@
+# ---- 构建产物 ----
+server/target/
+*.jar
+*.class
+
+# ---- 本地配置（含 DeepSeek API Key，绝对不能提交）----
+server/config/
+**/application-local.yml
+
+# ---- 与思弈阁无关的目录/文件 ----
+comicweaver/
+comicweaver-handoff/
+_server.cjs
+dump_docx.py
+report_dump.txt
+思弈阁-原型.html
+思弈阁-实现规格书.zip
+
+# ---- 截图（体积大，不放仓库）----
+demo/shots-*/
+预览截图/
+
+# ---- 临时调试脚本 ----
+server/scripts/_*
+
+# ---- 日志与临时 ----
+*.log
+server/_*.txt
+.idea/
+.vscode/
+.DS_Store

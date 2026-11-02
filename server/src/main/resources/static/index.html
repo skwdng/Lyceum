@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>思弈阁 · AI 辩论训练</title>
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sb">
+    <div class="logo"><div class="m">思</div><div><b>思弈阁</b><span>AI 辩论训练</span></div></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="me"><div class="av">演</div><div><div>演示用户</div><div style="font-size:11px;color:#A8ADB8" id="meSub">连接中…</div></div></div>
+  </aside>
+  <main id="main"><div class="empty">正在连接后端…</div></main>
+</div>
+<div id="modalHost"></div>
+<div id="toast"></div>
+
+<!-- 核心 -->
+<script src="/js/core.js"></script>
+<!-- 各板块（一人一块，互不冲突） -->
+<script src="/js/views/solo.js"></script>
+<script src="/js/views/match.js"></script>
+<script src="/js/views/review.js"></script>
+<script src="/js/views/hot.js"></script>
+<script src="/js/views/diag.js"></script>
+<script src="/js/views/records.js"></script>
+<script src="/js/views/room.js"></script>
+<!-- 启动 -->
+<script>boot();</script>
+</body>
+</html>

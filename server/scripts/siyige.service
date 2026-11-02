@@ -1,0 +1,24 @@
+[Unit]
+Description=SiYiGe AI Debate Backend (Spring Boot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/siyige
+EnvironmentFile=/opt/siyige/siyige.env
+ExecStart=/usr/bin/java -Xmx384m -Xss512k -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 \
+  -jar /opt/siyige/siyige.jar \
+  --server.port=8090 \
+  --spring.datasource.url=jdbc:h2:file:/opt/siyige/data/siyige;AUTO_SERVER=FALSE \
+  --siyige.pace.time-scale=1.0
+Restart=always
+RestartSec=5
+MemoryMax=700M
+NoNewPrivileges=true
+PrivateTmp=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

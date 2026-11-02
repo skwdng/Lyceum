@@ -1,0 +1,762 @@
+# 思弈阁 · 实现规格书（AI 可执行版 · v4.1）
+
+> 唯一规格来源。逐条对照编号实现，全部满足才能标完成。
+> 关键词：**MUST**（必须）、**MUST NOT**（禁止）、**SHOULD**（推荐）、**可调参数**。
+
+---
+
+## 0. 给实现者（AI）的指令
+
+1. 第 2 节（房间）与第 3 节（流程）是骨架，写错后面全部返工。
+2. 第 4 节（AI 节奏）、第 5 节（语音）是硬约束。
+3. 与本文冲突的旧代码/旧文档一律以本文为准。
+
+### 0.1 变更记录（v4.1，**不要复活以下旧设计**）
+
+| 变更 | 说明 |
+|---|---|
+| ❌ 移除 1v1 / 2v2 | **只保留 4v4（每方一辩到四辩，8 席）** |
+| ❌ 移除段位 / 等级 / 积分 / 排行榜 | 改为**个人辩论记录** + 与自己比的三个指标（第 6 节） |
+| ✅ 新增语音转文字 | 第 5 节 |
+| ✅ 保留 4v4 团队层 | 队内频道、协同分、辩位权限 |
+| ✅ 拆分两种入口 | **单人辩论**（选题/自填 → 选位置 → 即开）· **多人辩论**（建房 → 拉人 → 准备 → 开局） |
+| ✅ 新增辩题 AI 审核 | 单人自填题、房间换题都必须过审（§3.7） |
+
+### 0.2 产品取舍（写规格的人做的判断，不是需求原文）
+
+| 判断 | 依据 | 落地条款 |
+|---|---|---|
+| 全流程单场约 24 分钟，但单个席位只开口 1–2 次 | 12 步时长合计 1380s；三辩/四辩各只 1 次发言 | 三档训练模式 R-TRAIN-01、AI 发言可跳过 R-FLOW-09、座位卡预告发言次数 R-SEAT-07 |
+| 评分必须可解释，否则等于装饰 | 用户无法理解 72 与 80 的差别 | R-SCORE-01~04 |
+| 语音转写会拉低评分，需区分“口语差”与“论证差” | 转写文本含大量口水词 | R-VOICE-11 一键规整 + 双文本对比 |
+| 无段位后动机系统为空 | 只有记录=没有进度感 | R-REC-07 个人趋势 / 连续天数 / 漏洞统计 |
+| 房主踢人、转让、观战是低频功能 | 4v4 真人难凑齐，90% 场次不触发 | 降级为 P2（第 13 节） |
+
+---
+
+## 0.3 合并说明（本版本 = 你的规格书 + 队友计划书的工程亮点）
+
+| 来源 | 内容 |
+|---|---|
+| **规格书（主体）** | 单人点题即开、多选辩位、去段位、语音转文字、AI 节奏、可解释评分、三档训练模式、跳过/加速 |
+| **计划书（采纳）** | 三段式异步推送、SSE/WS 语义分工、结构化输出四级兜底、状态机复用、`@Tool` 论据检索、Redis 快照、AI 评测集四指标、点赞与评分隔离、五维画像、提示词人格分离、ChatMemory 滑窗、目标用户与边界、风险表、不选理由 |
+| **计划书（不采纳）** | 语音列为范围外、`user` 段位/积分、排行榜、第 3 周才做房间 |
+| **计划书（降级）** | 论点树、观战、社区 → P2（表结构与接口先定，不做深度交互） |
+
+---
+
+## 1. 术语
+
+| 术语 | 定义 |
+|---|---|
+| 房间 Room | 一场 4v4 的容器：辩题、8 席、房主、设置 |
+| 席位 Seat | `A1–A4`（正方一辩…四辩）、`B1–B4`（反方一辩…四辩） |
+| 辩位 Role | 一辩 / 二辩 / 三辩 / 四辩，由席位决定 |
+| 占位者 Occupant | `EMPTY` / `AI` / `USER` |
+| 回合 Turn | 一个席位在某环节的一次发言 |
+| 记录 Record | 一场打完后的历史条目（替代段位） |
+
+---
+
+## 1.5 目标用户与项目边界（采纳自计划书 §1.3 / §1.4，按本期范围修订）
+
+| 用户群体 | 核心诉求 | 对应功能 |
+|---|---|---|
+| 高校辩论队队员 | 赛前陪练、找逻辑漏洞 | 单人点题即开 · 多选辩位 · 复盘 · 抓漏 |
+| 通识课 / 演讲课学生 | 低成本入门，先搞懂规则 | 新手引导 · 可解释评分 |
+| 想练表达的在职者 | 随时能练，不用约人 | 单人 1v7 AI · 碎片化 `DRILL` |
+| 辩论爱好者 | 看别人怎么打、找队友 | 4v4 房间 · 观战（P2） |
+
+| 范围内（本期做） | 范围外（本期不做） |
+|---|---|
+| 单人 4v4：点题即开、1–8 席位任选 | **模型微调训练** |
+| 4v4 房间：8 席、AI 填充、房主开局 | 真人语音实时对辩（只做语音转文字输入） |
+| **语音转文字 + 一键规整**（本期新增） | 真人裁判介入 |
+| 逐轮三维评分 + 可解释证据 + 抓漏 | 移动端 App |
+| 五维画像 + 弱项专练 | 排行榜 / 段位（明确不做） |
+| 辩论记录与动机三件套 | 论点树可视化（P2，表先留） |
+| **自定义辩题 + AI 审核** | – |
+
+---
+
+## 1.6 两种训练模式（产品只有这两条入口）
+
+| | **单人辩论 SOLO** | **多人辩论 ROOM** |
+|---|---|---|
+| 入口 | 选题库辩题 **或自己填一个**（需审核） | 建房 / 凭房间号加入 |
+| 席位 | 玩家占 **1–8 个**（可只坐一辩，也可正反全占），其余 AI | 真人优先，空位开局补 AI |
+| 准备 | 无（点完即开） | 房主免准备；其他真人必须点准备 |
+| 开局 | 直接进 10 秒准备期 | 房主点「开始辩论」 |
+| 通道 | 只用 SSE | SSE + WebSocket |
+| 断线恢复 | 重新 GET 对局 | 房间快照 + 事件补发 |
+| 对选题的要求 | **自定义辩题必须先过 AI 审核** | 建房时若换题，同样要过审核 |
+
+> 两条入口共用同一套 `TurnEngine` 与 `Format`，差异只在「席位怎么来的」和「谁有权开局」。
+
+---
+
+## 2. 房间（4v4）
+
+### 2.1 入口
+
+- **R-ROOM-01** 大厅 MUST 提供三个入口：**加入房间**（房间码 / 公开列表）、**自选辩题开房**、**快速开始**（默认辩题，直接建单人房）。
+- **R-ROOM-02** 房间 MUST 有 8 个席位，每方 4 人；辩位固定为一辩→四辩。
+- **R-ROOM-03** 房间码 MUST 为 `SY-XXXX`（4 位，排除 `O0I1`），大小写不敏感。
+- **R-ROOM-04** 建房者 MUST 成为房主，并自动坐 **A1（正方一辩）**。
+- **R-ROOM-05** 大厅首屏 MUST 把「**快速开始**（单人 + 7 AI，默认辩题，一键开打）」放在主位；「加入房间 / 开房」为次位。依据：4v4 真人难凑齐，日常入口是单人练习。
+- **R-ROOM-06** 大厅 MUST 显示一局预计时长与「你将发言 N 次」，避免用户点进去才发现要坐 20 分钟。
+
+### 2.2 房间设置（仅房主，`LOBBY` 内可改）
+
+- **R-SET-01** 可改项：辩题（可选或随机）、赛制（`STD` 标准版 / `FREE` 不限时段）、可见性（`PUBLIC`/`PRIVATE`）、房间密码（4 位）、允许观战。
+- **R-SET-02** 变更 MUST 通过 SSE 广播，所有人界面即时生效。
+- **R-SET-03** `RUNNING` 后 MUST NOT 允许修改任何设置。
+
+### 2.3 席位与座位卡
+
+- **R-SEAT-01** 座位卡 MUST 显示：头像、昵称、**辩位名**、准备状态、房主徽标、AI 标识。
+- **R-SEAT-02** 空位 MUST 显示「＋ 邀请」，点击给出房间码与邀请链接。
+- **R-SEAT-03** 点击自己座位 MUST 弹出换座菜单（同阵营内可换辩位）；点击空位 MUST 直接换座。
+- **R-SEAT-04** 房主点击他人座位 MUST 能：**移到对面**、**踢出房间**、**转让房主**。
+- **R-SEAT-05** 跨阵营换位 MUST 由房主操作，玩家 MUST NOT 自行跳到对面。
+- **R-SEAT-06** AI 席位 MUST 显示「AI」与一句风格标签（如「硬框架 · 弱点：未证明前提」）。
+- **R-SEAT-07** 换座菜单里每个席位 MUST 标注：**该席位本场发言次数与累计时长**（一辩 1 次/180s、二辩 2 次/240s、三辩 2 次/240s、四辩 1 次/180s）。依据：选座=选投入，不能让用户盲选。
+
+### 2.4 准备与开局
+
+- **R-READY-01** **房主 MUST NOT 有「准备」按钮**（隐式就绪），座位卡显示房主徽标。
+- **R-READY-02** 每名非房主真人 MUST 有「准备 / 取消准备」，默认未准备。
+- **R-READY-03** AI 席位恒为已准备，不显示按钮。
+- **R-READY-04** 加入、换座、退出 MUST 把该真人重置为未准备。
+- **R-READY-05** 最少 **1 名真人**即可开局（1 人 + 7 AI 打满 4v4）。
+- **R-READY-06** 房主「开始辩论」按钮状态：
+  | 条件 | 状态 | 文案 |
+  |---|---|---|
+  | 有真人未准备 | 禁用 | 还有 N 人未准备 |
+  | 全员就绪 | 可用 | 开始辩论 |
+  | 房间内无真人（异常） | 禁用 | 房间里没有真人 |
+- **R-READY-07** 点击开始 MUST 在 1 秒内把空位填成 AI 并广播 `room.start`。
+- **R-READY-08** 房主离开 MUST 转让给下一位真人；无真人则关闭房间并广播 `room.closed`。
+
+### 2.5 邀请 / 观战 / 房间聊天
+
+- **R-JOIN-01** 凭房间码加入 MUST 自动坐第一个空位；满 8 人返回 `ROOM_FULL`。
+- **R-JOIN-02** 私密房 MUST NOT 出现在公开列表；设密码的房间进入前 MUST 校验密码。
+- **R-JOIN-03** 邀请链接 MUST 形如 `/room/SY-XXXX`，打开自动加入（已登录前提下）。
+- **R-JOIN-04** 观战者 MUST NOT 占席、MUST NOT 进队内频道，只出现在观战计数。
+- **R-CHAT-01** 房间频道 MUST 支持文字消息（含观战可见），落库并广播。
+
+### 2.6 状态机
+
+```
+LOBBY ──(房主开始 · 全员就绪)──▶ RUNNING ──(12 步走完)──▶ REVIEW ──▶ FINISHED ──▶ RECORDED
+  │
+  ├──(房主离开且无真人)──▶ CLOSED
+  └──(闲置 30 分钟)─────▶ CLOSED
+```
+
+---
+
+## 3. 辩论流程
+
+### 3.1 标准版 4v4 步骤表（与《项目计划书》表 13 对齐，顺序 MUST NOT 改）
+
+| 序 | 环节 | 席位 | 时长 | 该环节的核心任务 |
+|---|---|---|---|---|
+| 1 | 立论 | A1 | 180s | 立住判断标准，给出 2–3 个分论点 |
+| 2 | 立论 | B1 | 180s | 先破题，重新定义战场 |
+| 3 | 驳立论 | A2 | 120s | 打掉对方最强的那一点 |
+| 4 | 驳立论 | B2 | 120s | 回应攻击并抛出对方没准备的问题 |
+| 5 | 质询 | A3 | 120s | 连续追问，逼出对方未证明的前提 |
+| 6 | 质询 | B3 | 120s | 每次只问一件事，逼出对方的定义 |
+| 7 | 自由辩 | A2 | 120s | 每次只说一件事，打完一个点就换 |
+| 8 | 自由辩 | B2 | 120s | 同上 |
+| 9 | 自由辩 | A3 | 120s | 同上 |
+| 10 | 自由辩 | B3 | 120s | 同上 |
+| 11 | 总结 | B4 | 180s | 收拾战场，再升华价值 |
+| 12 | 总结 | A4 | 180s | 指出真正分歧与获胜理由 |
+
+> 9 个环节 + 自由辩展开为 4 个子回合 = **12 步**，与计划书 §5.1 一致。
+> 各辩位本场发言：一辩 1 次/180s、二辩 2 次/240s、三辩 2 次/240s、四辩 1 次/180s。
+
+- **R-FLOW-01** 服务端 MUST 维护 `currentStep` 与 `currentSeat`，只有 `currentSeat` 能提交。
+- **R-FLOW-02** 非当前席位提交 MUST 返回 `409 NOT_YOUR_TURN` 且不落库。
+- **R-FLOW-03** 倒计时归零 MUST 落一条 `TIMEOUT` 占位发言并推进。
+- **R-FLOW-04** 12 步走完 MUST 进 `REVIEW` → `FINISHED` → 写辩论记录。
+- **R-FLOW-05** 进入 `RUNNING` 后 MUST 先播 **10 秒准备期**，提示「请整理你的立论」。
+- **R-FLOW-06** 席位权限 MUST 服务端校验：一辩不得提交结辩内容、四辩不得提交立论。
+- **R-FLOW-07** `FREE` 模式 MUST 不设环节与倒计时，按席位顺序轮流，随时可点「结束并评分」。
+
+### 3.2 队内频道
+
+- **R-TEAM-01** 己方真人 MUST 能发队内消息，对手与观战 MUST NOT 可见。
+- **R-TEAM-02** AI 队友 MUST 能读取队内频道内容并据此调整下一轮发言。
+- **R-TEAM-03** AI 队友（同侧）MUST 呼应真人上一段发言（协同分来源）。
+
+### 3.3 输入方式
+
+- **R-FLOW-08** 每个回合 MUST 同时支持键盘输入与**语音转文字**（第 5 节），二者写入同一输入框。
+
+### 3.4 训练模式（解决“24 分钟只说 1 次话”）
+
+| 模式 | 步骤 | 时长 | 用途 |
+|---|---|---|---|
+| `FULL` 全流程 | 12 步 | ~24 分钟 | 完整赛制演练、结课/比赛前 |
+| `SPRINT` 快速 | 立论 A1 → 立论 B1 → 自由辩 ×4 → 结辩 B4 → 结辩 A4（8 步） | ~13 分钟 | 日常训练默认 |
+| `DRILL` 片段 | 只练单一环节（如只练质询，连续换 3 个 AI 对手） | ~5 分钟 | 专项纠错 |
+
+- **R-TRAIN-01** 三种模式 MUST 共用同一引擎，只是 `steps` 配置不同。
+- **R-TRAIN-02** 建房/开局时 MUST 显式选择模式，默认 `SPRINT`。
+- **R-TRAIN-03** `DRILL` 模式 MUST 允许重复练同一环节 ≥3 轮，且不生成完整记录（只记一条练习）。
+
+### 3.5 AI 发言的可控性
+
+- **R-FLOW-09** AI 回合的发言 MUST 支持「**跳过**」：点击后立即结束该回合，辩论史里留一条 30 字内摘要，MUST 不影响评分与后续流程。
+- **R-FLOW-10** AI 发言 MUST 支持 1.5× / 2× 加速播放；MUST NOT 影响真人自己的回合。
+- **R-FLOW-11** 跳过与加速 MUST 记入 `turn.input_type`（`skipped` / `fast`），用于分析用户耐心度。
+
+### 3.6 单人练习（`SOLO`，点题即开 · 可多选辩位）
+
+> 依据：计划书 §1.4“AI 对辩：单人占满四个辩位”。这是产品主路径，房间是增量。
+
+- **R-SOLO-01 一键开局**：大厅辩题卡直接「开练」，**不建房、不占席、不准备**。`POST /api/matches {topicId, seats[], mode}` → 立即进入 10 秒准备期。房间相关 UI MUST NOT 出现。
+- **R-SOLO-02 可多选辩位**：`seats` MUST 支持 1–8 个席位（`A1–A4` / `B1–B4` 任意组合，可跨阵营）。**选中的席位由玩家本人发言，未选的全部自动由 AI 占满。**
+- **R-SOLO-03 判定改为集合**：引擎唯一改动是 `currentSeat ∈ mySeats` → 等玩家输入；否则 AI 自动发言。`mySeats` 必须持久化到 `match` 行（`my_seats` 字段）。
+- **R-SOLO-04 记住上次选择**：同一用户再次点辩题时，MUST 复用上次的 `seats` 直接开打，**不再弹选择面板**（这是"流畅"的关键）。
+- **R-SOLO-05 选择面板低频出现**：仅首次、或主动点「改席位」时出现；一屏列 8 个席位勾选框 + 三个预设（「只练一辩」「己方四人」「正反全占」）。
+- **R-SOLO-06 跨阵营允许但降级判定**：同时选中正反方时 MUST 标记 `drill=true`，**不判胜负**，只给个人评分并在结算页注明「自辩演练」。
+- **R-SOLO-07 协同分口径调整**：多席位时协同分 MUST 按「接续**我方**上一段发言」计算，不论该发言由哪个席位完成。
+- **R-SOLO-08 断线恢复**：仅通过 `GET /api/matches/{id}` 重建，MUST NOT 依赖事件补发、WebSocket、Redis 快照、分布式锁。
+- **R-SOLO-09 结算页三动作**：换席位重打 / 同题重打 / 只练这一幕（转 `DRILL`）。
+- **R-SOLO-10 AI 队友（未选中的同侧席位）MUST 呼应玩家上一段发言**（R-TEAM-03 同样生效）。
+- **R-SOLO-11 记一条 `record`**，`opponent_type = AI`，`my_seats` 一并入库。
+
+**发言密度（选座 = 选训练量，UI 上必须显示）**
+
+| 你选的席位 | 本场你的发言次数 | 约占全场 | 适用场景 |
+|---|---|---|---|
+| 1 席（如一辩） | 1 次 | 8% | 单点打磨 |
+| 2 席（一辩 + 二辩） | 3 次 | 25% | 练「接盘」：自己接自己的话 |
+| 4 席（己方全占） | 6 次 | 50% | 赛前把己方整条线走一遍 |
+| 8 席（正反全占） | 12 次 | 100% | 自辩对练，练预判对方立论 |
+
+> 各席位出场次数：一辩 1、二辩 2、三辩 2、四辩 1（合计 6/方，共 12 步）。
+
+**单人 / 房间的能力差异（实现时以此为准）**
+
+| 能力 | 单人 SOLO | 房间 ROOM |
+|---|---|---|
+| 入口 | 点辩题即开 | 建房/加入 → 准备 → 开局 |
+| 通道 | 只需 SSE | SSE + WebSocket |
+| 状态权威 | `match` 表 | 内存 + Redis 快照 `room:{code}` |
+| 并发控制 | 不需要（单用户单局） | `lock:room:{code}` + 发言令牌 |
+| 准备/房主/踢人/转让 | 无 | 有 |
+| 断线恢复 | 重新 GET 一次 | `lastEventId` 补发 |
+| 接口数 | 6 | 16 |
+| 预计工期 | ~9 天可玩 | +4 天 |
+
+### 3.7 辩题审核（AI 审核，**两种模式都要过**）
+
+> 自定义辩题必须能被正经辩起来。乱填、立场绑架、人身攻击、违规内容一律挡住，并给出改写建议。
+
+- **R-TOPIC-01** **单人自定义辩题 MUST 先过审核**；多人房间若允许换题，换题同样 MUST 过审核。题库内的官方辩题默认已审核，不再重复审。
+- **R-TOPIC-02** 审核 MUST 在提交后 **3 秒内**返回结论；超过 3 秒 MUST 降级为本地规则审核（长度、是否含正反立场、黑名单词），并标记 `pending`，MUST NOT 让用户干等。
+- **R-TOPIC-03** 结论 MUST 是三态之一：
+  | 结论 | 含义 | 前端行为 |
+  |---|---|---|
+  | `PASS` | 可辩 | 进入选位置 / 建房 |
+  | `REJECT` | 不可辩或违规 | 阻止开局，给理由 + 2 条改写建议 |
+  | `NEED_EDIT` | 太宽/太窄/立场绑架 | 允许用户改写后再审，不放行 |
+- **R-TOPIC-04** 审核维度 MUST 至少覆盖五项，且每项给出判定理由：
+  1. **可辩性**：是否存在正反两种合理立场（「1+1=2 是否正确」不可辩）
+  2. **平衡性**：是否一方天然压倒（「人是否应当呼吸」不可辩）
+  3. **边界清晰**：是否含「所有/永远/一定」等无法证伪的绝对表述
+  4. **合规性**：涉政敏感、色情、暴力、人身攻击、歧视 → 直接 `REJECT`
+  5. **表述完整**：≥6 字、是一个可判断的命题而非关键词堆砌
+- **R-TOPIC-05** `REJECT` / `NEED_EDIT` MUST 给出**可照抄的改写示例**，例如：
+  > 「AI 好不好」→ 建议：「AI 生成内容是否应当享有著作权」
+- **R-TOPIC-06** 审核结果 MUST 落库：`topic.moderation_status`、`moderation_reason`、`moderation_at`；相同文本（按 sha256）MUST 命中缓存，不重复调模型。
+- **R-TOPIC-07** 审核 MUST NOT 阻断主流程以外的动作：题库浏览、历史记录、能力诊断都不受审核影响。
+- **R-TOPIC-08** 审核失败（模型超时/报错）MUST 走规则兜底放行并标 `pending`，MUST NOT 把用户卡死在「审核中」。
+- **R-TOPIC-09** `pending` 的辩题 MUST 在对局结束前异步补审；补审 `REJECT` 时 MUST 保留已产生记录，但该题不进热辩榜。
+- **R-TOPIC-10** 用户 MUST 能对 `REJECT` 结果提人工复核（P2 实现，本期仅提供入口与提示）。
+- **R-TOPIC-11** 审核通过的自定义辩题 MUST 参与热辩榜计分；官方题库与自定义题在榜上 MUST 区分标记（避免刷榜刷出一堆垃圾题）。
+
+---
+
+## 4. AI 节奏（硬约束）
+
+- **R-PACE-01** AI 回合前 MUST 有随机思考停顿 `1.8–3.2s`，显示「对方辩友正在思考…」。
+- **R-PACE-02** AI 输出 MUST 流式逐字，`8–12 字/秒`，MUST NOT 一次性推完整段。
+- **R-PACE-03** 句号/问号处 MUST 插 `300–500ms` 停顿。
+- **R-PACE-04** 每个 AI 回合结束 MUST 留 `2.5s` 缓冲，期间 MUST NOT 有新消息。
+- **R-PACE-05** 轮到玩家时 MUST 给「轮到你发言」+ 倒计时；输入框聚焦或录音中 MUST NOT 推 AI 消息。
+- **R-PACE-06** 质询环节 AI MUST 只出 1–2 句提问。
+- **R-PACE-07** AI 发言 MUST NOT 超过该回合剩余时长，超时 MUST 截断。
+- **R-PACE-08** 所有停顿参数 MUST 集中在 §9 配置。
+
+---
+
+## 5. 语音转文字
+
+- **R-VOICE-01** 回合内 MUST 有「按住说话 / 点击录音」入口，单次最长 **90 秒**，且 MUST NOT 超过当前回合剩余时间。
+- **R-VOICE-02** 录音 MUST 实时转写，首字延迟 SHOULD ≤ 1.5s，结果 MUST 落到输入框且可编辑。
+- **R-VOICE-03** MUST NOT 自动发送，必须用户点「发送」才提交回合。
+- **R-VOICE-04** 录音中 MUST 显示时长与音量反馈；到上限 MUST 自动停止并保留文本。
+- **R-VOICE-05** 识别失败 / 无权限 / 浏览器不支持 MUST 回退键盘输入并提示，MUST NOT 卡死回合。
+- **R-VOICE-06** 音频 MUST NOT 默认持久化，只存文本；如保存音频须用户显式勾选。
+- **R-VOICE-07** 语言 MUST 为中文，MUST 自动补标点。
+- **R-VOICE-08** 录音期间倒计时 MUST 继续；剩余 ≤15s MUST 提示「时间不多了」。
+- **R-VOICE-09** 转写文本 MUST NOT 因识别错误直接进评分，用户可改、可撤销。
+- **R-VOICE-10** 技术路线：优先浏览器 `SpeechRecognition`（`zh-CN`），不可用时回退后端 ASR（`/api/asr`）。
+- **R-VOICE-11** 转写完成后 MUST 提供「**一键规整**」：把口语转写整理成论辩结构（前提→主张→论据），规整结果 MUST 可编辑、可撤销，且 MUST 经用户确认后才可发送。
+- **R-VOICE-12** MUST 同时保存两份文本：`raw_text`（原始转写）与 `polished_text`（规整后），复盘页 MUST 并排展示差异并给出「口语 → 论辩」的差距提示。依据：语音会拉低评分，必须让用户看清“是表达问题还是论证问题”。
+
+---
+
+## 6. 记录、评分与动机
+
+### 6.1 辩论记录（替代段位）
+
+- **R-REC-01** 每场 `FINISHED` MUST 自动写一条记录：辩题、我的立场与辩位、对手类型（真人/AI）、时长、回合数、总分、胜负、日期。
+- **R-REC-02** 记录页 MUST 按时间倒序，支持按辩题与类型筛选。
+- **R-REC-03** MUST NOT 出现段位、等级、积分、排行榜、胜率排名等攀比项。
+- **R-REC-04** 单条记录 MUST 可点开看该场复盘。
+- **R-REC-05** 统计区 MUST 只展示：总场次、总时长、平均分、最常练的题型。
+- **R-REC-06** 记录 MUST 支持删除单条。
+
+### 6.2 评分必须可解释（R-SCORE）
+
+> 层级关系：**每轮出三维分**（立论/论证/表达）→ **赛后聚合为五维能力画像**（立论/论证/表达/应变/论据），与《项目计划书》创新点三一致。
+
+- **R-SCORE-01** 每个维度分（立论/论证/表达）MUST 附带 **1–2 条证据**：引用用户原句 + 指出问题类型。
+- **R-SCORE-02** 每条扣分 MUST 给出**可照抄的改进句式**（不是“建议加强论证”这种空话）。
+- **R-SCORE-03** 分数 MUST NOT 出现无法归因的加减项；无法解释的扣分 MUST 不入账。
+- **R-SCORE-04** 复盘页 MUST 支持「按扣分权重排序」的薄弱项列表，并给出对应练习建议（指向 `DRILL` 模式）。
+
+示例（MUST 按此格式输出）：
+```
+论证 68 ↓   证据：第 3 轮「大家都知道这样不行」是态度陈述，不可检验
+            改进：该政策有三处硬伤——成本、执行主体、收益周期
+```
+
+### 6.3 复盘
+
+- **R-REC-07** 复盘 MUST 包含：三维雷达、薄弱项（按权重）、发言时间线、被抓住的逻辑漏洞清单、**口语 vs 规整文本对比**（R-VOICE-12）。
+- **R-REC-08** 复盘 MUST 能一键跳到对应 `DRILL` 练习（例如反复练“质询”环节）。
+
+### 6.4 动机：只和自己比
+
+- **R-MOT-01** MUST 提供**能力雷达趋势**（同一维度 30 天前 vs 现在），MUST NOT 展示任何人际排名。
+- **R-MOT-02** MUST 提供**连续练习天数**（个人 streak），中断即归零，MUST NOT 与他人比较。
+- **R-MOT-03** MUST 提供**漏洞统计**（按类型计数，如“未证明前提 12 次 / 滑坡谬误 5 次”），作为个人错题本。
+
+---
+
+## 7. 接口契约
+
+| 方法 | 路径 | 请求 | 响应 |
+|---|---|---|---|
+| POST | `/api/auth/login` | `{account,password}` | `{token,user}` |
+| GET | `/api/topics?cat=&diff=&q=` | – | `[{id,title,cat,diff}]` |
+| POST | `/api/topics/audit` | `{title}` | `{result:PASS\|REJECT\|NEED_EDIT, reason, suggestions[]}` |
+| **POST** | **`/api/matches`** | **`{topicId\|title, seats[], mode}`** | **`{matchId}` 单人点题即开（自定义题先审）** |
+| POST | `/api/rooms` | `{topicId\|random, mode, visibility, password?}` | `{code}` |
+| GET | `/api/rooms` | – | 公开房间列表 |
+| GET | `/api/rooms/{code}` | – | 房间详情（设置/8 席/准备/房主） |
+| POST | `/api/rooms/{code}/join` | `{password?}` | `{seatKey}` |
+| POST | `/api/rooms/{code}/leave` | – | `204` |
+| POST | `/api/rooms/{code}/seat` | `{seatKey}` | `{seatKey}` |
+| POST | `/api/rooms/{code}/ready` | `{ready}` | `{ready}` |
+| POST | `/api/rooms/{code}/settings` | `{topicId?,mode?,visibility?,password?,allowSpectate?}` | `{settings}` |
+| POST | `/api/rooms/{code}/start` | – | `{matchId}` |
+| POST | `/api/rooms/{code}/kick` | `{userId}` | `204` |
+| POST | `/api/rooms/{code}/transfer` | `{userId}` | `204` |
+| POST | `/api/rooms/{code}/move` | `{userId,seatKey}` | `{seatKey}` |
+| POST | `/api/rooms/{code}/chat` | `{text}` | `{messageId}` |
+| GET | `/api/rooms/{code}/events` | – | SSE（房间阶段） |
+| GET | `/api/matches/{id}` | – | 对局详情 |
+| POST | `/api/matches/{id}/turns` | `{content,inputType:kb\|voice}` | `{turnId,nextSeat}` |
+| GET | `/api/matches/{id}/events` | – | SSE（对局阶段） |
+| POST | `/api/matches/{id}/catch` | `{turnId,type}` | `{ok,delta}` |
+| POST | `/api/matches/{id}/finish` | – | `FREE` 模式结束并评分 |
+| GET | `/api/matches/{id}/review` | – | 复盘 |
+| POST | `/api/asr` | `multipart 音频` | `{text}` |
+| GET | `/api/records?q=&type=` | – | 记录列表 |
+| GET | `/api/records/{id}` | – | 单条记录 |
+| DELETE | `/api/records/{id}` | – | 删除记录 |
+
+错误码：`ROOM_FULL` `WRONG_PASSWORD` `NOT_YOUR_TURN` `NOT_HOST` `NOT_READY` `ROOM_STARTED` `ROOM_NOT_FOUND` `SEAT_TAKEN` `ASR_FAILED`。
+
+---
+
+## 8. 数据表
+
+```
+user(id,name,created_at)                       -- 无 tier/段位
+topic(id,title,cat,diff,heat,source,moderation_status,moderation_reason,moderation_at,title_hash)
+      -- source: official|custom；moderation_status: PASS|REJECT|NEED_EDIT|pending
+room(id,code,topic_id,mode,visibility,password,allow_spectate,host_id,status,created_at)
+seat(room_id,seat_key,side,role,occupant_type,user_id,ai_profile_id,ready)
+room_chat(id,room_id,user_id,text,created_at)
+match(id,room_id,topic_id,mode,status,current_step,current_seat,deadline_at,started_at,finished_at,
+      my_seats,drill)      -- my_seats: 玩家占的席位集合（如 "A1,A2"）；drill: 跨阵营自辩标记
+turn(id,match_id,step,seat_key,seg,seq,content,input_type,status,flaw_type,created_at)
+team_msg(id,match_id,side,user_id,text,created_at)
+score(id,match_id,user_id,matter,method,manner,collab,catch,role_hit,created_at)
+catch(id,turn_id,user_id,claimed,truth,ok)
+review(id,match_id,user_id,radar_json,weak_json,chain_json)
+record(id,user_id,match_id,topic_title,seat_key,side,opponent_type,duration_sec,turns,total_score,result,created_at)
+ai_profile(id,name,style,weakness,flaw_type,tone)
+evidence(id,keyword,domain,dimension,content,source,created_at)   -- 论据库（≥500 条，必须带出处）
+drill_record(id,user_id,drill_type,topic_id,score,weak_tags,created_at)
+argument(id,match_id,side,parent_id,claim,evidence_ids,created_at) -- 论点树（P2，表先留）
+```
+
+- **R-DATA-01** `turn` 只追加不改写（超时落 `TIMEOUT`）。
+- **R-DATA-02** `seat.ready` MUST 与席位同表。
+- **R-DATA-03** 删除 `record` MUST NOT 删除 `match` / `review`。
+
+---
+
+## 9. 参数
+
+```yaml
+siyige:
+  room:
+    maxSeats: 8
+    minRealPlayers: 1
+    hostReadyImplicit: true
+    idleCloseMinutes: 30
+    codeAlphabet: ABCDEFGHJKLMNPQRSTUVWXYZ23456789
+  flow:
+    prepareSeconds: 10
+    steps:
+      - {seg: 立论,   seat: A1, sec: 180}
+      - {seg: 立论,   seat: B1, sec: 180}
+      - {seg: 驳立论, seat: A2, sec: 120}
+      - {seg: 驳立论, seat: B2, sec: 120}
+      - {seg: 质询,   seat: A3, sec: 120}
+      - {seg: 质询,   seat: B3, sec: 120}
+      - {seg: 自由辩, seat: A2, sec: 120}
+      - {seg: 自由辩, seat: B2, sec: 120}
+      - {seg: 自由辩, seat: A3, sec: 120}
+      - {seg: 自由辩, seat: B3, sec: 120}
+      - {seg: 总结,   seat: B4, sec: 180}
+      - {seg: 总结,   seat: A4, sec: 180}
+  pace:
+    aiThinkMs: [1800, 3200]
+    aiTypingCps: [8, 12]
+    sentencePauseMs: [300, 500]
+    postAiTurnMs: 2500
+    freeDebateGrabWindowMs: 5000
+    maxConsecutiveAiTurns: 2
+  voice:
+    maxSeconds: 90
+    firstTextLatencyMs: 1500
+    requiresConfirm: true
+    persistAudio: false
+    language: zh-CN
+  score: {matter: 0.4, method: 0.35, manner: 0.25}
+```
+
+---
+
+## 10. 验收
+
+| ID | 动作 | 通过标准 |
+|---|---|---|
+| AC-01 | 建房 | 8 席、房间号、房主徽标、设置入口齐备 |
+| AC-02 | 私密房 + 密码 | 不进公开列表，凭码 + 密码才进 |
+| AC-03 | 真人未准备 | 开始按钮禁用，提示「还有 N 人未准备」 |
+| AC-04 | **单人建房直接开始** | 7 席 1 秒内补 AI，走完 12 步出复盘 |
+| AC-05 | 房主点他人座位 | 出现「移到对面 / 踢出 / 转让房主」 |
+| AC-06 | 开局 | 先播 10 秒准备期，再进入立论 A1 |
+| AC-07 | AI 回合 | 先「正在思考」1.8–3.2s，再逐字流；说完静止 2.5s |
+| AC-08 | 非当前席位提交 | 409 `NOT_YOUR_TURN`，库无记录 |
+| AC-09 | 玩家超时 | 落 `TIMEOUT`，自动进下一环节 |
+| AC-10 | 自由辩连打 3 轮 | AI 不连说 3 次，第 3 次前出现抢话窗口 |
+| AC-11 | 点录音说一句话 | 边说边出字，可编辑；点发送才提交 |
+| AC-12 | 拒绝麦克风权限 | 回退键盘输入，提示清晰，回合不卡 |
+| AC-13 | 打完 12 步 | 进 REVIEW → 出复盘 → 生成一条辩论记录 |
+| AC-14 | 记录页 | 只有场次/时长/平均分，**无段位无排名** |
+| AC-15 | 断网 10 秒 | 重连补齐事件，状态一致 |
+| AC-16 | 刷新页面 | 回到同一房间/同一对局同一位置 |
+| AC-17 | 大厅首屏 | 「快速开始」（单人 1v7AI）为主按钮，并显示预计时长与发言次数 |
+| AC-18 | 换座菜单 | 每个席位标出「发言 N 次 / 累计 X 秒」 |
+| AC-19 | 选 `SPRINT` 模式开局 | 只有 8 步，约 13 分钟打完 |
+| AC-20 | 点「跳过」AI 发言 | 该回合立即结束，史册留 30 字摘要，后续流程正常 |
+| AC-21 | 点 1.5× 播放 AI 发言 | 速度加快，自身回合不受影响 |
+| AC-22 | 看任意一条评分 | 每个维度都有原句引用 + 改进句式，无无法归因的扣分 |
+| AC-23 | 语音说完点「一键规整」 | 文本被整理成论辩结构，可编辑、可撤销，确认后才发送 |
+| AC-24 | 打开复盘 | 能看到「口语 vs 规整」并排对比 |
+| AC-25 | 打开记录页 | 有雷达趋势、连续天数、漏洞统计，**仍无任何排名** |
+| AC-26 | **单人练习入口** | 点辩题卡直接开打：不建房、不占席、不准备，10 秒准备期 |
+| AC-27 | 单人**同时选一辩+二辩** | 这两席轮到你就等你输入，其余 6 席 AI 自动发言；本场你发言 3 次 |
+| AC-28 | 第二次点同一辩题 | **不再弹选择面板**，复用上次席位直接开局（手感是"点一下就开始"） |
+| AC-29 | 单人中途刷新 | 重新 GET 一次即恢复进度与当前席位，无需事件补发 |
+| AC-30 | 结算页 | 有「换席位重打」「同题重打」「只练这一幕」三个按钮 |
+| AC-31 | 同时选中正反方 | 标记为自辩演练，**不判胜负**，只出个人评分 |
+| AC-32 | 自己填一个正常辩题 | 3 秒内审核通过，直接进选位置 |
+| AC-33 | 填「1+1=2 是否正确」 | 返回 REJECT 或 NEED_EDIT，说明不可辩，并给改写示例 |
+| AC-34 | 填含人身攻击/违规词 | REJECT，阻止开局，理由明确 |
+| AC-35 | 故意让审核接口超时 | 3 秒内降级为规则审核放行，标 pending，不卡住用户 |
+| AC-36 | 同一个自定义题再审一次 | 命中缓存，不再调用模型（日志可见） |
+
+---
+
+## 11. 禁止事项
+
+1. MUST NOT 出现段位、等级、积分、排行榜。
+2. MUST NOT 在玩家发言/录音期间推 AI 消息。
+3. MUST NOT 一次性返回 AI 整段发言。
+4. MUST NOT 把准备状态做成前端假状态。
+5. MUST NOT 允许非房主开局。
+6. MUST NOT 在 `RUNNING` 后改顺序、席位或设置。
+7. MUST NOT 因空位卡住开局（必须自动补 AI）。
+8. MUST NOT 语音识别结果自动提交。
+9. MUST NOT 默认保存用户音频。
+10. MUST NOT 做 1v1 / 2v2 模式（只做 4v4）。
+11. MUST NOT 输出无法归因的分数（见 R-SCORE-03）。
+12. MUST NOT 在「跳过 AI 发言」时丢失辩论史（必须留摘要）。
+
+---
+
+## 12. 里程碑（**先单人，后房间**）
+
+| # | 范围 | 需求 | 天 | 依赖 |
+|---|---|---|---|---|
+| M1 | 骨架 + 登录 + 辩题库 + 大厅（单人入口为主） | R-ROOM-01、R-SOLO-01 | 2 | – |
+| M3 | 赛制引擎：12 步 + 三档模式 + 发言权 + 计时 + SSE | R-FLOW-01~08、R-TRAIN-01~03 | 3.5 | M1 |
+| M4 | AI 席位 + 流式 + 节奏 + **跳过/加速** | R-PACE-01~08、R-FLOW-09~11 | 2 | M3 |
+| M6 | **可解释评分** + 抓漏 + 复盘 | R-SCORE-01~04、R-REC-07~08 | 2.5 | M4 |
+| **★ 单人 MVP 达成（约 10 天）** | 一个人能对 7 个 AI 打完一场并拿到复盘 | R-SOLO-01~08 | – | – |
+| M2 | 房间：8 席 / 座位卡 / 准备 / 房主操作 / 设置 / 邀请 / 聊天 | R-ROOM-04、R-SET-01~03、R-SEAT-01~07、R-READY-01~08、R-JOIN-01~04、R-CHAT-01 | 3.5 | 单人 MVP |
+| M5 | **语音转文字 + 一键规整** | R-VOICE-01~12 | 2.5 | M1（可与 M2 并行） |
+| M7 | **记录与动机** + 队内频道 + 联调 + 答辩材料 | R-REC-01~06、R-MOT-01~03、R-TEAM-01~03、AC-01~25 | 2.5 | 全部 |
+
+**顺序说明**：
+1. **单人先于房间**。单人只需 DB + SSE，房间要额外引入 WebSocket、Redis 快照、分布式锁，且房间的准备/踢人/转让在单人里根本不触发——先做房间等于先写一批跑不到的分支。
+2. **M5 语音可与 M2 并行**，因为单人模式下语音只在本地调浏览器 API，不依赖房间。
+3. M2 的房间层 MUST 复用 M3 的 `TurnEngine`，不得另写一套推进逻辑。
+
+---
+
+## 13. P2（有工时再做，别提前做）
+
+| 项 | 为什么后置 |
+|---|---|
+| 房主踢人 | 4v4 真人难凑齐，90% 场次不触发 |
+| 转让房主 | 同上，房间多为一两人 + AI |
+| 观战 | 同上；且需要额外做延迟推送防作弊 |
+| 跨阵营换边 | 只有在真人对局里才有意义，且可用“解散重开”替代 |
+| 房间聊天 | 单人练习用不到；多人房是低频场景 |
+
+> 判断标准：**能提升留存/训练效果的功能优先，能提升“管理感”的功能后置。**
+
+---
+
+## 14. 技术实现
+
+> 本章与《思弈阁·项目计划书（技术方案分册）》一致；技术栈按作者已交付项目校准（GitHub `skwdng`：`xiaoc-kuaisong` = Spring Boot + MyBatis + MySQL + Redis + 小程序/Web；`123c` = Java Feed 系统）。
+
+### 14.1 技术选型
+
+> **不选理由**（答辩必被问，采纳自计划书 §2.7）：
+> - **不引向量库**（Milvus/pgvector）：论据语料万级，ngram 精确命中足够，省一套运维。
+> - **不用 JPA**：周榜、画像聚合这类统计用 JPA 会写成一堆 Criteria，不如直接 SQL。
+> - **不用 React**：JSON/JSX 对 Java 后端出身的团队认知负担更大。
+> - **不全程 WebSocket**：LLM 流式是单向，SSE 天然适配且浏览器自带重连；房间双向才用 WS。
+
+| 层 | 技术 | 版本 | 用途 |
+|---|---|---|---|
+| 运行环境 | Java（LTS） | 17 | 虚拟线程、record 可用 |
+| 应用框架 | Spring Boot | 3.2.x | 自动装配、起步依赖 |
+| 常规接口 | Spring Web MVC | 6.1.x | 同步 CRUD（辩题/记录/房间） |
+| 流式输出 | Spring WebFlux | 6.1.x | AI 发言 SSE（`Flux<ServerSentEvent>`） |
+| 房间事件 | Spring WebSocket + STOMP | 6.1.x | 入座、开局、轮转、发言广播 |
+| 鉴权 | Spring Security + JWT | 6.2.x | 无状态鉴权 |
+| ORM | MyBatis-Plus | 3.5.x | 复杂统计直接写 SQL |
+| 数据库 | MySQL | 8.0 | InnoDB + utf8mb4 + ngram 全文索引 |
+| 缓存/状态 | Redis | 7.x | 房间快照、发言令牌、限流、榜单 |
+| AI 框架 | Spring AI | 1.x | `ChatClient.stream()` / `.entity()` / `@Tool` |
+| 模型 | DeepSeek API（OpenAI 兼容） | – | deepseek-chat |
+| 前端 | Vue 3.4 + Vite 5 + Arco Design Vue + Pinia + ECharts | – | 页面/图表 |
+| SSE 客户端 | `@microsoft/fetch-event-source` | 2.x | 原生 EventSource 不能带 header |
+| 部署 | Docker Compose + Nginx | – | 一键起 MySQL/Redis/App/Nginx |
+
+### 14.2 工程结构
+
+```
+com.siyige
+├─ api/            Controller、DTO、统一响应、异常处理
+├─ auth/           JWT 过滤器、UserDetails
+├─ room/           RoomService、SeatService、RoomSnapshot（Redis）
+├─ debate/         Format（赛制常量）、TurnEngine（纯函数）、TurnService、TimerService
+├─ ai/             DebaterAgent、JudgeAgent、PromptTemplates、SafeJson（兜底解析）
+├─ voice/          AsrController、AsrClient（浏览器不支持的兜底）
+├─ score/          ScorePipeline、DiagnosisService（五维聚合）
+├─ record/         RecordService
+├─ domain/         entity + mapper（MyBatis-Plus）
+└─ common/         RedisLock、RateLimiter、Result
+```
+
+### 14.3 关键实现条款
+
+- **R-TECH-01 状态机纯函数化**：`Format.STEPS` 为不可变列表，`TurnEngine.next(state)` 无副作用、无 IO，可直接单测；单人练习与房间共用同一个推进器（对齐计划书亮点四）。
+- **R-TECH-02 房间权威 + 快照**：房间状态以服务端内存为权威，每次变更写 `room:{id}` 快照（TTL 2h，结束即删）；客户端重连带 `lastEventId`，服务端比对补发缺失事件（计划书亮点六）。
+- **R-TECH-03 发言权仲裁**：提交前对 `turn:{matchId}:{step}` 做 `SETNX`（TTL = 该回合时长），成功者获得写入权；同时校验 `seatKey == currentSeat`，双保险。
+- **R-TECH-04 计时器**：以 `match.deadline_at` 为唯一权威，不用内存 Timer 作真相；后台每 5s 扫描 `status=RUNNING AND deadline_at < now()` 推进超时回合。服务重启不丢计时。
+- **R-TECH-05 双通道分工**：SSE 只承载单向流（AI 发言增量、点评卡片分片）；WS/STOMP 承载双向房间事件。两条链路鉴权/限流/日志独立，互不牵连。
+- **R-TECH-06 三段式异步推送**：① 主回复 `ChatClient.stream()` 逐字（首字 ≤1.5s）→ ② 点评异步结构化抽取 → ③ 论点抽取最低优先级。任一失败不回滚其它链路。
+- **R-TECH-07 结构化输出四级兜底**：Schema 强约束 → 本地修复（剥 ```json 围栏/补括号/去尾逗号）→ 把解析错误回灌模型重试 → 返回 `degraded=true` 的默认对象。**评分卡片永远渲染得出来**。
+- **R-TECH-08 论据检索**：`@Tool searchEvidence(keyword, dimension, topK)` + MySQL ngram 全文索引；返回必须带出处，前端可点开核对，防止模型编数字。
+- **R-TECH-09 语音双路**：主路浏览器 `SpeechRecognition(zh-CN)`；不支持/失败时前端上传音频到 `/api/asr`，服务端转第三方 ASR 返回文本。**音频默认不落盘**（R-VOICE-06）。
+- **R-TECH-10 评分管线**：规则分（长度、结构连接词、论据词命中）占 40%，LLM 占 60%；LLM 输出缺 `evidence` 或 `improve` 字段时，该维度回落规则分并标 `degraded`（对应 R-SCORE-03）。
+- **R-TECH-11 五维画像聚合**：逐轮三维分 + 漏洞标签 → 赛后按维度加权聚合为五维（立论/论证/表达/应变/论据），写入 `diagnosis`；「应变」由质询/自由辩环节表现单独计算。
+- **R-TECH-12 记录与删除语义**：`match` 结束事务内写 `record`；删除 `record` 只删记录行，不删 `match`/`review`（R-DATA-03）。
+- **R-TECH-15 单人模式的技术裁剪**：`SOLO` 只走「MVC 提交 + WebFlux SSE 流 + DB 状态」三件套，MUST NOT 引入 WebSocket、`room:{code}` 快照、分布式锁。玩家席位是**集合**（`match.my_seats`，如 `"A1,A2"`），推进判断为 `currentSeat ∈ mySeats`；`TurnEngine` 与 `Format` 由单人先写、房间后复用，**房间层 MUST NOT 复制粘贴出第二套推进逻辑**。
+- **R-TECH-16 论据检索（采纳自计划书亮点五）**：`@Tool searchEvidence(keyword, dimension, topK)` + `getCounterExample(claim)`，底层 MySQL ngram 全文索引；返回 MUST 带 `source` 出处，AI 发言中引用的数字 MUST 能点开核对；论据库 MUST ≥500 条并按领域/维度打标。
+- **R-TECH-17 点赞与评分隔离（采纳自计划书创新点四）**：点赞/热度 MUST NOT 进入评分计算链路，接口层、聚合层、测试用例三处同时约束；即使观战功能上线，评分也必须只由模型依据发言内容产出。
+- **R-TECH-18 提示词人格分离（采纳自计划书 §2.3）**：辩手 / 评委 / 教练三套提示词模板 MUST 分文件维护，各自独立版本号；改一个 MUST NOT 影响另外两个。辩手按 `ai_profile`（风格+弱点+语气）注入，评委只读全场不参与辩论。
+- **R-TECH-19 上下文滑窗（采纳自计划书风险表）**：`ChatMemory` MUST 只保留最近 6 轮全文，更早轮次压成摘要（≤120 字/轮）；MUST NOT 把全场 12 步原文塞进每次调用（单场成本会翻倍）。
+- **R-TECH-20 流式取消传播（采纳自计划书亮点一技术要点）**：前端关闭页面或点「跳过」时，下游 LLM 请求 MUST 被取消（WebFlux `Flux` 取消信号向上传播），MUST NOT 出现“用户已离开、服务端还在烧 token”。
+
+### 14.4 通道分工（采纳自计划书亮点二）
+
+| 维度 | SSE | WebSocket + STOMP |
+|---|---|---|
+| 承载 | AI 发言流式、点评分片 | 入座、开局、轮转、发言广播 |
+| 方向 | 服务端 → 客户端 | 双向 |
+| 生命周期 | 一次发言一次连接 | 房间存续期间长连接 |
+| 断线 | 浏览器自动重连 + `Last-Event-ID` | 客户端重连 + 服务端快照 |
+| 端点 | `/api/matches/{id}/events` | `/ws/room/{code}` |
+| 何时需要 | **单人模式只用这个** | 只有房间模式才升级 |
+
+> 两条链路的鉴权、限流、日志 MUST 独立，故障不得互相牵连。
+
+### 14.5 Redis 键设计
+
+| Key | 类型 | TTL | 用途 |
+|---|---|---|---|
+| `room:{code}` | Hash | 2h | 房间快照：席位、当前 step、host |
+| `turn:{matchId}:{step}` | String(SETNX) | 回合时长 | 发言权令牌 |
+| `lock:room:{code}` | String | 3s | 房间写操作串行化 |
+| `rl:llm:{userId}` | String(INCR) | 60s | LLM 调用限流 |
+| `topic:hot` | ZSet | 10min | 辩题热度榜（只做曝光，不做排名） |
+
+### 14.6 部署
+
+```yaml
+# docker-compose 关键服务
+mysql:   { image: mysql:8.0,  volumes: [./data/mysql:/var/lib/mysql] }
+redis:   { image: redis:7 }
+app:     { build: ., depends_on: [mysql, redis], ports: ["8080:8080"] }
+nginx:   { image: nginx:alpine, ports: ["80:80"] }
+```
+
+```nginx
+# SSE 必须关缓冲，否则一定粘包/延迟
+location /api/ {
+  proxy_http_version 1.1;
+  proxy_set_header Connection '';
+  proxy_buffering off;
+  proxy_cache off;
+  chunked_transfer_encoding off;
+  add_header X-Accel-Buffering no;
+}
+```
+
+- **R-TECH-13** 服务器 MUST ≥ 2C4G（8 席 × 多房间 + LLM 转发）。
+- **R-TECH-14** `Actuator /actuator/health` MUST 暴露给 Nginx 探活。
+
+### 14.7 测试与评测
+
+| 类型 | 范围 | 目标 |
+|---|---|---|
+| 单元测试 | `TurnEngine`（12 步推进）、席位映射、超时推进、`my_seats` 集合判定 | 业务层覆盖率 ≥60% |
+| 接口测试 | MockMvc：点题即开/提交/超时/抓漏/结算 | 200 与 409 分支全覆盖 |
+| AI 评测集 | 20 题 × 4 段人工发言（优秀/中等/较差三档），两名辩手给基准分 | **合法率 ≥99%、完整率 ≥98%、分数漂移 σ ≤5、与人排序一致性 ≥0.75、样本 ≥80 条** |
+| 压测 | 8 席 × 10 房间并发 | 席位广播延迟 ≤300ms、首字延迟 ≤1.5s |
+
+> 评测集 MUST 在每次提示词改动后跑一次，作为“这次改动变好还是变坏”的判据（采纳自计划书亮点七）。
+
+### 14.8 里程碑与计划书四周的映射
+
+| 计划书 | 本规格 | 说明 |
+|---|---|---|
+| 第 1 周 地基 | M1 | 骨架/登录/辩题库/大厅 |
+| 第 2 周 AI 对辩 | M2 + M3 + M4 | 房间与赛制引擎先于 AI（否则 AI 无处接入） |
+| 第 3 周 4v4 与观战 | M5 + M6 | 语音与评分；观战降 P2 |
+| 第 4 周 画像与收尾 | M7 | 记录、动机、联调、答辩材料 |
+
+---
+
+## 15. 与《项目计划书》的冲突（**先改计划书，否则两份材料自相矛盾**）
+
+| # | 计划书写的 | 本规格（以本文为准） | 处理建议 |
+|---|---|---|---|
+| 1 | §1.4 范围外：**语音输入与语音识别** | **范围内**（R-VOICE-01~12） | 计划书该行改为“范围内”，并把语音列为创新点之一 |
+| 2 | 数据模型 `user` 含**段位、积分** | 已删除，改 `record` 辩论记录 | 删除该两字段；`diagnosis` 保留 |
+| 3 | 赛制表 9 环节 12 步（立论/驳立论/质询/自由辩/总结） | 已按计划书对齐（§3.1） | 上一版 SPEC 的“应答”环节作废，勿实现 |
+| 4 | 逐轮三维分 + 五维画像 | 一致（§6.2 已补五维） | 保留 |
+| 5 | P2 含“排行榜” | **排行榜删除**（R-REC-03 禁止排名） | 计划书 P2 行删掉排行榜，只留观战/社区 |
+| 6 | 观战在范围内 | 降为 P2 | 计划书可在结题材料中说明“延后” |
+| 7 | 前端 `@microsoft/fetch-event-source` | 一致 | – |
+
+> 判断：**计划书是给评审看的，本规格是给实现看的。两者冲突时，先改计划书那一行，再写代码。**
+
+---
+
+## 16. 风险与应对（采纳自计划书 §7）
+
+| 风险 | 可能性 | 影响 | 应对 |
+|---|---|---|---|
+| 前端不熟导致滞后 | 高 | 高 | 第 1 周先用 Arco 模板跑通一个完整页面（列表+表单+弹窗），套路固化后再批量复制；组件从简 |
+| 模型输出格式不稳 | 中 | 高 | 结构化输出 + 四级兜底（R-TECH-07）；每版提示词跑一次评测集，用数字判好坏 |
+| 4v4 并发状态错乱 | 中 | 中 | **单人先行**消掉大部分并发面；房间层服务端权威 + 状态机纯函数推进，单机内存 + Redis 快照，不做分布式一致性 |
+| SSE 被代理缓冲 | 中 | 中 | Nginx 显式 `proxy_buffering off` + `X-Accel-Buffering: no`（§14.5） |
+| 上下文超长推高成本 | 中 | 中 | `ChatMemory` 按轮次滑窗：最近 6 轮全文 + 更早轮次摘要 |
+| 语音识别在非 Chrome 不可用 | 高 | 中 | 浏览器 `SpeechRecognition` 为主路，`/api/asr` 兜底（R-VOICE-10），失败回退键盘 |
+| 语音识别错字影响评分 | 中 | 中 | 双文本 + 一键规整（R-VOICE-11/12），提交前可改可撤销 |
+| 工期不足 | 高 | 高 | 按 §13 的 P2 顺序削减；P2 保留界面与数据不做深度交互 |
+
+### 16.1 削减优先级（合并计划书 P0/P1/P2）
+
+| 级别 | 功能 | 可削减程度 |
+|---|---|---|
+| **P0 不可削** | 赛制引擎 + 发言权 + AI 流式 + 可解释评分 | 削了项目不成立 |
+| **P0 不可削** | 单人点题即开 + 多选辩位 | 这是主路径，房间是增量 |
+| P1 应做 | 语音转文字、辩论记录、动机三件套 | 语音可缩为“仅 Chrome”，记录可缩为列表 |
+| P1 应做 | AI 评测集 | 可缩为 10 题 |
+| P2 可选 | 房间、观战、社区、论点树、专练题库 | 保留界面与表结构，不做深度交互 |
+
+---
+
+## 17. 论点树与弱项专练（P2 实现，**表与接口现在就要定死**）
+
+> 这两块是计划书“创新点三”闭环的落点：点评 → 画像 → 专练。本期不做交互，但**数据结构和接口必须先定**，否则后期加要动主表。
+
+### 17.1 论点树（argument）
+
+- **R-ARG-01** 每个 `match` MUST 维护一棵论点树：节点为 `{side, parent_id, claim, evidence_ids}`，根节点是双方的一辩立论。
+- **R-ARG-02** 每次发言后 MUST 异步抽取 0–3 个论点节点（失败不影响主流程，R-TECH-06 第三条链路）。
+- **R-ARG-03** 节点之间 MUST 能表达「攻击」关系（A 方节点被 B 方节点反驳），前端据此画交锋虚线。
+- **R-ARG-04** 本期 MUST NOT 做树的可视化渲染；只要求 `GET /api/matches/{id}/arguments` 返回可绘制的结构。
+
+### 17.2 弱项专练（drill）
+
+- **R-DRILL-01** 复盘里的**每一条薄弱项 MUST 挂一个专练入口**（`drill_type` + 对应 `topic_id`），点击即创建一场 `DRILL` 模式对局，只练该环节。
+- **R-DRILL-02** 专练 MUST 连续 ≥3 轮同一环节（如连续质询 3 个不同 AI 对手），每轮独立评分，取最好一次进 `drill_record`。
+- **R-DRILL-03** `drill_record` MUST 记录：类型、题、分数、命中的薄弱标签，用于画像趋势（R-MOT-01）。
+- **R-DRILL-04** 专练结果 MUST NOT 生成完整 `record`（避免刷场次），只记一条 `drill_record`。
+
+### 17.3 五维画像聚合（衔接 §6.2）
+
+| 维度 | 来源 |
+|---|---|
+| 立论 | 立论环节的三维分 + 框架完整度 |
+| 论证 | 全环节的论证分 + 论据引用次数（`evidence` 命中） |
+| 表达 | 表达分 + 口语规整差距（R-VOICE-12） |
+| 应变 | 质询 / 自由辩环节的表现 + 被质询后的回应质量 |
+| 论据 | 引用数 × 出处可核查率 |

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>社区 · 思弈阁</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--ink:#1A1D24;--sub:#6B7280;--line:#E6E3DC;--bg:#F6F4EF;--blue:#2F5BEA;--blue-w:#EDF1FE;--org:#C2671E}
+  body{font:15px/1.7 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink)}
+  button{font:inherit;border:none;cursor:pointer;background:none;color:inherit}
+  input,textarea{font:inherit;color:inherit}
+  .top{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:12px 18px;display:flex;align-items:center;gap:12px;z-index:10}
+  .top b{font-size:16px}
+  .top a{margin-left:auto;color:var(--blue);font-size:13.5px;text-decoration:none}
+  .wrap{max-width:760px;margin:0 auto;padding:16px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+  .btn{background:var(--blue);color:#fff;border-radius:9px;padding:9px 16px;font-size:14px}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:#4A5568}
+  input.t,textarea.t{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#FCFBF8;outline:none}
+  input.t:focus,textarea.t:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,91,234,.1)}
+  textarea.t{min-height:90px;resize:vertical}
+  .post{border-bottom:1px solid #F3F1EB;padding:14px 0;cursor:pointer}
+  .post:last-child{border-bottom:none}
+  .post h3{font-size:15.5px;margin-bottom:6px}
+  .post p{font-size:13.5px;color:#4A5568;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .meta{font-size:11.5px;color:#A8ADB8;margin-top:8px;display:flex;gap:12px}
+  .tag{font-size:11px;padding:2px 8px;border-radius:5px;background:var(--blue-w);color:var(--blue)}
+  .empty{color:#A8ADB8;font-size:13px;text-align:center;padding:24px}
+  .cmt{background:#FBFAF7;border-radius:9px;padding:10px 12px;margin-top:8px;font-size:13.5px}
+  .cmt .who{font-size:11.5px;color:#A8ADB8;margin-bottom:2px}
+  @media (max-width:600px){.wrap{padding:12px}.card{padding:14px}}
+</style>
+</head>
+<body>
+<div class="top">
+  <b>社区</b>
+  <span class="tag">独立模块</span>
+  <a href="/">← 回辩论</a>
+</div>
+<div class="wrap">
+  <div class="card">
+    <b style="font-size:14px">发个帖</b>
+    <div style="margin-top:10px"><input id="title" class="t" placeholder="标题（例如：关于「取消期末」这场我怎么立论）"></div>
+    <div style="margin:10px 0"><textarea id="content" class="t" placeholder="正文… 可以说你的立论思路、被 AI 打崩的地方、想找人辩的题"></textarea></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="name" class="t" style="width:140px" placeholder="昵称" value="演示用户">
+      <span id="hint" style="font-size:12px;color:#A8ADB8;flex:1"></span>
+      <button class="btn" onclick="createPost()">发布</button>
+    </div>
+  </div>
+  <div class="card" id="list"><div class="empty">加载中…</div></div>
+</div>
+
+<script>
+const UID = localStorage.getItem('sy_uid') || (() => { const u = 'g' + Math.random().toString(36).slice(2, 8); localStorage.setItem('sy_uid', u); return u; })();
+const API = location.pathname.indexOf('/siyige') === 0 ? '/siyige' : '';
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $ = s => document.querySelector(s);
+
+async function api(path, opts) {
+  const r = await fetch(API + path, {
+    method: (opts && opts.method) || 'GET',
+    headers: opts && opts.body ? {'Content-Type': 'application/json'} : {},
+    body: opts && opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  const t = await r.text();
+  if (!r.ok) throw new Error(t || ('HTTP ' + r.status));
+  return t ? JSON.parse(t) : null;
+}
+
+async function loadList() {
+  try {
+    const d = await api('/api/community/posts?page=0&size=20');
+    if (!d.list.length) { $('#list').innerHTML = '<div class="empty">还没有帖子，发第一个</div>'; return; }
+    $('#list').innerHTML = d.list.map(p => `
+      <div class="post" onclick="openPost(${p.id})">
+        <h3>${esc(p.title)}</h3>
+        <p>${esc(p.content)}</p>
+        <div class="meta"><span>${esc(p.user_name || '匿名')}</span><span>👍 ${p.likes || 0}</span><span>#${p.id}</span></div>
+      </div>`).join('');
+  } catch (e) {
+    $('#list').innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>';
+  }
+}
+
+async function createPost() {
+  const title = $('#title').value.trim();
+  const content = $('#content').value.trim();
+  if (!title) { $('#hint').textContent = '先写标题'; return; }
+  if (content.length < 5) { $('#hint').textContent = '正文太短'; return; }
+  try {
+    await api('/api/community/posts', {method:'POST', body:{title, content, userId:UID, userName:$('#name').value || '匿名'}});
+    $('#hint').textContent = '已发布';
+    $('#title').value = ''; $('#content').value = '';
+    loadList();
+  } catch (e) { $('#hint').textContent = '发布失败：' + e.message; }
+}
+
+async function openPost(id) {
+  try {
+    const d = await api('/api/community/posts/' + id);
+    const p = d.post;
+    $('#list').innerHTML = `
+      <div style="margin-bottom:10px"><button class="btn ghost" onclick="loadList()">← 返回列表</button></div>
+      <h2 style="font-size:17px;margin-bottom:8px">${esc(p.title)}</h2>
+      <div class="meta" style="margin-bottom:12px"><span>${esc(p.user_name || '匿名')}</span><span>#${p.id}</span></div>
+      <div style="font-size:14.5px;line-height:1.85;white-space:pre-wrap">${esc(p.content)}</div>
+      <div style="margin:14px 0"><button class="btn ghost" onclick="like(${p.id})">👍 赞 ${p.likes || 0}</button></div>
+      <b style="font-size:13.5px">评论 ${d.comments.length}</b>
+      <div>${d.comments.map(c => `<div class="cmt"><div class="who">${esc(c.user_name || '匿名')}</div>${esc(c.content)}</div>`).join('') || '<div class="empty">还没有评论</div>'}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <input id="cmt" class="t" placeholder="说点什么…">
+        <button class="btn" onclick="addComment(${p.id})">评论</button>
+      </div>`;
+  } catch (e) { $('#list').innerHTML = '<div class="empty">打开失败：' + esc(e.message) + '</div>'; }
+}
+
+async function like(id) {
+  await api('/api/community/posts/' + id + '/like', {method:'POST'});
+  openPost(id);
+}
+
+async function addComment(id) {
+  const v = $('#cmt').value.trim();
+  if (!v) return;
+  await api('/api/community/posts/' + id + '/comments', {method:'POST', body:{content:v, userId:UID, userName:$('#name').value || '匿名'}});
+  openPost(id);
+}
+
+loadList();
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+server:
+  port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+spring:
+  web:
+    resources:
+      cache:
+        period: 0
+  application:
+    name: siyige
+  datasource:
+    url: jdbc:h2:mem:siyige;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql,classpath:schema-community.sql
+  mvc:
+    async:
+      request-timeout: 1800000
+  # 默认不连 Redis（用内存 ZSET 实现）；生产加 --spring.profiles.active=redis
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+
+siyige:
+  # 演示用：把真实时长压缩到 1/20，方便看到 12 步推进
+  pace:
+    time-scale: 0.05          # 真实环境设 1.0
+    turn-seconds: 300         # 每个发言环节的时长（秒），300 = 5 分钟
+    ai-think-ms: 700
+    ai-delay-scale: 1.0       # AI 回应间隔 10-15 秒，不随 time-scale 压缩         # AI 回合的“思考”下限（会被 time-scale 缩放）
+  audit:
+    # 关闭时走纯规则审核；打开需要配 llm
+    llm-enabled: false
+  llm:
+    base-url: https://api.deepseek.com/v1
+    api-key: ""
+    model: deepseek-chat
+  hot:
+    decay-per-10min: 0.5
+
+logging:
+  level:
+    com.siyige: INFO
