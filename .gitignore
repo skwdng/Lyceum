@@ -4,7 +4,8 @@ server/target/
 *.class
 
 # ---- 本地配置（含 DeepSeek API Key，绝对不能提交）----
-server/config/
+server/config/*
+!server/config/application.example.yml
 **/application-local.yml
 
 # ---- 与思弈阁无关的目录/文件 ----

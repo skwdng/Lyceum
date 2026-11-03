@@ -1,0 +1,11 @@
+# 本机开发配置示例（复制成 application.yml 再填 key）
+# Spring Boot 会优先读 ./config/application.yml，那个文件不进仓库
+
+siyige:
+  pace:
+    time-scale: 1.0        # 环节时长倍率：1.0 = 真实时长，0.03 = 演示快进
+    ai-delay-scale: 1.0    # AI 回应间隔倍率：1.0 = 等满 10–15 秒
+  llm:
+    base-url: https://api.deepseek.com/v1
+    api-key: ""            # ← 填你自己的 key
+    model: deepseek-chat
