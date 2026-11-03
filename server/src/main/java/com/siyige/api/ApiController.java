@@ -29,13 +29,16 @@ public class ApiController {
     private final com.siyige.service.BriefService brief;
     /** 对局归属校验的唯一入口：owner 或同房间席位成员。控制器不许自己拼 SQL 判归属。 */
     private final MatchAccess matchAccess;
+    private final com.siyige.ai.LlmClient llm;
 
     public ApiController(Store store, AuditService audit, MatchService matches, HotRank hot, SseHub sse,
+                          com.siyige.ai.LlmClient llm,
                          com.siyige.service.EvidenceService evidence,
                          com.siyige.service.BriefService brief, MatchAccess matchAccess) {
         this.store = store; this.audit = audit; this.matches = matches; this.hot = hot; this.sse = sse;
         this.evidence = evidence;
         this.brief = brief;
+        this.llm = llm;
         this.matchAccess = matchAccess;
     }
 
@@ -199,6 +202,20 @@ public class ApiController {
 
     // ---------- 热辩榜 ----------
 
+    /** 模型用量：一场比赛花了多少 token */
+    @GetMapping("/usage")
+    public Map<String, Object> usage() {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("calls", llm.calls());
+        out.put("promptTokens", llm.promptTokensTotal());
+        out.put("completionTokens", llm.completionTokensTotal());
+        out.put("totalTokens", llm.totalTokens());
+        return out;
+    }
+
+    /** 清零用量统计（测一场干净的对局用） */
+    @PostMapping("/usage/reset")
+    public Map<String, Object> resetUsage() { llm.resetUsage(); return Map.of("ok", true); }
     @GetMapping("/hot")
     public Map<String, Object> hot(@RequestParam(defaultValue = "10") int n) {
         List<Map.Entry<String, Double>> list = hot.zrevrangeWithScores(0, n - 1);

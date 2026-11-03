@@ -347,6 +347,7 @@ function updateCountdown(){
 
 async function onTyping(){
   if (!S.matchId || !S.waiting) return;
+  if (S.unlimited) return;   // 单人模式不限时，不该续时（续了反而制造出截止时间）
   const now = Date.now();
   if (S.remaining > 120) return;
   if (S.extendUsed >= 3) return;
@@ -430,9 +431,14 @@ async function submitTurn(){
   const el = $('#inp');
   const text = (el?.value || '').trim();
   if (!text) return toast('说点什么再发');
-  el.value = '';
+
+  // 先发请求，成功了才清空输入框；失败时把用户打的字原样留着
   try {
     await api(`/api/matches/${S.matchId}/turns`, {method:'POST', body:{content:text, inputType:'kb'}});
+    el.value = '';
     await loadMatch(false);
-  } catch (e) { toast('提交失败：' + e.message); }
+  } catch (e) {
+    toast('提交失败，内容已保留：' + e.message);
+    await loadMatch(false);   // 和服务端重新对齐（可能已经推进到下一步）
+  }
 }
