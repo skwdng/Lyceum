@@ -1,4 +1,4 @@
-# 思弈阁 · 实现规格书（AI 可执行版 · v4.1）
+# 思弈阁 · 实现规格书（AI 可执行版 · v4.2）
 
 > 唯一规格来源。逐条对照编号实现，全部满足才能标完成。
 > 关键词：**MUST**（必须）、**MUST NOT**（禁止）、**SHOULD**（推荐）、**可调参数**。
@@ -11,7 +11,7 @@
 2. 第 4 节（AI 节奏）、第 5 节（语音）是硬约束。
 3. 与本文冲突的旧代码/旧文档一律以本文为准。
 
-### 0.1 变更记录（v4.1，**不要复活以下旧设计**）
+### 0.1 变更记录（v4.2，**不要复活以下旧设计**）
 
 | 变更 | 说明 |
 |---|---|
@@ -21,6 +21,8 @@
 | ✅ 保留 4v4 团队层 | 队内频道、协同分、辩位权限 |
 | ✅ 拆分两种入口 | **单人辩论**（选题/自填 → 选位置 → 即开）· **多人辩论**（建房 → 拉人 → 准备 → 开局） |
 | ✅ 新增辩题 AI 审核 | 单人自填题、房间换题都必须过审（§3.7） |
+| ✅ 新增社区（v4.2） | 第 18 节；帖子 / 两层楼中楼 / 点赞 / 浏览去重 / 内容审核，共 40 条 |
+| ✅ 社区只搜标题（v4.2） | 明确收窄为 `title LIKE`，不引入全文索引与向量检索 |
 
 ### 0.2 产品取舍（写规格的人做的判断，不是需求原文）
 
@@ -41,7 +43,8 @@
 | **规格书（主体）** | 单人点题即开、多选辩位、去段位、语音转文字、AI 节奏、可解释评分、三档训练模式、跳过/加速 |
 | **计划书（采纳）** | 三段式异步推送、SSE/WS 语义分工、结构化输出四级兜底、状态机复用、`@Tool` 论据检索、Redis 快照、AI 评测集四指标、点赞与评分隔离、五维画像、提示词人格分离、ChatMemory 滑窗、目标用户与边界、风险表、不选理由 |
 | **计划书（不采纳）** | 语音列为范围外、`user` 段位/积分、排行榜、第 3 周才做房间 |
-| **计划书（降级）** | 论点树、观战、社区 → P2（表结构与接口先定，不做深度交互） |
+| **计划书（降级）** | 论点树、观战 → P2（表结构与接口先定，不做深度交互） |
+| **社区（v4.2 升级）** | 原列 P2，现升级为**正式范围**：完整设计见第 18 节（R-COM-01~40） |
 
 ---
 
@@ -381,12 +384,27 @@ LOBBY ──(房主开始 · 全员就绪)──▶ RUNNING ──(12 步走完)
 | POST | `/api/matches/{id}/catch` | `{turnId,type}` | `{ok,delta}` |
 | POST | `/api/matches/{id}/finish` | – | `FREE` 模式结束并评分 |
 | GET | `/api/matches/{id}/review` | – | 复盘 |
+| GET | `/api/matches/{id}/arguments` | – | 论点树结构（P2 只返回数据，前端暂不渲染，R-ARG-04） |
 | POST | `/api/asr` | `multipart 音频` | `{text}` |
 | GET | `/api/records?q=&type=` | – | 记录列表 |
 | GET | `/api/records/{id}` | – | 单条记录 |
 | DELETE | `/api/records/{id}` | – | 删除记录 |
+| GET | `/api/community/posts?type=&title=&topicId=&range=&sort=&page=&size=` | – | 社区帖子列表（筛选 + 排序 + 分页） |
+| GET | `/api/community/posts/{id}` | – | 帖子详情 |
+| POST | `/api/community/posts` | `{type,title,body,topicId?}` | `{postId}` |
+| PATCH | `/api/community/posts/{id}` | `{type?,title?,body?,topicId?}` | `{postId}` |
+| DELETE | `/api/community/posts/{id}` | – | `204`（软删除） |
+| POST | `/api/community/posts/{id}/view` | – | `204` 浏览计数（服务端去重） |
+| GET | `/api/community/posts/{id}/comments?page=&size=` | – | 楼列表，每楼附前 3 条楼中楼 + 子回复总数 |
+| GET | `/api/community/comments/{rootId}/replies?page=&size=` | – | 某一楼的全部楼中楼 |
+| POST | `/api/community/posts/{id}/comments` | `{body,replyObjectType,replyObjectCommentId?}` | `{commentId}` |
+| DELETE | `/api/community/comments/{id}` | – | `204`（软删除） |
+| POST | `/api/community/posts/{id}/like` | – | `204` 幂等点赞 |
+| DELETE | `/api/community/posts/{id}/like` | – | `204` 取消点赞 |
+| POST | `/api/community/comments/{id}/like` | – | `204` 幂等点赞 |
+| DELETE | `/api/community/comments/{id}/like` | – | `204` 取消点赞 |
 
-错误码：`ROOM_FULL` `WRONG_PASSWORD` `NOT_YOUR_TURN` `NOT_HOST` `NOT_READY` `ROOM_STARTED` `ROOM_NOT_FOUND` `SEAT_TAKEN` `ASR_FAILED`。
+错误码：`ROOM_FULL` `WRONG_PASSWORD` `NOT_YOUR_TURN` `NOT_HOST` `NOT_READY` `ROOM_STARTED` `ROOM_NOT_FOUND` `SEAT_TAKEN` `ASR_FAILED` `CONTENT_BLOCKED` `POST_NOT_FOUND` `COMMENT_NOT_FOUND` `NOT_AUTHOR`。
 
 ---
 
@@ -411,11 +429,31 @@ ai_profile(id,name,style,weakness,flaw_type,tone)
 evidence(id,keyword,domain,dimension,content,source,created_at)   -- 论据库（≥500 条，必须带出处）
 drill_record(id,user_id,drill_type,topic_id,score,weak_tags,created_at)
 argument(id,match_id,side,parent_id,claim,evidence_ids,created_at) -- 论点树（P2，表先留）
+post(id,author_id,type,title,body,excerpt,topic_id,comment_count,like_count,view_count,
+     hot_score,last_comment_at,status,created_at,updated_at)   -- 社区帖子
+post_comment(id,post_id,user_id,root_id,reply_object_type,reply_object_comment_id,
+             reply_object_user_id,body,like_count,status,created_at)   -- 两层：楼 + 楼中楼
+community_like(user_id,target_type,target_id,created_at)   -- 主键 (user_id,target_type,target_id)
 ```
 
 - **R-DATA-01** `turn` 只追加不改写（超时落 `TIMEOUT`）。
 - **R-DATA-02** `seat.ready` MUST 与席位同表。
 - **R-DATA-03** 删除 `record` MUST NOT 删除 `match` / `review`。
+- **R-DATA-04** 社区三表 MUST 建以下索引（缺一不可，四种排序各靠一个索引）：
+  ```
+  post: (status, created_at DESC)          -- NEW
+        (status, comment_count DESC)       -- COMMENTS
+        (status, like_count DESC)          -- LIKES
+        (status, hot_score DESC)           -- HOT
+        (status, type, created_at DESC)    -- 类型筛选
+        (topic_id, status, created_at DESC) -- 辩题筛选
+        (author_id, created_at DESC)
+  post_comment: (post_id, status, root_id, created_at)
+                (root_id, status, created_at)
+                (user_id, created_at DESC)
+  community_like: (target_type, target_id)
+  ```
+- **R-DATA-05** `post_comment.root_id` MUST 由服务端派生后落库，MUST NOT 依赖运行时递归查询父级。
 
 ---
 
@@ -457,7 +495,21 @@ siyige:
     requiresConfirm: true
     persistAudio: false
     language: zh-CN
-  score: {matter: 0.4, method: 0.35, manner: 0.25}
+  score: {matter: 0.4, method: 0.35, manner: 0.25}   # 立论 / 论证 / 表达
+  community:
+    pageSize: 20
+    excerptLength: 200
+    commentMaxLength: 1000
+    commentPreviewCount: 3
+    hotScore: {comment: 4, like: 2, view: 0.05, decay: 1.5}
+    hotRecalcMinutes: 10
+    hotRecalcWindowDays: 7
+    view:
+      dedupDays: 1
+      dedupExpireAt: "02:00"       # 次日凌晨 2 点，必须是 EXPIREAT 不是固定 24h
+      pendingTtlHours: 2           # 定时任务挂掉时的兜底
+      flushMinutes: 5
+      redisTimeoutMs: 50           # 超时即放弃计数，不阻塞详情页
 ```
 
 ---
@@ -502,6 +554,18 @@ siyige:
 | AC-34 | 填含人身攻击/违规词 | REJECT，阻止开局，理由明确 |
 | AC-35 | 故意让审核接口超时 | 3 秒内降级为规则审核放行，标 pending，不卡住用户 |
 | AC-36 | 同一个自定义题再审一次 | 命中缓存，不再调用模型（日志可见） |
+| AC-37 | 发帖 | 类型 / 标题 / 正文齐备后可发布，列表首位出现，**作者处只显示昵称** |
+| AC-38 | 按标题搜 | 只返回标题命中的帖子；正文含该词但标题不含的**不出现** |
+| AC-39 | 组合筛选 | 类型 + 标题 + 关联辩题 + 日期同时生效，结果数随筛选变化 |
+| AC-40 | 四种排序 | NEW / COMMENTS / LIKES / HOT 结果各不相同；HOT 下新帖有机会压过旧帖 |
+| AC-41 | 回复帖子 | 显示为楼，**不显示**「回复了谁」 |
+| AC-42 | 回复楼 | 显示「回复了 xxx」，仍挂在同一楼内 |
+| AC-43 | 回复楼中楼 | 仍挂在同一楼内，显示「回复了 被回复者」，**不出现第三层缩进** |
+| AC-44 | 点赞 | 重复点赞不重复计数；刷新后 `liked` 状态保持 |
+| AC-45 | 浏览去重 | 同一人同一天多次刷新，浏览数只 +1；**次日再看可再 +1**（自然日口径） |
+| AC-46 | 敏感词 | 发布成功；命中词以全角＊逐码点落库，数据库中无原文；摘要同为替换后文本 |
+| AC-47 | 删除帖子 | 列表与详情不可见，其下评论一并不可见 |
+| AC-48 | 浏览回写 | 5 分钟后库中 `view_count` 与实际唯一浏览数一致；Redis 中 `view:pending` 已清空 |
 
 ---
 
@@ -519,6 +583,9 @@ siyige:
 10. MUST NOT 做 1v1 / 2v2 模式（只做 4v4）。
 11. MUST NOT 输出无法归因的分数（见 R-SCORE-03）。
 12. MUST NOT 在「跳过 AI 发言」时丢失辩论史（必须留摘要）。
+13. MUST NOT 在社区展示作者的任何身份标识（段位 / 等级 / 积分 / 场次 / 贡献值）。
+14. MUST NOT 让点赞数影响任何评分、段位或排名。
+15. MUST NOT 让楼中楼长出第三层。
 
 ---
 
@@ -533,12 +600,14 @@ siyige:
 | **★ 单人 MVP 达成（约 10 天）** | 一个人能对 7 个 AI 打完一场并拿到复盘 | R-SOLO-01~08 | – | – |
 | M2 | 房间：8 席 / 座位卡 / 准备 / 房主操作 / 设置 / 邀请 / 聊天 | R-ROOM-04、R-SET-01~03、R-SEAT-01~07、R-READY-01~08、R-JOIN-01~04、R-CHAT-01 | 3.5 | 单人 MVP |
 | M5 | **语音转文字 + 一键规整** | R-VOICE-01~12 | 2.5 | M1（可与 M2 并行） |
-| M7 | **记录与动机** + 队内频道 + 联调 + 答辩材料 | R-REC-01~06、R-MOT-01~03、R-TEAM-01~03、AC-01~25 | 2.5 | 全部 |
+| M7 | **记录与动机** + 队内频道 + 联调 + 答辩材料 | R-REC-01~06、R-MOT-01~03、R-TEAM-01~03、AC-01~36 | 2.5 | 全部 |
+| M8 | **社区**：帖子 / 两层楼中楼 / 点赞 / 浏览去重 / 内容审核 | R-COM-01~40、AC-37~48 | 2.5 | M1 |
 
 **顺序说明**：
 1. **单人先于房间**。单人只需 DB + SSE，房间要额外引入 WebSocket、Redis 快照、分布式锁，且房间的准备/踢人/转让在单人里根本不触发——先做房间等于先写一批跑不到的分支。
 2. **M5 语音可与 M2 并行**，因为单人模式下语音只在本地调浏览器 API，不依赖房间。
 3. M2 的房间层 MUST 复用 M3 的 `TurnEngine`，不得另写一套推进逻辑。
+4. **M8 社区可与 M2/M5 并行**：社区只依赖 `user` 与 `topic`，不碰赛制引擎，是工期风险最低的一块，适合塞在等联调的碎片时间里。
 
 ---
 
@@ -644,6 +713,13 @@ com.siyige
 | `lock:room:{code}` | String | 3s | 房间写操作串行化 |
 | `rl:llm:{userId}` | String(INCR) | 60s | LLM 调用限流 |
 | `topic:hot` | ZSet | 10min | 辩题热度榜（只做曝光，不做排名） |
+| `view:seen:{postId}:{yyyyMMdd}` | Set | 次日 02:00 | 社区浏览去重，成员为 `userId`（R-COM-31） |
+| `view:pending` | Hash | 2h 兜底 | 待回写的浏览增量，`field=postId`（R-COM-31） |
+
+> **内存与淘汰**：`view:seen:*` 是本系统唯一随浏览量线性增长的数据（估算：单帖 1 万浏览 ≈ 800KB，百帖/天 ≈ 2MB）。
+> Redis 的 `maxmemory` / `maxmemory-policy` 是**实例级**配置，**分 db 不能隔离淘汰**。
+> 因此 MUST 二选一：① 给足内存（建议 ≥512MB）并加水位告警；② 把浏览计数放到独立 Redis 实例。
+> 目标是**房间快照 `room:{code}` 不被逐出**。
 
 ### 14.6 部署
 
@@ -703,6 +779,9 @@ location /api/ {
 | 5 | P2 含“排行榜” | **排行榜删除**（R-REC-03 禁止排名） | 计划书 P2 行删掉排行榜，只留观战/社区 |
 | 6 | 观战在范围内 | 降为 P2 | 计划书可在结题材料中说明“延后” |
 | 7 | 前端 `@microsoft/fetch-event-source` | 一致 | – |
+| 8 | §1.4 范围外：**社区板块（不在本期规格内）** | **范围内**（第 18 节 R-COM-01~40） | 计划书该行改为「范围内」，并把社区列入功能清单 |
+| 9 | 社区搜索为「标题 + 摘要 + 正文 + 作者 + 标签」 | 收窄为**仅标题模糊匹配**（R-COM-10） | 计划书若提社区检索，按标题写 |
+| 10 | 社区帖子带标签（16 个）与作者段位徽章 | **标签整体删除**；**作者不显示任何身份**（R-COM-03） | 计划书不写标签；原型需去掉 tier 徽章 |
 
 > 判断：**计划书是给评审看的，本规格是给实现看的。两者冲突时，先改计划书那一行，再写代码。**
 
@@ -729,7 +808,7 @@ location /api/ {
 | **P0 不可削** | 单人点题即开 + 多选辩位 | 这是主路径，房间是增量 |
 | P1 应做 | 语音转文字、辩论记录、动机三件套 | 语音可缩为“仅 Chrome”，记录可缩为列表 |
 | P1 应做 | AI 评测集 | 可缩为 10 题 |
-| P2 可选 | 房间、观战、社区、论点树、专练题库 | 保留界面与表结构，不做深度交互 |
+| P2 可选 | 观战、论点树可视化、专练题库 | 保留界面与表结构，不做深度交互 |
 
 ---
 
@@ -751,6 +830,9 @@ location /api/ {
 - **R-DRILL-03** `drill_record` MUST 记录：类型、题、分数、命中的薄弱标签，用于画像趋势（R-MOT-01）。
 - **R-DRILL-04** 专练结果 MUST NOT 生成完整 `record`（避免刷场次），只记一条 `drill_record`。
 
+> **与 §3.4 的关系**：§3.4 的 `DRILL` 是「只练单一环节」的**对局模式**（一场 `match`）；本节说的是**从复盘薄弱项一键进入专练**的入口。两者共用同一个 `mode=DRILL`，区别只在「谁发起」：前者用户主动选，后者由复盘点进来。
+> **接口复用**：专练对局 MUST 复用 `POST /api/matches`（`mode=DRILL` + `seats[]`），MUST NOT 另开一套建局接口。
+
 ### 17.3 五维画像聚合（衔接 §6.2）
 
 | 维度 | 来源 |
@@ -760,3 +842,84 @@ location /api/ {
 | 表达 | 表达分 + 口语规整差距（R-VOICE-12） |
 | 应变 | 质询 / 自由辩环节的表现 + 被质询后的回应质量 |
 | 论据 | 引用数 × 出处可核查率 |
+
+---
+
+## 18. 社区
+
+> 定位：辩论者的经验交换区。与主产品共享 `user` 与 `topic`，但**不参与任何评分、段位或排名体系**（见第 11 节禁止事项 1）。
+> 本节为 v4.2 追加。为避免打乱既有跨节引用，编号排在文末；正文引用本节统一写「第 18 节」。
+
+### 18.1 帖子
+
+- **R-COM-01** 帖子 MUST 有三个必填内容：**类型、标题、正文**。类型枚举 `CHAT`（闲聊）/ `GUIDE`（教程）/ `HELP`（求助）。
+- **R-COM-02** 帖子 MAY 关联一个辩题（`topic_id` 可空）；有关联时列表与详情 MUST 显示辩题标题。
+- **R-COM-03** 帖子 MUST NOT 展示作者的任何身份标识——段位、等级、积分、练习场次、贡献值一律不显示，列表与详情**只显示昵称**。
+- **R-COM-04** 列表 MUST 展示：类型、标题、摘要、作者昵称、评论数、浏览数、点赞数、创建时间、最后回复时间。
+- **R-COM-05** 摘要 MUST 由服务端在写入时截取（≤200 字）；列表查询 MUST NOT 读取正文列。
+- **R-COM-06** 正文为 Markdown。MUST NOT 提供图片上传，仅允许外链图片。
+- **R-COM-07** 只有作者本人可编辑/删除自己的帖子；删除为软删除（`status=2`），其下评论一并不可见。
+- **R-COM-08** 帖子 MUST NOT 出现在任何用户排行榜、贡献榜、积分体系中。
+
+### 18.2 筛选与排序
+
+- **R-COM-09** 列表 MUST 支持四个筛选条件，可任意组合：**类型、标题模糊匹配、关联辩题、日期范围**。
+- **R-COM-10** 标题匹配 MUST 使用 `title LIKE '%关键词%'`。MUST NOT 引入全文索引、ngram 或向量检索——**本版明确收窄为标题**，不搜正文。
+- **R-COM-11** 日期范围枚举 MUST 为 `ALL` / `3D` / `7D` / `OLDER`（`OLDER` = 早于 7 天）。
+- **R-COM-12** 排序 MUST 支持四种：`NEW`（创建时间倒序）、`COMMENTS`（评论数倒序）、`LIKES`（点赞数倒序）、`HOT`（`hot_score` 倒序）。
+- **R-COM-13** `hot_score` MUST 按下式计算，写入时更新，并由定时任务每 10 分钟批量重算最近 7 天的帖子：
+
+  ```
+  hot_score = (comment_count * 4 + like_count * 2 + view_count * 0.05)
+              / POW(hours_since_created + 2, 1.5)
+  ```
+
+- **R-COM-14** 四种排序 MUST 各自有可走索引（见第 8 节 R-DATA-04）。MUST NOT 在 SQL 里实时计算热度后排序。
+
+### 18.3 评论与楼中楼
+
+- **R-COM-15** 评论 MUST 只有两层：**楼**（直接回复帖子）与**楼中楼**（回复某条评论）。MUST NOT 出现第三层。
+- **R-COM-16** 回复对象 MUST 用三个字段表达：`reply_object_type`（`POST`/`COMMENT`）、`reply_object_comment_id`（被回复评论 id）、`reply_object_user_id`（被回复者 id）。
+- **R-COM-17** `reply_object_type=POST` 时，该评论为**楼**：`root_id` 为 `NULL`，`reply_object_comment_id` 与 `reply_object_user_id` 均为 `NULL`。
+- **R-COM-18** `reply_object_type=COMMENT` 时，该评论为**楼中楼**：`root_id` MUST 指向被回复评论**所属的那一楼**的 id（若被回复的就是楼本身，则 `root_id` = 该楼 id）。
+- **R-COM-19** `root_id` MUST 由服务端派生并落库。客户端 MUST NOT 提交 `root_id`。
+- **R-COM-20** 楼中楼渲染 MUST 只显示「{作者昵称} **回复了** {reply_object_user 昵称}」。MUST NOT 出现三级缩进或多级引用链。
+- **R-COM-21** 评论列表 MUST 按**楼**分页；每楼 MUST 附带前 3 条楼中楼预览与该楼楼中楼总数；展开时按 `root_id` 单独分页拉取。
+- **R-COM-22** `post.comment_count` MUST 含楼中楼；`last_comment_at` 仅用于列表展示，MUST NOT 作为排序键。
+- **R-COM-23** 只有评论作者本人可删除自己的评论；删除为软删除，不删物理行。
+- **R-COM-24** 评论正文 MUST ≤ 1000 字。
+
+### 18.4 点赞
+
+- **R-COM-25** 帖子与评论 MUST 都支持点赞，二者共用一张点赞表，用 `target_type` 区分。
+- **R-COM-26** 点赞 MUST 为幂等的 `POST` / `DELETE` 两个接口。MUST NOT 做成单一 toggle 接口。
+- **R-COM-27** 同一用户对同一对象 MUST NOT 重复点赞（主键约束保证）。
+- **R-COM-28** 点赞 MUST NOT 影响任何评分、段位或排名。
+- **R-COM-29** 列表页 MUST 返回每个对象对当前用户的 `liked` 状态，且 MUST 用一次批量 `IN` 查询完成，不得逐条查询。
+
+### 18.5 浏览数
+
+浏览数**允许误差**，MUST NOT 用于任何结算、排名或评分（见第 11 节禁止事项 14）。
+
+- **R-COM-30** 去重口径 MUST 为**自然日**，以 `Asia/Shanghai` 为准：同一用户对同一帖子每天最多计 1 次。
+- **R-COM-31** 去重与计数 MUST 使用**两个生命周期不同的 Redis 结构**：
+
+  | 用途 | Key | 类型 | TTL | 内容 |
+  |---|---|---|---|---|
+  | 浏览去重 | `view:seen:{postId}:{yyyyMMdd}` | Set | **次日 02:00** | 当天看过此帖的 `userId` |
+  | 待回写增量 | `view:pending` | Hash | 2 小时（兜底） | `field=postId`，`value=待加次数` |
+
+- **R-COM-32** 去重集的过期 MUST 用 `EXPIREAT` 指定到**次日 02:00**。MUST NOT 简单设成固定 24 小时——固定 24h 是滚动窗口，会导致「隔天第一次浏览不计」。
+- **R-COM-33** 计数侧 MUST 用 Hash（`field=postId`）。MUST NOT 再用一个 Set 存 `userId`：去重已在第一步完成，重复存只是把内存翻倍，且回写时必须 `SCAN` 遍历键空间。
+- **R-COM-34** `SADD` 去重与 `HINCRBY` 计数 MUST 放在**同一个 Lua 脚本**里原子执行。MUST NOT 分两次调用（否则会出现「标记已看但没计数」，该用户当天再也不会被计数）。
+- **R-COM-35** 回写 MUST 用 Lua 原子地「读取并清空」（`HGETALL` + `DEL`）。MUST NOT 先 `HGETALL` 再单独 `DEL`——两步之间进来的新增量会被一起吞掉。
+- **R-COM-36** 回写执行在定时任务（每 5 分钟）中，顺序 MUST 为：原子取出 → 批量 `UPDATE post SET view_count = view_count + ?` → 若 UPDATE 失败则把取出的增量 `HINCRBY` 补回并告警。
+- **R-COM-37** 浏览计数 MUST NOT 阻塞详情页渲染：Redis 调用 MUST 设 50ms 超时，超时或异常 MUST 直接返回 `204`。
+- **R-COM-38** 因 Redis 重启导致的去重集丢失（多计）或 `view:pending` 丢失（少计）MUST 视为可接受，MUST NOT 为此引入持久化保证。
+
+### 18.6 内容审核
+
+- **R-COM-39** 发帖与评论 MUST 在落库前过敏感词校验；命中 MUST 用全角＊（U+FF0A）逐码点替换后落库，MUST NOT 保存原文（不新增 raw 字段），摘要 MUST 基于替换后的正文生成；命中 MUST NOT 拒绝发布，MUST NOT 返回 `CONTENT_BLOCKED`；审核 MUST 在服务端执行，MUST NOT 只靠前端过滤。
+- **R-COM-40** 审核 MUST 在服务端完成。MUST NOT 只依赖前端过滤。
+
+---

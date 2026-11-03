@@ -30,3 +30,7 @@ server/_*.txt
 .idea/
 .vscode/
 .DS_Store
+# ---- screenshots & demo artifacts (keep out of repo; files stay on disk) ----
+demo/shots/
+docs/shots/
+**/shots/

@@ -16,12 +16,16 @@ const API_BASE = location.pathname.indexOf('/siyige') === 0 ? '/siyige' : '';
 
 async function api(path, opts){
   const o = opts || {};
+  const headers = o.body ? {'Content-Type':'application/json'} : {};
+  // 登录态：有 token 就带上（辩论侧接口不校验，带了也无害）
+  try { const tk = localStorage.getItem('sy_jwt'); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch (e) {}
   const r = await fetch(API_BASE + path, {
     method: o.method || 'GET',
-    headers: o.body ? {'Content-Type':'application/json'} : {},
+    headers: headers,
     body: o.body ? JSON.stringify(o.body) : undefined
   });
   const text = await r.text();
+  if (r.status === 401) { try { localStorage.removeItem('sy_jwt'); } catch (e) {} S.user = null; }
   if (!r.ok) throw new Error(text || ('HTTP ' + r.status));
   return text ? JSON.parse(text) : null;
 }
@@ -36,7 +40,15 @@ const S = {
   userId: localStorage.getItem('sy_uid') || (()=>{ const u='g'+Math.random().toString(36).slice(2,8); localStorage.setItem('sy_uid',u); return u; })(),
   roomCode:null, room:null, mySeat:null, roomMode:false, rooms:[], roomPoll:null,
   cards:[], cardsTopic:null, matchId:null, match:null, turns:[], waiting:false,
-  pollTimer:null, es:null, review:null, typed:new Set(), progress:{}, pauseUntil:{}, remaining:0, extendUsed:0, lastKeep:0
+  pollTimer:null, es:null, review:null, typed:new Set(), progress:{}, pauseUntil:{}, remaining:0, extendUsed:0, lastKeep:0,
+  // ---- 社区（视图在 js/views/community.js，字段只能由 core 定义）----
+  comm: { view:'list', postId:null, reqToken:0, q:'', type:'ALL', topicId:'', range:'ALL',
+          sort:'NEW', page:1, size:20, degraded:false },
+  posts:[], postTotal:0, postLoading:false, postDetail:null,
+  postComments:[], postCommentTotal:0, commentPage:1, postRelated:[],
+  replyTarget:null, replyDraft:'', cmNewType:'CHAT',
+  // ---- 登录（视图在 js/views/auth.js）----
+  user:null, authTab:'login'
 };
 
 const persistSeats = () => localStorage.setItem('sy_seats', JSON.stringify(S.mySeats));
@@ -48,8 +60,12 @@ async function boot(){
     ]);
     S.topics = topics; S.hot = hot; S.diag = diag; S.records = records;
     await loadRooms();
-    $('#meSub').textContent = `连续练习 ${diag.streak || 1} 天`;
+    await authRestore();          // 有 token 就恢复登录态（无效会自动清掉）
+    authRenderMeBox();
     render();
+    // 兼容旧链接 /community.html?  以及 /?v=community 深链
+    const qv = new URLSearchParams(location.search).get('v');
+    if (qv && NAV.some(n => n.k === qv)) go(qv);
   } catch (e) {
     $('#main').innerHTML = `<div class="card"><b>连不上后端</b><p class="sub" style="margin:8px 0 0">${esc(e.message)}</p>
       <p style="font-size:12.5px;color:#6B7280;margin-top:8px">确认服务在跑：<span class="mono">http://localhost:8080/api/health</span></p></div>`;
@@ -67,9 +83,10 @@ function reNav(){
 }
 
 function go(v){
-  if (v === 'community') { location.href = '/community.html'; return; }   // 社区是独立页面
   if (S.pollTimer && v !== 'match') { stopPoll(); S.matchId = null; S.match = null; S.roomMode = false; }
   S.view = v; render();
+  // 社区：不再跳独立页（D4），进页面时重置筛选并拉第一页列表
+  if (v === 'community') { cmEnterCommunity(); return; }
   if (v === 'records' || v === 'diag' || v === 'hotb' || v === 'solo') refreshDash(v);
 }
 
@@ -81,15 +98,16 @@ async function refreshDash(v){
       api('/api/hot?n=12'), api('/api/diag?userId=' + S.userId), api('/api/records?userId=' + S.userId)
     ]);
     S.hot = hot; S.diag = diag; S.records = records;
-    $('#meSub').textContent = `连续练习 ${diag.streak || 1} 天`;
+    authRenderMeBox();
     if (S.view === v) render();
   } catch (e) { /* 忽略，保留旧数据 */ }
 }
 
 function render(){
   reNav();
+  authRenderMeBox();
   const v = { solo:viewSolo, room:viewRoom, hotb:viewHot, diag:viewDiag, records:viewRecords,
-              match:viewMatch, review:viewReview }[S.view];
+              match:viewMatch, review:viewReview, community:viewCommunity, me:viewAuth }[S.view];
   $('#main').innerHTML = v ? v() : viewSolo();
   if (S.view === 'match') {
     renderStrip();

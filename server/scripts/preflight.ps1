@@ -1,4 +1,4 @@
-﻿# 部署前自检：确认 jar 里的关键资源没丢
+# 部署前自检：确认 jar 里的关键资源没丢
 # 用法：powershell -ExecutionPolicy Bypass -File .\scripts\preflight.ps1
 
 $ErrorActionPreference = 'Stop'
@@ -12,7 +12,12 @@ $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $jar))
 $need = @(
     'BOOT-INF/classes/application.yml',
     'BOOT-INF/classes/schema.sql',
-    'BOOT-INF/classes/static/index.html'
+    'BOOT-INF/classes/schema-community.sql',            # 社区三表（缺了社区接口全 500）
+    'BOOT-INF/classes/community-sensitive-words.txt',   # 敏感词表（缺了启动即失败）
+    'BOOT-INF/classes/lua/record_view.lua',             # 浏览去重 Lua（R-COM-34）
+    'BOOT-INF/classes/lua/flush_views.lua',             # 浏览回写 Lua（R-COM-35）
+    'BOOT-INF/classes/static/index.html',
+    'BOOT-INF/classes/static/js/views/community.js'     # 社区前端 view（缺了导航进去白屏）
 )
 $ok = $true
 foreach ($n in $need) {

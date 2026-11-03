@@ -19,6 +19,8 @@ AI 4v4 辩论训练系统：8 个 AI 辩手各占一席、各有打法，你坐�
 - **论据卡**：48 张（12 辩题 × 4），标「需核实」，编数字倒扣
 - **热辩榜 / 能力诊断 / 辩论记录**：Redis ZSET 排行，五维雷达，只记录不排名
 - **多人房间**：8 席，房间号拉人，缺位 AI 补
+- **讨论社区**：闲聊 / 教程 / 求助三类帖子、两层楼中楼、点赞、浏览计数、敏感词自动打码
+- **账号登录**：注册 / 登录 / 登出；发帖评论点赞需登录，浏览不用；未登录不计浏览数
 - **手机端**：底部导航、输入框吸底
 
 ## 跑起来
@@ -29,16 +31,24 @@ cp config/application.example.yml config/application.yml   # 填 api-key（不�
 mvn spring-boot:run                                        # 打开 http://localhost:8080
 ```
 
+需要本地 Redis（社区浏览计数与去重用，必需）：
+
+```bash
+docker run -d --name wdacg-redis -p 6379:6379 redis:7-alpine --requirepass wdacg123456
+```
+
 ## 技术栈
 
 Java 17 · Spring Boot 3.3 · SSE · H2/Redis · 原生 JS（无框架无构建） · DeepSeek
 
+密码 Argon2id 哈希 · 会话 JWT（HS256，2 小时）
+
 ## 目录
 
 ```
-server/src/main/java/com/siyige/   api / service / ai / domain / engine / repo / community
+server/src/main/java/com/siyige/   api / service / ai / domain / engine / repo / community / auth
 server/src/main/resources/static/  index.html + css + js/views/*（一人一块）
-docs/                              SPEC 规格 / AI 方案 / 协作规范 / 项目进度
+docs/                              SPEC 规格 / AI 方案 / 协作规范 / 项目进度 / 接口契约
 ```
 
 ## 更新记录
@@ -46,10 +56,15 @@ docs/                              SPEC 规格 / AI 方案 / 协作规范 / 项�
 > 每次开发完在下面加一段，新的放最上面。一行说清「改了什么 / 为什么」。
 
 ### 2026-11-03
+- 新增账号系统：注册 / 登录 / 登出，密码 Argon2id、会话 JWT 2 小时
+- 社区改为登录制：发帖评论点赞要登录、浏览不用，未登录的浏览不计入浏览数
+- 账号入口收进侧栏左下角，手机端底栏保留入口
 - 前端拆成 8 个模块文件，支持两人并行开发
 - 新增项目进度页与对外版 README
 
 ### 2026-11-02
+- 讨论社区并入 SPA：独立页收成跳转壳，前端抽为 `js/views/community.js`
+- 社区后端按 SPEC v4.2 §18 重建：14 个接口、三表 + 11 索引、两层楼中楼、热度与浏览计数
 - 修复「上一个人没说完下一个人就说话」：打字改串行，排队气泡不再提前上屏
 - 打字逐字输出，句号停顿，整段约 11 秒
 - AI 回应改为 10–15 秒间隔；开场第一句不等
@@ -65,5 +80,7 @@ docs/                              SPEC 规格 / AI 方案 / 协作规范 / 项�
 - AI 设计：[docs/AI-方案.md](docs/AI-方案.md)
 - 进度与分工：[docs/项目进度.md](docs/项目进度.md)
 - 协作规范：[docs/协作规范.md](docs/协作规范.md)
+- 社区接口契约：[docs/社区接口契约.md](docs/社区接口契约.md)
+- 认证接口契约：[docs/认证接口契约.md](docs/认证接口契约.md)
 
 MIT License

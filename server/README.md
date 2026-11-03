@@ -28,10 +28,28 @@ mvn test                     # 赛制与席位判定单测
 | 首次构建卡很久 | Maven 要下 Spring Boot 全套依赖 | 正常，第一次 3–8 分钟；之后走本地仓库很快 |
 | 日志里 `AsyncRequestTimeoutException` | SSE 长连接空闲超时 | 已有 20s 心跳，若仍出现可忽略（不影响对局） |
 
-> 零外部依赖：H2 内存库 + 内存版热辩榜。**不需要装 MySQL / Redis / Docker。**
+> 依赖：**H2 内存库**（默认，重启清空）+ **Redis**（社区的浏览计数与去重必需）。
+> MySQL 本期未启用，迁移方案与阻塞清单见 [../docs/migration-mysql/README.md](../docs/migration-mysql/README.md)。
 
-生产要接真 Redis 时：去掉 `application.yml` 里的 `spring.autoconfigure.exclude`，把
-`HotRank.MemoryHotRank` 换成 `RedisTemplate.opsForZSet()` 实现即可，接口签名一一对应。
+Redis 不再是可选项（2026-11-02 社区模块并入后）：
+
+| 用途 | Key | 类型 | 生命周期 |
+|---|---|---|---|
+| 浏览去重 | `view:seen:{postId}:{yyyyMMdd}` | Set | `EXPIREAT` 到次日 02:00 |
+| 待回写增量 | `view:pending` | Hash（field=postId） | 2 小时兜底 |
+
+- `application.yml` 里 **已删除** `spring.autoconfigure.exclude: RedisAutoConfiguration`，去那行找东西会找不到，属正常。
+- 连接参数走环境变量：`SIYIGE_REDIS_HOST` / `SIYIGE_REDIS_PORT` / `SIYIGE_REDIS_PASSWORD`（默认 `127.0.0.1:6379`，密码 `wdacg123456`）。
+- 启动时做一次 PING 自检：失败只打 ERROR，**不阻塞启动**——此时浏览接口仍返回 204，但计数会静默丢失（符合 SPEC R-COM-37/R-COM-38）。
+- 列表/详情的 `viewCount` = 数据库 `view_count` + `view:pending` 里尚未回写的增量（读时叠加），所以刚看完刷新就能看到 +1；Redis 不可用时退化为只显示数据库值。
+
+本地起一个 Redis：
+
+```bash
+docker run -d --name wdacg-redis -p 6379:6379 redis:7-alpine --requirepass wdacg123456
+```
+
+热榜仍是内存实现（`HotRank.MemoryHotRank`），未使用 Redis ZSET。
 
 ## 时间压缩（演示用，必须知道）
 

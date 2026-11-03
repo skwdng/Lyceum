@@ -41,12 +41,8 @@ public class ApiController {
         return Map.of("ok", true, "service", "siyige", "hotKey", hot.key(), "hotSize", hot.zcard());
     }
 
-    @PostMapping("/auth/login")
-    public Map<String, Object> login(@RequestBody(required = false) Map<String, Object> body) {
-        String account = body != null && body.get("account") != null ? String.valueOf(body.get("account")) : "demo";
-        return Map.of("token", "demo-token", "user",
-                Map.of("id", "u1", "name", account, "streak", diagOf("u1").getOrDefault("streak", 0)));
-    }
+    // 注：原 POST /auth/login（返回硬编码 demo-token）已于 2026-11-03 移除，
+    // 登录接口由 com.siyige.auth.AuthController 提供（独立模块，见 docs/认证接口契约.md）。
 
     // ---------- 辩题 ----------
 

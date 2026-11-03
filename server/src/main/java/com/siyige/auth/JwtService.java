@@ -1,0 +1,99 @@
+package com.siyige.auth;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
+import java.util.UUID;
+
+/**
+ * JWT 签发与解析（HS256，有效期 2 小时，决策 1）。
+ *
+ * <p>payload 只放 <b>sub / acc / jti / iat / exp</b> 五项，绝不放密码、哈希或任何隐私字段。
+ *
+ * <p>密钥取环境变量 {@code SIYIGE_JWT_SECRET}（≥32 字节，HS256 要求 256 位）；
+ * 未设置时用内置开发默认值并打 WARN——生产必须设置，否则所有实例共用一个公开密钥。
+ *
+ * <p>登出靠 {@link TokenBlacklist} 记 {@code jti}，不是"服务端 session"。
+ */
+@Service
+public class JwtService {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtService.class);
+
+    /** 开发默认密钥，长度足够 HS256；**生产必须用 SIYIGE_JWT_SECRET 覆盖**。 */
+    private static final String DEV_SECRET =
+            "siyige-dev-only-jwt-secret-do-not-use-in-production-0123456789";
+
+    /** 决策 9：有效期 2 小时。 */
+    public static final Duration TTL = Duration.ofHours(2);
+
+    private final SecretKey key;
+
+    public JwtService(@Value("${SIYIGE_JWT_SECRET:}") String secret) {
+        String use = (secret == null || secret.isBlank()) ? DEV_SECRET : secret;
+        if (use.equals(DEV_SECRET)) {
+            log.warn("未设置 SIYIGE_JWT_SECRET，正在使用内置开发密钥——生产环境必须配置，否则 token 可被伪造");
+        }
+        byte[] bytes = use.getBytes(StandardCharsets.UTF_8);
+        if (bytes.length < 32) {
+            throw new IllegalStateException("SIYIGE_JWT_SECRET 至少需要 32 字节（HS256 要求 256 位密钥）");
+        }
+        this.key = Keys.hmacShaKeyFor(bytes);
+    }
+
+    /** 解析结果：只带过滤器 / 登出需要的字段。 */
+    public record ParsedToken(String userId, String account, String jti, Instant expiresAt) {
+        /** 剩余有效期，用于登出时设置黑名单 TTL。 */
+        public Duration remaining() {
+            Duration left = Duration.between(Instant.now(), expiresAt);
+            return left.isNegative() ? Duration.ZERO : left;
+        }
+    }
+
+    /** 签发（2 小时）。 */
+    public String issue(String userId, String account) {
+        return issue(userId, account, TTL);
+    }
+
+    /** 签发指定有效期——给单测构造"已过期 token"用。 */
+    String issue(String userId, String account, Duration ttl) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(userId)
+                .claim("acc", account)
+                .id(UUID.randomUUID().toString())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(ttl)))
+                .signWith(key, Jwts.SIG.HS256)
+                .compact();
+    }
+
+    /**
+     * 校验并解析。
+     *
+     * @return 合法则返回解析结果；签名错 / 过期 / 格式错一律返回 {@code null}
+     *         （调用方按 401 处理，不区分具体原因，避免给攻击者信息）
+     */
+    public ParsedToken parse(String token) {
+        if (token == null || token.isBlank()) return null;
+        try {
+            Claims c = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            Instant exp = c.getExpiration() == null ? null : c.getExpiration().toInstant();
+            return new ParsedToken(c.getSubject(), c.get("acc", String.class), c.getId(), exp);
+        } catch (JwtException | IllegalArgumentException e) {
+            log.debug("token 校验失败：{}", e.getClass().getSimpleName());
+            return null;
+        }
+    }
+}

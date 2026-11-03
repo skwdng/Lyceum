@@ -21,17 +21,20 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:schema.sql,classpath:schema-community.sql
+      schema-locations: classpath:schema.sql,classpath:schema-community.sql,classpath:schema-auth.sql
   mvc:
     async:
       request-timeout: 1800000
-  # 默认不连 Redis（用内存 ZSET 实现）；生产加 --spring.profiles.active=redis
+  # Redis 是社区的必需依赖（D7）：浏览去重 view:seen:{postId}:{yyyyMMdd} + 增量 view:pending。
+  # 已移除 autoconfigure.exclude 的 RedisAutoConfiguration；启动时做一次 PING 自检
+  # （CommunityRedisPing：失败打 ERROR 但**不阻塞启动**，R-COM-37 要求浏览接口一律 204）。
   data:
     redis:
-      host: 127.0.0.1
-      port: 6379
-  autoconfigure:
-    exclude: org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      host: ${SIYIGE_REDIS_HOST:127.0.0.1}
+      port: ${SIYIGE_REDIS_PORT:6379}
+      password: ${SIYIGE_REDIS_PASSWORD:wdacg123456}
+      timeout: 50ms
+      connect-timeout: 50ms
 
 siyige:
   # 演示用：把真实时长压缩到 1/20，方便看到 12 步推进
