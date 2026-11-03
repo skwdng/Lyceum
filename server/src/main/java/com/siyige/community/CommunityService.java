@@ -37,11 +37,15 @@ public class CommunityService {
 
     /** 读路径要把「尚未回写」的浏览增量叠加上去，否则刚看完刷新数字不动。 */
     private final CommunityViewService views;
+    /** 禁言校验：放在 Service 入口，发帖/编辑前查一次（不加缓存）。 */
+    private final MuteGuard muteGuard;
 
-    public CommunityService(CommunityRepo repo, SensitiveWordMasker masker, CommunityViewService views) {
+    public CommunityService(CommunityRepo repo, SensitiveWordMasker masker, CommunityViewService views,
+                            MuteGuard muteGuard) {
         this.repo = repo;
         this.masker = masker;
         this.views = views;
+        this.muteGuard = muteGuard;
     }
 
     // ==================== 读 ====================
@@ -106,6 +110,7 @@ public class CommunityService {
      * 也不再 upsert 用户行（账号由 auth 模块创建，社区只引用）。
      */
     public Map<String, Object> create(String userId, Map<String, Object> body) {
+        muteGuard.assertNotMuted(userId);          // 被禁言不能发帖
         String type = requireType(body.get("type"));
         String title = requireText(body.get("title"), "INVALID_PARAM: 标题不能为空", TITLE_MAX);
         String text = requireText(body.get("body"), "INVALID_PARAM: 正文不能为空", BODY_MAX);
@@ -131,6 +136,7 @@ public class CommunityService {
 
     /** R-COM-07：只有作者本人可编辑；PATCH 语义，只改传了的字段。 */
     public Map<String, Object> update(String userId, long id, Map<String, Object> body) {
+        muteGuard.assertNotMuted(userId);          // 编辑也是继续产出公开内容，一并拦
         Map<String, Object> row = requireOwnPost(userId, id);
 
         // 先合出「最终 title / 最终 body」：PATCH 只传一个时，另一个取库里的旧值，

@@ -57,13 +57,18 @@ public class CommunityController {
     private final CommentService comments;
     private final LikeService likes;
     private final CommunityViewService views;
+    private final ReportService reports;
+    private final MuteGuard muteGuard;
 
     public CommunityController(CommunityService community, CommentService comments,
-                               LikeService likes, CommunityViewService views) {
+                               LikeService likes, CommunityViewService views,
+                               ReportService reports, MuteGuard muteGuard) {
         this.community = community;
         this.comments = comments;
         this.likes = likes;
         this.views = views;
+        this.reports = reports;
+        this.muteGuard = muteGuard;
     }
 
     // ==================== 帖子 ====================
@@ -168,6 +173,32 @@ public class CommunityController {
     public ResponseEntity<Void> unlikeComment(@PathVariable long id) {
         likes.unlikeComment(requireUser(), id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ==================== 举报 / 禁言（用户侧，方案 §3.1） ====================
+
+    /**
+     * 提交举报：`{targetType,targetId,reason,detail?}` → `{reportId}`。
+     *
+     * <p>错误：400 参数不合法 / 不能举报自己；404 目标不存在或已删；
+     * 409 `ALREADY_REPORTED` 重复举报；401 未登录。
+     */
+    @PostMapping("/reports")
+    public Map<String, Object> report(@RequestBody Map<String, Object> body) {
+        return reports.submit(UserContext.require(), body);
+    }
+
+    /** 我的举报：`{items,total,page,size}`，带目标摘要与处理状态。 */
+    @GetMapping("/my-reports")
+    public Map<String, Object> myReports(@RequestParam(defaultValue = "1") int page,
+                                         @RequestParam(defaultValue = "20") int size) {
+        return reports.listMine(UserContext.require(), page, size);
+    }
+
+    /** 我的禁言状态：`{banned, until, reason}`，前端用来提示「你被禁言至 X」。 */
+    @GetMapping("/me/ban")
+    public Map<String, Object> myBan() {
+        return muteGuard.banInfo(UserContext.require());
     }
 
     // ==================== 内部 ====================

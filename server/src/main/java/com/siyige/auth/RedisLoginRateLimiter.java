@@ -3,7 +3,6 @@ package com.siyige.auth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 
@@ -20,7 +19,6 @@ import java.time.Duration;
  *
  * <p>Redis 异常一律翻译成 503（Q1：登录系统依赖它，不可用就不让登）。
  */
-@Component
 public class RedisLoginRateLimiter implements LoginRateLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(RedisLoginRateLimiter.class);
@@ -34,9 +32,16 @@ public class RedisLoginRateLimiter implements LoginRateLimiter {
     private static final Duration IP_LOCK = Duration.ofMinutes(5);
 
     private final StringRedisTemplate redis;
+    /**
+     * key 前缀：用户端 {@code auth:}、管理端 {@code adm:}。
+     * 两套计数**完全隔离**——同名账号（比如用户 `admin` 与管理员 `admin`）不共享失败次数，
+     * 否则一阵瞎试就能把管理员锁死、或者用户侧被管理员登录失败牵连。
+     */
+    private final String prefix;
 
-    public RedisLoginRateLimiter(AuthRedis authRedis) {
+    public RedisLoginRateLimiter(AuthRedis authRedis, String prefix) {
         this.redis = authRedis.template();
+        this.prefix = prefix;
     }
 
     @Override
@@ -93,8 +98,8 @@ public class RedisLoginRateLimiter implements LoginRateLimiter {
         return n;
     }
 
-    private static String failKeyAcct(String account) { return "auth:fail:acct:" + account; }
-    private static String lockKeyAcct(String account) { return "auth:lock:acct:" + account; }
-    private static String failKeyIp(String ip) { return "auth:fail:ip:" + ip; }
-    private static String lockKeyIp(String ip) { return "auth:lock:ip:" + ip; }
+    private String failKeyAcct(String account) { return prefix + "fail:acct:" + account; }
+    private String lockKeyAcct(String account) { return prefix + "lock:acct:" + account; }
+    private String failKeyIp(String ip) { return prefix + "fail:ip:" + ip; }
+    private String lockKeyIp(String ip) { return prefix + "lock:ip:" + ip; }
 }

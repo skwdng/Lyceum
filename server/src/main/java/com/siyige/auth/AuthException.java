@@ -59,4 +59,41 @@ public class AuthException extends RuntimeException {
         return new AuthException("SERVICE_UNAVAILABLE", HttpStatus.SERVICE_UNAVAILABLE,
                 "SERVICE_UNAVAILABLE: " + message);
     }
+
+    // ---------- 治理相关（举报 / 禁言 / 管理员） ----------
+
+    /**
+     * 管理员令牌被拿去访问社区接口：401 `NOT_ADMIN`。
+     *
+     * <p>为什么不"当匿名放行"：出示了一个**类型不对**的身份，跟没出示不是一回事；
+     * 放行等于允许管理员以普通用户身份发帖、点赞，权限就串了。
+     */
+    public static AuthException notAdminOnCommunity() {
+        return new AuthException("NOT_ADMIN", HttpStatus.UNAUTHORIZED,
+                "NOT_ADMIN: 这是管理员令牌，不能用于普通用户接口");
+    }
+
+    /** 普通用户令牌访问管理端接口：403 `NOT_ADMIN`。 */
+    public static AuthException notAdmin() {
+        return new AuthException("NOT_ADMIN", HttpStatus.FORBIDDEN,
+                "NOT_ADMIN: 需要管理员权限");
+    }
+
+    /** 令牌签发于改密之前：改完密码，该账号所有旧令牌立刻失效。 */
+    public static AuthException tokenStale() {
+        return new AuthException("TOKEN_STALE", HttpStatus.UNAUTHORIZED,
+                "TOKEN_STALE: 密码已更新，请重新登录");
+    }
+
+    /** 全站封禁：登录接口与 JwtAuthFilter 共用。 */
+    public static AuthException accountDisabled() {
+        return new AuthException("ACCOUNT_DISABLED", HttpStatus.UNAUTHORIZED,
+                "ACCOUNT_DISABLED: 账号已被封禁，请联系管理员");
+    }
+
+    /** 社区禁言：message 里带到期时间，前端直接展示。 */
+    public static AuthException muted(String untilText) {
+        return new AuthException("MUTED", HttpStatus.FORBIDDEN,
+                "MUTED: 你已被禁言至 " + untilText);
+    }
 }

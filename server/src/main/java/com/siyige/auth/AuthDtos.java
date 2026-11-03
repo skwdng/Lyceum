@@ -26,6 +26,17 @@ public final class AuthDtos {
         }
     }
 
+    /**
+     * 改密入参。
+     *
+     * <p><b>安全要求</b>：{@code toString()} **绝不能**带出密码——日志里出现一个就够致命。
+     */
+    public record ChangePasswordRequest(String oldPassword, String newPassword) {
+        @Override
+        public String toString() {
+            return "ChangePasswordRequest[<redacted>]";
+        }
+    }
     /** 改昵称入参。 */
     public record UpdateNameRequest(String name) {
         @Override

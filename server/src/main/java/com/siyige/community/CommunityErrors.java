@@ -35,6 +35,7 @@ public class CommunityErrors {
         String code = codeOf(msg);
         HttpStatus status = switch (code) {
             case "POST_NOT_FOUND", "COMMENT_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "ALREADY_REPORTED" -> HttpStatus.CONFLICT;
             case "NOT_AUTHOR" -> HttpStatus.FORBIDDEN;
             // CONTENT_BLOCKED 已废弃（§18 R-COM-39 / D5：命中敏感词打码放行）
             default -> HttpStatus.BAD_REQUEST;

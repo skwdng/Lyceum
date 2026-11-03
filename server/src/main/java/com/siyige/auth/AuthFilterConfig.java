@@ -20,9 +20,10 @@ import org.springframework.core.Ordered;
 public class AuthFilterConfig {
 
     @Bean
-    public FilterRegistrationBean<JwtAuthFilter> communityJwtFilter(JwtService jwt, TokenBlacklist blacklist) {
+    public FilterRegistrationBean<JwtAuthFilter> communityJwtFilter(JwtService jwt, TokenBlacklist blacklist,
+                                                                     UserStatusSource userStatus) {
         FilterRegistrationBean<JwtAuthFilter> reg =
-                new FilterRegistrationBean<>(new JwtAuthFilter(jwt, blacklist));
+                new FilterRegistrationBean<>(new JwtAuthFilter(jwt, blacklist, userStatus));
         reg.addUrlPatterns("/api/community/*");
         reg.setName("communityJwtFilter");
         // 靠前一点，保证业务代码看到的 UserContext 已经就绪；但仍晚于编码过滤器等基础设施

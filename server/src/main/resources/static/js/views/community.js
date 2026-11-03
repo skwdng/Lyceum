@@ -44,6 +44,10 @@ function cmErrText(e){
     POST_NOT_FOUND:'帖子已删除或不存在',
     COMMENT_NOT_FOUND:'评论已删除',
     NOT_AUTHOR:'只能操作自己的内容',
+    MUTED:'你已被禁言，暂时不能发内容',
+    ALREADY_REPORTED:'你已经举报过这条内容',
+    ACCOUNT_DISABLED:'账号已被封禁',
+    NOT_ADMIN:'没有管理员权限',
     INTERNAL_ERROR:'服务异常，请重试',
     TIMEOUT:'请求超时，请重试',
     NETWORK:'后端未连接'
@@ -219,6 +223,8 @@ function cmEnterCommunity(){
   S.postDetail = null; S.postComments = []; S.postCommentTotal = 0;
   S.postRelated = []; S.replyTarget = null; S.replyDraft = '';
   cmReloadList();
+  // 进社区顺手拉一次禁言状态（被禁言时顶部显示黄条）；失败不影响列表
+  cmLoadMyBan().then(function(){ if (cmMuteInfo && cmMuteInfo.banned) render(); });
 }
 async function cmLoadPosts(){
   const c = S.comm;
@@ -363,8 +369,12 @@ function viewPostList(){
       <div class="page-desc">${S.postTotal} 篇帖子 · 闲聊 / 教程 / 求助，辩完之后来这聊聊
         <span class="mini-tag" style="margin-left:6px">接口已接通</span></div>
     </div>
-    <button class="btn btn-primary" onclick="cmOpenNewPost()">＋ 发布帖子</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn" onclick="cmOpenMyReports()">我的举报</button>
+      <button class="btn btn-primary" onclick="cmOpenNewPost()">＋ 发布帖子</button>
+    </div>
   </div>
+  ${cmMuteBanner()}
 
   <div class="comm">
     <div class="comm-main">
@@ -434,7 +444,7 @@ function viewPostList(){
 function viewPostDetail(){
   const p = S.postDetail;
   if (!p) return '<div class="ccard" style="padding:48px;text-align:center;color:#86909C">正在加载帖子…</div>';
-  const mine = p.authorId != null && String(p.authorId) === String(S.userId);
+  const mine = cmIsMine(p.authorId);
   const topic = p.topicTitle || cmTopicName(p.topicId);
   return `
   <div class="page-head" style="margin-bottom:16px">
@@ -442,8 +452,12 @@ function viewPostDetail(){
       <button class="btn btn-sm" onclick="backToPosts()">← 返回社区</button>
       <span class="${cmTypeClass(p.type)}">${cmTypeName(p.type)}</span>
     </div>
-    <div style="font-size:12.5px;color:#86909C">${p.viewCount} 次浏览 · 最后回复 ${p.lastCommentAt ? cmFmt(p.lastCommentAt) : '暂无'}</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="font-size:12.5px;color:#86909C">${p.viewCount} 次浏览 · 最后回复 ${p.lastCommentAt ? cmFmt(p.lastCommentAt) : '暂无'}</div>
+      ${mine ? '' : `<button class="btn btn-sm" onclick="cmOpenReport('POST', ${cmJsArg(p.id)})">⋯ 举报</button>`}
+    </div>
   </div>
+  ${cmMuteBanner()}
 
   <div class="comm">
     <div class="comm-main">
@@ -527,8 +541,22 @@ function cmTypeClass(t){ return 'ptype ptype-' + cmSafeType(t); }
 function cmJsArg(v){
   return esc(JSON.stringify(String(v)));
 }
+/** 当前登录用户的社区身份（= 账号，来自 JWT 的 sub；匿名时为空串）。 */
+function cmMe(){ return (S.user && S.user.id) ? String(S.user.id) : ''; }
+
+/**
+ * 是不是我发的内容。
+ *
+ * <p>注意**不能**再用 `S.userId`——那是辩论侧的随机 gXXXXXX id；
+ * 社区身份在 2026-11-03 已改为登录账号，拿旧 id 比会让「编辑/删除」永远不出现。
+ */
+function cmIsMine(authorId){
+  const me = cmMe();
+  return !!me && authorId != null && String(authorId) === me;
+}
+
 function cmRootHTML(c){
-  const mine = c.authorId != null && String(c.authorId) === String(S.userId);
+  const mine = cmIsMine(c.authorId);
   const all = c.replies || [];
   const preview = c.expanded ? all : all.slice(0, 3);
   const total = c.replyCount || all.length;
@@ -541,7 +569,9 @@ function cmRootHTML(c){
       <div class="reply-like">
         <span onclick="cmLikeComment(${cmJsArg(c.id)})">👍 ${c.likeCount}${c.liked ? ' · 已赞' : ''}</span>
         <span onclick="cmStartReply(${cmJsArg(c.id)})">回复</span>
-        ${mine ? `<span onclick="cmDeleteComment(${cmJsArg(c.id)})">删除</span>` : ''}
+        ${mine
+          ? `<span onclick="cmDeleteComment(${cmJsArg(c.id)})">删除</span>`
+          : `<span onclick="cmOpenReport('COMMENT', ${cmJsArg(c.id)})">举报</span>`}
       </div>
       ${preview.map(cmReplyHTML).join('')}
       ${!c.expanded && total > preview.length ? `<div style="margin-top:9px;font-size:12px;color:#165DFF;cursor:pointer" onclick="cmExpandReplies(${cmJsArg(c.id)})">展开全部 ${total} 条回复</div>` : ''}
@@ -549,7 +579,7 @@ function cmRootHTML(c){
   </div>`;
 }
 function cmReplyHTML(r){
-  const mine = r.authorId != null && String(r.authorId) === String(S.userId);
+  const mine = cmIsMine(r.authorId);
   return `<div class="reply-sub">
     <div class="reply-av">${esc(cmInitial(r.authorName))}</div>
     <div class="reply-body">
@@ -563,7 +593,9 @@ function cmReplyHTML(r){
       <div class="reply-like">
         <span onclick="cmLikeComment(${cmJsArg(r.id)})">👍 ${r.likeCount}${r.liked ? ' · 已赞' : ''}</span>
         <span onclick="cmStartReply(${cmJsArg(r.id)})">回复</span>
-        ${mine ? `<span onclick="cmDeleteComment(${cmJsArg(r.id)})">删除</span>` : ''}
+        ${mine
+          ? `<span onclick="cmDeleteComment(${cmJsArg(r.id)})">删除</span>`
+          : `<span onclick="cmOpenReport('COMMENT', ${cmJsArg(r.id)})">举报</span>`}
       </div>
     </div>
   </div>`;
@@ -837,3 +869,177 @@ window.__CM = {
   log: CM_LOG,
   state: function(){ return {comm: S.comm, posts: S.posts, total: S.postTotal, detail: S.postDetail, comments: S.postComments}; },
 };
+/* ==================== 举报 / 禁言 / 我的举报（2026-11-03 治理链路） ==================== */
+
+const CM_REASONS = [['SPAM','垃圾广告'],['ABUSE','人身攻击'],['ILLEGAL','违法违规'],['OTHER','其他']];
+let cmReportTarget = null;     // {type:'POST'|'COMMENT', id}
+let cmReportReason = 'SPAM';
+let cmMuteInfo = null;         // {banned, until, reason}
+let cmMyReports = null;        // {items,total,page,size}
+
+/** 禁言黄条：被禁言时显示在社区列表 / 详情顶部（决策 D3：浏览不受影响，只是不能发内容）。 */
+function cmMuteBanner(){
+  if (!cmMuteInfo || !cmMuteInfo.banned) return '';
+  const until = cmMuteInfo.until ? cmFmt(cmMuteInfo.until) : '';
+  const why = cmMuteInfo.reason ? (' · 原因：' + esc(cmMuteInfo.reason)) : '';
+  return '<div style="display:flex;align-items:center;gap:10px;background:#FFF7E8;border:1px solid #FFE4BA;color:#B8740A;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px">'
+    + '<b>你已被禁言</b><span>至 ' + until + why + '</span>'
+    + '<span style="opacity:.75;margin-left:auto">不能发帖 / 评论 / 编辑 / 点赞，浏览正常</span></div>';
+}
+
+/** 拉一次自己的禁言状态（进入社区时调一次，不轮询）。 */
+async function cmLoadMyBan(){
+  if (!S.user) { cmMuteInfo = null; return; }
+  try { cmMuteInfo = await cmRequest('GET', '/api/community/me/ban'); }
+  catch (e) { cmMuteInfo = null; }
+}
+
+/* ---------- 举报弹窗 ---------- */
+
+function cmOpenReport(type, id){
+  if (!S.user) { toast('请先登录再举报'); go('me'); return; }
+  cmReportTarget = { type:type, id:id };
+  cmReportReason = 'SPAM';
+  cmRenderReportModal();
+}
+
+function cmPickReason(el){
+  cmReportReason = el.getAttribute('data-r');
+  Array.prototype.forEach.call(el.parentElement.querySelectorAll('.cm-opt'), function(o){ o.classList.remove('on'); });
+  el.classList.add('on');
+}
+
+function cmCloseReportModal(){
+  document.querySelectorAll('#cmReportMask').forEach(function(m){ m.remove(); });
+  cmReportTarget = null;
+}
+
+function cmRenderReportModal(){
+  document.querySelectorAll('#cmReportMask').forEach(function(m){ m.remove(); });
+  const t = cmReportTarget || {};
+  const label = t.type === 'COMMENT' ? '这条评论' : '这篇帖子';
+  const opts = CM_REASONS.map(function(r){
+    return '<button class="cm-opt ' + (cmReportReason === r[0] ? 'on' : '') + '" data-r="' + r[0] + '" onclick="cmPickReason(this)">'
+      + '<b>' + r[1] + '</b></button>';
+  }).join('');
+  const mask = document.createElement('div');
+  mask.className = 'mask';
+  mask.id = 'cmReportMask';
+  mask.innerHTML = `
+    <div class="cm-modal">
+      <h3>举报${label}</h3>
+      <div class="page-desc">举报会提交给管理员人工处理，被举报内容不会自动隐藏。</div>
+      <div class="cm-field" style="margin-top:16px">
+        <div class="cm-field-label">举报原因</div>
+        <div class="cm-opts">${opts}</div>
+      </div>
+      <div class="cm-field" style="margin-bottom:0">
+        <div class="cm-field-label">补充说明 <span>可选，最多 500 字</span></div>
+        <textarea id="cmReportDetail" class="cm-textarea" maxlength="500" placeholder="具体哪里有问题？"></textarea>
+      </div>
+      <div class="cm-modal-foot">
+        <button class="btn" onclick="cmCloseReportModal()">取消</button>
+        <button class="btn btn-primary" onclick="cmSubmitReport()">提交举报</button>
+      </div>
+    </div>`;
+  $('#modalHost').appendChild(mask);
+}
+
+async function cmSubmitReport(){
+  if (!cmReportTarget) return;
+  const el = document.querySelector('#cmReportDetail');
+  const detail = el ? String(el.value || '').trim() : '';
+  try {
+    const res = await cmRequest('POST', '/api/community/reports', { body:{
+      targetType: cmReportTarget.type, targetId: cmReportTarget.id,
+      reason: cmReportReason, detail: detail || null
+    }});
+    cmCloseReportModal();
+    toast('举报已提交（编号 ' + (res && res.reportId) + '）');
+  } catch (e) {
+    toast(cmErrText(e));
+  }
+}
+
+/* ---------- 我的举报 ---------- */
+
+async function cmOpenMyReports(){
+  if (!S.user) { toast('请先登录'); go('me'); return; }
+  cmMyReports = null;
+  cmRenderMyReports();
+  await cmLoadMyReports(1);
+}
+
+function cmCloseMyReports(){
+  document.querySelectorAll('#cmMyMask').forEach(function(m){ m.remove(); });
+  cmMyReports = null;
+}
+
+async function cmLoadMyReports(page){
+  try {
+    cmMyReports = await cmRequest('GET', '/api/community/my-reports?page=' + page + '&size=10');
+  } catch (e) {
+    toast('加载失败：' + cmErrText(e));
+    cmMyReports = { items:[], total:0, page:1, size:10 };
+  }
+  cmRenderMyReports();
+}
+
+function cmReasonName(k){
+  const r = CM_REASONS.filter(function(x){ return x[0] === k; })[0];
+  return r ? r[1] : (k || '');
+}
+
+function cmActionName(a){
+  const m = { IGNORE:'忽略', DELETE:'删除内容', BAN:'禁言', DELETE_AND_BAN:'删除并禁言' };
+  return m[a] || a || '';
+}
+
+function cmReportStatusHTML(status, action){
+  if (status === 'PENDING') return '<b style="color:#B8740A">待处理</b>';
+  if (status === 'REJECTED') return '<b style="color:#86909C">已驳回</b>';
+  return '<b style="color:#00B42A">已处理</b>' + (action ? '（' + cmActionName(action) + '）' : '');
+}
+
+function cmRenderMyReports(){
+  document.querySelectorAll('#cmMyMask').forEach(function(m){ m.remove(); });
+  const d = cmMyReports;
+  let body;
+  if (!d) {
+    body = '<div style="padding:28px 0;text-align:center;color:#86909C;font-size:13px">加载中…</div>';
+  } else if (!d.items || !d.items.length) {
+    body = '<div style="padding:28px 0;text-align:center;color:#86909C;font-size:13px">还没有举报记录</div>';
+  } else {
+    body = d.items.map(function(r){
+      const isPost = r.targetType === 'POST';
+      return '<div style="padding:12px 0;border-bottom:1px solid #F2F3F5">'
+        + '<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#86909C">'
+        + '<span class="mini-tag">' + (isPost ? '帖子' : '评论') + '</span>'
+        + '<span>' + esc(cmReasonName(r.reason)) + '</span>'
+        + '<span style="margin-left:auto">' + cmFmt(r.createdAt) + '</span></div>'
+        + '<div style="margin-top:6px;font-size:13.5px;color:#1D2129">' + esc(r.targetSummary || '（内容已删除）') + '</div>'
+        + (r.detail ? '<div style="margin-top:4px;font-size:12.5px;color:#86909C">补充：' + esc(r.detail) + '</div>' : '')
+        + '<div style="margin-top:6px;font-size:12.5px">' + cmReportStatusHTML(r.status, r.action)
+        + (r.handledAt ? '<span style="color:#A9AEB8"> · ' + cmFmt(r.handledAt) + '</span>' : '') + '</div>'
+        + '</div>';
+    }).join('');
+  }
+  const page = (d && d.page) || 1;
+  const size = (d && d.size) || 10;
+  const pages = d ? Math.max(1, Math.ceil((d.total || 0) / size)) : 1;
+  const mask = document.createElement('div');
+  mask.className = 'mask';
+  mask.id = 'cmMyMask';
+  mask.innerHTML = `
+    <div class="cm-modal">
+      <h3>我的举报</h3>
+      <div class="page-desc">共 ${d ? d.total : 0} 条 · 处理结果由管理员决定</div>
+      <div style="max-height:52vh;overflow:auto;margin-top:12px">${body}</div>
+      <div class="cm-modal-foot">
+        ${pages > 1 ? `<button class="btn" ${page <= 1 ? 'disabled' : ''} onclick="cmLoadMyReports(${Math.max(1, page - 1)})">上一页</button>` : ''}
+        ${pages > 1 ? `<button class="btn" ${page >= pages ? 'disabled' : ''} onclick="cmLoadMyReports(${Math.min(pages, page + 1)})">下一页</button>` : ''}
+        <button class="btn btn-primary" onclick="cmCloseMyReports()">关闭</button>
+      </div>
+    </div>`;
+  $('#modalHost').appendChild(mask);
+}

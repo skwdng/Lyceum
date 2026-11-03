@@ -178,7 +178,8 @@ class CommunityViewServiceTest {
     private MockMvc mvc() {
         return MockMvcBuilders.standaloneSetup(new CommunityController(
                         mock(CommunityService.class), mock(CommentService.class),
-                        mock(LikeService.class), service))
+                        mock(LikeService.class), service,
+                        mock(ReportService.class), mock(MuteGuard.class)))
                 .setControllerAdvice(new CommunityErrors())
                 .build();
     }

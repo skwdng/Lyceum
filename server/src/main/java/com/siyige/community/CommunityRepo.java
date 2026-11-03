@@ -122,6 +122,24 @@ public class CommunityRepo {
         return jdbc.update("update sy_post set status = 2, updated_at = now() where id = ? and status = 1", id);
     }
 
+    /**
+     * 撤销软删（管理员「一键恢复」用）：status 2 -> 1。
+     *
+     * <p>只对**已删**的行生效（`and status = 2`），返回 0 表示"没东西可恢复"
+     * ——目标不存在、本来就是可见的、或已被其它途径改过，调用方据此返回 409。
+     *
+     * <p>放在 community 包里而不是 admin 包：`sy_post` 的 SQL 只由社区模块写，
+     * 管理员恢复动作也走同一个出口（和 softDeletePost 对称）。
+     */
+    public int restorePost(long id) {
+        return jdbc.update("update sy_post set status = 1, updated_at = now() where id = ? and status = 2", id);
+    }
+
+    /** 撤销软删（评论），语义同 {@link #restorePost(long)}。 */
+    public int restoreComment(long id) {
+        return jdbc.update("update sy_post_comment set status = 1 where id = ? and status = 2", id);
+    }
+
     // ---------- 评论读 ----------
 
     /** 单条评论（含已删除行，状态由 Service 判断）。 */

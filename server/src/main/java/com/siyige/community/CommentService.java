@@ -35,10 +35,13 @@ public class CommentService {
 
     private final CommunityRepo repo;
     private final SensitiveWordMasker masker;
+    /** 禁言校验：被禁言不能发评论。 */
+    private final MuteGuard muteGuard;
 
-    public CommentService(CommunityRepo repo, SensitiveWordMasker masker) {
+    public CommentService(CommunityRepo repo, SensitiveWordMasker masker, MuteGuard muteGuard) {
         this.repo = repo;
         this.masker = masker;
+        this.muteGuard = muteGuard;
     }
 
     // ==================== 读 ====================
@@ -133,6 +136,7 @@ public class CommentService {
     /** 发布评论：root_id / reply_object_* 全部由服务端派生（R-COM-19）。 */
     @Transactional
     public Map<String, Object> create(String userId, long postId, Map<String, Object> body) {
+        muteGuard.assertNotMuted(userId);          // 被禁言不能发评论
         requirePost(postId);
 
         String text = requireBody(body.get("body"));

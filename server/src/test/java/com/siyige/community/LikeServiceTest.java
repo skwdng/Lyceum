@@ -19,7 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class LikeServiceTest {
 
     private final CommunityRepo repo = mock(CommunityRepo.class);
-    private final LikeService service = new LikeService(repo);
+    private final com.siyige.community.MuteGuard muteGuard = mock(com.siyige.community.MuteGuard.class);
+    private final LikeService service = new LikeService(repo, muteGuard);
 
     private static Map<String, Object> postRow(long likeCount) {
         Map<String, Object> post = new HashMap<>();
@@ -155,7 +156,7 @@ class LikeServiceTest {
         CommentService comments = mock(CommentService.class);
         LikeService likes = mock(LikeService.class);
         CommunityViewService views = mock(CommunityViewService.class);
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new CommunityController(community, comments, likes, views)).build();
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new CommunityController(community, comments, likes, views, mock(ReportService.class), mock(com.siyige.community.MuteGuard.class))).build();
 
         // 身份改由 UserContext 提供（JwtAuthFilter 在真实链路里填好；这里直接塞）
         com.siyige.auth.UserContext.set("u1");

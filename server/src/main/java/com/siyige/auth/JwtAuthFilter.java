@@ -32,10 +32,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwt;
     private final TokenBlacklist blacklist;
+    /** 全站封禁校验：每个带 token 的请求查一次 sy_user.status（不加缓存，决策 8）。 */
+    private final UserStatusSource userStatus;
 
-    public JwtAuthFilter(JwtService jwt, TokenBlacklist blacklist) {
+    public JwtAuthFilter(JwtService jwt, TokenBlacklist blacklist, UserStatusSource userStatus) {
         this.jwt = jwt;
         this.blacklist = blacklist;
+        this.userStatus = userStatus;
     }
 
     @Override
@@ -47,7 +50,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 if (token != null) {
                     JwtService.ParsedToken parsed = jwt.parse(token);
                     if (parsed == null) throw AuthException.unauthorized();
+                    // 管理员令牌不认：出示了类型不对的身份 = 401，不能当匿名放行，
+                    // 否则管理员就能以普通用户身份发帖 / 点赞（权限串线）。
+                    if (!parsed.isUser()) throw AuthException.notAdminOnCommunity();
                     if (blacklist.contains(parsed.jti())) throw AuthException.unauthorized();
+                    // 一次查询同时拿到「封禁」与「改密时间」，不查两次库（用户决策 1）
+                    AuthState state = userStatus.authState(parsed.userId());
+                    if (state.disabled()) throw AuthException.accountDisabled();
+                    // 改密后所有旧令牌立刻失效（iat 早于 pwd_changed_at）
+                    if (state.isTokenStale(parsed.issuedAt())) throw AuthException.tokenStale();
                     UserContext.set(parsed.userId());
                 }
                 if (requiresLogin(req.getMethod(), pathOf(req)) && !UserContext.isLoggedIn()) {

@@ -28,11 +28,18 @@ class AuthControllerTest {
     private final JwtService jwt = new JwtService(SECRET);
     private final TokenBlacklist blacklist = mock(TokenBlacklist.class);
     private final LoginRateLimiter limiter = mock(LoginRateLimiter.class);
+    private final UserStatusSource userStatus = mock(UserStatusSource.class);
 
     private final MockMvc mvc = MockMvcBuilders
-            .standaloneSetup(new AuthController(auth, jwt, blacklist, limiter))
+            .standaloneSetup(new AuthController(auth, jwt, blacklist, limiter, userStatus))
             .setControllerAdvice(new AuthErrors())
             .build();
+
+    @org.junit.jupiter.api.BeforeEach
+    void defaultAuthState() {
+        // requireToken 现在会查一次认证状态；默认"没改过密码"
+        when(userStatus.authState(anyString())).thenReturn(AuthState.UNKNOWN);
+    }
 
     private static AuthDtos.AuthUser user() {
         return new AuthDtos.AuthUser("zhang", "zhang", "老张");

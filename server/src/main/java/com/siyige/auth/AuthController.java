@@ -40,12 +40,16 @@ public class AuthController {
     private final JwtService jwt;
     private final TokenBlacklist blacklist;
     private final LoginRateLimiter limiter;
+    /** 认证状态（封禁 + 改密时间）：/api/auth 自己不经过滤器，这里也要判「改密后旧令牌失效」。 */
+    private final UserStatusSource userStatus;
 
-    public AuthController(AuthService auth, JwtService jwt, TokenBlacklist blacklist, LoginRateLimiter limiter) {
+    public AuthController(AuthService auth, JwtService jwt, TokenBlacklist blacklist,
+                          LoginRateLimiter limiter, UserStatusSource userStatus) {
         this.auth = auth;
         this.jwt = jwt;
         this.blacklist = blacklist;
         this.limiter = limiter;
+        this.userStatus = userStatus;
     }
 
     // ==================== 注册 / 登录 ====================
@@ -102,6 +106,24 @@ public class AuthController {
         return userView(auth.updateName(token.userId(), req == null ? null : req.name()));
     }
 
+    /**
+     * 改密码：`{oldPassword,newPassword}` → **204**。
+     *
+     * <p>改完该账号**所有旧令牌立刻失效**（含当前这一个）——前端收到 204 后应清本地令牌、
+     * 回登录页重新登录。错误：400 `INVALID_PARAM`（旧密码不正确 / 新密码不合规 / 新旧相同）
+     * 或 401（未登录 / 令牌已失效）。
+     */
+    @PatchMapping("/password")
+    public ResponseEntity<Void> changePassword(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody(required = false) AuthDtos.ChangePasswordRequest req) {
+        JwtService.ParsedToken token = requireToken(authorization);
+        auth.changePassword(token.userId(),
+                req == null ? null : req.oldPassword(),
+                req == null ? null : req.newPassword());
+        return ResponseEntity.noContent().build();
+    }
+
     // ==================== 内部 ====================
 
     private Map<String, Object> withToken(AuthDtos.AuthUser user) {
@@ -129,17 +151,15 @@ public class AuthController {
         JwtService.ParsedToken parsed = jwt.parse(raw.substring(BEARER.length()).trim());
         if (parsed == null) throw AuthException.unauthorized();
         if (blacklist.contains(parsed.jti())) throw AuthException.unauthorized();
+        // 改密后旧令牌在这里也要失效——否则它能继续调 /me、/me(PATCH)、甚至再改一次密码
+        if (userStatus.authState(parsed.userId()).isTokenStale(parsed.issuedAt())) {
+            throw AuthException.tokenStale();
+        }
         return parsed;
     }
 
-    /** 取客户端 IP：优先 X-Forwarded-For 第一跳（反向代理后面才有意义）。 */
+    /** 取客户端 IP（实现见 {@link ClientIp}；管理端登录复用同一份逻辑）。 */
     static String clientIp(HttpServletRequest req) {
-        if (req == null) return null;
-        String xff = req.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            int comma = xff.indexOf(',');
-            return (comma > 0 ? xff.substring(0, comma) : xff).trim();
-        }
-        return req.getRemoteAddr();
+        return ClientIp.of(req);
     }
 }

@@ -70,6 +70,15 @@ public class AuthRepo {
         return jdbc.update("update sy_user set name = ? where id = ?", name, id);
     }
 
+    /**
+     * 改密：哈希与 pwd_changed_at **同一条 update** 写下去。
+     *
+     * <p>写时间那一刻起，早于它签发的令牌全部失效（见 {@link AuthState#isTokenStale}）。
+     */
+    public int changePassword(String id, String passwordHash, java.sql.Timestamp changedAt) {
+        return jdbc.update("update sy_user set password_hash = ?, pwd_changed_at = ? where id = ?",
+                passwordHash, changedAt, id);
+    }
     /** 登录成功且 needsUpgrade 时重算并回写（参数/算法升级的平滑迁移）。 */
     public int updatePasswordHash(String id, String passwordHash) {
         return jdbc.update("update sy_user set password_hash = ? where id = ?", passwordHash, id);

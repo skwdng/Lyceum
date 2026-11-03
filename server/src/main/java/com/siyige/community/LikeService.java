@@ -25,14 +25,18 @@ public class LikeService {
     static final String TARGET_COMMENT = "COMMENT";
 
     private final CommunityRepo repo;
+    /** 禁言校验：被禁言不能点赞（但**可以**取消点赞——不卡住用户收回自己的操作）。 */
+    private final MuteGuard muteGuard;
 
-    public LikeService(CommunityRepo repo) {
+    public LikeService(CommunityRepo repo, MuteGuard muteGuard) {
         this.repo = repo;
+        this.muteGuard = muteGuard;
     }
 
     /** 点赞帖子：已赞则什么都不做，仍返回成功。 */
     @Transactional
     public void likePost(String userId, long postId) {
+        muteGuard.assertNotMuted(userId);      // 被禁言不能点赞；取消点赞不拦
         changePostLike(userId, postId, true);
     }
 
@@ -45,6 +49,7 @@ public class LikeService {
     /** 点赞评论：不重算帖子热度。 */
     @Transactional
     public void likeComment(String userId, long commentId) {
+        muteGuard.assertNotMuted(userId);
         changeCommentLike(userId, commentId, true);
     }
 

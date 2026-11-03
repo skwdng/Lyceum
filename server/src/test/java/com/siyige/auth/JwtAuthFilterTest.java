@@ -21,7 +21,14 @@ class JwtAuthFilterTest {
 
     private final JwtService jwt = new JwtService(SECRET);
     private final TokenBlacklist blacklist = mock(TokenBlacklist.class);
-    private final JwtAuthFilter filter = new JwtAuthFilter(jwt, blacklist);
+    private final UserStatusSource userStatus = mock(UserStatusSource.class);
+    private final JwtAuthFilter filter = new JwtAuthFilter(jwt, blacklist, userStatus);
+
+    @org.junit.jupiter.api.BeforeEach
+    void defaultAuthState() {
+        // 默认"没封禁、没改过密码"，个别用例再覆盖
+        when(userStatus.authState(anyString())).thenReturn(com.siyige.auth.AuthState.UNKNOWN);
+    }
 
     /** 记录下游是否被调用、以及调用时 UserContext 里是谁。 */
     private static final class Capture {
@@ -201,5 +208,80 @@ class JwtAuthFilterTest {
         req.setContextPath("/siyige");
 
         assertEquals("/api/community/posts/7/view", JwtAuthFilter.pathOf(req));
+    }
+
+    // ---------- 管理员令牌不能当普通用户用（D9） ----------
+
+    @Test
+    void 管理员令牌访问社区返回401_NOT_ADMIN() throws Exception {
+        String adminToken = jwt.issueAdmin("1", "admin");
+
+        MockHttpServletResponse res = runForResponse("GET", "/api/community/posts", adminToken);
+
+        assertEquals(401, res.getStatus(), "管理员令牌不该能读社区接口");
+        assertTrue(res.getContentAsString().contains("NOT_ADMIN"), res.getContentAsString());
+        // 也不该去查用户黑名单（管理员 jti 根本不在那套 key 里）
+        verifyNoInteractions(blacklist);
+    }
+
+    @Test
+    void 管理员令牌发帖也被401挡住_避免权限串线() throws Exception {
+        String adminToken = jwt.issueAdmin("1", "admin");
+
+        MockHttpServletResponse res = runForResponse("POST", "/api/community/posts", adminToken);
+
+        assertEquals(401, res.getStatus());
+        assertTrue(res.getContentAsString().contains("NOT_ADMIN"));
+    }
+
+    // ---------- 全站封禁（验收 #15） ----------
+
+    @Test
+    void 全站封禁用户带旧token访问社区返回401_ACCOUNT_DISABLED() throws Exception {
+        when(blacklist.contains(anyString())).thenReturn(false);
+        when(userStatus.authState("zhang")).thenReturn(new com.siyige.auth.AuthState(true, null));
+        String token = jwt.issue("zhang", "zhang");
+
+        MockHttpServletResponse res = runForResponse("GET", "/api/community/posts", token);
+
+        assertEquals(401, res.getStatus(), "封禁后下一次请求就该被踢");
+        assertTrue(res.getContentAsString().contains("ACCOUNT_DISABLED"), res.getContentAsString());
+    }
+
+    @Test
+    void 未被封禁的用户不受影响() throws Exception {
+        when(blacklist.contains(anyString())).thenReturn(false);
+        when(userStatus.authState(anyString())).thenReturn(new com.siyige.auth.AuthState(false, null));
+
+        Capture c = run("GET", "/api/community/posts", jwt.issue("zhang", "zhang"));
+
+        assertTrue(c.called);
+    }
+
+    // ---------- 改密后旧令牌失效（B2） ----------
+
+    @Test
+    void 改密后旧令牌返回401_TOKEN_STALE() throws Exception {
+        String token = jwt.issue("zhang", "zhang");
+        // 令牌签发时间之后才改的密码 -> 失效
+        java.time.Instant changed = jwt.parse(token).issuedAt().plusSeconds(5);
+        when(userStatus.authState("zhang")).thenReturn(new com.siyige.auth.AuthState(false, changed));
+
+        MockHttpServletResponse res = runForResponse("GET", "/api/community/posts", token);
+
+        assertEquals(401, res.getStatus());
+        assertTrue(res.getContentAsString().contains("TOKEN_STALE"), res.getContentAsString());
+    }
+
+    @Test
+    void 改密之前签发的旧令牌才失效_新令牌不受影响() throws Exception {
+        String old = jwt.issue("zhang", "zhang");
+        java.time.Instant changed = jwt.parse(old).issuedAt().plusSeconds(5);
+        // 模拟"改密之后再登录"拿到的新令牌
+        com.siyige.auth.AuthState state = new com.siyige.auth.AuthState(false, changed);
+
+        assertTrue(state.isTokenStale(jwt.parse(old).issuedAt()), "旧令牌应失效");
+        assertFalse(state.isTokenStale(changed), "改密同一秒签发的令牌不该失效");
+        assertFalse(state.isTokenStale(changed.plusSeconds(1)), "改密之后签发的令牌不该失效");
     }
 }

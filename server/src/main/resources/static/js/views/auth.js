@@ -72,6 +72,8 @@ function authErrText(e) {
     ACCOUNT_TAKEN: '该用户名已被占用',
     BAD_CREDENTIALS: '用户名或密码错误',
     UNAUTHORIZED: '登录已过期，请重新登录',
+    TOKEN_STALE: '密码已更新，请重新登录',
+    ACCOUNT_DISABLED: '账号已被封禁',
     TOO_MANY_ATTEMPTS: '尝试次数过多，请稍后再试',
     SERVICE_UNAVAILABLE: '登录服务暂时不可用，请稍后再试',
     NETWORK: '连不上后端'
@@ -204,7 +206,55 @@ function viewMePanel() {
       <button class="btn primary" onclick="authRename()">保存昵称</button>
       <button class="btn ghost" onclick="authLogout()">退出登录</button>
     </div>
+
+    <div style="border-top:1px solid #EFF0F1;margin:22px -24px 0;padding:18px 24px 0">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px">修改密码</div>
+      <p class="sub">改完密码后，其它设备上的登录会全部失效，需要用新密码重新登录。</p>
+      <div class="auth-field">
+        <label for="authOldPwd">当前密码</label>
+        <input id="authOldPwd" type="password" autocomplete="current-password" placeholder="输入现在的密码" maxlength="64">
+      </div>
+      <div class="auth-field">
+        <label for="authNewPwd">新密码</label>
+        <input id="authNewPwd" type="password" autocomplete="new-password" placeholder="至少 8 位，含数字和字母" maxlength="64">
+      </div>
+      <div class="auth-field">
+        <label for="authNewPwd2">确认新密码</label>
+        <input id="authNewPwd2" type="password" autocomplete="new-password" placeholder="再输入一次" maxlength="64"
+               onkeydown="if(event.key==='Enter')authChangePassword()">
+      </div>
+      <div class="auth-actions">
+        <button class="btn primary" onclick="authChangePassword()">修改密码</button>
+      </div>
+    </div>
   </div>`;
+}
+
+/**
+ * 提交改密。
+ *
+ * <p>成功后本地令牌立刻作废（服务端已把它判为 TOKEN_STALE），前端清状态回登录页，
+ * 让用户用新密码重新登录——不做"静默换 token"，那样用户会以为旧密码还能用。
+ */
+async function authChangePassword() {
+  const oldPwd = (document.querySelector('#authOldPwd') || {}).value || '';
+  const newPwd = (document.querySelector('#authNewPwd') || {}).value || '';
+  const again = (document.querySelector('#authNewPwd2') || {}).value || '';
+
+  if (!oldPwd) return toast('请输入当前密码');
+  if (newPwd.length < 8 || newPwd.length > 64) return toast('新密码需 8–64 位');
+  if (!/[0-9]/.test(newPwd) || !/[A-Za-z]/.test(newPwd)) return toast('新密码必须同时包含数字和字母');
+  if (newPwd !== again) return toast('两次输入的新密码不一致');
+  if (newPwd === oldPwd) return toast('新密码不能与旧密码相同');
+
+  try {
+    await authApi('/api/auth/password', 'PATCH', { oldPassword: oldPwd, newPassword: newPwd });
+    authClear();
+    toast('密码已更新，请重新登录');
+    go('me');
+  } catch (e) {
+    toast(authErrText(e));
+  }
 }
 /* ---------------- 左下角账号块（唯一的登录入口） ---------------- */
 

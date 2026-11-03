@@ -30,8 +30,6 @@ public class AuthService {
     /** 账号规则：3–32 位字母数字下划线。 */
     private static final Pattern ACCOUNT = Pattern.compile("^[A-Za-z0-9_]{3,32}$");
 
-    private static final int PASSWORD_MIN = 8;
-    private static final int PASSWORD_MAX = 64;
     private static final int NAME_MAX = 64;
 
     private final AuthRepo repo;
@@ -89,9 +87,10 @@ public class AuthService {
             throw AuthException.badCredentials();
         }
         if (user.status() != 1) {
-            // 也不泄露"账号被禁用"，对外仍是同一句话
-            log.info("登录失败（账号状态非正常） account={} status={}", account, user.status());
-            throw AuthException.badCredentials();
+            // 全站封禁：密码已经验过，这里明确告诉对方"被封了"——
+            // 方案 §4 / 验收 #15 要求登录直接返回 ACCOUNT_DISABLED，而不是含糊的"密码错"。
+            log.info("登录失败（账号已被全站封禁） account={} status={}", account, user.status());
+            throw AuthException.accountDisabled();
         }
 
         // 参数/算法升级时平滑重算（决策 4 的迁移口子）
@@ -107,6 +106,50 @@ public class AuthService {
 
         log.info("登录成功 account={}", account);
         return toView(user);
+    }
+
+    // ==================== 改密 ====================
+
+    /**
+     * 改密码。
+     *
+     * <p>顺序刻意是「先验旧密码、再校验新密码策略」：这样没掌握旧密码的人
+     * 试探不到密码策略的任何细节。
+     *
+     * <p>校验（用户决策 1）：
+     * <ul>
+     *   <li>旧密码必须对，否则 400 {@code INVALID_PARAM}「旧密码不正确」（用户确认用 400）</li>
+     *   <li>新密码 8–64 位且必须同时含数字与字母</li>
+     *   <li>新旧不能相同</li>
+     * </ul>
+     *
+     * <p>写库时同时落 `pwd_changed_at`：**该账号所有旧令牌立刻失效**（401 TOKEN_STALE）。
+     * 日志只打 account，绝不打印任何密码。
+     */
+    public void changePassword(String userId, String oldPassword, String newPassword) {
+        if (userId == null || userId.isBlank()) throw AuthException.unauthorized();
+        AuthRepo.UserRecord user = repo.findById(userId);
+        if (user == null) throw AuthException.unauthorized();
+        if (user.passwordHash() == null) {
+            throw AuthException.invalidParam("当前账号没有设置密码，请联系管理员");
+        }
+
+        if (oldPassword == null || oldPassword.isEmpty()) {
+            throw AuthException.invalidParam("请输入旧密码");
+        }
+        if (!encoder.matches(oldPassword, user.passwordHash())) {
+            log.info("改密失败（旧密码不正确） account={}", user.account());
+            throw AuthException.invalidParam("旧密码不正确");
+        }
+
+        checkPasswordPolicy(newPassword);
+        if (encoder.matches(newPassword, user.passwordHash())) {
+            throw AuthException.invalidParam("新密码不能与旧密码相同");
+        }
+
+        repo.changePassword(user.id(), encoder.encode(newPassword),
+                java.sql.Timestamp.from(java.time.Instant.now()));
+        log.info("改密成功 account={}（该账号旧令牌全部失效）", user.account());
     }
 
     // ==================== 我 / 改名 ====================
@@ -143,21 +186,9 @@ public class AuthService {
         return raw == null ? "" : raw.trim().toLowerCase();
     }
 
+    /** 密码策略：与管理员端共用同一套规则（见 {@link PasswordPolicy}）。 */
     private static void checkPasswordPolicy(String password) {
-        if (password == null || password.isEmpty()) {
-            throw AuthException.invalidParam("密码不能为空");
-        }
-        if (password.length() < PASSWORD_MIN) {
-            throw AuthException.invalidParam("密码至少 " + PASSWORD_MIN + " 位");
-        }
-        if (password.length() > PASSWORD_MAX) {
-            throw AuthException.invalidParam("密码最多 " + PASSWORD_MAX + " 位");
-        }
-        boolean hasDigit = password.chars().anyMatch(Character::isDigit);
-        boolean hasLetter = password.chars().anyMatch(Character::isLetter);
-        if (!hasDigit || !hasLetter) {
-            throw AuthException.invalidParam("密码必须同时包含数字和字母");
-        }
+        PasswordPolicy.check(password);
     }
 
     /**

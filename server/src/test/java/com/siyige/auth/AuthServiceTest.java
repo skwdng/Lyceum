@@ -145,12 +145,12 @@ class AuthServiceTest {
     }
 
     @Test
-    void 登录_禁用账号不给过_且文案与其他失败一致() {
+    void 登录_全站封禁账号返回ACCOUNT_DISABLED() {
         String hash = encoder.encode("abc12345");
         when(repo.findByAccount("zhang")).thenReturn(user("zhang", hash, 2));
 
         AuthException e = assertThrows(AuthException.class, () -> service.login(login("zhang", "abc12345")));
-        assertEquals("BAD_CREDENTIALS", e.code());
+        assertEquals("ACCOUNT_DISABLED", e.code(), "全站封禁要明确返回 ACCOUNT_DISABLED（验收 #15）");
     }
 
     @Test
