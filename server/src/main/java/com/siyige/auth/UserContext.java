@@ -34,6 +34,22 @@ public final class UserContext {
         return id;
     }
 
+    /**
+     * 当前登录用户 id —— **全项目取身份的唯一入口**（JWT 的 {@code sub}）。
+     *
+     * <p>与 {@link #require()} 完全等价，只是把名字写明白：调用点一眼就知道"这是在取 userId"，
+     * 不会误以为是"取某个可选用户"。
+     *
+     * <p>为什么另起一个名字而不改名：{@code community/} 包里有 12 处在用 {@code require()}，
+     * 而本期红线禁止改社区包，所以保留旧名、只新增别名。
+     *
+     * <p><b>铁律</b>：Controller 不许再从请求参数里读 {@code userId} / {@code userName} ——
+     * 一律从这里取，请求里带的同名字段一律忽略。
+     */
+    public static String requireId() {
+        return require();
+    }
+
     public static boolean isLoggedIn() {
         String id = CURRENT.get();
         return id != null && !id.isBlank();

@@ -116,7 +116,7 @@ async function authLogin() {
     if (res && res.token) authSetToken(res.token);
     S.user = res && res.user ? res.user : null;
     toast('欢迎回来，' + (S.user ? S.user.name : ''));
-    go('community');
+    goAfterAuth();
   } catch (e) {
     toast(authErrText(e));
   }
@@ -132,7 +132,7 @@ async function authRegister() {
     if (res && res.token) authSetToken(res.token);
     S.user = res && res.user ? res.user : null;
     toast('注册成功，' + (S.user ? S.user.name : ''));
-    go('community');
+    goAfterAuth();
   } catch (e) {
     toast(authErrText(e));
   }

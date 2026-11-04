@@ -96,4 +96,21 @@ public class AuthException extends RuntimeException {
         return new AuthException("MUTED", HttpStatus.FORBIDDEN,
                 "MUTED: 你已被禁言至 " + untilText);
     }
+
+    // ---------- 辩论侧（对局归属 / 令牌类型） ----------
+
+    /**
+     * 登录了，但这场对局不是你的：403 `FORBIDDEN`。
+     *
+     * <p>与 401 严格分工：401 = 你没登录（过滤器负责）；403 = 你登录了但无权（{@link MatchAccess} 负责）。
+     */
+    public static AuthException forbidden(String message) {
+        return new AuthException("FORBIDDEN", HttpStatus.FORBIDDEN, "FORBIDDEN: " + message);
+    }
+
+    /** 管理员令牌被拿去访问对局接口：401 `NOT_ADMIN`（同社区侧理由，不能当匿名放行）。 */
+    public static AuthException notAdminOnDebate() {
+        return new AuthException("NOT_ADMIN", HttpStatus.UNAUTHORIZED,
+                "NOT_ADMIN: 这是管理员令牌，不能用于对局接口");
+    }
 }

@@ -67,4 +67,4 @@ MySQL 无 `MERGE ... KEY`，需改成 `insert ... on duplicate key update`（作
 | 服务 | 容器 | 地址 | 凭据 |
 |---|---|---|---|
 | MySQL | `wdacg-mysql` (mysql:8.0) | `127.0.0.1:3307` | `root` / `wdacg123456`，库 `siyige` |
-| Redis | `wdacg-redis` (redis:7-alpine) | `127.0.0.1:6379` | `requirepass wdacg123456` |
+| Redis | `siyige-redis` (redis:7-alpine) | `127.0.0.1:6379` | `requirepass siyige123456`（2026-11-04 起换成本项目独占实例） |

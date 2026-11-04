@@ -48,15 +48,27 @@ public class RoomStore {
         return rows.isEmpty() ? null : lower(rows.get(0));
     }
 
+    /**
+     * 席位列表。
+     *
+     * <p><b>昵称取当前账号昵称</b>（`left join sy_user`），而不是 `sy_seat.user_name` 那个
+     * "入座时的快照" —— 昵称可以在「我的」里随时改，读快照会显示旧名字。
+     * `coalesce` 兜住三种情况：AI 席位（user_id 为 NULL）、账号已删的老数据。
+     */
     public List<Map<String, Object>> seats(String code) {
         return lowerAll(jdbc.queryForList(
-                "select seat_key,side,role,occupant,user_id,user_name,ready from sy_seat where room_code=? order by seat_key", code));
+                "select s.seat_key, s.side, s.role, s.occupant, s.user_id, " +
+                "       coalesce(u.name, s.user_name) as user_name, s.ready " +
+                "  from sy_seat s left join sy_user u on u.id = s.user_id " +
+                " where s.room_code = ? order by s.seat_key", code));
     }
 
     public Map<String, Object> seat(String code, String seatKey) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "select seat_key,side,role,occupant,user_id,user_name,ready from sy_seat where room_code=? and seat_key=?",
-                code, seatKey);
+                "select s.seat_key, s.side, s.role, s.occupant, s.user_id, " +
+                "       coalesce(u.name, s.user_name) as user_name, s.ready " +
+                "  from sy_seat s left join sy_user u on u.id = s.user_id " +
+                " where s.room_code = ? and s.seat_key = ?", code, seatKey);
         return rows.isEmpty() ? null : lower(rows.get(0));
     }
 
@@ -100,12 +112,19 @@ public class RoomStore {
         return out;
     }
 
-    public List<String> unreadyHumans(String code) {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "select user_name from sy_seat where room_code=? and occupant='USER' and ready=false", code);
-        List<String> out = new ArrayList<>();
-        for (Map<String, Object> r : rows) out.add(String.valueOf(r.get("user_name")));
-        return out;
+    /**
+     * 没准备的真人：返回**座位号 + 昵称**。
+     *
+     * <p>为什么要带座位号：房主免准备必须**按座位（A1）判断**，
+     * 不能像以前那样比 `user_name.equals("房主")` —— 昵称换成真账号昵称后，
+     * 那句比较永远不成立，房主会把自己算成"未准备"，房间就永远开不了局。
+     */
+    public List<Map<String, Object>> unreadySeatRows(String code) {
+        return lowerAll(jdbc.queryForList(
+                "select s.seat_key, coalesce(u.name, s.user_name) as user_name, s.user_id " +
+                "  from sy_seat s left join sy_user u on u.id = s.user_id " +
+                " where s.room_code = ? and s.occupant = 'USER' and s.ready = false " +
+                " order by s.seat_key", code));
     }
 
     public void setStatus(String code, String status, String matchId) {

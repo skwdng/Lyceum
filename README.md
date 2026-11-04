@@ -36,7 +36,7 @@ mvn spring-boot:run                                        # 打开 http://local
 需要本地 Redis（社区浏览计数与去重用，必需）：
 
 ```bash
-docker run -d --name wdacg-redis -p 6379:6379 redis:7-alpine --requirepass wdacg123456
+docker run -d --name siyige-redis -p 6379:6379 redis:7-alpine --requirepass siyige123456
 ```
 
 ## 技术栈

@@ -28,11 +28,13 @@ spring:
   # Redis 是社区的必需依赖（D7）：浏览去重 view:seen:{postId}:{yyyyMMdd} + 增量 view:pending。
   # 已移除 autoconfigure.exclude 的 RedisAutoConfiguration；启动时做一次 PING 自检
   # （CommunityRedisPing：失败打 ERROR 但**不阻塞启动**，R-COM-37 要求浏览接口一律 204）。
+  # 本机实例：Docker 容器 `siyige-redis`（redis:7-alpine，127.0.0.1:6379，独立实例，不与其它项目共用）。
+  # 换实例/换密码只需改环境变量 SIYIGE_REDIS_HOST / SIYIGE_REDIS_PORT / SIYIGE_REDIS_PASSWORD，不用动这里。
   data:
     redis:
       host: ${SIYIGE_REDIS_HOST:127.0.0.1}
       port: ${SIYIGE_REDIS_PORT:6379}
-      password: ${SIYIGE_REDIS_PASSWORD:wdacg123456}
+      password: ${SIYIGE_REDIS_PASSWORD:siyige123456}
       timeout: 50ms
       connect-timeout: 50ms
 

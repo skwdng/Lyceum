@@ -1,5 +1,7 @@
 package com.siyige.api;
 
+import com.siyige.auth.MatchAccess;
+import com.siyige.auth.UserContext;
 import com.siyige.domain.Format;
 import com.siyige.hot.HotRank;
 import com.siyige.repo.Store;
@@ -25,13 +27,28 @@ public class ApiController {
     private final SseHub sse;
     private final com.siyige.service.EvidenceService evidence;
     private final com.siyige.service.BriefService brief;
+    /** 对局归属校验的唯一入口：owner 或同房间席位成员。控制器不许自己拼 SQL 判归属。 */
+    private final MatchAccess matchAccess;
 
     public ApiController(Store store, AuditService audit, MatchService matches, HotRank hot, SseHub sse,
                          com.siyige.service.EvidenceService evidence,
-                         com.siyige.service.BriefService brief) {
+                         com.siyige.service.BriefService brief, MatchAccess matchAccess) {
         this.store = store; this.audit = audit; this.matches = matches; this.hot = hot; this.sse = sse;
         this.evidence = evidence;
         this.brief = brief;
+        this.matchAccess = matchAccess;
+    }
+
+    /**
+     * 两个统一入口之一：**身份 + 归属**一次做完。
+     *
+     * <p>所有 {@code /matches/&#123;id&#125;/**} 端点第一行都调它：
+     * 未登录 → 401（过滤器已兜底，这里再兜一次），不是这场的人 → 403 FORBIDDEN。
+     */
+    private String guard(String matchId) {
+        String userId = UserContext.requireId();
+        matchAccess.requireAccess(matchId, userId);
+        return userId;
     }
 
     // ---------- 基础 ----------
@@ -90,7 +107,8 @@ public class ApiController {
 
     @PostMapping("/matches")
     public Map<String, Object> createMatch(@RequestBody Map<String, Object> body) throws Exception {
-        String userId = String.valueOf(body.getOrDefault("userId", "u1"));
+        // 身份只认令牌（JWT 的 sub）。body 里若还带 userId 一律**忽略**（不报错）
+        String userId = UserContext.requireId();
         String mode = String.valueOf(body.getOrDefault("mode", "FULL"));
         String seats = body.get("seats") instanceof List<?> l
                 ? String.join(",", l.stream().map(String::valueOf).toList())
@@ -116,20 +134,28 @@ public class ApiController {
 
     @GetMapping("/matches/{id}")
     public Map<String, Object> detail(@PathVariable String id) throws Exception {
+        guard(id);
         return matches.detail(id);
     }
 
     /** 单人模式「催一下」：跳过 AI 的 10–15 秒思考 */
     @PostMapping("/matches/{id}/skip")
-    public Map<String, Object> skip(@PathVariable String id) { return matches.skip(id); }
+    public Map<String, Object> skip(@PathVariable String id) {
+        guard(id);
+        return matches.skip(id);
+    }
 
     /** 自由辩抢拍：抢到就拿发言权 */
     @PostMapping("/matches/{id}/buzz")
-    public Map<String, Object> buzz(@PathVariable String id) { return matches.buzz(id); }
+    public Map<String, Object> buzz(@PathVariable String id) {
+        guard(id);
+        return matches.buzz(id);
+    }
 
     /** 抓漏：指出某轮 AI 发言的逻辑漏洞 */
     @PostMapping("/matches/{id}/point")
     public Map<String, Object> point(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        guard(id);
         int step = body.get("step") instanceof Number n ? n.intValue() : 0;
         String type = String.valueOf(body.getOrDefault("type", ""));
         return matches.point(id, step, type);
@@ -138,15 +164,20 @@ public class ApiController {
     /** 某场对局的埋雷记录（复盘用） */
     @GetMapping("/matches/{id}/flaws")
     public java.util.List<Map<String, Object>> flaws(@PathVariable String id) {
+        guard(id);
         return store.flaws(id);
     }
 
     /** 打字续命 */
     @PostMapping("/matches/{id}/keepalive")
-    public Map<String, Object> keepalive(@PathVariable String id) { return matches.keepalive(id); }
+    public Map<String, Object> keepalive(@PathVariable String id) {
+        guard(id);
+        return matches.keepalive(id);
+    }
 
     @PostMapping("/matches/{id}/turns")
     public Map<String, Object> submit(@PathVariable String id, @RequestBody Map<String, Object> body) throws Exception {
+        guard(id);
         String content = String.valueOf(body.getOrDefault("content", ""));
         String inputType = String.valueOf(body.getOrDefault("inputType", "kb"));
         return matches.submit(id, content, inputType);
@@ -154,11 +185,14 @@ public class ApiController {
 
     @GetMapping(value = "/matches/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter events(@PathVariable String id, @RequestParam(defaultValue = "0") int since) {
+        // 归属校验必须在建 SseEmitter **之前**：不通过就直接 403，不留一条挂着的连接
+        guard(id);
         return sse.subscribe(id, since);
     }
 
     @GetMapping("/matches/{id}/review")
     public Map<String, Object> review(@PathVariable String id) throws Exception {
+        guard(id);
         return matches.review(id);
     }
 
@@ -197,13 +231,14 @@ public class ApiController {
     // ---------- 记录 / 画像 ----------
 
     @GetMapping("/records")
-    public List<Map<String, Object>> records(@RequestParam(defaultValue = "u1") String userId) {
-        return store.records(userId);
+    public List<Map<String, Object>> records() {
+        // 只查自己的：不再收 ?userId=，身份来自令牌
+        return store.records(UserContext.requireId());
     }
 
     @GetMapping("/diag")
-    public Map<String, Object> diag(@RequestParam(defaultValue = "u1") String userId) throws Exception {
-        return diagOf(userId);
+    public Map<String, Object> diag() throws Exception {
+        return diagOf(UserContext.requireId());
     }
 
     private Map<String, Object> diagOf(String userId) {

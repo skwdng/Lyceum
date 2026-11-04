@@ -1,8 +1,12 @@
 /* 多人房间：建房、加入、准备、开局
  * 归属：见 docs/协作规范.md
+ *
+ * 身份规则（2026-11-04 接入账号后）：**前端不再传 userId / userName**，
+ * 全部由后端从令牌与账号表决定。这里只负责「未登录就引导去登录」。
  */
 
 async function loadRooms(){
+  if (!S.user) { S.rooms = []; return; }          // 未登录不请求（否则白挨 401）
   try { S.rooms = await api('/api/rooms'); } catch (e) { S.rooms = []; }
 }
 
@@ -36,9 +40,21 @@ function viewRoom(){
       </div>
     </div>`;
   }
+
   const room = S.room || {};
   const seats = room.seats || [];
   const r = room.room || {};
+  const hostId = room.host || r.host_user || '';
+
+  /** 昵称旁边的小标签：房主 / 玩家（不再把「房主」当名字用） */
+  const roleTag = s => {
+    if (s.occupant !== 'USER') return '';
+    return String(s.user_id) === String(hostId)
+      ? '<span class="tag">房主</span>'
+      : '<span class="tag g">玩家</span>';
+  };
+  const seatName = s => s.user_name || '未知';
+
   return `
   <div class="row" style="justify-content:space-between;margin-bottom:12px">
     <div>
@@ -61,10 +77,10 @@ function viewRoom(){
   </div>
   <div class="strip">${seats.map(s => {
     const me = s.seat_key === room.mySeat;
-    const label = s.occupant === 'USER' ? (s.user_name || '玩家') : s.occupant === 'AI' ? (s.user_name || 'AI') : '空位';
+    const label = s.occupant === 'USER' ? seatName(s) : s.occupant === 'AI' ? (s.user_name || 'AI') : '空位';
     return `<div class="sp ${me ? 'me' : ''}">
-      <div class="av ${s.side === 'A' ? 'a' : 'b'}">${me ? '我' : label.slice(0,1)}</div>
-      <div><div class="nm">${esc(label)}</div>
+      <div class="av ${s.side === 'A' ? 'a' : 'b'}">${me ? '我' : esc(label.slice(0,1))}</div>
+      <div><div class="nm">${esc(label)} ${roleTag(s)}</div>
         <div class="rl">${s.side === 'A' ? '正方' : '反方'}${esc(s.role)}${s.ready ? ' · 已准备' : ''}</div></div>
     </div>`; }).join('')}</div>
   <div class="card">
@@ -73,7 +89,8 @@ function viewRoom(){
       <tr><th>席位</th><th>辩位</th><th>占位</th><th>准备</th></tr>
       ${seats.map(s => `<tr>
         <td class="mono">${s.seat_key}</td><td>${esc(s.role)}</td>
-        <td>${s.occupant === 'USER' ? esc(s.user_name || '玩家') + (s.seat_key === room.mySeat ? '（你）' : '')
+        <td>${s.occupant === 'USER'
+             ? esc(seatName(s)) + ' ' + roleTag(s) + (s.seat_key === room.mySeat ? ' <span class="tag">你</span>' : '')
              : s.occupant === 'AI' ? 'AI' : '<span style="color:#A8ADB8">空位（开局补 AI）</span>'}</td>
         <td>${s.occupant === 'AI' ? '<span class="tag g">就绪</span>'
              : s.ready ? '<span class="tag g">已准备</span>' : '<span class="tag">未准备</span>'}</td>
@@ -89,8 +106,9 @@ function mySeatReady(){
 }
 
 async function createRoom(){
+  if (!needLogin('登录后才能建房')) return;
   try {
-    const r = await api('/api/rooms', {method:'POST', body:{userId:S.userId, userName:'房主', topicId:S.topics[0]?.id}});
+    const r = await api('/api/rooms', {method:'POST', body:{topicId:S.topics[0]?.id}});
     S.roomCode = r.code; S.room = r.detail; S.mySeat = r.detail.mySeat;
     startRoomPoll(); render();
     toast('房间已创建：' + r.code);
@@ -98,10 +116,11 @@ async function createRoom(){
 }
 
 async function joinRoom(code){
+  if (!needLogin('登录后才能加入房间')) return;
   const c = (code || '').trim().toUpperCase();
   if (!c) return toast('填房间号');
   try {
-    S.room = await api(`/api/rooms/${c}/join`, {method:'POST', body:{userId:S.userId, userName:'玩家'}});
+    S.room = await api(`/api/rooms/${c}/join`, {method:'POST', body:{}});
     S.roomCode = c; S.mySeat = S.room.mySeat;
     startRoomPoll(); render();
     toast('已加入 ' + c + ' · 你坐 ' + S.mySeat);
@@ -109,21 +128,21 @@ async function joinRoom(code){
 }
 
 async function leaveRoom(){
-  try { await api(`/api/rooms/${S.roomCode}/leave`, {method:'POST', body:{userId:S.userId}}); } catch (e) {}
+  try { await api(`/api/rooms/${S.roomCode}/leave`, {method:'POST', body:{}}); } catch (e) {}
   stopRoomPoll(); S.roomCode = null; S.room = null; S.mySeat = null;
   await loadRooms(); render();
 }
 
 async function toggleReady(){
   try {
-    S.room = await api(`/api/rooms/${S.roomCode}/ready`, {method:'POST', body:{userId:S.userId, ready: !mySeatReady()}});
+    S.room = await api(`/api/rooms/${S.roomCode}/ready`, {method:'POST', body:{ready: !mySeatReady()}});
     render();
   } catch (e) { toast('操作失败：' + e.message); }
 }
 
 async function startRoom(){
   try {
-    const r = await api(`/api/rooms/${S.roomCode}/start`, {method:'POST', body:{userId:S.userId}});
+    const r = await api(`/api/rooms/${S.roomCode}/start`, {method:'POST', body:{}});
     stopRoomPoll();
     S.matchId = r.matchId; S.roomMode = true;
     await loadMatch(true);
@@ -139,9 +158,9 @@ function copyRoom(){
 function startRoomPoll(){
   stopRoomPoll();
   S.roomPoll = setInterval(async () => {
-    if (!S.roomCode) return;
+    if (!S.roomCode || !S.user) return;          // 未登录不轮询
     try {
-      const d = await api(`/api/rooms/${S.roomCode}?userId=${S.userId}`);
+      const d = await api(`/api/rooms/${S.roomCode}`);
       S.room = d;
       if (d.room && d.room.status === 'RUNNING' && d.room.match_id) {
         stopRoomPoll(); S.matchId = d.room.match_id; S.roomMode = true;

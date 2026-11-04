@@ -8,13 +8,22 @@ function startPoll(){
   openStream();
 }
 
-/** SSE：AI 一说完立刻推过来，不用等下一次轮询 */
-
+/**
+ * SSE：AI 一说完立刻推过来，不用等下一次轮询。
+ *
+ * <p>`EventSource` **不支持自定义请求头**，所以令牌只能走查询参数
+ * （后端只对 `/events` 这个路径接受 `?token=`，其它接口一律只认请求头）。
+ * 令牌会出现在 URL 里 —— 这是方案 §1.2 的既定取舍：令牌 2 小时有效，且只在 SSE 端点开口子。
+ */
 function openStream(){
   closeStream();
   if (!S.matchId || typeof EventSource === "undefined") return;
+  if (!S.user) return;                       // 未登录不连，免得反复 401
+  let token = '';
+  try { token = localStorage.getItem('sy_jwt') || ''; } catch (e) {}
+  if (!token) return;
   try {
-    S.es = new EventSource(API_BASE + "/api/matches/" + S.matchId + "/events");
+    S.es = new EventSource(API_BASE + "/api/matches/" + S.matchId + "/events?token=" + encodeURIComponent(token));
     S.es.onmessage = (e) => {
       try {
         const d = JSON.parse(e.data);
@@ -27,7 +36,10 @@ function openStream(){
       } catch (err) {}
       loadMatch(false);
     };
-    S.es.onerror = () => { /* 断了就靠轮询兜底 */ };
+    S.es.onerror = () => {
+      // 断线：轮询会兜底，但**未登录/无权限时不能让它无限重连**（否则一直刷 401/403）
+      if (!S.user) { closeStream(); return; }
+    };
   } catch (e) {}
 }
 
@@ -67,8 +79,8 @@ async function loadMatch(first){
       const [rev, hot, diag, records] = await Promise.all([
         api('/api/matches/' + S.matchId + '/review'),
         api('/api/hot?n=12'),
-        api('/api/diag?userId=' + S.userId),
-        api('/api/records?userId=' + S.userId)
+        api('/api/diag'),
+        api('/api/records')
       ]);
       S.review = rev; S.hot = hot; S.diag = diag; S.records = records;
       $('#meSub').textContent = `连续练习 ${diag.streak || 1} 天`;

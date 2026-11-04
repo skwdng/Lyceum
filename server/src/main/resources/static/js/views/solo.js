@@ -159,6 +159,7 @@ function closeSeat(){ document.querySelectorAll('#seatMask').forEach(m => m.remo
 
 async function startFromPanel(){
   closeSeat();
+  if (!needLogin('登录后才能开始辩论')) return;
   const topicId = S.pendingTopicId;
   await createMatch(topicId ? {topicId} : {});
 }
@@ -167,6 +168,7 @@ async function useCustomTopic(){
   const el = $('#customTopic');
   const title = (el?.value || '').trim();
   if (!title) return toast('先写一个辩题');
+  if (!needLogin('登录后才能提交自定义辩题')) return;
   showAudit(title, null);
   try {
     const r = await api('/api/topics/audit', {method:'POST', body:{title}});
@@ -211,7 +213,8 @@ function adopt(t){ $('#customTopic').value = t; useCustomTopic(); }
 
 async function createMatch(body){
   try {
-    const payload = Object.assign({userId:S.userId, seats:S.mySeats, mode:S.mode, pace:S.pace, difficulty:S.difficulty}, body);
+    // 身份由令牌携带，payload 里不再需要 userId（后端也不认了）
+    const payload = Object.assign({seats:S.mySeats, mode:S.mode, pace:S.pace, difficulty:S.difficulty}, body);
     if (!payload.topicId && S.pendingTitle) payload.title = S.pendingTitle;
     const r = await api('/api/matches', {method:'POST', body:payload});
     S.matchId = r.matchId; S.pendingTitle = null;
