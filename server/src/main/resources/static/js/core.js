@@ -118,7 +118,7 @@ function loginGateCard(view){
 
 const NAV = [
   {g:'训练'}, {k:'solo', n:'单人辩论'}, {k:'room', n:'多人辩论'}, {k:'hotb', n:'热辩榜'},
-  {g:'我的'}, {k:'diag', n:'能力诊断'}, {k:'records', n:'辩论记录'}, {g:'社区'}, {k:'community', n:'讨论社区'}
+  {g:'我的'}, {k:'diag', n:'能力诊断'}, {k:'records', n:'辩论记录'}, {g:'社区'}, {k:'community', n:'讨论社区'}, {k:'video', n:'辩场'}
 ];
 
 function reNav(){
@@ -169,7 +169,7 @@ function render(){
     return;
   }
   const v = { solo:viewSolo, room:viewRoom, hotb:viewHot, diag:viewDiag, records:viewRecords,
-              match:viewMatch, review:viewReview, community:viewCommunity, me:viewAuth }[S.view];
+              match:viewMatch, review:viewReview, community:viewCommunity, video:viewVideo, me:viewAuth }[S.view];
   $('#main').innerHTML = v ? v() : viewSolo();
   if (S.view === 'match') {
     renderStrip();

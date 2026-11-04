@@ -21,7 +21,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:schema.sql,classpath:schema-community.sql,classpath:schema-auth.sql,classpath:schema-admin.sql,classpath:schema-security.sql
+      schema-locations: classpath:schema.sql,classpath:schema-community.sql,classpath:schema-video.sql,classpath:schema-auth.sql,classpath:schema-admin.sql,classpath:schema-security.sql
   mvc:
     async:
       request-timeout: 1800000
@@ -48,6 +48,13 @@ siyige:
   audit:
     # 关闭时走纯规则审核；打开需要配 llm
     llm-enabled: false
+  video:
+    audit:
+      reject-words: 涉政敏感,色情,赌博,毒品,代考,枪,炸弹
+      review-words: 打架,骂战,人身攻击,盗版,搬运,洗稿
+      title-min: 4
+      title-max: 60
+      allow-local-upload: true
   llm:
     base-url: https://api.deepseek.com/v1
     api-key: ""
