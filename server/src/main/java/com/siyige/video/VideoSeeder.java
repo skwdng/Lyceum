@@ -5,7 +5,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/** 辩场种子：三条过审 + 一条待复核 + 一条被驳回，方便直接看效果。 */
+/** 视频种子：三条过审 + 一条待复核 + 一条被驳回，方便直接看效果。 */
 @Configuration
 public class VideoSeeder {
 

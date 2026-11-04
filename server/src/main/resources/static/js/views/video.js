@@ -1,4 +1,4 @@
-/* 辩场：辩论短视频（思弈阁内置模块）
+/* 视频：辩论短视频（思弈阁内置模块）
  * 归属：这个文件独占；接口 /api/video/**，身份复用思弈阁 JWT
  */
 
@@ -275,7 +275,7 @@ function viewVideo(){
   return `
   <div class="vwrap">
     <div class="vtop">
-      <b style="font-size:16px">辩场</b>
+      <b style="font-size:16px">视频</b>
       <span id="vfStat" style="font-size:12.5px;color:#9AA0AE">辩论短视频 · ${V.stats.passed ?? 0} 条在架</span>
       <span style="flex:1"></span>
       <button class="btn sm ghost" onclick="vOpenPublish()">发布</button>
@@ -289,7 +289,7 @@ function viewVideo(){
 
   <div class="vmask" id="vSheet" onclick="if(event.target===this)closeVideoSheet()">
     <div class="vsheet">
-      <div class="vshd"><b id="vSheetTitle">辩场</b><span style="flex:1"></span>
+      <div class="vshd"><b id="vSheetTitle">视频</b><span style="flex:1"></span>
         <button class="btn sm ghost" onclick="closeVideoSheet()">关闭</button></div>
       <div class="vsbd" id="vSheetBody"></div>
     </div>

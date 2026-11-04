@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 辩场（辩论短视频）数据访问。
+ * 视频（辩论短视频）数据访问。
  *
  * 归属：这个包由短视频模块负责；表在 schema-video.sql，前缀 sy_video*。
  */

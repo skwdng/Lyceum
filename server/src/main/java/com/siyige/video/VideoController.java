@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 辩场：辩论短视频接口。
+ * 视频：辩论短视频接口。
  *
  * 身份统一走思弈阁的 JWT（UserContext.get()），不再自己造账号。
  * 未登录可以浏览（feed/detail），发视频、点赞、评论需要登录。

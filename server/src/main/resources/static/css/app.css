@@ -299,7 +299,7 @@
   .sb .me>div:last-child{display:none}
 }
 
-/* ===== 辩场（辩论短视频）===== */
+/* ===== 视频（辩论短视频）===== */
 .vwrap{display:flex;flex-direction:column;height:calc(100vh - 60px);background:#0B0C10;border-radius:14px;overflow:hidden;border:1px solid #1B1E27}
 .vtop{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #1B1E27;background:#0E1015;color:#EDEEF2}
 .vfilter{display:flex;gap:6px;padding:10px 16px;overflow-x:auto;background:#0E1015;border-bottom:1px solid #1B1E27}
