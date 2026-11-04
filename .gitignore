@@ -34,3 +34,8 @@ server/_*.txt
 demo/shots/
 docs/shots/
 **/shots/
+
+# 临时脚本与运行日志
+scripts/_*
+server/_*.log
+server/_*.err
