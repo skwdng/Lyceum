@@ -45,7 +45,7 @@ public class AuthFilterConfig {
     public FilterRegistrationBean<JwtAuthFilter> videoJwtFilter(JwtService jwt, TokenBlacklist blacklist,
                                                                 UserStatusSource userStatus) {
         return register("videoJwtFilter", jwt, blacklist, userStatus,
-                JwtAuthFilter.Scope.COMMUNITY, "/api/video/*");
+                JwtAuthFilter.Scope.DEBATE_WRITE, "/api/video/*");
     }
 
     /**
