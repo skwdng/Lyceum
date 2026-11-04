@@ -55,6 +55,8 @@ siyige:
       title-min: 4
       title-max: 60
       allow-local-upload: true
+      # 人工审核台：等管理端（admin）接入后再打开，避免任何登录用户给自己过审
+      console-enabled: false
   llm:
     base-url: https://api.deepseek.com/v1
     api-key: ""

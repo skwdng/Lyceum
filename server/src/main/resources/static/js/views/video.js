@@ -11,11 +11,17 @@ const V = {
   tab: 'feed',        // feed | publish | audit
   auditList: [],
   auditStatus: 'REVIEW',
-  detail: null
+  detail: null,
+  consoleEnabled: false
 };
 
 function videoInit(){
-  if (!V.loaded) { V.loaded = true; loadVideoFeed(true); }
+  if (!V.loaded) {
+    V.loaded = true;
+    loadVideoFeed(true);
+    // 审核台是否开放由后端决定（等管理端接入后才会 true）
+    api('/api/video/audit/rules').then(r => { V.consoleEnabled = !!r.consoleEnabled; }).catch(() => {});
+  }
 }
 
 async function loadVideoFeed(reset){
@@ -279,7 +285,7 @@ function viewVideo(){
       <span id="vfStat" style="font-size:12.5px;color:#9AA0AE">辩论短视频 · ${V.stats.passed ?? 0} 条在架</span>
       <span style="flex:1"></span>
       <button class="btn sm ghost" onclick="vOpenPublish()">发布</button>
-      <button class="btn sm ghost" onclick="vOpenAudit()">审核台</button>
+      ${V.consoleEnabled ? '<button class="btn sm ghost" onclick="vOpenAudit()">审核台</button>' : ''}
     </div>
     <div class="vfilter">
       ${segs.map(s => `<button class="vseg ${V.seg === s ? 'on' : ''}" onclick="V.seg='${s}';render();loadVideoFeed(true)">${s || '全部'}</button>`).join('')}

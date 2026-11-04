@@ -20,9 +20,26 @@ public class VideoController {
     private final VideoRepo repo;
     private final MachineAuditService machine;
 
-    public VideoController(VideoRepo repo, MachineAuditService machine) {
+    /**
+     * 人工审核台开关。
+     *
+     * <p>默认关闭：任何登录用户都能给自己过审是不安全的。
+     * 等管理端（admin 分支的管理员认证）接入后，把这里的 flag 判断换成
+     * 管理员角色校验即可，接口路径与前端不用改。
+     */
+    private final boolean consoleEnabled;
+
+    public VideoController(VideoRepo repo, MachineAuditService machine,
+                           @org.springframework.beans.factory.annotation.Value("${siyige.video.audit.console-enabled:false}") boolean consoleEnabled) {
         this.repo = repo;
         this.machine = machine;
+        this.consoleEnabled = consoleEnabled;
+    }
+
+    /** 审核台未开放时统一挡掉，避免绕过前端直接调接口。 */
+    private void requireConsole() {
+        if (!consoleEnabled)
+            throw new IllegalStateException("人工审核台暂未开放（等待管理端接入）");
     }
 
     private static String uid() {
@@ -129,16 +146,19 @@ public class VideoController {
     @GetMapping("/audit/queue")
     public Map<String, Object> queue(@RequestParam(defaultValue = "REVIEW") String status,
                                      @RequestParam(defaultValue = "30") int size) {
+        requireConsole();
         return Map.of("list", repo.auditQueue(status, Math.min(100, size)), "stats", repo.stats());
     }
 
     @GetMapping("/audit/{videoId}/logs")
     public Map<String, Object> logs(@PathVariable long videoId) {
+        requireConsole();
         return Map.of("list", repo.auditLogs(videoId), "video", repo.video(videoId));
     }
 
     @PostMapping("/audit/{videoId}/decide")
     public Map<String, Object> decide(@PathVariable long videoId, @RequestBody Map<String, Object> body) {
+        requireConsole();
         String me = uid();
         if (me.isBlank()) throw new IllegalStateException("请先登录");
         Map<String, Object> v = repo.video(videoId);
@@ -163,6 +183,7 @@ public class VideoController {
 
     @PostMapping("/audit/{videoId}/restore")
     public Map<String, Object> restore(@PathVariable long videoId) {
+        requireConsole();
         String me = uid();
         if (me.isBlank()) throw new IllegalStateException("请先登录");
         Map<String, Object> last = repo.lastAudit(videoId);
@@ -177,5 +198,9 @@ public class VideoController {
     }
 
     @GetMapping("/audit/rules")
-    public Map<String, Object> rules() { return machine.rules(); }
+    public Map<String, Object> rules() {
+        Map<String, Object> m = new java.util.LinkedHashMap<>(machine.rules());
+        m.put("consoleEnabled", consoleEnabled);
+        return m;
+    }
 }
