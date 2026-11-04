@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
-import org.springframework.stereotype.Component;
 
 /**
  * {@link LoginRateLimiter} 的 Redis 实现。
@@ -20,8 +19,11 @@ import org.springframework.stereotype.Component;
  *
  * <p>Redis 异常一律翻译成 503（Q1：登录系统依赖它，不可用就不让登）。
  */
-@Component
-@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "siyige.redis.enabled", havingValue = "true", matchIfMissing = true)
+/**
+ * <p><b>不加 @Component</b>：这个类需要构造参数 {@code prefix}（用户端 {@code auth:} / 管理端 {@code adm:}），
+ * 由 {@link LoginRateLimiterConfig} 显式 new 两个实例。若加上 @Component，Spring 会尝试自动装配一个
+ * {@code String} 参数而启动失败（2026-11-04 视频模块提交曾这样改过一次，整包起不来）。
+ */
 public class RedisLoginRateLimiter implements LoginRateLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(RedisLoginRateLimiter.class);
