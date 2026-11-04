@@ -16,6 +16,7 @@ import java.time.Duration;
  * <p>影响面：只有"带 token 的请求"会受影响；匿名只读不碰这里，仍然 200。
  */
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "siyige.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisTokenBlacklist implements TokenBlacklist {
 
     private static final Logger log = LoggerFactory.getLogger(RedisTokenBlacklist.class);

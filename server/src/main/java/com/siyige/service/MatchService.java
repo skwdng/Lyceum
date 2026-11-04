@@ -229,8 +229,14 @@ public class MatchService {
         if (!TurnEngine.isMine(TurnEngine.parseSeats(str(m.get("my_seats"))), cur.seat()))
             return Map.of("extended", false, "reason", "not-your-turn");
 
+        // 单人模式 deadline_at 为空 = 不限时。绝不能在这里「续」出一个截止时间来，
+        // 否则一打字就被判超时（曾经的 bug：发言被吞 + 记录 TIMEOUT）。
+        if (m.get("deadline_at") == null)
+            return Map.of("extended", false, "reason", "unlimited");
+
+        // 续时不跟 time-scale 走：它的意义是「给人打字的时间」，压缩后等于没给。
         long deadline = System.currentTimeMillis()
-                + (long) (com.siyige.domain.Pace.EXTEND_SEC * 1000 * timeScale);
+                + (long) com.siyige.domain.Pace.EXTEND_SEC * 1000;
         store.extendDeadline(matchId, deadline);
         hub.emit(matchId, "extend", Map.of("addSec", com.siyige.domain.Pace.EXTEND_SEC, "used", used + 1));
         return Map.of("extended", true, "addSec", com.siyige.domain.Pace.EXTEND_SEC, "used", used + 1,

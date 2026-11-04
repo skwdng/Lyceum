@@ -34,6 +34,7 @@ import java.util.Map;
  * </ul>
  */
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "siyige.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisViewStore implements ViewStore, DisposableBean {
 
     private static final Duration PENDING_TTL = Duration.ofHours(2);   // R-COM-31 兜底 TTL

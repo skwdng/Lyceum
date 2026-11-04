@@ -36,6 +36,19 @@ public class AuthFilterConfig {
     }
 
     /**
+     * 视频模块（辩论短视频）。
+     *
+     * <p>与社区同构：**浏览匿名可看、写操作要登录**——广场/详情不登录也能刷，
+     * 发布、点赞、评论必须登录。用 COMMUNITY 作用域即可（规则一致）。
+     */
+    @Bean
+    public FilterRegistrationBean<JwtAuthFilter> videoJwtFilter(JwtService jwt, TokenBlacklist blacklist,
+                                                                UserStatusSource userStatus) {
+        return register("videoJwtFilter", jwt, blacklist, userStatus,
+                JwtAuthFilter.Scope.DEBATE_WRITE, "/api/video/*");
+    }
+
+    /**
      * 辩论侧主体：**全部**要登录（含 {@code GET /api/matches/{id}} 与 SSE）。
      *
      * <p>覆盖：建对局、查对局、对局内所有操作、SSE、战绩、诊断、房间全系列。
