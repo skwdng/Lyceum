@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
+import org.springframework.stereotype.Component;
 
 /**
  * {@link LoginRateLimiter} 的 Redis 实现。

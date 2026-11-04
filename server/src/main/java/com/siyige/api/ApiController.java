@@ -31,6 +31,7 @@ public class ApiController {
     private final MatchAccess matchAccess;
     private final com.siyige.ai.LlmClient llm;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public ApiController(Store store, AuditService audit, MatchService matches, HotRank hot, SseHub sse,
                           com.siyige.ai.LlmClient llm,
                          com.siyige.service.EvidenceService evidence,
@@ -52,6 +53,16 @@ public class ApiController {
         String userId = UserContext.requireId();
         matchAccess.requireAccess(matchId, userId);
         return userId;
+    }
+
+    /**
+     * 不含 LlmClient 的构造：给单测用（standalone MockMvc 不想拖一个模型客户端）。
+     * 用法统计接口在 llm == null 时返回 0，不影响其它端点。
+     */
+    public ApiController(Store store, AuditService audit, MatchService matches, HotRank hot, SseHub sse,
+                         com.siyige.service.EvidenceService evidence,
+                         com.siyige.service.BriefService brief, MatchAccess matchAccess) {
+        this(store, audit, matches, hot, sse, null, evidence, brief, matchAccess);
     }
 
     // ---------- 基础 ----------
@@ -206,16 +217,16 @@ public class ApiController {
     @GetMapping("/usage")
     public Map<String, Object> usage() {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("calls", llm.calls());
-        out.put("promptTokens", llm.promptTokensTotal());
-        out.put("completionTokens", llm.completionTokensTotal());
-        out.put("totalTokens", llm.totalTokens());
+        out.put("calls", llm == null ? 0 : llm.calls());
+        out.put("promptTokens", llm == null ? 0 : llm.promptTokensTotal());
+        out.put("completionTokens", llm == null ? 0 : llm.completionTokensTotal());
+        out.put("totalTokens", llm == null ? 0 : llm.totalTokens());
         return out;
     }
 
     /** 清零用量统计（测一场干净的对局用） */
     @PostMapping("/usage/reset")
-    public Map<String, Object> resetUsage() { llm.resetUsage(); return Map.of("ok", true); }
+    public Map<String, Object> resetUsage() { if (llm != null) llm.resetUsage(); return Map.of("ok", true); }
     @GetMapping("/hot")
     public Map<String, Object> hot(@RequestParam(defaultValue = "10") int n) {
         List<Map.Entry<String, Double>> list = hot.zrevrangeWithScores(0, n - 1);
