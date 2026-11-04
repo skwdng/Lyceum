@@ -1,6 +1,7 @@
-# 思弈阁 · 实现规格书（AI 可执行版 · v4.2）
+# 思弈阁 · 实现规格书（AI 可执行版 · v4.3）
 
 > 唯一规格来源。逐条对照编号实现，全部满足才能标完成。
+> v4.3（2026-11-04）：追加第 19 节「举报与审核（治理）」，含 R-GOV-01 ~ R-GOV-25。
 > 关键词：**MUST**（必须）、**MUST NOT**（禁止）、**SHOULD**（推荐）、**可调参数**。
 
 ---
@@ -921,5 +922,49 @@ location /api/ {
 
 - **R-COM-39** 发帖与评论 MUST 在落库前过敏感词校验；命中 MUST 用全角＊（U+FF0A）逐码点替换后落库，MUST NOT 保存原文（不新增 raw 字段），摘要 MUST 基于替换后的正文生成；命中 MUST NOT 拒绝发布，MUST NOT 返回 `CONTENT_BLOCKED`；审核 MUST 在服务端执行，MUST NOT 只靠前端过滤。
 - **R-COM-40** 审核 MUST 在服务端完成。MUST NOT 只依赖前端过滤。
+
+---
+
+## 19. 举报与审核（治理）
+
+> 本节为 v4.3 追加（2026-11-04 实现并验收）。第 18.6 节是**自动**打码，本节是**人工**治理，两套机制互不联动。
+> 正文引用本节统一写「第 19 节」。
+
+### 19.1 举报
+
+- **R-GOV-01** 可举报对象 MUST 只有两种：`POST`（帖子）与 `COMMENT`（评论）。MUST NOT 提供「举报用户」。
+- **R-GOV-02** 举报原因 MUST 为枚举：`SPAM`（垃圾广告）/ `ABUSE`（人身攻击）/ `ILLEGAL`（违法违规）/ `OTHER`（其他）；补充说明 MAY 填写，长度 MUST ≤ 500。
+- **R-GOV-03** 举报 MUST 要求登录。MUST NOT 举报自己发布的内容（返回 `400`）。
+- **R-GOV-04** 同一用户对同一目标 MUST 只能举报一次；重复举报 MUST 返回 `409 ALREADY_REPORTED`。唯一性 MUST 由数据库唯一索引 `(target_type, target_id, reporter_id)` 兜底，MUST NOT 只靠应用层先查后插。
+- **R-GOV-05** 补充说明 MUST 在落库前过敏感词打码（同 R-COM-39 规则），MUST NOT 存原文。
+- **R-GOV-06** 举报 MUST NOT 自动隐藏或自动删除内容。MUST NOT 因举报数量自动改变内容可见性。
+
+### 19.2 管理员与处置
+
+- **R-GOV-07** 管理员 MUST 为**独立账号体系**（`sy_admin` 表），与普通用户表无关；登录 MUST 走独立接口并签发带 `typ=ADMIN`、`role=ADMIN` 的令牌。
+- **R-GOV-08** 管理员令牌与用户令牌 MUST 互不承认：管理端过滤器 MUST 拒绝用户令牌（`403 NOT_ADMIN`），社区过滤器 MUST 拒绝管理员令牌（`401 NOT_ADMIN`）。
+- **R-GOV-09** 处置动作 MUST 为四种之一：`IGNORE`（驳回）/ `DELETE`（软删内容）/ `BAN`（社区禁言）/ `DELETE_AND_BAN`。
+- **R-GOV-10** 处理一条举报时，该**目标下全部 `PENDING` 举报 MUST 一次性结案**，MUST NOT 只处理当前一条。
+- **R-GOV-11** 社区禁言 MUST 为有期限（1 / 3 / 7 天），到期 MUST 自动解除；禁言期间 MUST 只能浏览，MUST NOT 发帖、评论、编辑帖子、点赞；MUST NOT 拦截删除自己的内容与取消点赞。
+- **R-GOV-12** 全站封禁 MUST 复用 `sy_user.status`（`0` = 封禁），MUST 立即生效：登录 MUST 被拒（`401 ACCOUNT_DISABLED`），已登录者的下一次请求 MUST 被拒。
+- **R-GOV-13** 两种处罚 MUST 互不干扰：解除封禁 MUST NOT 顺带解除禁言，反之亦然。
+- **R-GOV-14** 举报队列 MUST 按被举报**目标**聚合（一行 = 一个目标），MUST 按举报人数降序；同一目标 ≥ 3 名不同举报人时 MUST 标记为「多人举报」；MUST NOT 因多人举报自动处置。
+
+### 19.3 处理记录与恢复
+
+- **R-GOV-15** 管理员每次处置 MUST 落一条处理记录（`sy_audit_log`），字段 MUST 含：举报 id、操作人、动作、处置结论、目标、人读说明、IP、时间。
+- **R-GOV-16** 处理记录 MUST NOT 记录密码、令牌或任何凭据。
+- **R-GOV-17** 写处理记录失败 MUST NOT 影响主流程：失败 MUST 只告警，MUST NOT 抛给调用方。
+- **R-GOV-18** 一键恢复 MUST 只恢复被删除的**内容**（`status` 由 2 改回 1）；MUST NOT 顺带解除禁言。
+- **R-GOV-19** 恢复后：原记录 MUST 标记为「已撤销」（`undo_at`），MUST 追加一条 `RESTORE` 记录留痕，关联举报状态 MUST 变为 `REOPENED`。
+- **R-GOV-20** 恢复 MUST 幂等：已撤销的记录再次恢复 MUST 返回 `409 ALREADY_RESTORED`；无内容可恢复的处置（纯禁言、驳回）MUST 返回 `409 NOT_RESTORABLE` 且界面 MUST NOT 显示恢复入口。
+- **R-GOV-21** 恢复 MUST 二次确认后才执行。
+
+### 19.4 修改密码
+
+- **R-GOV-22** 用户与管理端 MUST 各自提供修改密码接口；MUST 校验旧密码，新密码 MUST 8–64 位且同时含数字与字母，MUST NOT 与旧密码相同。
+- **R-GOV-23** 改密成功后，该账号此前签发的**所有令牌 MUST 立即失效**（`401 TOKEN_STALE`）；实现 MUST 以「令牌签发时间早于密码变更时间」判定，MUST NOT 依赖逐个拉黑。
+- **R-GOV-24** 前端在改密成功后 MUST 清除本地令牌并回到登录态，MUST NOT 让用户停在一个必然 401 的页面。
+- **R-GOV-25** 鉴权判别 MUST 用**一次查询**同时取全站封禁状态与密码变更时间；MUST NOT 为此增加每请求的额外查询或缓存层（本期决策）。
 
 ---
