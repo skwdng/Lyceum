@@ -236,10 +236,24 @@ function chatHTML(){
   // 找到第一条还没打完的 AI 发言；它后面的先不显示，
   // 否则会出现「上一个人还在打，下一个人已经冒出来」的错觉。
   const keyOf = t => t.step + '|' + t.seat + '|' + (((t.content || '').trim()) || '（这一轮没有说出内容）').length;
+
+  // 我已经发过言的最后位置：它之前的 AI 发言一律直接显示全文。
+  // 否则会这样：我先说话 → 下一轮开始时，之前那句没打完的 AI 发言才补上来，
+  // 看起来就像「他抢在我前面说」或「他的字在我上面」。
+  let lastMine = -1;
+  for (let i = 0; i < S.turns.length; i++) {
+    if (S.mySeats.includes(S.turns[i].seat)) lastMine = i;
+  }
+  const forceFull = new Set();
+  for (let i = 0; i < S.turns.length; i++) {
+    const t = S.turns[i];
+    if (i < lastMine && !S.mySeats.includes(t.seat)) forceFull.add(keyOf(t));
+  }
   let firstUntyped = -1;
   for (let i = 0; i < S.turns.length; i++) {
     const t = S.turns[i];
     if (S.mySeats.includes(t.seat) || t.status === 'TIMEOUT') continue;
+    if (i < lastMine) continue;                 // 我说话之前的，不再算「等它打字」
     if (!S.typed.has(keyOf(t))) { firstUntyped = i; break; }
   }
   const list = S.turns.filter((t, idx) =>
@@ -253,7 +267,7 @@ function chatHTML(){
     const key = keyOf(t);
 
     let body = esc(text), attr = '';
-    if (!me && !timeout && !S.typed.has(key)) {
+    if (!me && !timeout && !S.typed.has(key) && !forceFull.has(key)) {
       const prog = S.progress[key] || 0;
       // 还没轮到它打字：显示省略号，避免看着像空壳
       body = prog > 0 ? esc(text.slice(0, prog)) : '<span class="pending">…</span>';
@@ -310,10 +324,10 @@ setInterval(function(){
   if (idx >= full.length) { S.typed.add(key); return; }
 
   const ch = full.charAt(idx - 1);
-  const per = Math.min(150, Math.max(28, Math.round(11000 / Math.max(1, full.length))));
+  const per = Math.min(150, Math.max(18, Math.round(6500 / Math.max(1, full.length))));
   let d = per;
-  if (ch === '。' || ch === '！' || ch === '？') d = Math.min(800, per * 8);
-  else if (ch === '，' || ch === '；' || ch === '：') d = Math.min(380, per * 3);
+  if (ch === '。' || ch === '！' || ch === '？') d = Math.min(520, per * 8);
+  else if (ch === '，' || ch === '；' || ch === '：') d = Math.min(240, per * 3);
   else if (ch === '「' || ch === '」') d = Math.round(per * 1.5);
   S.pauseUntil[key] = now + d;
 }, 40);

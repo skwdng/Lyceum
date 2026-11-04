@@ -19,6 +19,8 @@ import java.time.Duration;
  *
  * <p>Redis 异常一律翻译成 503（Q1：登录系统依赖它，不可用就不让登）。
  */
+@Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "siyige.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisLoginRateLimiter implements LoginRateLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(RedisLoginRateLimiter.class);

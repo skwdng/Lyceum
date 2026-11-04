@@ -1,4 +1,4 @@
-# 部署前自检：确认 jar 里的关键资源没丢
+﻿# 部署前自检：确认 jar 里的关键资源没丢
 # 用法：powershell -ExecutionPolicy Bypass -File .\scripts\preflight.ps1
 
 $ErrorActionPreference = 'Stop'
