@@ -1,6 +1,7 @@
 package com.siyige.community;
 
 import com.siyige.auth.UserNames;
+import com.siyige.community.ai.AiAccount;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -54,6 +55,9 @@ public class NotificationService {
      */
     private static final Set<String> COMMENT_LEVEL = Set.of(
             "REPLY_COMMENT", "LIKE_COMMENT", "COMMENT_DELETED", "MENTION");
+
+    /** AI 在帖子下回复时的内部标记（写进 note，仅用于选文案；列表 item 不返回 note）。 */
+    static final String POST_REPLY_MARK = "POST";
 
     private final NotificationRepo repo;
     private final UnreadCounter counter;
@@ -125,6 +129,8 @@ public class NotificationService {
             String actorName = userNames.name(actorId);
             String excerpt = cut(text);
             for (String uid : ids) {
+                // AI 账号不登录、永远看不到通知：@DeepSeek 时不该给它攒一条永未读的 MENTION
+                if (AiAccount.ID.equals(uid)) continue;
                 long id = repo.insert(uid, "MENTION", actorId, actorName, commentId, postId, excerpt, null);
                 counter.incr(uid);
                 log.info("通知 MENTION id={} to={} postId={} commentId={}", id, uid, postId, commentId);
@@ -164,6 +170,40 @@ public class NotificationService {
             out.add(id);
         }
         return out;
+    }
+
+    // ==================== 触发：AI 回复（V1 新增） ====================
+
+    /**
+     * AI 回复了某人：**只发一条** {@code REPLY_COMMENT}（决策 4）。
+     *
+     * <p>为什么不复用 {@link #onComment}：那条路径会同时发「COMMENT_POST 给帖子作者」+
+     * 「REPLY_COMMENT 给被回复者」，AI 回复场景下会变成两条通知。
+     *
+     * <p>actor 记 AI 账号（id / 昵称），前端就能显示成「DeepSeek 回复了你的评论：…」。
+     */
+    public void onAiReply(long postId, long aiCommentId, String askerId) {
+        onAiReply(postId, aiCommentId, askerId, false);
+    }
+
+    /**
+     * @param toPost true = AI 是在**帖子**（发帖时 @）里回的，文案用「回复了你的帖子」
+     */
+    public void onAiReply(long postId, long aiCommentId, String askerId, boolean toPost) {
+        if (askerId == null || askerId.isBlank()) return;
+        try {
+            Map<String, Object> post = repo.postBrief(postId);
+            if (post == null) return;
+            Map<String, Object> c = repo.commentBrief(aiCommentId);
+            String excerpt = cut(c == null ? null : str(c.get("body")), 60);
+            // note 只做内部标记（item 不返回 note）：text() 据此区分「回复了你的帖子 / 评论」
+            long id = repo.insert(askerId, "REPLY_COMMENT", AiAccount.ID, AiAccount.NAME,
+                    aiCommentId, postId, excerpt, toPost ? POST_REPLY_MARK : null);
+            counter.incr(askerId);
+            log.info("通知 REPLY_COMMENT(AI) id={} to={} aiCommentId={}", id, askerId, aiCommentId);
+        } catch (RuntimeException e) {
+            log.warn("发 AI 回复通知失败（不影响回复本身）postId={} 原因={}", postId, e.toString());
+        }
     }
 
     // ==================== 触发：管理员操作（V3） ====================
@@ -389,7 +429,9 @@ public class NotificationService {
 
         return switch (type) {
             case "COMMENT_POST" -> actor + " 评论了你的帖子《" + excerpt + "》";
-            case "REPLY_COMMENT" -> actor + " 回复了你的评论：" + excerpt;
+            case "REPLY_COMMENT" -> POST_REPLY_MARK.equals(note)
+                    ? actor + " 回复了你的帖子：" + excerpt
+                    : actor + " 回复了你的评论：" + excerpt;
             case "LIKE_POST" -> agg > 1
                     ? actor + " 等 " + agg + " 人赞了你的帖子《" + excerpt + "》"
                     : actor + " 赞了你的帖子《" + excerpt + "》";

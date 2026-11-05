@@ -19,7 +19,8 @@ class CommunityServiceTest {
     private final CommunityViewService views = mock(CommunityViewService.class);
     private final com.siyige.community.MuteGuard muteGuard = mock(com.siyige.community.MuteGuard.class);
     private final NotificationService notifications = mock(NotificationService.class);
-    private final CommunityService service = new CommunityService(repo, masker, views, muteGuard, notifications);
+    private final com.siyige.community.ai.AiQueue aiQueue = mock(com.siyige.community.ai.AiQueue.class);
+    private final CommunityService service = new CommunityService(repo, masker, views, muteGuard, notifications, aiQueue);
 
     private static Map<String, Object> postRow(String authorId) {
         Map<String, Object> row = new HashMap<>();

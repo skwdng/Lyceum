@@ -24,7 +24,7 @@ class AuthServiceTest {
     private final AuthService service = new AuthService(repo, encoder);
 
     private static AuthRepo.UserRecord user(String account, String hash, int status) {
-        return new AuthRepo.UserRecord(account, account, "昵称-" + account, hash, status);
+        return new AuthRepo.UserRecord(account, account, "昵称-" + account, hash, status, false);
     }
 
     private static AuthDtos.RegisterRequest reg(String account, String password) {
@@ -155,7 +155,7 @@ class AuthServiceTest {
 
     @Test
     void 登录_历史行没有密码时拒绝且不抛其他异常() {
-        when(repo.findByAccount("u_demo")).thenReturn(new AuthRepo.UserRecord("u_demo", "u_demo", "演示用户", null, 1));
+        when(repo.findByAccount("u_demo")).thenReturn(new AuthRepo.UserRecord("u_demo", "u_demo", "演示用户", null, 1, false));
 
         AuthException e = assertThrows(AuthException.class, () -> service.login(login("u_demo", "abc12345")));
         assertEquals("BAD_CREDENTIALS", e.code());

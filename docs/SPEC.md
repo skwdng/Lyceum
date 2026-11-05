@@ -1054,3 +1054,74 @@ location /api/ {
 - **R-NTF-25** 查询参数类型不合法（如 `?page=abc`）MUST 返回 `400 INVALID_PARAM`，MUST NOT 落成 `500`。
 
 ---
+## 22. 社区 @AI（DeepSeek 助手）
+
+> 本节为 2026-11-05 追加（V1/V2 实现并验收）。第 18 节是社区内容，第 21 节是通知；本节是「把 AI 当普通用户拉进社区」。
+> 正文引用本节统一写「第 22 节」。
+
+### 22.1 账号与身份
+
+- **R-AI-01** AI MUST 是一个**普通用户行**：`sy_user(id='ai_deepseek', account='deepseek', name='DeepSeek', is_bot=1)`。
+  `is_bot` MUST 由 `schema-ai.sql` 以 `alter table ... add column if not exists` 添加，默认 0，MUST NOT 改既有 schema 文件。
+- **R-AI-02** AI 账号 MUST NOT 能登录：`AuthService.login` MUST 在**密码校验之前**拦下并返回 `401`。
+  其 `password_hash` MUST 是不可解析的串——先走 `encoder.matches()` 会抛解析异常变成 `500`。
+- **R-AI-03** 评论出参 MUST 带 `isBot`（楼与楼中楼都要），前端据此显示「AI」标签；除此之外 MUST NOT 有任何区别对待
+  （点赞、回复、举报、被删都照常）。
+
+### 22.2 触发与楼层
+
+- **R-AI-04** 触发 MUST 同时满足：① 正文含 `@DeepSeek`；② 请求体 `mentions` 里含 `ai_deepseek`。
+  两个条件缺一 MUST NOT 触发（只看 mentions 会被伪造请求刷量，只看正文违背「@ 只认 userId」）。
+- **R-AI-05** 楼层归属 MUST 为：发帖 @ → 帖下一条**楼**；楼里 @ → 该楼的**楼中楼**；楼中楼里 @ → **同一楼的楼中楼**。
+  实现上入队时 `rootId = (原 rootId ?: 该评论自身 id)`——第一版传 `null` 会让 AI 变成一条新楼。
+- **R-AI-06** 总开关 MUST 为三项**全部**满足才开启：`siyige.ai.enabled=true`、`siyige.llm.api-key` 非空、Redis 可达。
+- **R-AI-07** 关闭时 `@DeepSeek` MUST 退化为普通文本：不入队、不报错、不影响评论发布。
+
+### 22.3 限额
+
+- **R-AI-08** 限额 MUST 为「每账号每自然日 5 次」，存 Redis Hash `ai:usage:{yyyy-MM-dd}`（field = userId），TTL 24h。
+- **R-AI-09** 「判断是否超限」与「计数 +1」MUST 在 Lua 里**原子**完成；分两步在并发下会超卖。
+- **R-AI-10** 扣减时机 MUST 是**入队时**：模型失败（超时 / 429 / 空回复）也占额度，这是防刷的既定代价。
+- **R-AI-11** 超限 MUST NOT 报错、MUST NOT 影响评论发布，只是不入队。
+
+### 22.4 队列与幂等
+
+- **R-AI-12** 队列 MUST 用 Redis Stream：stream `community:ai:tasks`、group `ai-worker`、consumer `c-{hostname}-{pid}`。
+- **R-AI-13** 幂等 MUST 有三层：① **结果层**（库里已答过就不再答，权威）；② **并发层** `SET NX ai:proc:{id} EX 300`；
+  ③ **兜底层**（锁自动过期，覆盖调模型时崩溃）。发帖场景没有 commentId，判重口径 MUST 是
+  「同帖 + AI 作者 + 楼级别 + 可见」。
+- **R-AI-14** 每条消息处理完 MUST `XACK`（**含失败**）；失败 MUST NOT 重投、MUST NOT 回复失败说明。
+- **R-AI-15** 消费者 MUST 定期回收闲置 > 5 分钟的 PEL 消息（`XPENDING` + `XCLAIM`）。
+- **R-AI-16** 阻塞读 MUST 用**独立的长超时 Redis 连接**（`AiRedis`，15s）；
+  共享模板的命令超时是 50ms（为浏览计数定的），会掐断 `XREADGROUP BLOCK 5s`。MUST NOT 改共享配置。
+
+### 22.5 输出
+
+- **R-AI-17** 输出 MUST NOT 做业务截断；字数 MUST 靠 system prompt 约束（「不超过 300 字」），
+  另在落库前留 1000 字**列长兜底**（`sy_post_comment.body` 是 varchar(1000)）。
+- **R-AI-18** 输出 MUST 过敏感词打码（与真人评论同一套）。
+- **R-AI-19** 失败（超时 / 429 / 5xx / 空回复）MUST 只 `log.warn` 然后返回：MUST NOT 重试、MUST NOT 回复「AI 暂时不可用」。
+- **R-AI-20** MUST NOT 做「正在思考」占位、MUST NOT 做「已呼叫 DeepSeek」提示——AI 要像普通用户一样出现。
+- **R-AI-21** v1 MUST NOT 做工具调用（tools 相关代码一行都不加）。
+
+### 22.6 通知
+
+- **R-AI-22** AI 回复 MUST **只发一条** `REPLY_COMMENT` 给提问者；MUST NOT 复用 `onComment`（那会发两条）。
+- **R-AI-23** 文案 MUST 区分场景：AI 回在帖子下 →「DeepSeek 回复了你的帖子：…」；回在评论下 →「DeepSeek 回复了你的评论：…」。
+- **R-AI-24** `@DeepSeek` MUST NOT 给 AI 账号自己发 `MENTION` 通知（它不登录，那条会永远未读）。
+- **R-AI-25** AI 回复 MUST NOT 触发 @ 提及通知，也 MUST NOT 再次入队（否则会自我循环）。
+
+### 22.7 前端
+
+- **R-AI-26** AI 账号昵称后 MUST 显示「AI」小标签（`.ai-badge`），其余样式 MUST 与真人一致。
+- **R-AI-27** 提交内容里含 `ai_deepseek` 时，前端 MUST 在 5s / 12s / 25s **静默**重拉评论；
+  MUST NOT 弹提示、MUST NOT 占位。用户已离开该帖时必须静默放弃。
+
+### 22.8 配置与运维
+
+- **R-AI-28** 配置 MUST 只放 `server/config/application-local.yml`（已被 `.gitignore` 忽略）：
+  `siyige.llm.base-url` / `api-key` / `model`、`siyige.ai.enabled`。**api-key MUST NOT 进仓库**。
+- **R-AI-29** `model` MUST 用反代里真实存在的 id（如 `deepseek-v4.1-flash`）；`deepseek-chat` 是官方名，用错必 400/404。
+- **R-AI-30** 启动 MUST 打一行日志说明 AI 是否启用；未启用时 MUST 说明原因（没开开关 / 没配 key / Redis 不可用）。
+
+---

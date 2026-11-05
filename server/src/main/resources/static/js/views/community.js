@@ -214,6 +214,7 @@ function cmComment(raw){
     postId:r.postId,
     authorId:r.authorId,
     authorName:r.authorName || '匿名',
+    isBot:!!r.isBot,
     rootId:r.rootId != null ? r.rootId : null,
     replyObjectType:r.replyObjectType || 'POST',
     replyObjectCommentId:r.replyObjectCommentId != null ? r.replyObjectCommentId : null,
@@ -571,6 +572,45 @@ function cmIsMine(authorId){
   return !!me && authorId != null && String(authorId) === me;
 }
 
+/**
+ * 「AI」徽章：AI 账号（isBot=true）昵称后面挂一个小标签，像普通用户但看得出是 AI。
+ * 只做展示，不影响任何权限——AI 就是普通用户行。
+ */
+function cmAiBadge(c){
+  return c && c.isBot ? '<span class="ai-badge">AI</span>' : '';
+}
+
+/**
+ * @ 了 DeepSeek 之后静默刷新评论（决策 5：不做「正在思考」占位、不做「已呼叫」提示）。
+ *
+ * <p>为什么是 5s / 12s / 25s 三次：实测模型往返 4~6 秒，
+ * 20% 左右会因为思考链更长到 10 秒以上；三次覆盖到 25 秒，
+ * 再往后就是模型挂了（后端不重试），刷新也没意义。
+ *
+ * <p>刷新只重拉评论列表、并保持当前页码，不打断用户输入、不弹任何提示。
+ * 若用户已经离开这个帖子 / 已经切走视图，就静默放弃。
+ */
+const CM_AI_WAITS = [5000, 12000, 25000];
+const CM_AI_TIMERS = [];
+function cmAiCancel(){
+  while (CM_AI_TIMERS.length) clearTimeout(CM_AI_TIMERS.pop());
+}
+function cmAwaitAi(postId){
+  cmAiCancel();
+  CM_AI_WAITS.forEach(function(ms){
+    const t = setTimeout(async function(){
+      if (!S.comm || S.comm.postId !== postId) return;   // 已经离开这个帖子
+      try {
+        await cmLoadComments(postId, S.commentPage || 1);
+        render();
+      } catch (e) {
+        // 静默：AI 没答也没关系
+      }
+    }, ms);
+    CM_AI_TIMERS.push(t);
+  });
+}
+
 function cmRootHTML(c){
   const mine = cmIsMine(c.authorId);
   const all = c.replies || [];
@@ -579,7 +619,7 @@ function cmRootHTML(c){
   return `<div class="reply-item" data-cid="${c.id}">
     <div class="reply-av">${esc(cmInitial(c.authorName))}</div>
     <div class="reply-body">
-      <div class="reply-head"><b style="color:#1D2129;font-weight:600">${esc(c.authorName)}</b>
+      <div class="reply-head"><b style="color:#1D2129;font-weight:600">${esc(c.authorName)}</b>${cmAiBadge(c)}
         <span class="reply-time">${cmFmt(c.createdAt)}</span></div>
       <div class="reply-text">${cmMentionify(esc(c.body))}</div>
       <div class="reply-like">
@@ -600,7 +640,7 @@ function cmReplyHTML(r){
     <div class="reply-av">${esc(cmInitial(r.authorName))}</div>
     <div class="reply-body">
       <div class="reply-head">
-        <b style="color:#1D2129;font-weight:600">${esc(r.authorName)}</b>
+        <b style="color:#1D2129;font-weight:600">${esc(r.authorName)}</b>${cmAiBadge(r)}
         <span style="color:#86909C">回复了</span>
         <b style="color:#4E5969;font-weight:600">${esc(r.replyObjectUserName || '')}</b>
         <span class="reply-time">${cmFmt(r.createdAt)}</span>
@@ -766,6 +806,8 @@ async function cmPostReply(){
     cmMentionReset();
     await cmReloadDetail(pid);
     await cmLoadComments(pid, 1);
+    // 社区 AI：@ 了 DeepSeek 就静默刷新几次，等 AI 把回复落库（不占位、不提示，决策 5）
+    if (mentions.indexOf('ai_deepseek') >= 0) cmAwaitAi(pid);
     // B6：命中敏感词是“打码放行”，给一句轻提示（不是失败）
     if (newId && cmFindComment(newId) && String(cmFindComment(newId).body).indexOf('＊') >= 0) {
       toast('回复已发布，含敏感词已自动打码');
@@ -905,10 +947,8 @@ async function cmSubmitPost(id){
   if (!text) return toast('正文还没写');
   const payload = {type: S.cmNewType || 'CHAT', title: title, body: text};
   // @ 提及只在「发新帖」时提交：编辑旧帖再发一遍会让被 @ 的人重复收通知
-  if (!id) {
-    const mentions = cmMentionIds(text);
-    if (mentions.length) payload.mentions = mentions;
-  }
+  const mentions = id ? [] : cmMentionIds(text);
+  if (mentions.length) payload.mentions = mentions;
   if (id) payload.topicId = topicId ? topicId : null;
   else if (topicId) payload.topicId = topicId;
   try {
@@ -931,6 +971,8 @@ async function cmSubmitPost(id){
       } else {
         S.comm.view = 'list'; render();
       }
+      // 社区 AI：发帖正文里 @ 了 DeepSeek → 静默刷新等它回楼（不占位、不提示）
+      if (newId && mentions.indexOf('ai_deepseek') >= 0) cmAwaitAi(newId);
       // B6：命中敏感词 → 打码放行，提示一句，不报错
       const d = S.postDetail;
       const masked = d && (String(d.title).indexOf('＊') >= 0 || String(d.body).indexOf('＊') >= 0);

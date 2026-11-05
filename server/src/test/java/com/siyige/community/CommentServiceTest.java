@@ -18,7 +18,8 @@ class CommentServiceTest {
     private final SensitiveWordMasker masker = new SensitiveWordMasker(List.of("加微信"));
     private final com.siyige.community.MuteGuard muteGuard = mock(com.siyige.community.MuteGuard.class);
     private final NotificationService notifications = mock(NotificationService.class);
-    private final CommentService service = new CommentService(repo, masker, muteGuard, notifications);
+    private final com.siyige.community.ai.AiQueue aiQueue = mock(com.siyige.community.ai.AiQueue.class);
+    private final CommentService service = new CommentService(repo, masker, muteGuard, notifications, aiQueue);
 
     private static Map<String, Object> postRow() {
         Map<String, Object> post = new HashMap<>();

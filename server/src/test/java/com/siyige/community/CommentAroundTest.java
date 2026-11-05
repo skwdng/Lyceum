@@ -33,7 +33,8 @@ class CommentAroundTest {
         comments = new CommentService(new CommunityRepo(db.jdbc),
                 new SensitiveWordMasker(List.of()), mock(MuteGuard.class),
                 new NotificationService(new NotificationRepo(db.jdbc),
-                        new InMemoryUnreadCounter(), new UserNames(db.jdbc)));
+                        new InMemoryUnreadCounter(), new UserNames(db.jdbc)),
+                org.mockito.Mockito.mock(com.siyige.community.ai.AiQueue.class));
     }
 
     @SuppressWarnings("unchecked")

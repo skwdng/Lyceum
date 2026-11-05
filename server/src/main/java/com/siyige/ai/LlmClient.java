@@ -77,6 +77,40 @@ public class LlmClient {
         return root.path("choices").path(0).path("message").path("content").asText("");
     }
 
+    /**
+     * 普通对话（可指定温度、超时**和输出上限**）。
+     *
+     * <p>为什么需要这个重载：本地反代背后是**推理模型**，{@code completion_tokens} 里含思考 token。
+     * {@code max_tokens} 给小了会直接拿到空 content（实测给 16 → {@code finish_reason=length} 且 content 为空）。
+     * 社区 AI 用 800（思考约 300 + 回答约 300 + 余量）。
+     *
+     * <p>同时把 {@code finish_reason} 打进日志：{@code stop} 正常 / {@code length} 被截断 / 其它异常。
+     *
+     * <p>⚠️ 这个重载是**纯新增**：上面两个 {@code chat(...)} 与 {@code chatJson(...)} 的签名与行为一行都没改
+     * ——辩论侧（engine / ai 席位）还在调用它们。
+     */
+    public String chat(String system, String user, double temperature, int timeoutSec, int maxTokens)
+            throws Exception {
+        String body = json.writeValueAsString(Map.of(
+                "model", model,
+                "temperature", temperature,
+                "max_tokens", maxTokens,
+                "messages", List.of(
+                        Map.of("role", "system", "content", system),
+                        Map.of("role", "user", "content", user))
+        ));
+        String content = post(body, timeoutSec);
+        var root = json.readTree(content);
+        var choice = root.path("choices").path(0);
+        String finish = choice.path("finish_reason").asText("");
+        String text = choice.path("message").path("content").asText("");
+        if ("length".equals(finish)) {
+            log.warn("LLM 输出被 max_tokens 截断（maxTokens={} content 长度={}）", maxTokens, text.length());
+        }
+        log.debug("LLM finish_reason={} content 长度={}", finish, text.length());
+        return text;
+    }
+
     /** 结构化输出：要求模型只返回 JSON 对象。 */
     public String chatJson(String system, String user, int timeoutSec) throws Exception {
         String body = json.writeValueAsString(Map.of(

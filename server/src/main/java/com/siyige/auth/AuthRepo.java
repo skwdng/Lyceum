@@ -25,15 +25,16 @@ public class AuthRepo {
      *
      * <p>{@code toString()} 不含 passwordHash，防止误打印。
      */
-    public record UserRecord(String id, String account, String name, String passwordHash, int status) {
+    public record UserRecord(String id, String account, String name, String passwordHash, int status,
+                            boolean bot) {
         @Override
         public String toString() {
-            return "UserRecord[id=" + id + ",account=" + account + ",status=" + status + "]";
+            return "UserRecord[id=" + id + ",account=" + account + ",status=" + status + ",bot=" + bot + "]";
         }
     }
 
     private static final String COLUMNS =
-            "select id, account, name, password_hash, status from sy_user ";
+            "select id, account, name, password_hash, status, is_bot from sy_user ";
 
     public UserRecord findByAccount(String account) {
         List<UserRecord> rows = jdbc.query(COLUMNS + "where account = ?", (rs, i) -> map(rs), account);
@@ -48,8 +49,11 @@ public class AuthRepo {
     private static UserRecord map(java.sql.ResultSet rs) throws java.sql.SQLException {
         Object status = rs.getObject("status");
         int st = status instanceof Number n ? n.intValue() : 1;
+        // is_bot 由 schema-ai.sql 添加（0 = 普通用户 / 1 = AI 账号）
+        Object bot = rs.getObject("is_bot");
+        boolean isBot = bot instanceof Number bn && bn.intValue() == 1;
         return new UserRecord(rs.getString("id"), rs.getString("account"),
-                rs.getString("name"), rs.getString("password_hash"), st);
+                rs.getString("name"), rs.getString("password_hash"), st, isBot);
     }
 
     /**

@@ -2,6 +2,7 @@ package com.siyige.community;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.siyige.community.ai.AiQueue;
 import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
@@ -41,14 +42,17 @@ public class CommunityService {
     private final MuteGuard muteGuard;
     /** 发帖正文里的 @ 提及要发通知（V2）。 */
     private final NotificationService notifications;
+    /** 发帖正文里 @DeepSeek 时把任务丢进 AI 队列（V1 新增，commentId 传 null）。 */
+    private final AiQueue aiQueue;
 
     public CommunityService(CommunityRepo repo, SensitiveWordMasker masker, CommunityViewService views,
-                            MuteGuard muteGuard, NotificationService notifications) {
+                            MuteGuard muteGuard, NotificationService notifications, AiQueue aiQueue) {
         this.repo = repo;
         this.masker = masker;
         this.views = views;
         this.muteGuard = muteGuard;
         this.notifications = notifications;
+        this.aiQueue = aiQueue;
     }
 
     // ==================== 读 ====================
@@ -135,6 +139,8 @@ public class CommunityService {
 
         // 通知：发帖正文里 @ 了谁（commentId 传 null，link 就只到帖子）
         notifications.onMentions(id, null, uid, body.get("mentions"), text);
+        // 社区 AI：发帖正文里 @DeepSeek -> 入队，AI 回来时在这个帖子下回一条楼（决策 3）
+        aiQueue.maybeEnqueue(id, null, uid, null, text, body.get("mentions"));
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("postId", id);

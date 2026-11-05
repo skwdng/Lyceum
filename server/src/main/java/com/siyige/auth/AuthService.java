@@ -82,6 +82,13 @@ public class AuthService {
             log.info("登录失败（账号不存在或无密码） account={}", account);
             throw AuthException.badCredentials();
         }
+        // AI 账号（is_bot=1）禁止登录。必须在密码校验**之前**拦：
+        // 它的 password_hash 是故意写成不可解析的串，先走 encoder.matches 会抛解析异常变成 500。
+        if (user.bot()) {
+            verifyAgainstDummy(rawPassword);       // 与其它失败分支保持同等耗时，不额外泄露账号性质
+            log.info("登录失败（AI 账号禁止登录） account={} id={}", account, user.id());
+            throw AuthException.badCredentials();
+        }
         if (!encoder.matches(rawPassword, user.passwordHash())) {
             log.info("登录失败（密码错误） account={}", account);
             throw AuthException.badCredentials();

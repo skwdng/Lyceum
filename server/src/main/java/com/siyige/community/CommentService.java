@@ -2,6 +2,8 @@ package com.siyige.community;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.siyige.community.ai.AiAccount;
+import com.siyige.community.ai.AiQueue;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +33,8 @@ public class CommentService {
 
     private static final int COMMENT_MAX = 1000;   // R-COM-24
     private static final int PREVIEW_SIZE = 3;     // R-COM-21
+    /** sy_post_comment.body 是 varchar(1000)：只做列长兜底，不是业务截断（决策 6）。 */
+    private static final int BODY_COLUMN_MAX = 1000;
     private static final int REPLY_PAGE_MAX = 50;
 
     private final CommunityRepo repo;
@@ -39,13 +43,16 @@ public class CommentService {
     private final MuteGuard muteGuard;
     /** 评论 / 回复要发通知（方案 §3）。 */
     private final NotificationService notifications;
+    /** 正文里 @DeepSeek 时把任务丢进 AI 队列（V1 新增）。 */
+    private final AiQueue aiQueue;
 
     public CommentService(CommunityRepo repo, SensitiveWordMasker masker, MuteGuard muteGuard,
-                          NotificationService notifications) {
+                          NotificationService notifications, AiQueue aiQueue) {
         this.repo = repo;
         this.masker = masker;
         this.muteGuard = muteGuard;
         this.notifications = notifications;
+        this.aiQueue = aiQueue;
     }
 
     // ==================== 读 ====================
@@ -123,6 +130,7 @@ public class CommentService {
             item.put("postId", CommunityService.num(row.get("post_id")));
             item.put("authorId", row.get("author_id"));
             item.put("authorName", row.get("author_name"));
+            item.put("isBot", CommunityService.num(row.get("is_bot")) == 1);
             item.put("body", row.get("body"));
             item.put("likeCount", CommunityService.num(row.get("like_count")));
             item.put("liked", liked.contains(id));
@@ -216,6 +224,12 @@ public class CommentService {
         notifications.onComment(postId, uid, id, replyObjectUserId);
         // 通知：正文里 @ 了谁（反向校验在 service 内部：只认 userId + 昵称必须真出现在正文里）
         notifications.onMentions(postId, id, uid, body.get("mentions"), text);
+        // 社区 AI：正文含 @DeepSeek 且 mentions 里有 AI 的 userId -> 入队（三道闸都在 maybeEnqueue 里）
+        // 楼层归属（决策 3）：
+        //   · 楼里 @    -> AI 回到「这一楼的楼中楼」=> 用 id（楼自己）当 rootId
+        //   · 楼中楼 @  -> AI 回到「同一个楼的楼中楼」=> 沿用 rootId（仍是第二层，不会更深）
+        Long aiRootId = rootId != null ? rootId : id;
+        aiQueue.maybeEnqueue(postId, id, uid, aiRootId, text, body.get("mentions"));
 
         if (masked.hits() > 0) {
             log.info("社区评论打码 userId={} postId={} commentId={} hits={}", uid, postId, id, masked.hits());
@@ -224,6 +238,35 @@ public class CommentService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("commentId", id);
         return out;
+    }
+
+    /**
+     * AI 回复落库（V1 新增，方案 §3.5）。
+     *
+     * <p>AI 就是一个普通用户：走同一个 {@code insertComment}，所以楼层规则、软删、统计全都一致。
+     * 三处**刻意不做**：
+     * <ul>
+     *   <li>不发通知 —— 由调用方 {@code NotificationService.onAiReply} **只发一条**（决策 4）</li>
+     *   <li>不触发 @ 提及 —— AI 回复里就算出现 @某人也不通知</li>
+     *   <li>不调用 {@code maybeEnqueue} —— 否则 AI 回复里若含 @DeepSeek 会无限自我触发</li>
+     * </ul>
+     *
+     * <p>输出**不做业务截断**（决策 6）：只过敏感词 + 1000 字列长兜底。
+     *
+     * @param rootId          楼中楼所属楼；楼级别传 null
+     * @param replyToCommentId 被回复的评论；发帖 @ 时传 null
+     */
+    public long createAiComment(long postId, Long rootId, Long replyToCommentId, String askerId, String raw) {
+        String masked = masker.mask(raw == null ? "" : raw).text();
+        String text = masked.length() > BODY_COLUMN_MAX ? masked.substring(0, BODY_COLUMN_MAX) : masked;
+        String replyObjectType = replyToCommentId == null ? "POST" : "COMMENT";
+
+        long id = repo.insertComment(postId, AiAccount.ID, rootId, replyObjectType,
+                replyToCommentId, askerId, text);
+        recomputePostStats(postId);
+        log.info("AI 评论已落库 postId={} commentId={} rootId={} replyTo={} 长度={}",
+                postId, id, rootId, replyToCommentId, text.length());
+        return id;
     }
 
     /** 软删除评论：删楼时连带其下所有楼中楼。 */
@@ -282,6 +325,7 @@ public class CommentService {
         m.put("rootId", CommunityService.num(row.get("root_id")));
         m.put("authorId", row.get("author_id"));
         m.put("authorName", row.get("author_name"));
+        m.put("isBot", CommunityService.num(row.get("is_bot")) == 1);
         m.put("body", row.get("body"));
         m.put("likeCount", CommunityService.num(row.get("like_count")));
         m.put("liked", liked.contains(id));

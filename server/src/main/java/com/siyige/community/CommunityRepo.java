@@ -3,6 +3,7 @@ package com.siyige.community;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
+import com.siyige.community.ai.AiAccount;
 import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
@@ -145,7 +146,8 @@ public class CommunityRepo {
     /** 单条评论（含已删除行，状态由 Service 判断）。 */
     public Map<String, Object> findComment(long id) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "select c.*, u.name as author_name from sy_post_comment c left join sy_user u on u.id = c.user_id where c.id = ?", id);
+                "select c.*, u.name as author_name, u.is_bot as is_bot from sy_post_comment c " +
+                        "left join sy_user u on u.id = c.user_id where c.id = ?", id);
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -158,8 +160,8 @@ public class CommunityRepo {
 
     public List<Map<String, Object>> listRootComments(long postId, int offset, int limit) {
         return jdbc.queryForList(
-                "select c.id, c.post_id, c.user_id, c.user_id as author_id, u.name as author_name, c.body, " +
-                "c.like_count, c.created_at, c.root_id " +
+                "select c.id, c.post_id, c.user_id, c.user_id as author_id, u.name as author_name, " +
+                "u.is_bot as is_bot, c.body, c.like_count, c.created_at, c.root_id " +
                 "from sy_post_comment c left join sy_user u on u.id = c.user_id " +
                 "where c.post_id = ? and c.status = 1 and c.root_id is null " +
                 "order by c.created_at desc, c.id desc limit ? offset ?",
@@ -192,6 +194,7 @@ public class CommunityRepo {
         return jdbc.queryForList(
                 "select * from (" +
                 "  select c.id, c.post_id, c.root_id, c.user_id, c.user_id as author_id, u.name as author_name, " +
+                "         u.is_bot as is_bot, " +
                 "         c.body, c.like_count, c.reply_object_type, c.reply_object_comment_id, c.reply_object_user_id, " +
                 "         ru.name as reply_object_user_name, c.created_at, " +
                 "         row_number() over (partition by c.root_id order by c.created_at asc, c.id asc) as rn " +
@@ -224,7 +227,7 @@ public class CommunityRepo {
         return jdbc.queryForList(
                 "select c.id, c.post_id, c.root_id, c.user_id, c.user_id as author_id, u.name as author_name, " +
                 "c.body, c.like_count, c.reply_object_type, c.reply_object_comment_id, c.reply_object_user_id, " +
-                "ru.name as reply_object_user_name, c.created_at " +
+                "u.is_bot as is_bot, ru.name as reply_object_user_name, c.created_at " +
                 "from sy_post_comment c left join sy_user u on u.id = c.user_id " +
                 "left join sy_user ru on ru.id = c.reply_object_user_id " +
                 "where c.root_id = ? and c.status = 1 order by c.created_at asc, c.id asc limit ? offset ?",
@@ -235,6 +238,53 @@ public class CommunityRepo {
         Long n = jdbc.queryForObject(
                 "select count(*) from sy_post_comment where root_id = ? and status = 1", Long.class, rootId);
         return n == null ? 0 : n;
+    }
+
+    // ==================== 社区 AI（2026-11-05 新增） ====================
+
+    /**
+     * 结果层幂等：这条评论下 AI 已经回过几条（方案 §12.4）。
+     *
+     * <p>命中 &gt; 0 就说明答过了，消息重投时直接跳过并 ACK。
+     */
+    public long countAiReplies(long commentId) {
+        Long n = jdbc.queryForObject(
+                "select count(*) from sy_post_comment " +
+                        "where reply_object_comment_id = ? and user_id = ? and status = 1",
+                Long.class, commentId, AiAccount.ID);
+        return n == null ? 0 : n;
+    }
+
+    /**
+     * 「发帖 @AI」的结果层幂等：这个帖子下 AI 是否已经回过一条楼。
+     *
+     * <p>发帖场景没有 commentId（{@code reply_object_comment_id} 为空），
+     * 所以判重口径换成「同帖 + AI 作者 + 楼级别 + 可见」——帖子只会创建一次，这条足够。
+     */
+    public long countAiPostReply(long postId) {
+        Long n = jdbc.queryForObject(
+                "select count(*) from sy_post_comment " +
+                        "where post_id = ? and user_id = ? and status = 1 " +
+                        "  and root_id is null and reply_object_type = 'POST'",
+                Long.class, postId, AiAccount.ID);
+        return n == null ? 0 : n;
+    }
+
+    /**
+     * 给 AI 看的最近评论（时间正序，最多 limit 条，含楼中楼）。
+     *
+     * <p>先按时间倒序取 limit 条再翻转，保证给模型的是「最近的、且按时间顺序」的对话上下文。
+     */
+    public List<Map<String, Object>> listRecentForAi(long postId, int limit) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "select c.id, c.body, c.root_id, c.user_id, u.name as author_name, u.is_bot as is_bot " +
+                        "from sy_post_comment c left join sy_user u on u.id = c.user_id " +
+                        "where c.post_id = ? and c.status = 1 " +
+                        "order by c.created_at desc, c.id desc limit ?",
+                postId, Math.max(1, limit));
+        List<Map<String, Object>> out = new ArrayList<>(rows.size());
+        for (int i = rows.size() - 1; i >= 0; i--) out.add(rows.get(i));
+        return out;
     }
 
     /** R-COM-29：评论 liked 同样一次批量 IN。 */

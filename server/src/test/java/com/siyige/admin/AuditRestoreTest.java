@@ -54,7 +54,7 @@ class AuditRestoreTest {
         ds.setPassword("");
         try (Connection c = ds.getConnection()) {
             for (String f : new String[]{"schema.sql", "schema-community.sql", "schema-auth.sql",
-                    "schema-admin.sql", "schema-security.sql"}) {
+                    "schema-admin.sql", "schema-security.sql", "schema-ai.sql"}) {
                 ScriptUtils.executeSqlScript(c, new ClassPathResource(f));
             }
         }

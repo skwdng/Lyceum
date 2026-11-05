@@ -28,8 +28,9 @@ class MuteInterceptTest {
     private final MuteGuard guard = mock(MuteGuard.class);
 
     private final NotificationService notifications = mock(NotificationService.class);
-    private final CommunityService posts = new CommunityService(repo, masker, views, guard, notifications);
-    private final CommentService comments = new CommentService(repo, masker, guard, notifications);
+    private final com.siyige.community.ai.AiQueue aiQueue = mock(com.siyige.community.ai.AiQueue.class);
+    private final CommunityService posts = new CommunityService(repo, masker, views, guard, notifications, aiQueue);
+    private final CommentService comments = new CommentService(repo, masker, guard, notifications, aiQueue);
     private final LikeService likes = new LikeService(repo, guard, notifications);
 
     private void muted() {
