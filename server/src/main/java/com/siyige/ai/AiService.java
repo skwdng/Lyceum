@@ -198,13 +198,16 @@ public class AiService {
 
     private final LlmClient llm;
     private final com.siyige.service.EvidenceService evidence;
+    private final com.siyige.service.UtteranceCheck utterance;
     private final boolean speechEnabled;
     private final Random random = new Random();
 
     public AiService(LlmClient llm, com.siyige.service.EvidenceService evidence,
+                     com.siyige.service.UtteranceCheck utterance,
                      @Value("${siyige.llm.speech-enabled:true}") boolean speechEnabled) {
         this.llm = llm;
         this.evidence = evidence;
+        this.utterance = utterance;
         this.speechEnabled = speechEnabled;
     }
 
@@ -311,8 +314,14 @@ public class AiService {
         if (!mateLast.isBlank())
             sb.append("【同侧队友刚才说】").append(shorten(mateLast, 150)).append("\n");
         if (!oppLast.isBlank()) {
-            sb.append("【对方最近说】").append(shorten(oppLast, 200)).append("\n");
-            sb.append("【必须回应的具体主张】").append(coreClaim(oppLast)).append("\n");
+            if (utterance != null && utterance.vacuous(oppLast)) {
+                // 关键：一个字都不给模型看。给了它就会照着引述。
+                sb.append("【对方最近说】（对方这一轮只发出极短内容，没有可引述的主张）\n");
+                sb.append("【注意】").append(utterance.vacuousHint(oppLast)).append("\n");
+            } else {
+                sb.append("【对方最近说】").append(shorten(oppLast, 200)).append("\n");
+                sb.append("【必须回应的具体主张】").append(coreClaim(oppLast)).append("\n");
+            }
         }
         if (topicId != null && evidence != null) {
             String cards = evidence.promptBlock(topicId, Format.side(seat));
@@ -345,6 +354,9 @@ public class AiService {
 
     /** 从对方那段话里抽出「可被点名反驳的具体主张」，最多 20 字。 */
     static String coreClaim(String line) {
+        // 极短/无实质内容的话没有「可回应的主张」
+        String flat = line == null ? "" : line.replaceAll("[\\s\\p{Punct}，。！？、；：\"'（）《》【】…—~]", "");
+        if (flat.length() <= 4) return "";
         if (line == null || line.isBlank()) return "";
         String s = line.replace("\\n", " ").trim();
         String[] parts = s.split("[，。；：、！？,.;:!?]");
@@ -431,6 +443,8 @@ public class AiService {
      * 一眼就看出是模板。这里按「引述 / 反问 / 让步 / 拆解 / 归谬」五种姿态各给几条。
      */
     private static final String[] LEAD_TPL = {
+            "你这一轮没有回答问题，只回了一句「%s」——请正面给出你的判准：",
+            "等一下，「%s」不算回应。我问的是条件，你答的是态度：",
             "对方说「%s」——问题不在结论，在这一步推得太快：",
             "先接住对方「%s」这句。承认它，但它的适用范围比说的小得多：",
             "「%s」这句话我要拆一下，它其实含了两个互不支撑的断言：",
@@ -444,6 +458,9 @@ public class AiService {
     /** 从一句话里挑一个可引用的「意群」：优先引号内，其次第一个分句，绝不从词中间硬切。 */
     public static String hookOf(String line) {
         if (line == null) return "";
+        // 敷衍/无实质内容的话不能当引文（否则会出现「对方说『11』，问题在于……」这种荒唐句子）
+        String cleaned = line.replaceAll("[\\s\\p{Punct}，。！？、；：\"'（）《》【】…—~]", "");
+        if (cleaned.length() <= 4) return "";
         String s = line.replace("\n", " ").trim();
         // 1) 引号内已有现成短语
         int i = s.indexOf('「'), j = s.indexOf('」', i + 1);
@@ -505,14 +522,21 @@ public class AiService {
         // 优先级：先针对对方（用户最在意这点），再谈承接队友
         boolean hitsOpponent = t.matches("(?s).*(对方|你方|反方|正方).*");
         if (!oppLast.isBlank() && !hitsOpponent) {
-            String claim = coreClaim(oppLast);
-            if (!claim.isBlank()) t = "对方刚才说「" + claim + "」，这个判断我不同意：" + t;
+            if (utterance != null && utterance.vacuous(oppLast)) {
+                // 对方这轮只回了「11」这类内容：不能编出一句引文，直接点破。
+                // 模型自己已经说了就不要重复（否则会出现「没有回答问题。没有回答问题。」）
+                if (!t.contains("没有回答")) t = "你这一轮没有回答问题。" + t;
+            } else {
+                String claim = coreClaim(oppLast);
+                if (!claim.isBlank()) t = "对方刚才说「" + claim + "」，这个判断我不同意：" + t;
+            }
         }
         boolean hasLink = t.matches("(?s).*(顺着|接着|接住|补充|回应|刚才.*说的|讲了|这一条我认|我方[一二三四]辩|「).*");
         if (!mateLast.isBlank() && !hasLink) {
             String hook = hookOf(mateLast);
             if (!hook.isBlank() && !alreadyQuoted(history, hook, mateLast)) {
-                String lead = "对方说「" + hook + "」，问题在于：";
+                // 这是队友的话，不能标成「对方说」
+                String lead = "顺着我方刚才那句「" + hook + "」，再补一层：";
                 t = lead + t;
             }
         }

@@ -33,6 +33,7 @@ public class MatchService {
     private final Store store;
     private final AiService ai;
     private final ScoreService scorer;
+    private final UtteranceCheck utterance;
     private final HotRank hot;
     private final SseHub hub;
     private final FlawService flaw;
@@ -47,11 +48,13 @@ public class MatchService {
                         @Value("${siyige.pace.time-scale:1.0}") double timeScale,
                         @Value("${siyige.pace.ai-think-ms:1800}") long aiThinkMs,
                         @Value("${siyige.pace.turn-seconds:300}") int defaultTurnSeconds,
-                        @Value("${siyige.pace.ai-delay-scale:1.0}") double aiDelayScale) {
+                        @Value("${siyige.pace.ai-delay-scale:1.0}") double aiDelayScale,
+                        UtteranceCheck utterance) {
         this.store = store; this.ai = ai; this.scorer = scorer; this.hot = hot; this.hub = hub;
         this.flaw = flaw; this.json = json; this.timeScale = timeScale; this.aiThinkMs = aiThinkMs;
         this.defaultTurnSeconds = defaultTurnSeconds;
         this.aiDelayScale = aiDelayScale;
+        this.utterance = utterance;
     }
 
     // ---------- 开局 ----------
@@ -114,7 +117,10 @@ public class MatchService {
             throw new IllegalStateException("NOT_YOUR_TURN: 当前轮到 " + speaker);
 
         String text = content == null || content.isBlank() ? "（未发言）" : content.trim();
-        store.insertTurn(matchId, step + 1, speaker, cur.seg(), text, "OK",
+        // 敷衍发言（「11」「对」「嗯」）记为 EMPTY：不算内容，不计入评分文本，
+        // 但对局照常推进——下一轮 AI 会明确点出「你这一轮没有回答问题」。
+        String status = (utterance != null && utterance.vacuous(text)) ? "EMPTY" : "OK";
+        store.insertTurn(matchId, step + 1, speaker, cur.seg(), text, status,
                 inputType == null ? "kb" : inputType);
         hot.zincrby(str(m.get("topic_id")), 2);   // 发言 +2
         hub.emit(matchId, "turn", Map.of(
@@ -423,6 +429,8 @@ public class MatchService {
         ScoreService.Score sc = scorer.score(turns, mine, str(m.get("topic_id")), store.flaws(matchId));
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("score", sc);
+        // 按席位分别给分：占两个位置时能看出每个位置打得怎么样
+        out.put("seatScores", scorer.scorePerSeat(turns, mine, str(m.get("topic_id")), store.flaws(matchId)));
         out.put("turns", turns);
         return out;
     }

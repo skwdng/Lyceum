@@ -58,6 +58,31 @@ public class ScoreService {
         return score(turns, mySeats, null);
     }
 
+    /**
+     * 按席位分别评分。
+     *
+     * <p>原来把所有「我的席位」的发言拼成一段一起打分，占两个席位时分数会被混在一起，
+     * 看不出「二辩这个位置我打得怎么样」。这里每个席位单独跑一遍规则，再汇总。
+     *
+     * @return 席位 → 该席位的分数（顺序按 mySeats 遍历到的先后）
+     */
+    public java.util.LinkedHashMap<String, Score> scorePerSeat(List<Map<String, Object>> turns,
+                                                               Set<String> mySeats, String topicId,
+                                                               List<Map<String, Object>> flawRows) {
+        java.util.LinkedHashMap<String, Score> out = new java.util.LinkedHashMap<>();
+        for (String seat : mySeats) {
+            boolean hasSpeech = false;
+            for (Map<String, Object> t : turns) {
+                if (seat.equals(String.valueOf(t.get("seat")))
+                        && !"TIMEOUT".equals(String.valueOf(t.get("status")))
+                        && !"EMPTY".equals(String.valueOf(t.get("status")))) { hasSpeech = true; break; }
+            }
+            if (!hasSpeech) continue;
+            out.put(seat, score(turns, java.util.Set.of(seat), topicId, flawRows));
+        }
+        return out;
+    }
+
     public Score score(List<Map<String, Object>> turns, Set<String> mySeats, String topicId) {
         return score(turns, mySeats, topicId, List.of());
     }
@@ -71,7 +96,9 @@ public class ScoreService {
         for (Map<String, Object> t : turns) {
             String seat = String.valueOf(t.get("seat"));
             if (!mySeats.contains(seat)) continue;
-            if ("TIMEOUT".equals(String.valueOf(t.get("status")))) { timeouts++; continue; }
+            String st = String.valueOf(t.get("status"));
+            if ("TIMEOUT".equals(st)) { timeouts++; continue; }
+            if ("EMPTY".equals(st)) { continue; }   // 敷衍发言不算内容，但也不算超时
             String c = String.valueOf(t.get("content"));
             if (firstQuote.isEmpty()) firstQuote = c;
             mine.add(c);

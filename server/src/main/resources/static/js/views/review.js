@@ -4,6 +4,8 @@
 
 function viewReview(){
   const r = S.review?.score;
+  const seatScores = S.review?.seatScores || {};
+  const seatKeys = Object.keys(seatScores);
   if (!r) return `<div class="empty">没有复盘数据</div>`;
   return `
   <h1 class="pg">本场复盘</h1>
@@ -20,7 +22,23 @@ function viewReview(){
         ${r.collab ? `<div class="dim"><span class="lb">协同</span><div class="dbar"><i style="width:${r.collab*8}%;background:#0E9F6E"></i></div><b>+${r.collab}</b></div>` : ''}
       </div>
     </div>
-    ${Object.keys(r.flaws || {}).length ? `<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
+    ${seatKeys.length > 1 ? `<div style="margin-top:14px">
+      <b style="font-size:12.5px">按席位看</b>
+      <span style="font-size:11.5px;color:#8A909C;margin-left:6px">你占了 ${seatKeys.length} 个位置，分开算</span>
+      ${seatKeys.map(k => {
+        const s2 = seatScores[k];
+        return `<div class="card" style="margin-top:8px;padding:10px 12px">
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <b style="font-size:12.5px">${k} 席位</b>
+            <span style="font-size:13px"><b>${s2.total}</b> 分 · 发言 ${s2.turns} 次</span>
+          </div>
+          <div class="row" style="gap:14px;margin-top:6px;font-size:11.5px;color:#6B7280;flex-wrap:wrap">
+            <span>立论 ${s2.matter}</span><span>论证 ${s2.method}</span><span>表达 ${s2.manner}</span>
+            <span>应变 ${s2.adapt}</span><span>论据 ${s2.evidence}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : ''}    ${Object.keys(r.flaws || {}).length ? `<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap">
       <span style="font-size:12.5px;color:#6B7280">本场检出：</span>
       ${Object.entries(r.flaws).map(([k,v]) => `<span class="tag o">${k} × ${v}</span>`).join('')}
     </div>` : ""}
