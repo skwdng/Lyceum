@@ -17,8 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>只在 {@code siyige.redis.enabled=false} 时生效——本机开发/演示用。
  * 生产仍走 {@link RedisLoginRateLimiter}，语义不变（多实例共享锁）。
  */
-@Component
-@ConditionalOnProperty(name = "siyige.redis.enabled", havingValue = "false")
 public class InMemoryLoginRateLimiter implements LoginRateLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(InMemoryLoginRateLimiter.class);
@@ -36,33 +34,42 @@ public class InMemoryLoginRateLimiter implements LoginRateLimiter {
     /** 锁定到期时间 */
     private final Map<String, Long> locks = new ConcurrentHashMap<>();
 
+    private final String prefix;
+
+    /** 用户端（前缀 auth:）。 */
     public InMemoryLoginRateLimiter() {
-        log.info("登录限流：使用内存实现（未启用 Redis）");
+        this("auth:");
+    }
+
+    /** 管理端用：独立前缀，独立计数。 */
+    public InMemoryLoginRateLimiter(String prefix) {
+        this.prefix = prefix;
+        log.info("登录限流：使用内存实现（未启用 Redis，前缀 {}）", prefix);
     }
 
     @Override
     public void assertAllowed(String account, String ip) {
-        if (locked("acct:" + account)) throw AuthException.tooManyAttempts("尝试次数过多，请 15 分钟后再试");
-        if (ip != null && locked("ip:" + ip)) throw AuthException.tooManyAttempts("尝试次数过多，请稍后再试");
+        if (locked(prefix + "acct:" + account)) throw AuthException.tooManyAttempts("尝试次数过多，请 15 分钟后再试");
+        if (ip != null && locked(prefix + "ip:" + ip)) throw AuthException.tooManyAttempts("尝试次数过多，请稍后再试");
     }
 
     @Override
     public void onFailure(String account, String ip) {
         long now = Instant.now().toEpochMilli();
-        if (count("acct:" + account, ACCT_WINDOW_MS, now) >= ACCT_MAX_FAILS) {
-            locks.put("acct:" + account, now + ACCT_LOCK_MS);
+        if (count(prefix + "acct:" + account, ACCT_WINDOW_MS, now) >= ACCT_MAX_FAILS) {
+            locks.put(prefix + "acct:" + account, now + ACCT_LOCK_MS);
             log.warn("账号因连续失败被锁定 account={}", account);
         }
-        if (ip != null && !ip.isBlank() && count("ip:" + ip, IP_WINDOW_MS, now) >= IP_MAX_FAILS) {
-            locks.put("ip:" + ip, now + IP_LOCK_MS);
+        if (ip != null && !ip.isBlank() && count(prefix + "ip:" + ip, IP_WINDOW_MS, now) >= IP_MAX_FAILS) {
+            locks.put(prefix + "ip:" + ip, now + IP_LOCK_MS);
             log.warn("IP 因连续失败被锁定 ip={}", ip);
         }
     }
 
     @Override
     public void onSuccess(String account) {
-        fails.remove("acct:" + account);
-        locks.remove("acct:" + account);
+        fails.remove(prefix + "acct:" + account);
+        locks.remove(prefix + "acct:" + account);
     }
 
     private boolean locked(String key) {

@@ -22,12 +22,14 @@ public class LoginRateLimiterConfig {
     /** 管理端 key 前缀。 */
     public static final String ADMIN_PREFIX = "adm:";
 
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "siyige.redis.enabled", havingValue = "true", matchIfMissing = true)
     @Bean
     @Primary
     public LoginRateLimiter userLoginRateLimiter(AuthRedis authRedis) {
         return new RedisLoginRateLimiter(authRedis, USER_PREFIX);
     }
 
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "siyige.redis.enabled", havingValue = "true", matchIfMissing = true)
     @Bean
     public LoginRateLimiter adminLoginRateLimiter(AuthRedis authRedis) {
         return new RedisLoginRateLimiter(authRedis, ADMIN_PREFIX);

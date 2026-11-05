@@ -49,10 +49,99 @@ function viewReview(){
       <div class="k" style="margin-top:10px">问题</div><div style="color:#C0392B">${esc(r.problem)}</div>
       <div class="k" style="margin-top:10px">改成这样</div><div style="color:#0E9F6E">${esc(r.improve)}</div>
     </div>
+    <div class="card" style="margin-top:14px;border-color:#DCE3F5;background:#FBFCFE">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div>
+          <b style="font-size:13.5px">AI 评审团</b>
+          <span style="font-size:11.5px;color:#8A909C;margin-left:8px">4 位裁判独立打分 · 取平均</span>
+        </div>
+        <div id="panelBtnBox">
+          <button class="btn sm ghost" onclick="runPanel()">让裁判点评</button>
+        </div>
+      </div>
+      <div style="font-size:11.5px;color:#A8ADB8;margin-top:6px">
+        结构 / 交锋 / 表达 / 论据 四个视角各评一次，找出「多位裁判都提到」的问题——那才是真问题。约 5–8 秒，一次约 0.02 元。
+      </div>
+      <div id="panelBody"></div>
+    </div>
+
     <div class="row" style="margin-top:16px">
       <button class="btn primary" onclick="go('solo')">再来一场</button>
       <button class="btn ghost" onclick="go('diag')">看能力画像</button>
       <button class="btn ghost" onclick="go('records')">辩论记录</button>
     </div>
   </div>`;
+}
+
+
+// ---------- AI 评审团（4 位裁判并行打分，取平均） ----------
+const PANEL_COLORS = { 结构裁判:'#3A63FF', 交锋裁判:'#C0392B', 表达裁判:'#0E9F6E', 论据裁判:'#C2671E' };
+
+async function runPanel(){
+  const box = document.querySelector('#panelBody');
+  const btnBox = document.querySelector('#panelBtnBox');
+  if (!S.matchId || !box) return;
+  box.innerHTML = '<div class="empty" style="padding:16px 0">四位裁判正在看你的发言…</div>';
+  if (btnBox) btnBox.innerHTML = '<span style="font-size:12px;color:#A8ADB8">评审中…</span>';
+  try {
+    const d = await api('/api/matches/' + S.matchId + '/panel');
+    if (!d || !d.ok) {
+      box.innerHTML = '<div class="empty" style="padding:14px 0">' + esc((d && d.reason) || '评审团暂时不可用') + '</div>';
+      if (btnBox) btnBox.innerHTML = '<button class="btn sm ghost" onclick="runPanel()">重试</button>';
+      return;
+    }
+    renderPanel(d.panel, box);
+    if (btnBox) btnBox.innerHTML = '<button class="btn sm ghost" onclick="runPanel(true)">重新评一次</button>';
+  } catch (e) {
+    box.innerHTML = '<div class="empty" style="padding:14px 0">评审失败：' + esc(e.message) + '</div>';
+    if (btnBox) btnBox.innerHTML = '<button class="btn sm ghost" onclick="runPanel()">重试</button>';
+  }
+}
+
+function renderPanel(p, box){
+  const judges = (p.judges || []).filter(j => !j.failed);
+  const avg = p.average, lo = p.min, hi = p.max;
+  const spread = hi - lo;
+  box.innerHTML = `
+    <div style="display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-top:14px">
+      <div>
+        <div class="big" style="font-size:38px">${avg}<small>分</small></div>
+        <div style="font-size:11.5px;color:#8A909C">裁判平均 · 区间 ${lo}–${hi}</div>
+      </div>
+      <div style="flex:1;min-width:220px">
+        ${judges.map(j => `
+          <div class="dim">
+            <span class="lb" title="${esc(j.lens || '')}">${esc(j.name)}</span>
+            <div class="dbar"><i style="width:${j.score}%;background:${PANEL_COLORS[j.name] || '#3A63FF'}"></i></div>
+            <b>${j.score}</b>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div style="font-size:12.5px;color:#4A5568;margin-top:8px">${esc(p.summary || '')}${spread >= 20 ? ' <b style="color:#C2671E">（分歧大 = 有争议点，见下）</b>' : ''}</div>
+
+    ${(p.consensus || []).length ? `
+      <div style="margin-top:14px">
+        <b style="font-size:12.5px;color:#C0392B">多位裁判都提到的问题</b>
+        ${p.consensus.map(c => `
+          <div style="background:#fff;border:1px solid #EDEFF5;border-radius:10px;padding:10px 12px;margin-top:8px">
+            <div style="font-size:11.5px;color:#8A909C">${esc(c.category || '')} · ${esc(c.agreed || '')}</div>
+            ${c.quote ? `<div style="font-size:12.5px;color:#4A5568;margin:3px 0">你写的「${esc(c.quote)}」</div>` : ''}
+            <div style="font-size:12.5px;color:#C0392B">${esc(c.why || '')}</div>
+            <div style="font-size:12.5px;color:#0E9F6E;margin-top:4px">改成：${esc(c.fix || '')}</div>
+          </div>`).join('')}
+      </div>` : ''}
+
+    <div style="margin-top:14px">
+      <b style="font-size:12.5px">各裁判的加/扣分点</b>
+      ${judges.map(j => `
+        <div style="background:#fff;border:1px solid #EDEFF5;border-radius:10px;padding:10px 12px;margin-top:8px">
+          <div class="row" style="justify-content:space-between">
+            <b style="font-size:12.5px;color:${PANEL_COLORS[j.name] || '#3A63FF'}">${esc(j.name)}</b>
+            <span style="font-size:12px;color:#8A909C">${j.score} 分 · ${esc(j.lens || '')}</span>
+          </div>
+          ${(j.scoringPoints||[]).length ? `<div style="margin-top:6px">${j.scoringPoints.map(s => `<div style="font-size:12px;color:#0E9F6E">＋ ${esc(s)}</div>`).join('')}</div>` : ''}
+          ${(j.weaknesses||[]).slice(0,2).map(w => `<div style="margin-top:6px;font-size:12px;color:#4A5568">－ ${esc(w.why || '')} <span style="color:#0E9F6E">（${esc((w.fix||'').slice(0,40))}）</span></div>`).join('')}
+          ${j.comment ? `<div style="font-size:11.5px;color:#A8ADB8;margin-top:6px">${esc(j.comment)}</div>` : ''}
+        </div>`).join('')}
+    </div>`;
 }
