@@ -46,12 +46,16 @@ public class AdminReportService {
     private final BanService bans;
     /** 处理记录写入门面（内部已 try/catch，审计失败不影响处理结果）。 */
     private final AuditLog audit;
+    /** 删内容要给作者发通知（决策 5）。 */
+    private final com.siyige.community.NotificationService notifications;
 
-    public AdminReportService(AdminReportRepo repo, CommunityRepo community, BanService bans, AuditLog audit) {
+    public AdminReportService(AdminReportRepo repo, CommunityRepo community, BanService bans, AuditLog audit,
+                              com.siyige.community.NotificationService notifications) {
         this.repo = repo;
         this.community = community;
         this.bans = bans;
         this.audit = audit;
+        this.notifications = notifications;
     }
 
     // ==================== 队列 ====================
@@ -165,6 +169,8 @@ public class AdminReportService {
                 if ("POST".equals(targetType)) community.softDeletePost(targetId);
                 else community.softDeleteComment(targetId);
                 log.info("管理员删除内容 target={}#{} by={}", targetType, targetId, adminId);
+                // 通知：内容作者会收到「被管理员删除 + 理由」（决策 5；作者自己删自己的不发）
+                notifications.onContentDeleted(targetType, targetId, author, note);
             } else {
                 log.info("目标已不存在，跳过删除 target={}#{}", targetType, targetId);
             }

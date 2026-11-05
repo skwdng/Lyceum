@@ -37,20 +37,60 @@ public class CommentService {
     private final SensitiveWordMasker masker;
     /** 禁言校验：被禁言不能发评论。 */
     private final MuteGuard muteGuard;
+    /** 评论 / 回复要发通知（方案 §3）。 */
+    private final NotificationService notifications;
 
-    public CommentService(CommunityRepo repo, SensitiveWordMasker masker, MuteGuard muteGuard) {
+    public CommentService(CommunityRepo repo, SensitiveWordMasker masker, MuteGuard muteGuard,
+                          NotificationService notifications) {
         this.repo = repo;
         this.masker = masker;
         this.muteGuard = muteGuard;
+        this.notifications = notifications;
     }
 
     // ==================== 读 ====================
 
     /** 楼列表：按楼分页，每楼带前 3 条楼中楼预览与楼中楼总数。 */
     public Map<String, Object> list(long postId, int page, int size, String userId) {
+        return list(postId, page, size, userId, null);
+    }
+
+    /**
+     * 楼列表（支持「按评论定位」）。
+     *
+     * <p>{@code aroundCommentId} 非空时，直接返回**该评论所在的那一页**，
+     * 并在出参里多给一个 {@code focus}：
+     * <pre>
+     *   {"commentId": 目标评论 id, "rootId": 它所属那一楼的 id, "page": 算出来的页码}
+     * </pre>
+     * 前端据此滚到那一楼并高亮（通知跳楼层用，方案「甲方案」）。
+     * 目标评论若是楼中楼，rootId 是它所属的楼，前端会先把楼中楼展开。
+     *
+     * @param aroundCommentId 目标评论 id；为空就是普通分页
+     */
+    public Map<String, Object> list(long postId, int page, int size, String userId, Long aroundCommentId) {
         requirePost(postId);
         int p = Math.max(1, page);
         int sz = Math.min(50, Math.max(1, size));
+
+        Map<String, Object> focus = null;
+        if (aroundCommentId != null) {
+            Map<String, Object> target = repo.findComment(aroundCommentId);
+            // 目标被删 / 不在这个帖子下 -> 退化成第一页，focus 为 null（前端提示"该评论已删除"）
+            if (target != null && CommunityService.num(target.get("post_id")) == postId
+                    && CommunityService.num(target.get("status")) == 1) {
+                Object targetRoot = target.get("root_id");
+                long rootId = targetRoot == null
+                        ? CommunityService.num(target.get("id"))
+                        : CommunityService.num(targetRoot);
+                long before = repo.countRootsBefore(postId, rootId);
+                p = (int) (before / sz) + 1;
+                focus = new LinkedHashMap<>();
+                focus.put("commentId", CommunityService.num(target.get("id")));
+                focus.put("rootId", rootId);
+                focus.put("page", p);
+            }
+        }
 
         long total = repo.countRootComments(postId);
         List<Map<String, Object>> roots = total == 0
@@ -97,6 +137,7 @@ public class CommentService {
         out.put("total", total);
         out.put("page", p);
         out.put("size", sz);
+        out.put("focus", focus);          // 普通分页时为 null；按评论定位时带 commentId/rootId/page
         return out;
     }
 
@@ -170,6 +211,11 @@ public class CommentService {
         long id = repo.insertComment(postId, uid, rootId, replyObjectType,
                 replyObjectCommentId, replyObjectUserId, masked.text());
         recomputePostStats(postId);
+
+        // 通知：评论了我的帖子 / 回复了我的评论。自己操作自己不发、失败不影响评论，都在 service 内部兜住。
+        notifications.onComment(postId, uid, id, replyObjectUserId);
+        // 通知：正文里 @ 了谁（反向校验在 service 内部：只认 userId + 昵称必须真出现在正文里）
+        notifications.onMentions(postId, id, uid, body.get("mentions"), text);
 
         if (masked.hits() > 0) {
             log.info("社区评论打码 userId={} postId={} commentId={} hits={}", uid, postId, id, masked.hits());

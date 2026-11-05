@@ -59,8 +59,22 @@ function cmErrText(e){
   return detail || msg || '操作失败';
 }
 /* §18 R-COM-06 正文是 Markdown；只允许外链图片，先转义再套有限语法 */
+/**
+ * 把正文里的 `@昵称` 包成浅蓝色（决策 2：**只变色，不加链接**，也不做任何跳转）。
+ *
+ * <p>入参必须是**已经 esc 过**的 HTML：昵称只可能由中英文/数字/下划线/短横组成，
+ * 不会带 `<` `&` 这类字符，所以这一步不会破坏转义。
+ * 前端只负责"显示得像被 @ 了"，**不当身份用**——谁能收到通知完全由后端的 userId 决定。
+ */
+function cmMentionify(html){
+  return String(html == null ? '' : html).replace(
+    /@([\u4e00-\u9fa5A-Za-z0-9_-]{1,20})/g,
+    '<span class="mention">@$1</span>'
+  );
+}
+
 function cmInline(s){
-  let t = esc(s);
+  let t = cmMentionify(esc(s));
   t = t.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, '<img alt="$1" src="$2">');
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
   t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -495,7 +509,9 @@ function viewPostDetail(){
         <div style="font-size:14px;font-weight:600;margin-bottom:12px">写回复</div>
         ${S.replyTarget ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <span class="fchip"><b>回复 ${esc(S.replyTarget.name)}</b><i onclick="cmCancelReply()">✕</i></span></div>` : ''}
-        <textarea id="replyInput" maxlength="1000" placeholder="说说你的看法…" oninput="cmDraft(this.value)"
+        <textarea id="replyInput" maxlength="1000" placeholder="说说你的看法…（输入 @ 可以 @ 人）"
+                  oninput="cmDraft(this.value);cmMentionInput(this)" onkeydown="cmMentionKey(event, this)"
+                  onblur="setTimeout(cmMentionClose, 120)"
           style="width:100%;min-height:96px;border:1px solid #E5E6EB;border-radius:9px;padding:12px 14px;font-size:14px;line-height:1.7;outline:none;resize:vertical;font-family:inherit">${esc(S.replyDraft)}</textarea>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
           <span id="replyCount" style="font-size:11.5px;color:#A9AEB8">${String(S.replyDraft || '').length} / 1000</span>
@@ -560,12 +576,12 @@ function cmRootHTML(c){
   const all = c.replies || [];
   const preview = c.expanded ? all : all.slice(0, 3);
   const total = c.replyCount || all.length;
-  return `<div class="reply-item">
+  return `<div class="reply-item" data-cid="${c.id}">
     <div class="reply-av">${esc(cmInitial(c.authorName))}</div>
     <div class="reply-body">
       <div class="reply-head"><b style="color:#1D2129;font-weight:600">${esc(c.authorName)}</b>
         <span class="reply-time">${cmFmt(c.createdAt)}</span></div>
-      <div class="reply-text">${esc(c.body)}</div>
+      <div class="reply-text">${cmMentionify(esc(c.body))}</div>
       <div class="reply-like">
         <span onclick="cmLikeComment(${cmJsArg(c.id)})">👍 ${c.likeCount}${c.liked ? ' · 已赞' : ''}</span>
         <span onclick="cmStartReply(${cmJsArg(c.id)})">回复</span>
@@ -580,7 +596,7 @@ function cmRootHTML(c){
 }
 function cmReplyHTML(r){
   const mine = cmIsMine(r.authorId);
-  return `<div class="reply-sub">
+  return `<div class="reply-sub" data-cid="${r.id}">
     <div class="reply-av">${esc(cmInitial(r.authorName))}</div>
     <div class="reply-body">
       <div class="reply-head">
@@ -589,7 +605,7 @@ function cmReplyHTML(r){
         <b style="color:#4E5969;font-weight:600">${esc(r.replyObjectUserName || '')}</b>
         <span class="reply-time">${cmFmt(r.createdAt)}</span>
       </div>
-      <div class="reply-text">${esc(r.body)}</div>
+      <div class="reply-text">${cmMentionify(esc(r.body))}</div>
       <div class="reply-like">
         <span onclick="cmLikeComment(${cmJsArg(r.id)})">👍 ${r.likeCount}${r.liked ? ' · 已赞' : ''}</span>
         <span onclick="cmStartReply(${cmJsArg(r.id)})">回复</span>
@@ -620,20 +636,60 @@ function cmDraft(v){
   S.replyDraft = v;
   const n = $('#replyCount'); if (n) n.textContent = String(v || '').length + ' / 1000';
 }
-async function cmLoadComments(postId, page){
+async function cmLoadComments(postId, page, aroundCommentId){
   S.commentPage = page || 1;
   try {
-    const res = await cmRequest('GET', '/api/community/posts/' + postId + '/comments' + cmQuery({page: S.commentPage, size: 10}), {});
+    const qs = cmQuery(aroundCommentId
+      ? {page: S.commentPage, size: 10, aroundCommentId: aroundCommentId}
+      : {page: S.commentPage, size: 10});
+    const res = await cmRequest('GET', '/api/community/posts/' + postId + '/comments' + qs, {});
     if (String(S.comm.postId) !== String(postId)) return;
     const norm = cmNormalizeList(res);
     S.postComments = norm.items.map(cmComment);
     S.postCommentTotal = norm.total;
+    // 后端可能替我们算了页码（aroundCommentId 定位时），必须写回去，否则分页器和 S.commentPage 会对不上
+    if (res && res.page) S.commentPage = Number(res.page) || S.commentPage;
+    // 通知跳楼层：后端把「目标评论所在的那一页」连 focus 一起给了
+    if (aroundCommentId) {
+      S.cmFocus = (res && res.focus) ? res.focus : null;
+      if (!S.cmFocus) toast('该评论可能已被删除，已跳到第一页');
+    }
   } catch (e) {
     if (String(S.comm.postId) !== String(postId)) return;
     S.postComments = []; S.postCommentTotal = 0;
     toast('评论加载失败：' + cmErrText(e));
   }
   if (S.view === 'community' && S.comm.view === 'post') render();
+  if (aroundCommentId && S.cmFocus) cmFocusJump();
+}
+
+/**
+ * 滚到被点的那一楼并高亮 2 秒。
+ *
+ * <p>目标若是**楼中楼**（commentId != rootId），先把那一楼的楼中楼展开，
+ * 否则它可能还在「展开全部」后面，滚过去也看不见。
+ */
+async function cmFocusJump(){
+  const f = S.cmFocus;
+  if (!f) return;
+  const rootId = f.rootId;
+  const cid = f.commentId;
+
+  if (String(cid) !== String(rootId)) {
+    const root = (S.postComments || []).find(function(c){ return String(c.id) === String(rootId); });
+    if (root && !root.expanded) {
+      await cmExpandReplies(rootId);       // 会重渲染
+    }
+  }
+
+  setTimeout(function(){
+    const el = document.querySelector('[data-cid="' + cid + '"]')
+            || document.querySelector('[data-cid="' + rootId + '"]');
+    if (!el) return;
+    try { el.scrollIntoView({block: 'center', behavior: 'smooth'}); } catch (e) { el.scrollIntoView(); }
+    el.classList.add('cm-focus');
+    setTimeout(function(){ el.classList.remove('cm-focus'); }, 2000);
+  }, 80);
 }
 async function cmLoadRelated(type, exceptId){
   try {
@@ -651,12 +707,20 @@ async function cmReloadDetail(id){
     S.postDetail = cmPost(res && res.post ? res.post : (res && res.data ? res.data : res));
   } catch (e) {}
 }
-async function cmOpenPost(id){
+/**
+ * 打开帖子详情。
+ *
+ * @param id 帖子 id
+ * @param opts {aroundCommentId} —— 传了就直接定位到那一楼（通知跳楼层用，后端返回该评论所在页）
+ */
+async function cmOpenPost(id, opts){
+  const o = opts || {};
   const token = (S.comm.reqToken || 0) + 1;
   S.comm.reqToken = token;
   S.comm.view = 'post'; S.comm.postId = id;
   S.postDetail = null; S.postComments = []; S.postCommentTotal = 0; S.postRelated = [];
   S.replyTarget = null; S.replyDraft = '';
+  S.cmFocus = o.aroundCommentId ? { commentId: o.aroundCommentId, rootId: null } : null;
   if (S.view === 'community') render();
   const main = $('#main'); if (main) main.scrollTop = 0;
   // B3：先 POST /view 再拉详情。A 的顺序是先读后计，导致每次进详情都“少算一次”。
@@ -673,7 +737,7 @@ async function cmOpenPost(id){
     return;
   }
   render();
-  cmLoadComments(id, 1);
+  cmLoadComments(id, 1, o.aroundCommentId);
   cmLoadRelated(S.postDetail.type, id);
 }
 function backToPosts(){
@@ -691,11 +755,15 @@ async function cmPostReply(){
   const pid = S.comm.postId;
   const payload = {body: text, replyObjectType: S.replyTarget ? 'COMMENT' : 'POST'};
   if (S.replyTarget) payload.replyObjectCommentId = S.replyTarget.commentId;
+  // @ 提及：只提交「正文里还留着 @昵称」的 id（用户可能把名字删了），最多 10 个；后端还会再校验一遍
+  const mentions = cmMentionIds(text);
+  if (mentions.length) payload.mentions = mentions;
   try {
     // B7：拿走返回的 commentId，不再只靠重拉
     const res = await cmRequest('POST', '/api/community/posts/' + pid + '/comments', {body: payload});
     const newId = res && res.commentId;
     S.replyDraft = ''; S.replyTarget = null;
+    cmMentionReset();
     await cmReloadDetail(pid);
     await cmLoadComments(pid, 1);
     // B6：命中敏感词是“打码放行”，给一句轻提示（不是失败）
@@ -812,8 +880,10 @@ function cmPostModal(post){
         </select>
       </div>
       <div class="cm-field" style="margin-bottom:0">
-        <div class="cm-field-label">正文</div>
-        <textarea id="cmBody" class="cm-textarea" placeholder="展开说说…">${editing ? esc(post.body) : ''}</textarea>
+        <div class="cm-field-label">正文 <span>输入 @ 可以 @ 人</span></div>
+        <textarea id="cmBody" class="cm-textarea" placeholder="展开说说…"
+                  oninput="cmMentionInput(this)" onkeydown="cmMentionKey(event, this)"
+                  onblur="setTimeout(cmMentionClose, 120)">${editing ? esc(post.body) : ''}</textarea>
       </div>
       <div class="cm-modal-foot">
         <button class="btn" onclick="cmClosePostModal()">取消</button>
@@ -822,8 +892,8 @@ function cmPostModal(post){
     </div>`;
   $('#modalHost').appendChild(mask);
 }
-function cmOpenNewPost(){ cmPostModal(null); }
-function cmOpenEditPost(){ if (S.postDetail) cmPostModal(S.postDetail); }
+function cmOpenNewPost(){ cmMentionReset(); cmPostModal(null); }
+function cmOpenEditPost(){ if (S.postDetail) { cmMentionReset(); cmPostModal(S.postDetail); } }
 async function cmSubmitPost(id){
   const titleEl = $('#cmTitle');
   const bodyEl = $('#cmBody');
@@ -834,6 +904,11 @@ async function cmSubmitPost(id){
   if (!title) return toast('先写标题');
   if (!text) return toast('正文还没写');
   const payload = {type: S.cmNewType || 'CHAT', title: title, body: text};
+  // @ 提及只在「发新帖」时提交：编辑旧帖再发一遍会让被 @ 的人重复收通知
+  if (!id) {
+    const mentions = cmMentionIds(text);
+    if (mentions.length) payload.mentions = mentions;
+  }
   if (id) payload.topicId = topicId ? topicId : null;
   else if (topicId) payload.topicId = topicId;
   try {
@@ -1042,4 +1117,137 @@ function cmRenderMyReports(){
       </div>
     </div>`;
   $('#modalHost').appendChild(mask);
+}
+
+// ==================== @ 提及（V2） ====================
+//
+// 交互：输入框里打 `@` + 至少 1 个字符 → 弹候选（昵称前缀匹配，≤10 条）
+//       ↑↓ 移动、Enter 选中、Esc 关闭、点击选中（用 mousedown，避免 textarea 先失焦）
+// 提交：把选中过的 id 放进 payload.mentions（只带正文里还留着 `@昵称` 的）
+// 显示：正文里的 `@昵称` 走 cmMentionify() 变浅蓝，不加链接（决策 2）
+// 身份：**只认 userId**，前端不按昵称猜人（决策 1）
+
+const CM_MENTION = {
+  open: false, items: [], active: 0, query: '', start: 0, el: null, timer: null,
+  picked: []          // 当前编辑框里选中过的人：[{id, name}]
+};
+
+/** 输入框内容变化时调用：判断光标前是不是正在打 @ */
+function cmMentionInput(el){
+  const v = String(el.value || '');
+  const caret = el.selectionStart == null ? v.length : el.selectionStart;
+  const upTo = v.slice(0, caret);
+  const m = upTo.match(/@([^\s@]{0,20})$/);
+  if (!m) { cmMentionClose(); return; }
+
+  CM_MENTION.el = el;
+  CM_MENTION.start = caret - m[0].length;
+  CM_MENTION.query = m[1];
+  if (!m[1]) { cmMentionClose(); return; }        // 只打了一个 @：先不查
+
+  clearTimeout(CM_MENTION.timer);
+  CM_MENTION.timer = setTimeout(function(){ cmMentionFetch(m[1]); }, 150);
+}
+
+async function cmMentionFetch(q){
+  if (!S.user) return;                            // 候选接口要登录
+  try {
+    const r = await api('/api/community/users?q=' + encodeURIComponent(q));
+    if (CM_MENTION.query !== q) return;           // 竞态：期间又打了字
+    CM_MENTION.items = (r && r.items) || [];
+    CM_MENTION.active = 0;
+    CM_MENTION.open = CM_MENTION.items.length > 0;
+    cmMentionRender();
+  } catch (e) {
+    cmMentionClose();
+  }
+}
+
+function cmMentionRender(){
+  let box = $('#cmMentionBox');
+  if (!CM_MENTION.open) { if (box) box.remove(); return; }
+  const el = CM_MENTION.el;
+  if (!el) { cmMentionClose(); return; }
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'cmMentionBox';
+    box.className = 'mention-box';
+    document.body.appendChild(box);
+  }
+  const rect = el.getBoundingClientRect();
+  box.style.left = Math.round(rect.left + 12) + 'px';
+  box.style.top = Math.round(rect.bottom + 6) + 'px';
+  box.innerHTML = CM_MENTION.items.map(function(u, i){
+    return '<div class="mention-item' + (i === CM_MENTION.active ? ' on' : '') + '"'
+      + ' onmousedown="cmMentionPick(' + i + ');return false;">'
+      + '<b>' + esc(u.name) + '</b><span>@' + esc(u.name) + '</span></div>';
+  }).join('');
+}
+
+/** textarea 上的键盘处理（↑↓ 选择、Enter 确认、Esc 关闭） */
+function cmMentionKey(e, el){
+  if (!CM_MENTION.open || !CM_MENTION.items.length) return;
+  const n = CM_MENTION.items.length;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    CM_MENTION.active = (CM_MENTION.active + 1) % n;
+    cmMentionRender();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    CM_MENTION.active = (CM_MENTION.active - 1 + n) % n;
+    cmMentionRender();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    cmMentionPick(CM_MENTION.active);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    cmMentionClose();
+  }
+}
+
+/** 选中第 i 个候选：替换掉正在输入的 `@query`，插入 `@昵称 ` 并记住 id */
+function cmMentionPick(i){
+  const it = CM_MENTION.items[i];
+  const el = CM_MENTION.el;
+  if (!it || !el) return;
+
+  const v = String(el.value || '');
+  const caret = el.selectionStart == null ? v.length : el.selectionStart;
+  const before = v.slice(0, CM_MENTION.start);
+  const after = v.slice(caret);
+  const insert = '@' + it.name + ' ';
+  el.value = before + insert + after;
+
+  const pos = (before + insert).length;
+  try { el.setSelectionRange(pos, pos); } catch (e) {}
+  el.focus();
+
+  if (el.id === 'replyInput') cmDraft(el.value);
+
+  const already = CM_MENTION.picked.some(function(x){ return x.id === it.id; });
+  if (!already && CM_MENTION.picked.length < 10) CM_MENTION.picked.push({ id: it.id, name: it.name });
+
+  cmMentionClose();
+}
+
+function cmMentionClose(){
+  CM_MENTION.open = false;
+  const box = $('#cmMentionBox');
+  if (box) box.remove();
+}
+
+/** 提交时算出 mentions：只带「正文里还留着 @昵称」的，去重、最多 10 个 */
+function cmMentionIds(text){
+  const body = String(text || '');
+  const ids = [];
+  CM_MENTION.picked.forEach(function(x){
+    if (ids.length < 10 && body.indexOf('@' + x.name) >= 0 && ids.indexOf(x.id) < 0) ids.push(x.id);
+  });
+  return ids;
+}
+
+/** 提交成功 / 打开新编辑框时清空 */
+function cmMentionReset(){
+  CM_MENTION.picked = [];
+  cmMentionClose();
 }

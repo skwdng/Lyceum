@@ -56,6 +56,12 @@ public class AdminErrors {
         return body(code, msg, status);
     }
 
+    /** 查询参数类型不对（如 {@code ?page=abc}）：400，不要掉进兜底 500。 */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> onTypeMismatch(Exception e) {
+        return body("INVALID_PARAM", "INVALID_PARAM: 参数类型不对", HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> onOther(Exception e) {
         log.error("管理接口未预期异常", e);

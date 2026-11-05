@@ -27,10 +27,13 @@ public class LikeService {
     private final CommunityRepo repo;
     /** 禁言校验：被禁言不能点赞（但**可以**取消点赞——不卡住用户收回自己的操作）。 */
     private final MuteGuard muteGuard;
+    /** 点赞要发通知：(收件人 + 被赞对象) 聚合成一行（方案 §6）。 */
+    private final NotificationService notifications;
 
-    public LikeService(CommunityRepo repo, MuteGuard muteGuard) {
+    public LikeService(CommunityRepo repo, MuteGuard muteGuard, NotificationService notifications) {
         this.repo = repo;
         this.muteGuard = muteGuard;
+        this.notifications = notifications;
     }
 
     /** 点赞帖子：已赞则什么都不做，仍返回成功。 */
@@ -80,6 +83,10 @@ public class LikeService {
                 CommunityService.millis(post.get("created_at")));
         repo.updatePostLikeStats(postId, newLikes, hot);
 
+        // 通知：点赞聚合。自己赞自己不发；取消点赞只重算人数（不动计数/已读/时间），都在 service 内部兜住。
+        if (like) notifications.onLike(NotificationRepo.TARGET_POST, postId, uid);
+        else notifications.onUnlike(NotificationRepo.TARGET_POST, postId, uid);
+
         log.info("社区点赞 userId={} target=POST postId={} liked={} likeCount={}", uid, postId, like, newLikes);
     }
 
@@ -102,6 +109,10 @@ public class LikeService {
         long current = CommunityService.num(comment.get("like_count"));
         long newLikes = Math.max(0, current + (like ? 1 : -1));
         repo.updateCommentLikeCount(commentId, newLikes);
+
+        // 通知：评论点赞聚合
+        if (like) notifications.onLike(NotificationRepo.TARGET_COMMENT, commentId, uid);
+        else notifications.onUnlike(NotificationRepo.TARGET_COMMENT, commentId, uid);
 
         log.info("社区点赞 userId={} target=COMMENT commentId={} postId={} liked={} likeCount={}",
                 uid, commentId, postId, like, newLikes);

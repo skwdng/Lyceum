@@ -48,14 +48,15 @@ public class AdminUserController {
 
     @PostMapping("/{id}/unban")
     public ResponseEntity<Void> unban(@PathVariable String id) {
-        service.unban(id);
+        service.unban(id, AdminContext.requireId());
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/status")
     public ResponseEntity<Void> status(@PathVariable String id,
                                        @RequestBody(required = false) AdminDtos.SetStatusRequest req) {
-        service.setStatus(id, req == null ? null : req.status(), req == null ? null : req.reason());
+        service.setStatus(id, req == null ? null : req.status(), req == null ? null : req.reason(),
+                AdminContext.requireId());
         return ResponseEntity.noContent().build();
     }
 }

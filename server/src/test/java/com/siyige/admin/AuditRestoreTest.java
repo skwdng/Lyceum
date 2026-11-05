@@ -32,6 +32,10 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class AuditRestoreTest {
 
+    /** 通知用 mock：本测试只验审计与恢复，通知文案由 community/AdminNotifyTest 覆盖。 */
+    private final com.siyige.community.NotificationService notify =
+            org.mockito.Mockito.mock(com.siyige.community.NotificationService.class);
+
     private JdbcTemplate jdbc;
     private AdminReportRepo reportRepo;
     private AuditLogRepo auditRepo;
@@ -62,9 +66,9 @@ class AuditRestoreTest {
         auditService = new AuditLogService(auditRepo);
         CommunityRepo community = new CommunityRepo(jdbc);
         banRepo = new BanRepo(jdbc);
-        banService = new BanService(banRepo);
+        banService = new BanService(banRepo, notify);
         restoreService = new RestoreService(auditRepo, audit, reportRepo, community);
-        reportService = new AdminReportService(reportRepo, community, banService, audit);
+        reportService = new AdminReportService(reportRepo, community, banService, audit, notify);
 
         user("u1", "reporter1");
         user("u2", "authorA");

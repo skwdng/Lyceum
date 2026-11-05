@@ -46,13 +46,16 @@ const S = {
   comm: { view:'list', postId:null, reqToken:0, q:'', type:'ALL', topicId:'', range:'ALL',
           sort:'NEW', page:1, size:20, degraded:false },
   posts:[], postTotal:0, postLoading:false, postDetail:null,
-  postComments:[], postCommentTotal:0, commentPage:1, postRelated:[],
+  postComments:[], postCommentTotal:0, commentPage:1, postRelated:[], cmFocus:null,
   replyTarget:null, replyDraft:'', cmNewType:'CHAT',
   // ---- 登录（视图在 js/views/auth.js）----
   user:null, authTab:'login',
   // 登录/注册成功后要回到哪个页面：记录"最近一次真正访问过的页面"。
   // 例：未登录点「开始辩论」被弹去登录，登录完应该回到单人辩论，而不是一律扔到社区。
-  lastVisitedView:null
+  lastVisitedView:null,
+  // ---- 通知（视图在 js/views/notify.js）----
+  unread:0, notifyPoll:null,
+  notify:{ items:[], total:0, page:1, size:20, error:null }
 };
 
 const persistSeats = () => localStorage.setItem('sy_seats', JSON.stringify(S.mySeats));
@@ -103,7 +106,7 @@ function needLogin(hint){
 }
 
 /** 只有登录才能看的页面（未登录时整页显示「登录后可见」，不渲染操作面板） */
-const LOGIN_ONLY_VIEWS = { solo:1, room:1, match:1, review:1, diag:1, records:1 };
+const LOGIN_ONLY_VIEWS = { solo:1, room:1, match:1, review:1, diag:1, records:1, notify:1 };
 
 function loginGateCard(view){
   const what = { solo:'开始一场单人辩论', room:'和朋友开一局多人辩论', match:'查看正在进行的对局',
@@ -119,12 +122,55 @@ function loginGateCard(view){
 const NAV = [
   {g:'训练'}, {k:'solo', n:'单人辩论'}, {k:'room', n:'多人辩论'}, {k:'hotb', n:'热辩榜'},
   {g:'我的'}, {k:'diag', n:'能力诊断'}, {k:'records', n:'辩论记录'}, {g:'社区'}, {k:'community', n:'讨论社区'},
-    {g:'视频'}, {k:'video', n:'视频'}
+    {g:'视频'}, {k:'video', n:'视频'},
+  {g:'消息'}, {k:'notify', n:'通知'}
 ];
 
 function reNav(){
   $('#nav').innerHTML = NAV.map(n => n.g ? `<div class="g">${n.g}</div>`
-    : `<a class="${S.view===n.k?'on':''}" onclick="go('${n.k}')">${n.n}</a>`).join('');
+    : `<a class="${S.view===n.k?'on':''}" onclick="go('${n.k}')">${n.n}${n.k === 'notify' ? navBadge() : ''}</a>`).join('');
+}
+
+/** 侧栏未读红点：0 不渲染，>99 显示 99+（决策 12）。 */
+function navBadge(){
+  const n = S.unread || 0;
+  if (n <= 0) return '';
+  return `<span class="nav-badge">${n > 99 ? '99+' : n}</span>`;
+}
+
+// ==================== 未读角标（2026-11-04，V1） ====================
+
+const NOTIFY_POLL_MS = 45000;   // 方案 §8：45 秒轮询一次
+
+/** 拉一次未读数并刷新角标。失败静默（角标是锦上添花，不能打断任何操作）。 */
+async function refreshUnread(){
+  if (!S.user) { S.unread = 0; return 0; }
+  try {
+    const r = await api('/api/community/notifications/unread-count');
+    const n = Number(r && r.unread) || 0;
+    if (n !== S.unread) { S.unread = n; reNav(); }
+    return n;
+  } catch (e) { return S.unread; }
+}
+
+/** 登录了才轮询、登出立刻停。render() 每次都调，天然覆盖登录/登出切换。 */
+function syncNotifyPoll(){
+  if (S.user && !S.notifyPoll) {
+    startNotifyPoll();
+  } else if (!S.user && S.notifyPoll) {
+    stopNotifyPoll();
+    if (S.unread) { S.unread = 0; reNav(); }
+  }
+}
+
+function startNotifyPoll(){
+  stopNotifyPoll();
+  refreshUnread();
+  S.notifyPoll = setInterval(refreshUnread, NOTIFY_POLL_MS);
+}
+
+function stopNotifyPoll(){
+  if (S.notifyPoll) { clearInterval(S.notifyPoll); S.notifyPoll = null; }
 }
 
 function go(v){
@@ -134,6 +180,7 @@ function go(v){
   S.view = v; render();
   // 社区：不再跳独立页（D4），进页面时重置筛选并拉第一页列表
   if (v === 'community') { cmEnterCommunity(); return; }
+  if (v === 'notify') { loadNotify(1); return; }
   if (v === 'records' || v === 'diag' || v === 'hotb' || v === 'solo') refreshDash(v);
 }
 
@@ -164,13 +211,15 @@ async function refreshDash(v){
 function render(){
   reNav();
   authRenderMeBox();
+  syncNotifyPoll();               // 登录后开始/登出后停止 45 秒角标轮询
   // 对局侧页面未登录时整页给「登录后可见」，不留可点的操作面板
   if (!S.user && LOGIN_ONLY_VIEWS[S.view]) {
     $('#main').innerHTML = loginGateCard(S.view);
     return;
   }
   const v = { solo:viewSolo, room:viewRoom, hotb:viewHot, diag:viewDiag, records:viewRecords,
-              match:viewMatch, review:viewReview, community:viewCommunity, video:viewVideo, me:viewAuth }[S.view];
+              match:viewMatch, review:viewReview, community:viewCommunity, video:viewVideo,
+              notify:viewNotify, me:viewAuth }[S.view];
   $('#main').innerHTML = v ? v() : viewSolo();
   if (S.view === 'match') {
     renderStrip();

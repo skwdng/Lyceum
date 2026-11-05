@@ -32,10 +32,14 @@ public class AdminUserService {
     private final BanRepo banRepo;
     private final BanService bans;
 
-    public AdminUserService(AdminUserRepo repo, BanRepo banRepo, BanService bans) {
+    private final com.siyige.community.NotificationService notifications;
+
+    public AdminUserService(AdminUserRepo repo, BanRepo banRepo, BanService bans,
+                            com.siyige.community.NotificationService notifications) {
         this.repo = repo;
         this.banRepo = banRepo;
         this.bans = bans;
+        this.notifications = notifications;
     }
 
     // ==================== 列表 ====================
@@ -78,8 +82,12 @@ public class AdminUserService {
     }
 
     public void unban(String userId) {
+        unban(userId, 0L);
+    }
+
+    public void unban(String userId, long adminId) {
         requireUser(userId);
-        bans.unban(userId);
+        bans.unban(userId, adminId);          // 解除禁言的通知在 BanService 里发
     }
 
     // ==================== 全站封禁开关 ====================
@@ -91,6 +99,16 @@ public class AdminUserService {
      * 所以**封了之后下一次请求就被踢**（不加缓存，决策 8）。
      */
     public void setStatus(String userId, Integer status, String reason) {
+        setStatus(userId, status, reason, 0L);
+    }
+
+    /**
+     * 全站封禁 / 解封（带操作人）。
+     *
+     * <p>封禁 → BANNED（带理由）；解封 → UNBANNED。
+     * 通知失败不影响封禁本身（NotificationService 内部兜住）。
+     */
+    public void setStatus(String userId, Integer status, String reason, long adminId) {
         requireUser(userId);
         if (status == null || (status != 0 && status != 1)) {
             throw AuthException.invalidParam("status 只能是 0（封禁）或 1（正常）");
@@ -101,6 +119,9 @@ public class AdminUserService {
         repo.setStatus(userId, status);
         log.info("全站状态变更 userId={} status={} reason={} ", userId, status,
                 reason == null ? "-" : reason.trim());
+        // 通知：封禁带理由，解封告知一声。失败不影响封禁本身（service 内部兜住）
+        if (status == 0) notifications.onBanned(userId, adminId, reason);
+        else notifications.onUnbanned(userId, adminId);
     }
 
     // ==================== 统计辅助 ====================

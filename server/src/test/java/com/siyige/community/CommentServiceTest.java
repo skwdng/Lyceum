@@ -17,7 +17,8 @@ class CommentServiceTest {
     private final CommunityRepo repo = mock(CommunityRepo.class);
     private final SensitiveWordMasker masker = new SensitiveWordMasker(List.of("加微信"));
     private final com.siyige.community.MuteGuard muteGuard = mock(com.siyige.community.MuteGuard.class);
-    private final CommentService service = new CommentService(repo, masker, muteGuard);
+    private final NotificationService notifications = mock(NotificationService.class);
+    private final CommentService service = new CommentService(repo, masker, muteGuard, notifications);
 
     private static Map<String, Object> postRow() {
         Map<String, Object> post = new HashMap<>();

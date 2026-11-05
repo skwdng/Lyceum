@@ -24,6 +24,10 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class AdminReportServiceTest {
 
+    /** 通知用 mock：本测试只验举报处理流程，通知文案由 community/AdminNotifyTest 覆盖。 */
+    private final com.siyige.community.NotificationService notify =
+            org.mockito.Mockito.mock(com.siyige.community.NotificationService.class);
+
     private JdbcTemplate jdbc;
     private CommunityRepo community;
     private BanRepo banRepo;
@@ -49,12 +53,12 @@ class AdminReportServiceTest {
         jdbc = new JdbcTemplate(ds);
         community = new CommunityRepo(jdbc);
         banRepo = new BanRepo(jdbc);
-        banService = new BanService(banRepo);
+        banService = new BanService(banRepo, notify);
         reportRepo = new AdminReportRepo(jdbc);
         audit = new AuditLog(new AuditLogRepo(jdbc));
-        service = new AdminReportService(reportRepo, community, banService, audit);
+        service = new AdminReportService(reportRepo, community, banService, audit, notify);
         userRepo = new AdminUserRepo(jdbc);
-        userService = new AdminUserService(userRepo, banRepo, banService);
+        userService = new AdminUserService(userRepo, banRepo, banService, notify);
         stats = new AdminStatsService(reportRepo, userService);
 
         // 用户：u1/u4 = 举报人，u2 = 帖 100 与评论 200 的作者，u3 = 帖 101 的作者

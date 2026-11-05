@@ -36,6 +36,12 @@ public class AuthErrors {
         return body("INVALID_PARAM", "INVALID_PARAM: 请求体格式不正确", HttpStatus.BAD_REQUEST);
     }
 
+    /** 查询参数类型不对（如 {@code ?days=abc}）：400，不要掉进兜底 500。 */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> onTypeMismatch(Exception e) {
+        return body("INVALID_PARAM", "INVALID_PARAM: 参数类型不对", HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> onOther(Exception e) {
         log.error("认证接口未预期异常", e);

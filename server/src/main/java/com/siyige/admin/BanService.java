@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
+import java.time.format.DateTimeFormatter;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
@@ -27,10 +28,15 @@ public class BanService {
     /** 允许的禁言天数（方案 D3 定死 1 / 3 / 7）。 */
     static final int[] ALLOWED_DAYS = {1, 3, 7};
 
-    private final BanRepo repo;
+    /** 通知到点时间统一用这个格式（和前端展示一致，不带秒）。 */
+    private static final DateTimeFormatter UNTIL_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    public BanService(BanRepo repo) {
+    private final BanRepo repo;
+    private final com.siyige.community.NotificationService notifications;
+
+    public BanService(BanRepo repo, com.siyige.community.NotificationService notifications) {
         this.repo = repo;
+        this.notifications = notifications;
     }
 
     /**
@@ -73,16 +79,29 @@ public class BanService {
 
         repo.insert(userId, adminId, why, until, reportId);
         log.info("禁言 userId={} days={} until={} by={}", userId, days, until, adminId);
+        // 通知：被禁言的人会收到一条 MUTED（带到期时间 + 理由）。失败不影响禁言本身（service 内部兜住）
+        notifications.onMuted(userId, adminId, UNTIL_FMT.format(until.toLocalDateTime()), why);
         return until;
     }
 
     /** 提前解除社区禁言（把生效中的禁言改成已过期）。 */
     public void unban(String userId) {
+        unban(userId, 0L);
+    }
+
+    /**
+     * 提前解除社区禁言。
+     *
+     * @param adminId 操作的管理员 id（写进通知，方便用户知道是谁解开的）
+     */
+    public void unban(String userId, long adminId) {
         if (userId == null || userId.isBlank()) {
             throw AuthException.invalidParam("用户 id 不能为空");
         }
         int n = repo.release(userId);
-        log.info("解除禁言 userId={} 影响 {} 条", userId, n);
+        log.info("解除禁言 userId={} 影响 {} 条 by={}", userId, n, adminId);
+        // 通知：解禁也告诉用户一声（决策：解除禁言要发通知）
+        if (n > 0) notifications.onUnmuted(userId, adminId);
     }
 
     private static boolean isAllowed(int days) {

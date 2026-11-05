@@ -59,16 +59,19 @@ public class CommunityController {
     private final CommunityViewService views;
     private final ReportService reports;
     private final MuteGuard muteGuard;
+    private final NotificationService notifications;
 
     public CommunityController(CommunityService community, CommentService comments,
                                LikeService likes, CommunityViewService views,
-                               ReportService reports, MuteGuard muteGuard) {
+                               ReportService reports, MuteGuard muteGuard,
+                               NotificationService notifications) {
         this.community = community;
         this.comments = comments;
         this.likes = likes;
         this.views = views;
         this.reports = reports;
         this.muteGuard = muteGuard;
+        this.notifications = notifications;
     }
 
     // ==================== 帖子 ====================
@@ -123,11 +126,17 @@ public class CommunityController {
 
     // ==================== 评论 / 楼中楼 ====================
 
+    /**
+     * 楼列表。
+     *
+     * @param aroundCommentId 可选：传了就返回**该评论所在的那一页**，并带 {@code focus}（通知跳楼层用）
+     */
     @GetMapping("/posts/{id}/comments")
     public Map<String, Object> listComments(@PathVariable long id,
                                             @RequestParam(defaultValue = "1") int page,
-                                            @RequestParam(defaultValue = "10") int size) {
-        return comments.list(id, page, size, UserContext.current());
+                                            @RequestParam(defaultValue = "10") int size,
+                                            @RequestParam(required = false) Long aroundCommentId) {
+        return comments.list(id, page, size, UserContext.current(), aroundCommentId);
     }
 
     @GetMapping("/comments/{rootId}/replies")
@@ -199,6 +208,38 @@ public class CommunityController {
     @GetMapping("/me/ban")
     public Map<String, Object> myBan() {
         return muteGuard.banInfo(UserContext.require());
+    }
+
+    // ==================== 通知（2026-11-04 新增，V1） ====================
+
+    /**
+     * 我的通知列表。
+     *
+     * <p>⚠️ 这个 GET 接口有**副作用**（方案 §5 的既定设计）：
+     * 拉列表时会把**本页**未读标成已读，并把 Redis 角标按本页实际标记条数递减。
+     * 返回的是**标记前**的状态，所以刚拉到的这一页里未读行仍然是 {@code read:false}（前端加深底色）。
+     */
+    @GetMapping("/notifications")
+    public Map<String, Object> notifications(@RequestParam(defaultValue = "1") int page,
+                                             @RequestParam(defaultValue = "20") int size) {
+        return notifications.list(UserContext.require(), page, size);
+    }
+
+    /** 未读角标：只读 Redis（没有就是 0）。前端 45 秒轮询一次。 */
+    @GetMapping("/notifications/unread-count")
+    public Map<String, Object> unreadCount() {
+        return Map.of("unread", notifications.unreadCount(UserContext.require()));
+    }
+
+    /**
+     * @ 候选：昵称前缀匹配，≤10 条 `{id,name}`。
+     *
+     * <p>虽然过滤器对 GET 放行匿名，这里必须登录才能用（否则等于把用户目录公开出去）。
+     */
+    @GetMapping("/users")
+    public Map<String, Object> users(@RequestParam(required = false) String q) {
+        UserContext.require();
+        return Map.of("items", notifications.suggestUsers(q));
     }
 
     // ==================== 内部 ====================

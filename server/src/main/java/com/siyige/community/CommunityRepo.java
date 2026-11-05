@@ -166,6 +166,22 @@ public class CommunityRepo {
                 postId, limit, offset);
     }
 
+    /**
+     * 某一楼前面还有多少楼（用于「按评论定位页」，通知跳楼层用）。
+     *
+     * <p>排序口径必须和 {@link #listRootComments} 完全一致（created_at desc, id desc），
+     * 否则算出来的页码会差一页。
+     */
+    public long countRootsBefore(long postId, long rootId) {
+        Long n = jdbc.queryForObject(
+                "select count(*) from sy_post_comment c, sy_post_comment t " +
+                        "where c.post_id = ? and c.status = 1 and c.root_id is null and t.id = ? " +
+                        "  and (c.created_at > t.created_at " +
+                        "       or (c.created_at = t.created_at and c.id > t.id))",
+                Long.class, postId, rootId);
+        return n == null ? 0 : n;
+    }
+
     /** R-COM-21：每楼前 3 条楼中楼预览（窗口函数一次取完，避免 N+1）。 */
     public List<Map<String, Object>> previewReplies(long postId, Collection<Long> rootIds) {
         if (rootIds == null || rootIds.isEmpty()) return List.of();

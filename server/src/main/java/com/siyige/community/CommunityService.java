@@ -39,13 +39,16 @@ public class CommunityService {
     private final CommunityViewService views;
     /** 禁言校验：放在 Service 入口，发帖/编辑前查一次（不加缓存）。 */
     private final MuteGuard muteGuard;
+    /** 发帖正文里的 @ 提及要发通知（V2）。 */
+    private final NotificationService notifications;
 
     public CommunityService(CommunityRepo repo, SensitiveWordMasker masker, CommunityViewService views,
-                            MuteGuard muteGuard) {
+                            MuteGuard muteGuard, NotificationService notifications) {
         this.repo = repo;
         this.masker = masker;
         this.views = views;
         this.muteGuard = muteGuard;
+        this.notifications = notifications;
     }
 
     // ==================== 读 ====================
@@ -129,6 +132,10 @@ public class CommunityService {
         long id = repo.insertPost(uid, type, maskedTitle.text(), maskedBody.text(),
                 Excerpts.of(maskedBody.text()), topicId,
                 hotScore(0, 0, 0, Instant.now().toEpochMilli()));
+
+        // 通知：发帖正文里 @ 了谁（commentId 传 null，link 就只到帖子）
+        notifications.onMentions(id, null, uid, body.get("mentions"), text);
+
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("postId", id);
         return out;

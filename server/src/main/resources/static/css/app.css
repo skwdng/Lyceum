@@ -346,3 +346,32 @@
   .vsheet{width:100%}
   .vside{bottom:130px}
 }
+/* ==================== 通知（2026-11-04，V1） ====================
+   只在文件末尾追加，不动既有规则（协作规范 §6 的共享文件约定）。
+   .nav-badge  侧栏未读红底白字小方块（0 不渲染由 JS 控制，>99 显示 99+）
+   .notify-row 通知行；未读行加深底色 + 左侧小蓝点（决策 J）
+*/
+.nav-badge{display:inline-block;min-width:18px;height:18px;line-height:18px;padding:0 5px;margin-left:6px;
+  background:#E03131;color:#fff;font-size:11px;font-weight:600;text-align:center;border-radius:9px;vertical-align:middle}
+.notify-row{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;
+  border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
+.notify-row:last-child{border-bottom:none}
+.notify-row:hover{background:#FAFAF7}
+.notify-row.unread{background:#F2F3F5}
+.notify-dot{width:7px;height:7px;border-radius:50%;margin-top:6px;background:transparent;flex-shrink:0}
+.notify-row.unread .notify-dot{background:#4C9AFF}
+.notify-text{font-size:13.5px;color:#1F2329;line-height:1.5;word-break:break-word}
+.notify-time{font-size:11.5px;color:#8A909C;margin-top:3px}
+.notify-pager{display:flex;gap:8px;justify-content:center;margin-top:14px}
+
+/* ---- @ 提及（2026-11-04，V2）---- */
+.mention{color:#4C9AFF}
+.mention-box{position:fixed;z-index:120;min-width:200px;max-height:240px;overflow:auto;
+  background:#fff;border:1px solid #E5E6EB;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.12);padding:4px}
+.mention-item{display:flex;justify-content:space-between;gap:10px;align-items:center;
+  padding:7px 10px;border-radius:7px;cursor:pointer;font-size:13px}
+.mention-item span{font-size:11.5px;color:#8A909C}
+.mention-item:hover,.mention-item.on{background:#EDF1FE}
+.mention-item.on b{color:#165DFF}
+/* ---- 通知跳楼层高亮（2026-11-04，V3）---- */
+.cm-focus{background:#FFF7E6;box-shadow:0 0 0 2px #FFB74D inset;border-radius:10px;transition:background .3s}

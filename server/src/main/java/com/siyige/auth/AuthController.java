@@ -151,8 +151,11 @@ public class AuthController {
         JwtService.ParsedToken parsed = jwt.parse(raw.substring(BEARER.length()).trim());
         if (parsed == null) throw AuthException.unauthorized();
         if (blacklist.contains(parsed.jti())) throw AuthException.unauthorized();
+        AuthState state = userStatus.authState(parsed.userId());
+        // 全站封禁：与 JwtAuthFilter 保持一致——封禁后连 /me、改名、退出都不许
+        if (state.disabled()) throw AuthException.accountDisabled();
         // 改密后旧令牌在这里也要失效——否则它能继续调 /me、/me(PATCH)、甚至再改一次密码
-        if (userStatus.authState(parsed.userId()).isTokenStale(parsed.issuedAt())) {
+        if (state.isTokenStale(parsed.issuedAt())) {
             throw AuthException.tokenStale();
         }
         return parsed;

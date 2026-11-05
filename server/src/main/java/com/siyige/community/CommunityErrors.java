@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -52,6 +53,16 @@ public class CommunityErrors {
     @ExceptionHandler(com.siyige.auth.AuthException.class)
     public ResponseEntity<Map<String, Object>> onAuth(com.siyige.auth.AuthException e) {
         return body(e.code(), e.getMessage(), e.status());
+    }
+
+    /**
+     * 查询参数类型不对（如 {@code ?page=abc}）：MUST 返回 400，MUST NOT 掉进下面的兜底 500。
+     *
+     * <p>这类异常发生在参数绑定阶段，{@code IllegalArgumentException} 那条接不住它。
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> onTypeMismatch(MethodArgumentTypeMismatchException e) {
+        return body("INVALID_PARAM", "INVALID_PARAM: 参数 " + e.getName() + " 类型不对", HttpStatus.BAD_REQUEST);
     }
 
     /** 兜底：未预期异常也要返回契约形状，前端按 code 分支，不必解析 Spring 默认错误页。 */

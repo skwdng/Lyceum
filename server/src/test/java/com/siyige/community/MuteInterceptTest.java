@@ -27,9 +27,10 @@ class MuteInterceptTest {
     private final CommunityViewService views = mock(CommunityViewService.class);
     private final MuteGuard guard = mock(MuteGuard.class);
 
-    private final CommunityService posts = new CommunityService(repo, masker, views, guard);
-    private final CommentService comments = new CommentService(repo, masker, guard);
-    private final LikeService likes = new LikeService(repo, guard);
+    private final NotificationService notifications = mock(NotificationService.class);
+    private final CommunityService posts = new CommunityService(repo, masker, views, guard, notifications);
+    private final CommentService comments = new CommentService(repo, masker, guard, notifications);
+    private final LikeService likes = new LikeService(repo, guard, notifications);
 
     private void muted() {
         doThrow(AuthException.muted("2026-11-10 12:00")).when(guard).assertNotMuted(anyString());

@@ -20,6 +20,10 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class BanServiceTest {
 
+    /** 本测试只验禁言写入，通知用 mock 即可（通知本身由 AdminNotifyTest 覆盖）。 */
+    private final com.siyige.community.NotificationService notify =
+            org.mockito.Mockito.mock(com.siyige.community.NotificationService.class);
+
     private JdbcTemplate jdbc;
     private BanRepo repo;
     private BanService service;
@@ -43,7 +47,7 @@ class BanServiceTest {
                 )
                 """);
         repo = new BanRepo(jdbc);
-        service = new BanService(repo);
+        service = new BanService(repo, notify);
     }
 
     private long count() {

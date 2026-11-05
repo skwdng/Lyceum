@@ -18,7 +18,8 @@ class CommunityServiceTest {
     private final SensitiveWordMasker masker = new SensitiveWordMasker(List.of("加微信", "代写"));
     private final CommunityViewService views = mock(CommunityViewService.class);
     private final com.siyige.community.MuteGuard muteGuard = mock(com.siyige.community.MuteGuard.class);
-    private final CommunityService service = new CommunityService(repo, masker, views, muteGuard);
+    private final NotificationService notifications = mock(NotificationService.class);
+    private final CommunityService service = new CommunityService(repo, masker, views, muteGuard, notifications);
 
     private static Map<String, Object> postRow(String authorId) {
         Map<String, Object> row = new HashMap<>();
