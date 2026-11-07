@@ -27,6 +27,17 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
+
+    <!--
+      私聊实时推送（2026-11-07，V3）。
+      用原生 WebSocket 而不是 STOMP：一对一聊天用不着订阅/广播那套，多一层协议只是负担。
+      注：握手鉴权**不走** JwtAuthFilter（那个只注册在 /api/**），由 ChatHandshakeInterceptor 自己做。
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-websocket</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-jdbc</artifactId>

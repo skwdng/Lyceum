@@ -59,6 +59,14 @@ public class NotificationService {
     /** AI 在帖子下回复时的内部标记（写进 note，仅用于选文案；列表 item 不返回 note）。 */
     static final String POST_REPLY_MARK = "POST";
 
+    /**
+     * 好友类通知（2026-11-07 新增，社交模块调用）。
+     *
+     * <p>它们和帖子/评论无关，link 要指向「好友」页而不是某个帖子 ——
+     * 所以 {@link #link} 里要单独判一下，否则会落到「我的」页。
+     */
+    private static final Set<String> FRIEND_LEVEL = Set.of("FRIEND_REQUEST", "FRIEND_ACCEPTED");
+
     private final NotificationRepo repo;
     private final UnreadCounter counter;
     private final UserNames userNames;
@@ -203,6 +211,45 @@ public class NotificationService {
             log.info("通知 REPLY_COMMENT(AI) id={} to={} aiCommentId={}", id, askerId, aiCommentId);
         } catch (RuntimeException e) {
             log.warn("发 AI 回复通知失败（不影响回复本身）postId={} 原因={}", postId, e.toString());
+        }
+    }
+
+    // ==================== 触发：好友（2026-11-07 新增，社交模块调用） ====================
+
+    /**
+     * 有人请求加你为好友。
+     *
+     * <p>备注（附言）直接进 {@code note}，文案里会跟出来；最多 100 字由调用方截断，
+     * 这里再按 note 列长兜一次。
+     */
+    public void onFriendRequest(String toUserId, String fromUserId, String note) {
+        if (toUserId == null || fromUserId == null || toUserId.equals(fromUserId)) return;
+        try {
+            String actorName = userNames.name(fromUserId);
+            String safeNote = note == null || note.isBlank() ? null : cut(note, NOTE_MAX);
+            long id = repo.insert(toUserId, "FRIEND_REQUEST", fromUserId, actorName, null, null, null, safeNote);
+            counter.incr(toUserId);
+            log.info("通知 FRIEND_REQUEST id={} to={} from={}", id, toUserId, fromUserId);
+        } catch (RuntimeException e) {
+            log.warn("发好友请求通知失败（不影响好友关系）to={} 原因={}", toUserId, e.toString());
+        }
+    }
+
+    /**
+     * 你们成为好友了（接受 / 双向互发自动成）。
+     *
+     * <p>收件人是 {@code userId}，动作发起方是 {@code actorId}；文案「X 和你成为了好友」
+     * 对「我接受了你的请求」和「我们同时加了对方」两种场景都成立。
+     */
+    public void onFriendAccepted(String userId, String actorId) {
+        if (userId == null || actorId == null || userId.equals(actorId)) return;
+        try {
+            String actorName = userNames.name(actorId);
+            long id = repo.insert(userId, "FRIEND_ACCEPTED", actorId, actorName, null, null, null, null);
+            counter.incr(userId);
+            log.info("通知 FRIEND_ACCEPTED id={} to={} actor={}", id, userId, actorId);
+        } catch (RuntimeException e) {
+            log.warn("发好友接受通知失败（不影响好友关系）to={} 原因={}", userId, e.toString());
         }
     }
 
@@ -447,6 +494,10 @@ public class NotificationService {
             case "UNMUTED" -> "你的社区禁言已被解除" + (note == null || note.isBlank() ? "" : "（" + note + "）");
             case "BANNED" -> "你的账号被全站封禁" + reason(note);
             case "UNBANNED" -> "你的账号已解封";
+            case "FRIEND_REQUEST" -> note == null || note.isBlank()
+                    ? actor + " 想加你为好友"
+                    : actor + " 想加你为好友：" + note;
+            case "FRIEND_ACCEPTED" -> actor + " 和你成为了好友";
             default -> actor + " 与你互动了";
         };
     }
@@ -457,6 +508,13 @@ public class NotificationService {
         long targetId = CommunityService.num(row.get("target_id"));
 
         Map<String, Object> link = new LinkedHashMap<>();
+        // 好友类通知与内容无关：点进去是「好友」页，不是「我的」页
+        if (FRIEND_LEVEL.contains(type)) {
+            link.put("view", "friends");
+            link.put("postId", null);
+            link.put("commentId", null);
+            return link;
+        }
         if (postId <= 0) {
             // 禁言 / 封禁这类与内容无关的，点进去看「我的」
             link.put("view", "me");

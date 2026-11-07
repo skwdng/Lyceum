@@ -1,9 +1,11 @@
-# 思弈阁 · 实现规格书（AI 可执行版 · v4.5）
+# 思弈阁 · 实现规格书（AI 可执行版 · v4.7）
 
 > 唯一规格来源。逐条对照编号实现，全部满足才能标完成。
 > v4.3（2026-11-04）：追加第 19 节「举报与审核（治理）」，含 R-GOV-01 ~ R-GOV-25。
 > v4.4（2026-11-04）：追加第 20 节「辩论侧的登录与对局归属」，含 R-DEB-01 ~ R-DEB-14。
 > v4.5（2026-11-05）：追加第 21 节「通知与 @提及」，含 R-NTF-01 ~ R-NTF-22。
+> v4.6（2026-11-05）：追加第 22 节「社区 @AI」，含 R-AI-01 ~ R-AI-30（本节标题行此前漏登记版本号，此处补记）。
+> v4.7（2026-11-07）：追加第 23 节「好友 + 私聊 + 邀请组队」，含 R-SOC-01 ~ R-SOC-31。
 > 关键词：**MUST**（必须）、**MUST NOT**（禁止）、**SHOULD**（推荐）、**可调参数**。
 
 ---
@@ -1123,5 +1125,98 @@ location /api/ {
   `siyige.llm.base-url` / `api-key` / `model`、`siyige.ai.enabled`。**api-key MUST NOT 进仓库**。
 - **R-AI-29** `model` MUST 用反代里真实存在的 id（如 `deepseek-v4.1-flash`）；`deepseek-chat` 是官方名，用错必 400/404。
 - **R-AI-30** 启动 MUST 打一行日志说明 AI 是否启用；未启用时 MUST 说明原因（没开开关 / 没配 key / Redis 不可用）。
+
+---
+
+## 23. 好友 + 私聊 + 邀请组队
+
+> 本节 2026-11-07 追加（V1~V4 实现并验收）。第 18 节是社区内容，第 21 节是通知，
+> 第 22 节是社区 @AI；本节是**人与人的关系**与**一对一消息**。
+> 完整字段表 / 错误码 / WS 帧格式见 [docs/社交接口契约.md](社交接口契约.md)。
+>
+> 编号说明：原计划 20 条（R-SOC-01 ~ R-SOC-20）。实施时把「未读缓存」「WS 降级」
+> 「多连接推送」拆成了独立可验证的条目，最终到 **R-SOC-31**——条目变多不是范围变大，
+> 同一条要求的判定标准更明确了。
+
+### 23.1 关系（好友）
+
+- **R-SOC-01** 好友关系 MUST 用**字典序单行**存：`sy_friend(user_a, user_b)` 主键，写入前按字典序排好。
+  `(A,B)` 与 `(B,A)` MUST 落到同一行——否则会出现「两边都显示是好友、删一边还剩一边」。
+- **R-SOC-02** 好友请求 MUST 独立成表并留全生命周期：`PENDING / ACCEPTED / REJECTED` + `handled_at`。
+  `REJECTED` 行 MUST NOT 删除（「为什么没加成」要有据可查），但 MUST NOT 阻挡新请求。
+- **R-SOC-03** 发请求 MUST 依次拦：自己（400 `CANT_ADD_SELF`）→ 不是用户（404）→ 是 AI 账号
+  （400 `TARGET_IS_BOT`）→ 已是好友（409 `ALREADY_FRIEND`）→ 同方向已有 PENDING（409 `PENDING_EXISTS`）。
+- **R-SOC-04** **双向互发 MUST 直接成为好友**：两条请求都置 `ACCEPTED`，双方各收一条 `FRIEND_ACCEPTED`。
+  不这样做会出现「两边都显示已发送、谁也没法接受」的死局。
+- **R-SOC-05** 接受 / 拒绝 MUST 校验「这条请求是发给我的」（403 `NOT_REQUEST_TARGET`）与
+  「还是 PENDING」（409 `REQUEST_NOT_PENDING`）。
+- **R-SOC-06** 拒绝 MUST NOT 通知发起人；接受 MUST 双向通知。
+- **R-SOC-07** 附言上限 100 字，超出 MUST **静默截断**（按码点），MUST NOT 报错。
+- **R-SOC-08** AI 账号（`is_bot=1`）MUST 被三重拦截：搜索不返回、加好友 400、不能私聊。
+- **R-SOC-09** 删除好友 MUST 只删一行关系即双向解除；历史会话与消息 MUST 保留；
+  之后的发消息 MUST 403 `NOT_FRIEND`。
+
+### 23.2 会话与消息
+
+- **R-SOC-10** 会话 MUST 一对人一行：`unique(user_a, user_b)`，插入冲突时 MUST 回查而不是报错
+  （两边同时第一次发消息会各插一次）。
+- **R-SOC-11** 发消息 MUST 依次校验：收件人非空且非自己 → 非空正文 → ≤2000 字（按码点）→
+  **是好友**（403 `NOT_FRIEND`）→ 过敏感词打码（原文 MUST NOT 落库）。
+- **R-SOC-12** 一条消息落库 MUST 同时动四处：消息表、会话的 `last_msg_id`/`last_msg_at`、
+  **发件人**的已读位置、**收件人**的未读计数。缺任一处都会出现怪现象
+  （列表看不见 / 自己的消息显示未读 / 角标不亮）。
+- **R-SOC-13** 历史分页 MUST 用**游标** `beforeId`，MUST NOT 用 offset（翻页期间新消息会错位）；
+  返回 MUST 按时间正序（前端直接渲染）。
+- **R-SOC-14** 断线补拉 MUST 提供 `afterId`（正序、`id > afterId`），
+  这是「一条都不丢」的唯一保证。`beforeId` 与 `afterId` MUST NOT 同时接受（400）。
+- **R-SOC-15** 越权 MUST 拦截：读 / 标已读别人的会话 → 403 `NOT_MEMBER`；会话不存在 → 404。
+  会话列表 MUST 只出现我参与的会话。
+- **R-SOC-16** 消息 MUST NOT 自动清理；本期 MUST NOT 做撤回 / 编辑 / 删除 / 群聊 / 富媒体。
+
+### 23.3 未读
+
+- **R-SOC-17** 未读**读路径** MUST 走缓存（Redis `social:unread:{userId}` Hash，field=convId），
+  **MUST NOT 查库**：侧栏角标由各 field 求和、会话列表每行取自己的 field，一次 `HGETALL` 满足两处。
+- **R-SOC-18** 数据库 `read_a/read_b` MUST 只表示「读到哪条消息 id」，是唯一真相；
+  用途只有两个：算这次标已读**实际读掉几条**、缓存丢失时按库重建。
+  已读位置 MUST 只前进（`greatest`），迟到的旧回执 MUST NOT 打回。
+- **R-SOC-19** 标已读 MUST 按**实际读掉的条数**递减（MUST NOT 一律 -1），且 MUST 用**原子脚本**
+  递减、减到 ≤0 MUST 删掉该 field（MUST NOT 出现负数）。
+  缓存只在两种情况下回源：冷启动、打开会话列表；空用户 MUST 也写哨兵以免反复判冷。
+
+### 23.4 实时与降级
+
+- **R-SOC-20** 实时 MUST 用 **WebSocket（原生，非 STOMP）**，握手令牌走 `?token=`；
+  `/ws/**` MUST NOT 注册任何 Servlet 过滤器，鉴权在 `ChatHandshakeInterceptor` 里做
+  （把 WS 塞进 `JwtAuthFilter` 会破坏 R-NTF 侧「`?token=` 只对 `/events` 回退」的既有规则）。
+- **R-SOC-21** 一个账号 MUST 支持多连接（手机 + 电脑），一条消息 MUST 推给收件人的**每一端**；
+  会话 MUST 用 `ConcurrentWebSocketSessionDecorator` 包装（原生 session 非线程安全）。
+- **R-SOC-22** WS MUST 有 25 秒心跳；上一轮无 `pong` MUST 判定假死并重连；重连 MUST 指数退避
+  （1s 起、30s 封顶）并在连上后按 `afterId` 补拉。
+- **R-SOC-23** **连续失败 3 次 MUST 降级为 3 秒轮询**（延迟 ≤3s），WS 恢复后 MUST 自动切回实时；
+  降级期间**发送** MUST 走 HTTP `POST /api/social/messages`（只靠轮询"收"会让链路半残）。
+- **R-SOC-24** 业务拒绝（非好友等）MUST 回 `error` 帧且带回 `clientMsgId`，MUST NOT 关连接；
+  前端 MUST 把那条气泡标成「发送失败」，MUST NOT 让它一直转圈。
+
+### 23.5 邀请组队
+
+- **R-SOC-25** INVITE MUST 是**消息的一种 type**（`type='INVITE'` + `payload={roomCode,topicTitle}`），
+  MUST NOT 新建表——这样好友校验、建会话、未读、推送、分页、离线补拉全部自动复用。
+- **R-SOC-26** 房间号 MUST 校验格式（`SY-` + 2~10 位大写字母数字，后端统一转大写），
+  格式不对 MUST 400；辩题标题 >60 字 MUST 截断。
+- **R-SOC-27** 邀请入口 MUST 只给**房主**（队友自己拉人会出现「房间被塞满、房主不知道」）。
+  收方点卡片 MUST 走与手动输房间号**同一条路径**（`POST /api/rooms/{code}/join`）。
+
+### 23.6 通知与前端
+
+- **R-SOC-28** 好友类通知 MUST 用独立 type（`FRIEND_REQUEST` / `FRIEND_ACCEPTED`），
+  `link.view` MUST 为 `friends`（MUST NOT 落回 `me`：这批通知与帖子无关）。
+- **R-SOC-29** 侧栏「消息」MUST 是**独立入口 + 独立角标**，与「通知」角标各算各的：
+  进通知页 MUST NOT 清掉消息红点，反之亦然。
+- **R-SOC-30** 搜索结果里画什么按钮 MUST 全由后端给的三个布尔（`isFriend` / `hasPendingRequest` /
+  `pendingIn`）决定，前端 MUST NOT 自己推断。
+- **R-SOC-31** 本期 MUST NOT 做任何频率限制——**2026-11-07 经产品确认不做**（原「20 条/分」「10 次/天」取消）。
+  理由：私聊里连发多条是正常对话，限流会误伤；好友请求量小，暂无骚扰风险。
+  若将来要加，MUST 在网关 / 过滤器层做，MUST NOT 塞进 `ChatService`（会把事务与限流耦在一起）。
 
 ---

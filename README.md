@@ -26,6 +26,8 @@ AI 4v4 辩论训练系统：8 个 AI 辩手各占一席、各有打法，你坐�
 - **账号安全**：用户与管理员均可改密码，改后旧登录立即失效；管理员处置留痕，可一键恢复被删内容
 - **通知与 @**：评论 / 回复 / 点赞 / @ / 被删 / 被处罚都会提醒，点赞按内容聚合成一条；侧栏红点显示未读数
 - **社区 @AI**：`@DeepSeek` 像普通用户一样回帖（带回帖层级和「AI」标签），每账号每天 5 次
+- **好友与私聊**：搜人加好友（可附言）→ 双向确认；只有好友能私聊，消息走 WebSocket 实时到达，断线按 id 补拉、连不上自动降级 3 秒轮询
+- **邀请组队**：房主在房间页点「邀请好友」，对方在聊天窗收到卡片，点一下直接进房
 - **手机端**：底部导航、输入框吸底
 
 ## 跑起来
@@ -44,14 +46,14 @@ docker run -d --name siyige-redis -p 6379:6379 redis:7-alpine --requirepass siyi
 
 ## 技术栈
 
-Java 17 · Spring Boot 3.3 · SSE · H2/Redis · 原生 JS（无框架无构建） · DeepSeek
+Java 17 · Spring Boot 3.3 · SSE + WebSocket · H2/Redis · 原生 JS（无框架无构建） · DeepSeek
 
 密码 Argon2id 哈希 · 会话 JWT（HS256，2 小时）
 
 ## 目录
 
 ```
-server/src/main/java/com/siyige/   api / service / ai / domain / engine / repo / community / auth / admin
+server/src/main/java/com/siyige/   api / service / ai / domain / engine / repo / community / auth / admin / social
 server/src/main/resources/static/  index.html + admin.html + css + js/views/*（一人一块）
 docs/                              SPEC 规格 / AI 方案 / 协作规范 / 项目进度 / 接口契约
 ```
@@ -59,6 +61,10 @@ docs/                              SPEC 规格 / AI 方案 / 协作规范 / 项�
 ## 更新记录
 
 > 每次开发完在下面加一段，新的放最上面。一行说清「改了什么 / 为什么」。
+
+### 2026-11-07
+- **好友与私聊**：搜人加好友（双向互发直接成为好友）、只有好友能聊、未读角标与通知分开；WebSocket 实时（心跳 + 断线重连补拉），连不上自动降级 3 秒轮询
+- **邀请组队**：房主在房间页邀请好友，对方在聊天窗点卡片一键进房
 
 ### 2026-11-05
 - **社区 @AI**：帖子或评论里 `@DeepSeek`，它像普通用户一样回帖（发帖回一条楼、楼里回楼中楼，昵称旁带「AI」标签），异步排队、每账号每天 5 次
@@ -102,6 +108,7 @@ docs/                              SPEC 规格 / AI 方案 / 协作规范 / 项�
 - 协作规范：[docs/协作规范.md](docs/协作规范.md)
 - 管理接口契约：[docs/管理接口契约.md](docs/管理接口契约.md)
 - 社区接口契约：[docs/社区接口契约.md](docs/社区接口契约.md)
+- 社交接口契约（好友 / 私聊 / 邀请）：[docs/社交接口契约.md](docs/社交接口契约.md)
 - 认证接口契约：[docs/认证接口契约.md](docs/认证接口契约.md)
 - 辩论接口鉴权：[docs/辩论接口鉴权契约.md](docs/辩论接口鉴权契约.md)
 

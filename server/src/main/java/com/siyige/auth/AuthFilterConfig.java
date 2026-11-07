@@ -80,6 +80,23 @@ public class AuthFilterConfig {
                 "/api/topics/audit", "/api/hot/*");
     }
 
+    /**
+     * 社交：好友 / 私聊。
+     *
+     * <p>与社区、辩论都不同：这里**没有任何匿名可看的数据**——好友列表、会话、消息
+     * 全是私人内容，所以用 {@link JwtAuthFilter.Scope#SOCIAL}（读也要登录）。
+     *
+     * <p>注意 {@code /ws/**} **不在这里注册**：WebSocket 握手是 GET 升级请求，
+     * 鉴权由 {@code ChatHandshakeInterceptor} 自己做（红线要求，也避免破坏
+     * 「只对 /events 回退 query token」的既有规则）。
+     */
+    @Bean
+    public FilterRegistrationBean<JwtAuthFilter> socialJwtFilter(JwtService jwt, TokenBlacklist blacklist,
+                                                                UserStatusSource userStatus) {
+        return register("socialJwtFilter", jwt, blacklist, userStatus,
+                JwtAuthFilter.Scope.SOCIAL, "/api/social/*");
+    }
+
     private FilterRegistrationBean<JwtAuthFilter> register(String name, JwtService jwt,
                                                            TokenBlacklist blacklist, UserStatusSource userStatus,
                                                            JwtAuthFilter.Scope scope, String... patterns) {

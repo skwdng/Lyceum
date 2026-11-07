@@ -55,7 +55,15 @@ const S = {
   lastVisitedView:null,
   // ---- 通知（视图在 js/views/notify.js）----
   unread:0, notifyPoll:null,
-  notify:{ items:[], total:0, page:1, size:20, error:null }
+  notify:{ items:[], total:0, page:1, size:20, error:null },
+  // ---- 社交：好友（视图在 js/views/friends.js）----
+  social:{ friends:[], requests:[], search:[], q:'', searched:false, noteFor:null, error:null },
+  // ---- 社交：消息（视图在 js/views/chat.js）----
+  // unread 是「所有会话未读之和」，来自后端 Redis 缓存；与 notify 的 S.unread 相互独立（决策 12）
+  chat:{ convs:[], convId:null, peer:null, pendingPeer:null, items:[], pending:[], peerRead:{}, stick:true, scrollTop:0, ignoreScrollUntil:0, loadingMore:false, hasMore:false, unread:0, error:null },
+  chatPoll:null,
+  // 房间页的「邀请好友」弹窗（V4）：open/friends/sent
+  roomInvite:{ open:false, friends:[], sent:{} }
 };
 
 const persistSeats = () => localStorage.setItem('sy_seats', JSON.stringify(S.mySeats));
@@ -106,7 +114,7 @@ function needLogin(hint){
 }
 
 /** 只有登录才能看的页面（未登录时整页显示「登录后可见」，不渲染操作面板） */
-const LOGIN_ONLY_VIEWS = { solo:1, room:1, match:1, review:1, diag:1, records:1, notify:1 };
+const LOGIN_ONLY_VIEWS = { solo:1, room:1, match:1, review:1, diag:1, records:1, notify:1, friends:1, chat:1 };
 
 function loginGateCard(view){
   const what = { solo:'开始一场单人辩论', room:'和朋友开一局多人辩论', match:'查看正在进行的对局',
@@ -123,12 +131,26 @@ const NAV = [
   {g:'训练'}, {k:'solo', n:'单人辩论'}, {k:'room', n:'多人辩论'}, {k:'hotb', n:'热辩榜'},
   {g:'我的'}, {k:'diag', n:'能力诊断'}, {k:'records', n:'辩论记录'}, {g:'社区'}, {k:'community', n:'讨论社区'},
     {g:'视频'}, {k:'video', n:'视频'},
-  {g:'消息'}, {k:'notify', n:'通知'}
+  {g:'消息'}, {k:'chat', n:'消息'}, {k:'friends', n:'好友'}, {k:'notify', n:'通知'}
 ];
 
 function reNav(){
   $('#nav').innerHTML = NAV.map(n => n.g ? `<div class="g">${n.g}</div>`
-    : `<a class="${S.view===n.k?'on':''}" onclick="go('${n.k}')">${n.n}${n.k === 'notify' ? navBadge() : ''}</a>`).join('');
+    : `<a class="${S.view===n.k?'on':''}" onclick="go('${n.k}')">${n.n}${navBadgeOf(n.k)}</a>`).join('');
+}
+
+/** 每个入口自己的角标：消息与通知**各算各的**，互不影响（决策 12）。 */
+function navBadgeOf(view){
+  if (view === 'notify') return navBadge();
+  if (view === 'chat') return chatBadge();
+  return '';
+}
+
+/** 「消息」红点：0 不渲染、>99 显示 99+（与通知角标同一套规则，但数据来源不同）。 */
+function chatBadge(){
+  const n = S.chat.unread || 0;
+  if (n <= 0) return '';
+  return `<span class="nav-badge">${n > 99 ? '99+' : n}</span>`;
 }
 
 /** 侧栏未读红点：0 不渲染，>99 显示 99+（决策 12）。 */
@@ -151,6 +173,47 @@ async function refreshUnread(){
     if (n !== S.unread) { S.unread = n; reNav(); }
     return n;
   } catch (e) { return S.unread; }
+}
+
+/**
+ * 消息角标的轮询（30 秒）。
+ *
+ * <p>为什么比通知的 45 秒密：聊天是"对方在等你回话"的场景，红点迟 15 秒会更明显；
+ * 而它只读一次 Redis 缓存（一次 HGETALL），成本可以接受。
+ * V3 接上 WebSocket 后，新消息会直接推送并就地更新角标，这里只兜住"断线期间"。
+ */
+/**
+ * 清空所有"属于当前账号"的状态。退出登录 / 登录 / 注册后必须调用。
+ *
+ * <p>不清会串账号：会话列表、当前会话、消息缓存、对端信息、未读数、WebSocket 的补拉位置
+ * 全都属于上一个账号。典型现象就是「点开某个会话，标题却是自己」「红点消不掉」
+ * 「发消息提示失败」——因为它们对着上一个账号的会话在操作。
+ */
+function socialReset(){
+  S.social = { friends:[], requests:[], search:[], q:'', searched:false, noteFor:null, error:null };
+  S.chat = { convs:[], convId:null, peer:null, pendingPeer:null, items:[], pending:[], peerRead:{},
+             stick:true, scrollTop:0, ignoreScrollUntil:0, loadingMore:false, hasMore:false,
+             unread:0, error:null };
+  S.notify = { items:[], total:0, page:1, size:20, error:null };
+  S.unread = 0;
+  S.roomInvite = { open:false, friends:[], sent:{} };
+  if (typeof ChatWs !== 'undefined') { ChatWs.lastSeen = {}; ChatWs.pending = {}; }
+  if (typeof chatWsStop === 'function') chatWsStop();
+  if (S.chatPoll) { clearInterval(S.chatPoll); S.chatPoll = null; }
+  if (S.notifyPoll) { clearInterval(S.notifyPoll); S.notifyPoll = null; }
+}
+
+const CHAT_POLL_MS = 30000;
+
+function syncChatPoll(){
+  if (S.user && !S.chatPoll) {
+    refreshChatUnread();
+    S.chatPoll = setInterval(refreshChatUnread, CHAT_POLL_MS);
+  } else if (!S.user && S.chatPoll) {
+    clearInterval(S.chatPoll);
+    S.chatPoll = null;
+    if (S.chat.unread) { S.chat.unread = 0; reNav(); }
+  }
 }
 
 /** 登录了才轮询、登出立刻停。render() 每次都调，天然覆盖登录/登出切换。 */
@@ -181,6 +244,8 @@ function go(v){
   // 社区：不再跳独立页（D4），进页面时重置筛选并拉第一页列表
   if (v === 'community') { cmEnterCommunity(); return; }
   if (v === 'notify') { loadNotify(1); return; }
+  if (v === 'friends') { loadFriends(); return; }
+  if (v === 'chat') { chatEnter(); return; }   // 进来要重拉当前会话并标已读，不能只刷列表
   if (v === 'records' || v === 'diag' || v === 'hotb' || v === 'solo') refreshDash(v);
 }
 
@@ -211,7 +276,9 @@ async function refreshDash(v){
 function render(){
   reNav();
   authRenderMeBox();
-  syncNotifyPoll();               // 登录后开始/登出后停止 45 秒角标轮询
+  syncNotifyPoll();               // 登录后开始/登出后停止 45 秒通知角标轮询
+  syncChatPoll();                 // 消息角标：30 秒一次，只读 Redis 缓存
+  if (typeof chatWsStart === 'function') chatWsStart();   // 登录后建 WebSocket（幂等）
   // 对局侧页面未登录时整页给「登录后可见」，不留可点的操作面板
   if (!S.user && LOGIN_ONLY_VIEWS[S.view]) {
     $('#main').innerHTML = loginGateCard(S.view);
@@ -219,12 +286,15 @@ function render(){
   }
   const v = { solo:viewSolo, room:viewRoom, hotb:viewHot, diag:viewDiag, records:viewRecords,
               match:viewMatch, review:viewReview, community:viewCommunity, video:viewVideo,
-              notify:viewNotify, me:viewAuth }[S.view];
+              notify:viewNotify, friends:viewFriends, chat:viewChat, me:viewAuth }[S.view];
   $('#main').innerHTML = v ? v() : viewSolo();
   if (S.view === 'match') {
     renderStrip();
     bindChatScroll();
   }
+  // 消息页有"渲染完要贴到底部"的活儿：innerHTML 一换，滚动位置就归零，
+  // 所以在渲染之后补一次（函数在 chat.js 里，按需判断该不该贴）
+  if (S.view === 'chat' && typeof chatAfterRender === 'function') chatAfterRender();
 }
 
 const PACE_BASE = {立论:300, 驳立论:210, 质询:150, 自由辩:90, 总结:240};

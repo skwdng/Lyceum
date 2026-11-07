@@ -45,12 +45,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
      *   <li>{@link #COMMUNITY} —— 社区：读放行、写要登录（社区契约的既有行为）</li>
      *   <li>{@link #DEBATE} —— 辩论主体：**全部**要登录（含 GET 详情 / SSE）</li>
      *   <li>{@link #DEBATE_WRITE} —— 辩论侧的"内容类写接口"：只有写操作要登录</li>
+     *   <li>{@link #SOCIAL} —— 社交（好友 / 私聊）：**读也要登录**，没有匿名可看的社交数据</li>
      * </ul>
      */
     public enum Scope {
         COMMUNITY,
         DEBATE,
-        DEBATE_WRITE
+        DEBATE_WRITE,
+        SOCIAL
     }
 
     private final JwtService jwt;
@@ -84,9 +86,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     // 管理员令牌不认：出示了类型不对的身份 = 401，不能当匿名放行，
                     // 否则管理员就能以普通用户身份发帖 / 点赞 / 打对局（权限串线）。
                     if (!parsed.isUser()) {
-                        throw scope == Scope.COMMUNITY
-                                ? AuthException.notAdminOnCommunity()
-                                : AuthException.notAdminOnDebate();
+                        // 出示了类型不对的身份 = 401（不能当匿名放行，否则权限串线）
+                        throw switch (scope) {
+                            case COMMUNITY -> AuthException.notAdminOnCommunity();
+                            case SOCIAL -> AuthException.notAdminOnSocial();
+                            default -> AuthException.notAdminOnDebate();
+                        };
                     }
                     if (blacklist.contains(parsed.jti())) throw AuthException.unauthorized();
                     // 一次查询同时拿到「封禁」与「改密时间」，不查两次库（用户决策 1）
@@ -120,6 +125,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             case DEBATE -> true;
             // 内容类写接口：只拦写
             case DEBATE_WRITE -> !isReadMethod(method);
+            // 社交：好友列表 / 会话 / 消息都是私人数据，读也要登录
+            case SOCIAL -> true;
         };
     }
 

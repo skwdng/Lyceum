@@ -64,6 +64,7 @@ function viewRoom(){
     </div>
     <div class="row">
       <button class="btn ghost" onclick="copyRoom()">复制房间号</button>
+      ${room.isHost ? `<button class="btn ghost" onclick="roomInviteOpen()">邀请好友</button>` : ''}
       <button class="btn ghost" onclick="leaveRoom()">退出</button>
       ${room.isHost
         ? `<button class="btn primary" ${room.canStart ? '' : 'disabled'} onclick="startRoom()">开始辩论${room.canStart ? '' : `（${(room.unready||[]).length} 人未准备）`}</button>`
@@ -96,7 +97,8 @@ function viewRoom(){
              : s.ready ? '<span class="tag g">已准备</span>' : '<span class="tag">未准备</span>'}</td>
       </tr>`).join('')}
     </table>
-  </div>`;
+  </div>
+  ${roomInviteModal()}`;
 }
 
 function mySeatReady(){
@@ -172,3 +174,92 @@ function startRoomPoll(){
 }
 
 function stopRoomPoll(){ if (S.roomPoll) { clearInterval(S.roomPoll); S.roomPoll = null; } }
+
+// ==================== 邀请组队（V4） ====================
+//
+// 只给**房主**用：队友自己拉人容易出现"房间被塞满、房主不知道"的情况。
+// 邀请走的是私聊消息（type=INVITE），所以接收方在聊天窗里看到一张卡片，
+// 点「加入房间」直接 joinRoom —— 和手动输房间号是同一条路径，不特殊。
+
+/** 打开好友选择弹窗（先渲染空壳，再异步填好友列表，点了就有反馈） */
+async function roomInviteOpen(){
+  if (!needLogin('登录后才能邀请好友')) return;
+  S.roomInvite = { open:true, friends:[], sent:{}, loading:true, error:null };
+  render();
+  try {
+    const r = await api('/api/social/friends');
+    S.roomInvite.friends = (r && r.items) || [];
+  } catch (e) {
+    S.roomInvite.error = (e && e.message) || '好友列表加载失败';
+  }
+  S.roomInvite.loading = false;
+  if (S.view === 'room') render();
+}
+
+function roomInviteClose(){
+  S.roomInvite = { open:false, friends:[], sent:{} };
+  render();
+}
+
+/** 给某个好友发一张邀请卡片 */
+async function roomInviteSend(userId){
+  if (!S.roomCode) return toast('先建房或进房间');
+  const title = (S.room && S.room.room && S.room.room.topic_title) || '';
+  try {
+    await api('/api/social/messages', {method:'POST',
+      body:{toId:userId, type:'INVITE', roomCode:S.roomCode, topicTitle:title}});
+    S.roomInvite.sent[userId] = true;
+    toast('邀请已发出');
+    render();
+  } catch (e) {
+    const raw = String((e && e.message) || '');
+    let code = '';
+    try { code = JSON.parse(raw).code || ''; } catch (ignore) {}
+    const map = {
+      NOT_FRIEND: '你们不是好友，不能邀请',
+      INVALID_ROOM_CODE: '房间号格式不对',
+      INVALID_TARGET: '邀请对象不对'
+    };
+    toast(map[code] || ('邀请失败：' + (code || raw).slice(0, 60)));
+  }
+}
+
+/** 弹窗本体：没有好友时给一句能照做的话，而不是空白 */
+function roomInviteModal(){
+  const s = S.roomInvite || {};
+  if (!s.open) return '';
+  const list = s.friends || [];
+  const body = s.loading
+    ? '<div class="empty" style="padding:24px">加载好友…</div>'
+    : s.error
+      ? `<div class="empty" style="padding:24px">${esc(s.error)}</div>`
+      : list.length
+        ? list.map(f => `
+          <div class="fr-row">
+            <div class="fr-av">${esc(String(f.name || '?').slice(0, 1))}</div>
+            <div class="fr-main">
+              <div class="fr-name">${esc(f.name)}</div>
+              <div class="fr-id">@${esc(f.id)}</div>
+            </div>
+            <div class="fr-act">
+              ${s.sent && s.sent[f.id]
+                ? '<button class="btn ghost" disabled>已邀请</button>'
+                : `<button class="btn primary" onclick="roomInviteSend(${jsq(f.id)})">邀请</button>`}
+            </div>
+          </div>`).join('')
+        : `<div class="empty" style="padding:24px">还没有好友<br>
+             <span class="sub">先去「好友」页搜人加好友，再回来邀请</span></div>`;
+
+  return `<div class="mask" onclick="if(event.target===this) roomInviteClose()">
+    <div class="iv-box">
+      <div class="iv-head">
+        <b>邀请好友加入</b>
+        <button class="btn ghost sm" onclick="roomInviteClose()">关闭</button>
+      </div>
+      <p class="sub" style="margin:0 0 10px">
+        房间 <span class="mono">${esc(S.roomCode || '')}</span> · 对方会收到一张卡片，点一下就能进
+      </p>
+      <div class="iv-list">${body}</div>
+    </div>
+  </div>`;
+}

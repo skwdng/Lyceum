@@ -114,6 +114,7 @@ async function authLogin() {
   try {
     const res = await authApi('/api/auth/login', 'POST', { account: account.trim(), password: password });
     if (res && res.token) authSetToken(res.token);
+    socialReset();                     // 换账号了：上一个账号的会话/消息/未读一律作废
     S.user = res && res.user ? res.user : null;
     toast('欢迎回来，' + (S.user ? S.user.name : ''));
     goAfterAuth();
@@ -130,6 +131,7 @@ async function authRegister() {
   try {
     const res = await authApi('/api/auth/register', 'POST', { account: account.trim(), password: password });
     if (res && res.token) authSetToken(res.token);
+    socialReset();
     S.user = res && res.user ? res.user : null;
     toast('注册成功，' + (S.user ? S.user.name : ''));
     goAfterAuth();
@@ -141,6 +143,7 @@ async function authRegister() {
 async function authLogout() {
   try { await authApi('/api/auth/logout', 'POST'); } catch (e) { /* 本地照样退出 */ }
   authClear();
+  socialReset();                        // 退出也要清，否则下一个登录的人会看到上一个人的会话
   toast('已退出登录');
   go('community');
 }

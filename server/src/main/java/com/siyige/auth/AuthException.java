@@ -73,6 +73,12 @@ public class AuthException extends RuntimeException {
                 "NOT_ADMIN: 这是管理员令牌，不能用于普通用户接口");
     }
 
+    /** 管理员令牌被拿去访问社交接口（好友 / 私聊）：401 `NOT_ADMIN`。理由同社区那条。 */
+    public static AuthException notAdminOnSocial() {
+        return new AuthException("NOT_ADMIN", HttpStatus.UNAUTHORIZED,
+                "NOT_ADMIN: 这是管理员令牌，不能用于社交接口");
+    }
+
     /** 普通用户令牌访问管理端接口：403 `NOT_ADMIN`。 */
     public static AuthException notAdmin() {
         return new AuthException("NOT_ADMIN", HttpStatus.FORBIDDEN,

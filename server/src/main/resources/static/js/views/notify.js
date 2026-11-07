@@ -90,6 +90,9 @@ async function notifyOpen(id){
   if (!it) return;
   const link = it.link || {};
 
+  // 好友类通知（FRIEND_REQUEST / FRIEND_ACCEPTED）与内容无关，点进去是「好友」页
+  if (link.view === 'friends') { go('friends'); return; }
+
   if (link.view === 'me' || !link.postId) { go('me'); return; }
 
   go('community');
