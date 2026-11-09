@@ -213,6 +213,12 @@ public class AiService {
 
     public boolean llmEnabled() { return llm.enabled() && speechEnabled; }
 
+    /** 把本轮模型调用归到某场对局（计费用）。 */
+    public void bind(String matchId) { llm.bindMatch(matchId); }
+    public void unbind() { llm.unbindMatch(); }
+    public long tokensForMatch(String matchId) { return llm.tokensForMatch(matchId); }
+    public void clearMatchUsage(String matchId) { llm.clearMatchUsage(matchId); }
+
     // ---------------------------------------------------------------- 主入口
 
     public String speak(String seat, String seg, String topicTitle, List<Map<String, Object>> history) {

@@ -86,14 +86,26 @@ async function refreshWalletTx() {
 
 async function doRecharge(cents) {
   try {
-    const d = await api('/api/wallet/recharge', { method: 'POST', body: { amountCents: cents } });
-    W.info = d;
-    toast('充值成功，余额 ¥' + money(d.balanceCents));
+    // 1) 下单（此时不入账）
+    const o = await api('/api/pay/orders', { method: 'POST', body: { amountCents: cents } });
+
+    // 2) 模拟收银台：真实场景这里跳转微信/支付宝
+    const ok = confirm('模拟收银台\n\n应付 ¥' + money(cents) + '\n订单 ' + o.orderId +
+      '\n\n点击「确定」= 已付款（不会真实扣款）');
+    if (!ok) { toast('已取消支付'); return; }
+
+    // 3) 支付回调（带签名，服务端验签 + 幂等入账）
+    const r = await api('/api/pay/callback', {
+      method: 'POST',
+      body: { orderId: o.orderId, amountCents: cents, sign: o.sign, tradeNo: 'MOCK-' + Date.now() }
+    });
+    W.info = await walletRefresh();
+    toast(r.already ? '这笔订单已入账过' : '支付成功，余额 ¥' + money(r.balanceCents));
     const mask = document.getElementById('walletMask');
     if (mask) mask.remove();
     openWallet();
     render();
-  } catch (e) { toast('充值失败：' + e.message); }
+  } catch (e) { toast('支付失败：' + e.message); }
 }
 
 /** 打完一场后的账单条（复盘页用） */

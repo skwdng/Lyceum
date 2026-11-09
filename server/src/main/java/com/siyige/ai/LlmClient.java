@@ -37,6 +37,12 @@ public class LlmClient {
     private final String model;
 
     /** 累计用量：调用次数、输入 token、输出 token */
+    /** 当前线程正在为哪一场对局调用模型（由业务侧 bind，用于精确计费）。 */
+    private static final ThreadLocal<String> CURRENT_MATCH = new ThreadLocal<>();
+    /** matchId → 该场合计 token */
+    private final java.util.concurrent.ConcurrentHashMap<String, AtomicLong> perMatch =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private final AtomicLong calls = new AtomicLong();
     private final AtomicLong promptTokens = new AtomicLong();
     private final AtomicLong completionTokens = new AtomicLong();
@@ -50,6 +56,22 @@ public class LlmClient {
     }
 
     public boolean enabled() { return apiKey != null && !apiKey.isBlank(); }
+
+    /** 把当前线程的调用归到某一场对局；用完必须 unbind，否则账会串。 */
+    public void bindMatch(String matchId) {
+        if (matchId == null || matchId.isBlank()) CURRENT_MATCH.remove();
+        else CURRENT_MATCH.set(matchId);
+    }
+
+    public void unbindMatch() { CURRENT_MATCH.remove(); }
+
+    /** 某场对局消耗的 token（按对局精确归集，不靠全局差值）。 */
+    public long tokensForMatch(String matchId) {
+        AtomicLong v = perMatch.get(matchId);
+        return v == null ? 0 : v.get();
+    }
+
+    public void clearMatchUsage(String matchId) { perMatch.remove(matchId); }
 
     public long calls() { return calls.get(); }
     public long promptTokensTotal() { return promptTokens.get(); }
@@ -156,6 +178,10 @@ public class LlmClient {
             long pt = promptTokens.addAndGet(p);
             long ct = completionTokens.addAndGet(c);
             log.info("LLM usage #{} prompt={} completion={} · 累计 {}/{}", n, p, c, pt, ct);
+            String mid = CURRENT_MATCH.get();
+            if (mid != null) {
+                perMatch.computeIfAbsent(mid, k -> new AtomicLong()).addAndGet(p + c);
+            }
         } catch (Exception ignore) {
             // 用量统计失败不影响对局
         }

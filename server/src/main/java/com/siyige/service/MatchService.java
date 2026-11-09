@@ -189,8 +189,14 @@ public class MatchService {
             if (!expired && !aiGrabs) return;
             String aiSeat = pickAiSeat(m, cur);
             if (aiSeat == null) return;                     // 全是玩家席位，等玩家抢
-            String line = ai.speak(aiSeat, cur.seg(), str(m.get("topic_title")),
+            ai.bind(id);
+            String line;
+            try {
+                line = ai.speak(aiSeat, cur.seg(), str(m.get("topic_title")),
                     str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+            } finally {
+                ai.unbind();
+            }
             FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
             line = planted.text();
             store.insertTurn(id, step + 1, aiSeat, cur.seg(), line, "OK", "ai");
@@ -213,8 +219,14 @@ public class MatchService {
             hub.emit(id, "turn", Map.of("seat", speaker, "seg", cur.seg(), "who", "me",
                     "content", "（超时未发言）", "timeout", true));
         } else {
-            String line = ai.speak(cur.seat(), cur.seg(), str(m.get("topic_title")),
+            ai.bind(id);
+            String line;
+            try {
+                line = ai.speak(cur.seat(), cur.seg(), str(m.get("topic_title")),
                     str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+            } finally {
+                ai.unbind();
+            }
             // 按难度概率埋一处逻辑漏洞，供玩家抓
             FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
             line = planted.text();
@@ -359,10 +371,16 @@ public class MatchService {
         if (wallet == null) return;
         try {
             String userId = str(m.get("user_id"));
-            long base = num(m.get("token_base"));
-            long used = Math.max(0, wallet.tokenSnapshot() - base);
+            // 按对局精确归集：不受其它对局 / 其它接口调用影响
+            long used = ai.tokensForMatch(matchId);
+            if (used <= 0) {
+                // 兜底：极端情况下（模型未启用、全部走模板）用全局差值
+                long base = num(m.get("token_base"));
+                used = Math.max(0, wallet.tokenSnapshot() - base);
+            }
             Map<String, Object> bill = wallet.settle(userId, matchId, used);
             store.saveBill(matchId, used);
+            ai.clearMatchUsage(matchId);
             hub.emit(matchId, "bill", bill);
         } catch (Exception e) {
             log.warn("结算失败 {}: {}", matchId, e.toString());

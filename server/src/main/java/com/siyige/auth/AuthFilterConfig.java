@@ -46,7 +46,7 @@ public class AuthFilterConfig {
     public FilterRegistrationBean<JwtAuthFilter> walletJwtFilter(JwtService jwt, TokenBlacklist blacklist,
                                                                  UserStatusSource userStatus) {
         return register("walletJwtFilter", jwt, blacklist, userStatus,
-                JwtAuthFilter.Scope.DEBATE, "/api/wallet", "/api/wallet/*");
+                JwtAuthFilter.Scope.DEBATE, "/api/wallet", "/api/wallet/*", "/api/pay/*");
     }
 
     @Bean
