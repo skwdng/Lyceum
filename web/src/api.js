@@ -131,6 +131,23 @@ export const socialApi = {
   unfriend: (userId) => http.del('/api/social/friends/' + encodeURIComponent(userId))
 };
 
+// ==================== 私聊（批 2） ====================
+
+export const chatApi = {
+  conversations: () => http.get('/api/social/conversations'),
+  /** 只刷角标：一次请求，不拉列表 */
+  unreadCount: () => http.get('/api/social/unread-count'),
+  /** 历史消息：不给 beforeId 就是最近一页（后端固定 20 条） */
+  messages: (convId, beforeId) =>
+    http.get('/api/social/messages?convId=' + convId + (beforeId ? '&beforeId=' + beforeId : '')),
+  /** 轮询补拉：只要 afterId 之后的新消息 */
+  messagesAfter: (convId, afterId) =>
+    http.get('/api/social/messages?convId=' + convId + '&afterId=' + (afterId || 0)),
+  /** HTTP 兜底发送（WS 不可用时走这条） */
+  send: (toId, body) => http.post('/api/social/messages', { toId, body }),
+  markRead: (convId, lastMsgId) =>
+    http.post('/api/social/conversations/' + convId + '/read', lastMsgId ? { lastMsgId } : {})
+};
 // ==================== 钱包 / 支付 / 自带 API（批 1） ====================
 
 export const walletApi = {

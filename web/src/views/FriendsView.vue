@@ -11,7 +11,7 @@
  */
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { socialApi, API_BASE, ApiError } from '../api.js';
+import { socialApi, ApiError } from '../api.js';
 import { useAuthStore } from '../stores/auth.js';
 import { toast } from '../utils/toast.js';
 
@@ -138,9 +138,9 @@ async function remove(userId) {
   }
 }
 
-/** 发消息：批 2 之前先回落旧页消息列表（批 2 会直接定位到这个人） */
-function openChat() {
-  location.replace(API_BASE + '/?v=chat');
+/** 发消息：进新版聊天页并带上对端（批 2 已迁，不再回落旧页） */
+function openChat(f) {
+  router.push({ name: 'chat', query: { to: f.id, name: f.name } });
 }
 
 function errText(e) {
@@ -243,7 +243,7 @@ function initial(name) {
           <div class="fr-name">{{ f.name }} <span class="fr-id">@{{ f.id }}</span></div>
         </div>
         <div class="fr-act">
-          <button class="btn primary" @click="openChat">发消息</button>
+          <button class="btn primary" @click="openChat(f)">发消息</button>
           <button class="btn ghost" @click="remove(f.id)">删除</button>
         </div>
       </div>

@@ -208,16 +208,15 @@ await check('B1-4 好友搜索：搜对方显示「已是好友」，搜自己�
   return '两个按钮态都正确';
 });
 
-await check('B1-5 好友「发消息」→ 迁移期回落旧页消息', async () => {
+await check('B1-5 好友「发消息」→ 进新版聊天页并带上对端', async () => {
   const clicked = await clickText('.fr-act button', '发消息');
   if (!clicked) throw new Error('没有发消息按钮');
-  await sleep(2600);
-  const where = await ev(`location.pathname + location.search`);
-  if (where.indexOf('v=chat') < 0) throw new Error('没回落旧页聊天：' + where);
-  await waitFor(`!!document.querySelector('#nav a')`, '旧页外壳', 15000);
-  const isOld = await ev(`typeof S !== 'undefined'`);   // 旧页有全局 S，新页没有
-  if (!isOld) throw new Error('还在 Vue 页里，没真回落旧页');
-  return where + '（旧页渲染正常）';
+  await sleep(2000);
+  const st = await ev(`({hash: location.hash, peer: (document.querySelector('.chat-head b')||{}).textContent})`);
+  // 批 2 起聊天已迁到新版，这里不再回落旧页
+  if (st.hash.indexOf('/chat') < 0) throw new Error('没进聊天页：' + st.hash);
+  if (st.hash.indexOf('to=') < 0) throw new Error('没带上对端：' + st.hash);
+  return st.hash + ' 对端=' + (st.peer || '');
 });
 
 await check('B1-6 热辩榜：12 条 / 分数降序 / 热度条按比例 / 「开辩」回落旧页单人', async () => {

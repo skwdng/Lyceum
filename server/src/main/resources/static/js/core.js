@@ -245,6 +245,9 @@ function stopNotifyPoll(){
 }
 
 function go(v){
+  // 迁移期（批 2）：聊天已迁到新前端。旧页不再承载聊天，
+  // 否则两套前端会各开一条 WebSocket（坑 #4：同一时间只允许一条连接）。
+  if (v === 'chat') { location.replace(API_BASE + '/v2/index.html#/chat'); return; }
   if (S.pollTimer && v !== 'match') { stopPoll(); S.matchId = null; S.match = null; S.roomMode = false; }
   // 记下来路：登录/注册成功后要回到这里（'me' 是登录页本身，不算来路）
   if (v !== 'me') S.lastVisitedView = v;
@@ -286,7 +289,10 @@ function render(){
   authRenderMeBox();
   syncNotifyPoll();               // 登录后开始/登出后停止 45 秒通知角标轮询
   syncChatPoll();                 // 消息角标：30 秒一次，只读 Redis 缓存
-  if (typeof chatWsStart === 'function') chatWsStart();   // 登录后建 WebSocket（幂等）
+  // 迁移期（批 2）：**旧页不再建立 WebSocket**。
+  // 聊天已迁到新前端（go('chat') 直接重定向过去），旧页的角标由上面两条轮询负责，
+  // 这样"同一时间只有一条 WS 连接"这条约束在旧页仍然成立。
+  // 原调用：if (typeof chatWsStart === 'function') chatWsStart();
   // 对局侧页面未登录时整页给「登录后可见」，不留可点的操作面板
   if (!S.user && LOGIN_ONLY_VIEWS[S.view]) {
     $('#main').innerHTML = loginGateCard(S.view);

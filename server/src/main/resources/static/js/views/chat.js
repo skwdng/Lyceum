@@ -328,13 +328,10 @@ async function chatOpen(convId){
  * 发第一条时由后端建会话（响应里带 convId，再切到真会话）。
  */
 function chatOpenWith(userId, name){
-  S.chat.convId = null;
-  S.chat.peer = { id: userId, name: name || userId };
-  S.chat.pendingPeer = { id: userId, name: name || userId };
-  S.chat.items = [];
-  S.chat.hasMore = false;
-  S.chat.stick = true;
-  go('chat');
+  // 迁移期（批 2）：聊天已迁到新前端，直接把对端带过去，打开这个人的会话。
+  // 旧实现是记 pendingPeer + go('chat')，现在统一由新版接管（含"还没有会话就先记对方"的处理）。
+  location.replace(API_BASE + '/v2/index.html#/chat?to=' + encodeURIComponent(userId) +
+    '&name=' + encodeURIComponent(name || userId));
 }
 
 /** 重新加载当前会话（错误态、对端异常、发消息被拒时都走它） */

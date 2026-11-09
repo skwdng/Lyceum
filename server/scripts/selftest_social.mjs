@@ -2,6 +2,9 @@
 // 用法：node server/scripts/selftest_social.mjs [cdpPort] [baseUrl]
 const PORT = process.argv[2] || '9456';
 const BASE = (process.argv[3] || 'http://localhost:8080').replace(/\/$/, '');
+// 聊天已迁到新前端（批 2）：旧页的聊天/WS/邀请/布局/未读用例整体跳过，
+// 它们现在由 selftest_vue_batch2.mjs 覆盖。想临时跑旧版聊天用例（回滚验证）时置 false。
+const CHAT_MOVED = true;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function getWs() {
@@ -175,6 +178,10 @@ await check('S8 好友通知点进去落在「好友」页', async () => {
   return '跳到 ' + st.view;
 });
 
+// 迁移期（批 2）：聊天已迁到新前端 /siyige/v2/#/chat，旧页不再承载聊天界面与 WebSocket。
+// 本节的用例改由 server/scripts/selftest_vue_batch2.mjs 覆盖，这里整体跳过，
+// 以免把「有意切断」误报成回归。旧页仍需保证的只有下面 S9（零 JS 异常）。
+if (!CHAT_MOVED) {
 // ==================== V2：会话与消息 ====================
 
 await check('C1 侧栏「消息」入口存在（与「通知」并列，两个角标独立）', async () => {
@@ -317,6 +324,7 @@ await check('C8 非好友发不出消息（删好友后）', async () => {
   if (code.indexOf('403') !== 0 || code.indexOf('NOT_FRIEND') < 0) throw new Error('期望 403 NOT_FRIEND，实际 ' + code);
   return code;
 });
+}
 // ==================== V3：WebSocket 实时 + 轮询兜底 ====================
 
 /** 重新建立好友关系（C8 删过） */
@@ -348,6 +356,7 @@ await check('W1 没有 token 的握手会被拒', async () => {
   if (r !== 'rejected') throw new Error('匿名握手居然成功了：' + r);
   return r;
 });
+if (!CHAT_MOVED) {
 
 await check('W2 登录后 WebSocket 自动连上（state=open）', async () => {
   await refriend();
@@ -867,6 +876,7 @@ await check('U6 打开会话时会丢掉上一次的对端，不会对着错的�
   if (st.peerId === st.me) throw new Error('peer 没被纠正，还是自己：' + JSON.stringify(st));
   return 'peer 已纠正为 ' + st.peerId;
 });
+}
 await check('S9 全程零 JS 异常', async () => {
   if (errs.length) throw new Error(errs.slice(0, 2).join(' | '));
   return '无异常';

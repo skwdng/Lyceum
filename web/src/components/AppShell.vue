@@ -15,12 +15,14 @@ import { NAV } from '../nav.js';
 import { useAuthStore } from '../stores/auth.js';
 import { useUnreadStore } from '../stores/unread.js';
 import { useWalletStore } from '../stores/wallet.js';
+import { useChatStore } from '../stores/chat.js';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const unread = useUnreadStore();
 const wallet = useWalletStore();
+const chat = useChatStore();
 
 /** 当前路由名：导航高亮用 */
 const current = computed(() => route.name);
@@ -46,7 +48,7 @@ const gateWhat = computed(() => GATE_TEXT[route.name] || '继续');
 /** 每个入口自己的角标：消息与通知各算各的，互不影响（旧版决策 12）。 */
 function badgeOf(name) {
   if (name === 'notify') return unread.notifyCount > 0 ? (unread.notifyCount > 99 ? '99+' : String(unread.notifyCount)) : '';
-  // 消息角标由批 2 的 chat store 提供；批 0/1 迁移期该入口回落旧页，旧页自己有红点
+  if (name === 'chat') return chat.unread > 0 ? (chat.unread > 99 ? '99+' : String(chat.unread)) : '';
   return '';
 }
 
@@ -65,11 +67,15 @@ function goWallet() {
 /** 余额文案：未加载显示「—」，不要假装 0.00 */
 const balanceText = computed(() => (wallet.balanceCents === null ? '—' : (wallet.balanceCents / 100).toFixed(2)));
 
-// 登录 / 换账号 / 退出都要跟着刷新余额（换账号时 wallet.reset 由 auth.resetAll 负责）
+// 登录 / 换账号：刷新余额 + 拉会话列表并建立 WebSocket（幂等）
+// 退出时由 auth.resetAll 里的 wallet.reset / chat.reset 收尾（含关掉 WS）
 watch(
   () => (auth.user ? auth.user.id : null),
   (id, old) => {
-    if (id && id !== old) wallet.refresh();
+    if (id && id !== old) {
+      wallet.refresh();
+      chat.connect();
+    }
   },
   { immediate: true }
 );

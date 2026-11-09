@@ -9,6 +9,7 @@ import HotView from './views/HotView.vue';
 import RecordsView from './views/RecordsView.vue';
 import DiagView from './views/DiagView.vue';
 import WalletView from './views/WalletView.vue';
+import ChatView from './views/ChatView.vue';
 
 /**
  * 路由表。
@@ -45,7 +46,7 @@ const routes = [
   // ---- 批 2 ----
   { path: '/solo', name: 'solo', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'solo' } },
   { path: '/room', name: 'room', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'room' } },
-  { path: '/chat', name: 'chat', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'chat' } },
+  { path: '/chat', name: 'chat', component: ChatView, meta: { requiresAuth: true } },
   { path: '/match', name: 'match', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'solo' } },
   { path: '/review', name: 'review', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'records' } },
 

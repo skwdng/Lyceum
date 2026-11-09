@@ -3,6 +3,7 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router.js';
 import './style.css';
+import './chat.css';       // 批 2 的聊天样式（旧 .soc-chat 那套）
 
 const app = createApp(App);
 

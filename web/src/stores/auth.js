@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { authApi, ApiError, getToken, setToken } from '../api.js';
 import { useUnreadStore } from './unread.js';
 import { useWalletStore } from './wallet.js';
+import { useChatStore } from './chat.js';
 
 /**
  * 登录态。
@@ -90,6 +91,7 @@ export const useAuthStore = defineStore('auth', {
     resetAll() {
       useUnreadStore().reset();
       useWalletStore().reset();     // 余额属于上一个账号，必须一起清
+      useChatStore().reset();       // 会话 / 未读 / 已读位置 / WS 连接都属于上一个账号
     }
   }
 });

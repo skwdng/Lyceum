@@ -94,8 +94,9 @@ const apiPost = async (path, body, token) =>
 
 /** 打开新前端某个 hash 路由（整页导航，等价用户手动输入地址） */
 async function openV2(hash) {
-  await send('Page.navigate', { url: V2 + hash });
-  await sleep(1500);
+  // 带变化的 query 做整页重载：只改 hash 时文档不重载，应用会带着上一个用例的内存状态（登录态）继续跑
+  await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#' + hash });
+  await sleep(1600);
   await waitFor(`!!document.querySelector('.app') || !!document.querySelector('.auth-card')`, '页面渲染', 15000);
 }
 
@@ -176,7 +177,8 @@ await check('B0-5 刷新页面后仍是登录态（token 恢复）', async () =>
 
 await check('B0-6 未登录访问需要登录的页 → 登录引导卡（不白屏）', async () => {
   await ev(`localStorage.removeItem('sy_jwt'); true`);
-  await openV2('records');
+  // 用仍未迁移的页面（单人辩论）：批 1 之后 records/diag 已经是真页面，原先的断言过期了
+  await openV2('solo');
   await sleep(1200);
   const st = await ev(`({text:document.querySelector('#main').innerText, loginBtn:!!document.querySelector('#main .btn.primary')})`);
   if (st.text.indexOf('登录后可见') < 0) throw new Error('引导卡没出现：' + st.text.slice(0, 80));
@@ -184,7 +186,7 @@ await check('B0-6 未登录访问需要登录的页 → 登录引导卡（不白
   return '引导卡正常';
 });
 
-await check('B0-7 引导卡点「去登录」→ 登录后回到原页面（#/records → 旧页 records）', async () => {
+await check('B0-7 引导卡点「去登录」→ 登录后回到原页面（#/solo → 旧页 solo）', async () => {
   await ev(`document.querySelector('#main .btn.primary').click()`);
   await sleep(1200);
   await waitFor(`!!document.querySelector('#authAccount')`, '登录表单', 15000);
@@ -193,10 +195,10 @@ await check('B0-7 引导卡点「去登录」→ 登录后回到原页面（#/re
     const set=(sel,v)=>{const el=document.querySelector(sel); el.value=v; el.dispatchEvent(new Event('input',{bubbles:true}));};
     set('#authAccount', ${JSON.stringify(ACC_A)}); set('#authPassword', ${JSON.stringify(PWD)}); return true;})()`);
   await ev(`document.querySelector('.auth-actions button').click()`);
-  // records 未迁移 → 登录后回到 #/records，再被 LegacyRedirect 送到旧页 ?v=records
+  // solo 还没迁移 → 登录后回到 #/solo，再被 LegacyRedirect 送到旧页 ?v=solo
   await sleep(3000);
   const where = await ev(`location.pathname + location.search + location.hash`);
-  if (where.indexOf('v=records') < 0) throw new Error('没回到目标页（旧页 records）：' + where + ' next=' + hasNext);
+  if (where.indexOf('v=solo') < 0) throw new Error('没回到目标页（旧页 solo）：' + where + ' next=' + hasNext);
   return where;
 });
 
