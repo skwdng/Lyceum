@@ -118,6 +118,33 @@ export const baseApi = {
 
 // ==================== 通知（批 1） ====================
 
+// ==================== 好友（批 1） ====================
+
+export const socialApi = {
+  friends: () => http.get('/api/social/friends'),
+  requests: () => http.get('/api/social/friends/requests'),
+  /** 搜人：账号要完全一致，昵称可以是片段（后端规则，前端不猜） */
+  search: (q) => http.get('/api/social/users?q=' + encodeURIComponent(q)),
+  request: (toId, note) => http.post('/api/social/friends/requests', { toId, note: note || null }),
+  accept: (requestId) => http.post('/api/social/friends/requests/' + requestId + '/accept'),
+  reject: (requestId) => http.post('/api/social/friends/requests/' + requestId + '/reject'),
+  unfriend: (userId) => http.del('/api/social/friends/' + encodeURIComponent(userId))
+};
+
+// ==================== 钱包 / 支付 / 自带 API（批 1） ====================
+
+export const walletApi = {
+  info: () => http.get('/api/wallet'),
+  history: (limit = 10) => http.get('/api/wallet/history?limit=' + limit),
+  /** 下单（此时不入账），返回 {orderId, amountCents, sign} */
+  createOrder: (amountCents) => http.post('/api/pay/orders', { amountCents }),
+  /** 支付回调：带签名，服务端验签 + 幂等入账 */
+  payCallback: (orderId, amountCents, sign, tradeNo) =>
+    http.post('/api/pay/callback', { orderId, amountCents, sign, tradeNo }),
+  llmProfile: () => http.get('/api/llm/profile'),
+  saveLlmProfile: (body) => http.post('/api/llm/profile', body),
+  testLlm: () => http.post('/api/llm/test')
+};
 export const notifyApi = {
   /** 注意：这个接口有副作用——拉一页会把该页标已读，调用后必须刷新角标 */
   list: (page = 1, size = 20) => http.get('/api/community/notifications?page=' + page + '&size=' + size),

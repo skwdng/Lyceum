@@ -3,6 +3,12 @@ import { useAuthStore } from './stores/auth.js';
 import LoginView from './views/LoginView.vue';
 import MeView from './views/MeView.vue';
 import LegacyRedirect from './views/LegacyRedirect.vue';
+import NotifyView from './views/NotifyView.vue';
+import FriendsView from './views/FriendsView.vue';
+import HotView from './views/HotView.vue';
+import RecordsView from './views/RecordsView.vue';
+import DiagView from './views/DiagView.vue';
+import WalletView from './views/WalletView.vue';
 
 /**
  * 路由表。
@@ -28,13 +34,13 @@ const routes = [
   { path: '/login', name: 'login', component: LoginView },
   { path: '/me', name: 'me', component: MeView },
 
-  // ---- 批 1 起逐步替换成真组件（下面这些先回落旧页）----
-  { path: '/notify', name: 'notify', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'notify' } },
-  { path: '/friends', name: 'friends', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'friends' } },
-  { path: '/hot', name: 'hot', component: LegacyRedirect, meta: { legacy: 'hotb' } },
-  { path: '/records', name: 'records', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'records' } },
-  { path: '/diag', name: 'diag', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'diag' } },
-  { path: '/wallet', name: 'wallet', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'me' } },
+  // ---- 批 1：已迁移（通知/好友/热辩榜/记录/诊断/钱包）----
+  { path: '/notify', name: 'notify', component: NotifyView, meta: { requiresAuth: true } },
+  { path: '/friends', name: 'friends', component: FriendsView, meta: { requiresAuth: true } },
+  { path: '/hot', name: 'hot', component: HotView },
+  { path: '/records', name: 'records', component: RecordsView, meta: { requiresAuth: true } },
+  { path: '/diag', name: 'diag', component: DiagView, meta: { requiresAuth: true } },
+  { path: '/wallet', name: 'wallet', component: WalletView, meta: { requiresAuth: true } },
 
   // ---- 批 2 ----
   { path: '/solo', name: 'solo', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'solo' } },

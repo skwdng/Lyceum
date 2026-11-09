@@ -1,10 +1,10 @@
-/* 新前端基础样式。
+/* 新前端样式。
  *
- * 来源：从旧 `css/app.css` **摘录**这一批真正用到的规则（变量、外壳、按钮、卡片、表单），
+ * 来源：从旧 `css/app.css` **摘录**实际用到的规则（变量、外壳、按钮、卡片、表单、通知、好友…），
  * 数值一个字没改 —— 两套页面必须看起来是同一个产品。
  *
  * 约定：
- * · 类名继续沿用旧的那套（.app .sb .nav .btn .card .auth-* …），减少迁移心智负担；
+ * · 类名继续沿用旧的那套（.app .sb .nav .btn .card .auth-* .fr-* .notify-* …）；
  * · 新页面的专有样式写在各组件 <style scoped> 里，**不要**往这里堆；
  * · 旧 app.css 仍是旧页面的唯一来源，两边不要互相 import（避免一批改动影响另一批）。
  */
@@ -64,7 +64,7 @@ a { color: inherit; text-decoration: none; }
 }
 .sb .me .av {
   width: 26px; height: 26px; border-radius: 7px; background: #2a2f3a; color: #fff;
-  display: flex; align-items: center; justify-content: center; font-size: 12px;
+  display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;
 }
 
 main { flex: 1; min-width: 0; padding: 24px 28px 60px; }
@@ -149,6 +149,65 @@ table.t tr:last-child td { border-bottom: none; }
 .auth-field input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(47, 91, 234, 0.1); }
 .auth-actions { display: flex; gap: 10px; margin-top: 18px; }
 .auth-account { color: var(--ink); }
+
+/* ==================== 批 1 ==================== */
+
+/* ---------- 钱包胶囊（侧栏用户名旁） ---------- */
+.wchip {
+  display: inline-block; margin-left: 8px; font-size: 11px; padding: 1px 7px; border-radius: 20px;
+  background: var(--blue-w); color: var(--blue); border: 1px solid #d6e0ff;
+  cursor: pointer; vertical-align: middle; flex-shrink: 0;
+}
+.wchip:hover { background: #e2e9ff; }
+
+/* ---------- 通用输入框 ---------- */
+.inp { border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; font-size: 13px; background: #fff; min-width: 0; flex: 1; }
+.inp:focus { outline: none; border-color: #9db4f5; box-shadow: 0 0 0 3px rgba(47, 91, 234, 0.1); }
+
+/* ---------- 好友 ---------- */
+.fr-search { display: flex; gap: 10px; align-items: center; }
+.fr-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-bottom: 1px solid #f3f1eb; }
+.fr-row:last-child { border-bottom: none; }
+.fr-av {
+  width: 34px; height: 34px; border-radius: 9px; background: var(--blue-w); color: var(--blue);
+  display: flex; align-items: center; justify-content: center; font-weight: 600; flex-shrink: 0;
+}
+.fr-main { flex: 1; min-width: 0; }
+.fr-name { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+.fr-id { font-size: 11.5px; color: var(--sub); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.fr-act { display: flex; gap: 8px; flex-shrink: 0; }
+.fr-note-text { font-size: 12px; color: var(--sub); margin-top: 2px; }
+.fr-note { display: flex; gap: 8px; align-items: center; padding: 0 14px 12px 60px; }
+
+/* ---------- 通知 ---------- */
+.notify-row {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
+  border-bottom: 1px solid var(--line); cursor: pointer; transition: background 0.15s;
+}
+.notify-row:last-child { border-bottom: none; }
+.notify-row:hover { background: #fafaf7; }
+.notify-row.unread { background: #f2f3f5; }
+.notify-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 6px; background: transparent; flex-shrink: 0; }
+.notify-row.unread .notify-dot { background: #4c9aff; }
+.notify-text { font-size: 13.5px; color: #1f2329; line-height: 1.5; word-break: break-word; }
+.notify-time { font-size: 11.5px; color: #8a909c; margin-top: 3px; }
+.notify-pager { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
+
+/* ---------- 热辩榜 ---------- */
+.heatbar { height: 4px; background: #f1efe9; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.heatbar i { display: block; height: 100%; background: linear-gradient(90deg, #2f5bea, #7c97ff); }
+.codebox {
+  background: #1e222b; color: #d6deeb; border-radius: 9px; padding: 12px 14px;
+  font: 12px/1.8 ui-monospace, monospace; overflow: auto; white-space: pre;
+}
+.codebox .c { color: #7a869a; }
+.codebox .k { color: #8fb8ff; }
+
+/* ---------- 能力诊断 ---------- */
+.dim { display: flex; align-items: center; gap: 10px; font-size: 12.5px; margin: 6px 0; }
+.dim .lb { width: 40px; color: #4a5568; }
+.dim .dbar { flex: 1; height: 6px; background: #f1efe9; border-radius: 4px; overflow: hidden; }
+.dim .dbar i { display: block; height: 100%; background: var(--blue); border-radius: 4px; }
 
 /* ---------- 移动端：与旧版保持一致（只压缩用户卡） ---------- */
 @media (max-width: 860px) {

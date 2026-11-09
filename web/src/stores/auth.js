@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { authApi, ApiError, getToken, setToken } from '../api.js';
 import { useUnreadStore } from './unread.js';
+import { useWalletStore } from './wallet.js';
 
 /**
  * 登录态。
@@ -88,6 +89,7 @@ export const useAuthStore = defineStore('auth', {
     /** 清空所有与"当前账号"绑定的状态（后续批次在这里追加新的 store）。 */
     resetAll() {
       useUnreadStore().reset();
+      useWalletStore().reset();     // 余额属于上一个账号，必须一起清
     }
   }
 });

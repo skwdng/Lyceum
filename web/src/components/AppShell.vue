@@ -9,16 +9,18 @@
  * 1. 未登录时，需要登录的页面渲染**登录引导卡**（等价旧版 loginGateCard）；
  * 2. 侧栏底部给一个「返回旧版」入口，方便并排对比（批 4 删旧文件时去掉）。
  */
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NAV } from '../nav.js';
 import { useAuthStore } from '../stores/auth.js';
 import { useUnreadStore } from '../stores/unread.js';
+import { useWalletStore } from '../stores/wallet.js';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const unread = useUnreadStore();
+const wallet = useWalletStore();
 
 /** 当前路由名：导航高亮用 */
 const current = computed(() => route.name);
@@ -56,6 +58,22 @@ function goMe() {
   router.push({ name: 'me' });
 }
 
+function goWallet() {
+  router.push({ name: 'wallet' });
+}
+
+/** 余额文案：未加载显示「—」，不要假装 0.00 */
+const balanceText = computed(() => (wallet.balanceCents === null ? '—' : (wallet.balanceCents / 100).toFixed(2)));
+
+// 登录 / 换账号 / 退出都要跟着刷新余额（换账号时 wallet.reset 由 auth.resetAll 负责）
+watch(
+  () => (auth.user ? auth.user.id : null),
+  (id, old) => {
+    if (id && id !== old) wallet.refresh();
+  },
+  { immediate: true }
+);
+
 const avatarText = computed(() => {
   const n = auth.user && (auth.user.name || auth.user.account);
   return n ? String(n).slice(0, 1) : '登';
@@ -83,12 +101,14 @@ const avatarText = computed(() => {
 
       <div class="me" @click="goMe">
         <div class="av">{{ avatarText }}</div>
-        <div>
+        <div style="min-width: 0">
           <div>{{ auth.displayName }}</div>
           <div style="font-size: 11px; color: #a8adb8">
             {{ auth.user ? '@' + auth.user.account : '点击登录' }}
           </div>
         </div>
+        <!-- 余额胶囊：等价旧版 walletChipHTML（旧版点开弹窗，这里进 #/wallet 路由） -->
+        <span v-if="auth.user" class="wchip" title="点击查看钱包" @click.stop="goWallet">¥{{ balanceText }}</span>
       </div>
     </aside>
 

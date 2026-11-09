@@ -92,8 +92,16 @@ async function boot(){
     await loadDash();             // 未登录内部直接置空，页面显示「登录后可见」
     render();
     // 兼容旧链接 /community.html?  以及 /?v=community 深链
-    const qv = new URLSearchParams(location.search).get('v');
+    const qp = new URLSearchParams(location.search);
+    const qv = qp.get('v');
     if (qv && NAV.some(n => n.k === qv)) go(qv);
+    // 迁移期（2026-11-09）：新版通知页点「帖子类」通知时转回这里，带 postId/commentId 直接定位到那一楼。
+    // 新前端批 3 迁完社区后会删掉这条路径，这段也随之失去调用方。
+    const deepPostId = qp.get('postId');
+    if (deepPostId && qv === 'community') {
+      await cmOpenPost(Number(deepPostId),
+        qp.get('commentId') ? { aroundCommentId: Number(qp.get('commentId')) } : undefined);
+    }
   } catch (e) {
     $('#main').innerHTML = `<div class="card"><b>连不上后端</b><p class="sub" style="margin:8px 0 0">${esc(e.message)}</p>
       <p style="font-size:12.5px;color:#6B7280;margin-top:8px">确认服务在跑：<span class="mono">http://localhost:8080/api/health</span></p></div>`;
