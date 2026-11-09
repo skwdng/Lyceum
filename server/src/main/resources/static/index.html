@@ -11,6 +11,9 @@
   <aside class="sb">
     <div class="logo"><div class="m">思</div><div><b>思弈阁</b><span>AI 辩论训练</span></div></div>
     <nav class="nav" id="nav"></nav>
+    <!-- 迁移期：新版前端入口。用相对路径，本地(/v2/)与线上(/siyige/v2/)都能定位；
+         带 index.html 是因为 Spring 静态资源不做目录索引，/v2/ 会 404 -->
+    <a class="v2-entry" href="v2/index.html#/" title="新版界面（Vue）">试用新版 →</a>
     <div class="me" id="meBox" onclick="go('me')"><div class="av" id="meAv">登</div><div><div id="meName">演示用户</div><div style="font-size:11px;color:#A8ADB8" id="meSub">连接中…</div></div></div>
   </aside>
   <main id="main"><div class="empty">正在连接后端…</div></main>
