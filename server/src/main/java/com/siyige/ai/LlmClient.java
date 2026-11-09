@@ -32,6 +32,37 @@ public class LlmClient {
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10)).build();
 
+    /** 用户自带的模型配置（baseUrl / key / model）。为 null 表示用服务端默认。 */
+    public record Profile(String baseUrl, String apiKey, String model) { }
+
+    /** 当前线程使用的配置覆盖（按对局绑定，调用完必须清）。 */
+    private static final ThreadLocal<Profile> OVERRIDE = new ThreadLocal<>();
+
+    /** 使用用户自己的 key 跑这一轮（计费时模型成本为 0）。 */
+    public void useProfile(Profile p) {
+        if (p == null) OVERRIDE.remove();
+        else OVERRIDE.set(p);
+    }
+
+    public void clearProfile() { OVERRIDE.remove(); }
+
+    public boolean usingOwnKey() { return OVERRIDE.get() != null; }
+
+    private String activeBaseUrl() {
+        Profile p = OVERRIDE.get();
+        return p == null ? baseUrl : (p.baseUrl() == null || p.baseUrl().isBlank() ? baseUrl : p.baseUrl());
+    }
+
+    private String activeKey() {
+        Profile p = OVERRIDE.get();
+        return p == null ? apiKey : (p.apiKey() == null || p.apiKey().isBlank() ? apiKey : p.apiKey());
+    }
+
+    private String activeModel() {
+        Profile p = OVERRIDE.get();
+        return p == null ? model : (p.model() == null || p.model().isBlank() ? model : p.model());
+    }
+
     private final String baseUrl;
     private final String apiKey;
     private final String model;
@@ -88,7 +119,7 @@ public class LlmClient {
     /** 普通对话（可指定温度——每个席位人设的温度不一样）。 */
     public String chat(String system, String user, double temperature, int timeoutSec) throws Exception {
         String body = json.writeValueAsString(Map.of(
-                "model", model,
+                "model", activeModel(),
                 "temperature", temperature,
                 "messages", List.of(
                         Map.of("role", "system", "content", system),
@@ -114,7 +145,7 @@ public class LlmClient {
     public String chat(String system, String user, double temperature, int timeoutSec, int maxTokens)
             throws Exception {
         String body = json.writeValueAsString(Map.of(
-                "model", model,
+                "model", activeModel(),
                 "temperature", temperature,
                 "max_tokens", maxTokens,
                 "messages", List.of(
@@ -136,7 +167,7 @@ public class LlmClient {
     /** 结构化输出：要求模型只返回 JSON 对象。 */
     public String chatJson(String system, String user, int timeoutSec) throws Exception {
         String body = json.writeValueAsString(Map.of(
-                "model", model,
+                "model", activeModel(),
                 "temperature", 0.2,
                 "response_format", Map.of("type", "json_object"),
                 "messages", List.of(
@@ -152,10 +183,10 @@ public class LlmClient {
     }
 
     private String post(String body, int timeoutSec) throws Exception {
-        HttpRequest req = HttpRequest.newBuilder(URI.create(baseUrl.replaceAll("/+$", "") + "/chat/completions"))
+        HttpRequest req = HttpRequest.newBuilder(URI.create(activeBaseUrl().replaceAll("/+$", "") + "/chat/completions"))
                 .timeout(Duration.ofSeconds(timeoutSec))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
+                .header("Authorization", "Bearer " + activeKey())
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                 .build();
         HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));

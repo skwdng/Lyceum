@@ -215,6 +215,15 @@ public class AiService {
 
     /** 把本轮模型调用归到某场对局（计费用）。 */
     public void bind(String matchId) { llm.bindMatch(matchId); }
+
+    /** 如果该用户配了自己的模型，这一轮就用他的 key。 */
+    public void useOwnProfile(String userId, com.siyige.billing.UserLlmService userLlm) {
+        if (userLlm == null || userId == null) return;
+        var p = userLlm.profileOf(userId);
+        if (p != null) llm.useProfile(p);
+    }
+
+    public void clearOwnProfile() { llm.clearProfile(); }
     public void unbind() { llm.unbindMatch(); }
     public long tokensForMatch(String matchId) { return llm.tokensForMatch(matchId); }
     public void clearMatchUsage(String matchId) { llm.clearMatchUsage(matchId); }

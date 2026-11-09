@@ -141,6 +141,36 @@ public class WalletService {
         return out;
     }
 
+    /**
+     * 用户自带 key 的结算：模型成本为 0，只扣服务费。
+     */
+    public Map<String, Object> settleOwnKey(String userId, String matchId) {
+        ensureWallet(userId);
+        long held = -repo.matchNet(userId, matchId);
+        long should = serviceFeeCents;
+        long delta = held - should;
+        String note = "结算（用户自带 key）：模型成本 0 + 服务费 " + serviceFeeCents + " 分";
+        if (delta > 0) {
+            repo.add(userId, delta);
+            repo.log(userId, "REFUND", delta, repo.balance(userId), matchId, note + "（退差额）");
+        } else if (delta < 0) {
+            repo.add(userId, delta);
+            repo.log(userId, "SETTLE", delta, repo.balance(userId), matchId, note + "（补差额）");
+        } else {
+            repo.log(userId, "SETTLE", 0, repo.balance(userId), matchId, note);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ownKey", true);
+        out.put("tokens", 0);
+        out.put("modelCostCents", 0);
+        out.put("serviceFeeCents", serviceFeeCents);
+        out.put("totalCents", should);
+        out.put("refundCents", Math.max(0, delta));
+        out.put("extraCents", Math.max(0, -delta));
+        out.put("balanceCents", repo.balance(userId));
+        return out;
+    }
+
     /** 对局开始时的 token 快照（结算用差值）。 */
     public long tokenSnapshot() { return llm == null ? 0 : llm.totalTokens(); }
 

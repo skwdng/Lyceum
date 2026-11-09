@@ -92,6 +92,11 @@ public class Store {
         jdbc.update("update sy_match set bill_tokens=? where id=?", tokens, id);
     }
 
+    /** 标记本场用的是用户自带 key（结算时模型成本记 0）。 */
+    public void setOwnKey(String id, boolean own) {
+        jdbc.update("update sy_match set own_key=? where id=?", own, id);
+    }
+
     public Map<String, Object> match(String id) {
         List<Map<String, Object>> rows = jdbc.queryForList("select * from sy_match where id=?", id);
         return rows.isEmpty() ? null : lower(rows.get(0));

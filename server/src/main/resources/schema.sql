@@ -178,3 +178,6 @@ create index if not exists ix_wallet_tx_user on sy_wallet_tx(user_id, id desc);
 -- v5 计费：开局 token 快照 + 本场实际用量
 alter table sy_match add column if not exists token_base bigint default 0;
 alter table sy_match add column if not exists bill_tokens bigint default 0;
+
+-- 用户自带 key 的对局标记
+alter table sy_match add column if not exists own_key boolean default false;

@@ -36,6 +36,7 @@ public class MatchService {
     private final UtteranceCheck utterance;
     private final java.util.Random rnd = new java.util.Random();
     private final com.siyige.billing.WalletService wallet;
+    private final com.siyige.billing.UserLlmService userLlm;
     private final HotRank hot;
     private final SseHub hub;
     private final FlawService flaw;
@@ -52,13 +53,15 @@ public class MatchService {
                         @Value("${siyige.pace.turn-seconds:300}") int defaultTurnSeconds,
                         @Value("${siyige.pace.ai-delay-scale:1.0}") double aiDelayScale,
                         UtteranceCheck utterance,
-                        com.siyige.billing.WalletService wallet) {
+                        com.siyige.billing.WalletService wallet,
+                        com.siyige.billing.UserLlmService userLlm) {
         this.store = store; this.ai = ai; this.scorer = scorer; this.hot = hot; this.hub = hub;
         this.flaw = flaw; this.json = json; this.timeScale = timeScale; this.aiThinkMs = aiThinkMs;
         this.defaultTurnSeconds = defaultTurnSeconds;
         this.aiDelayScale = aiDelayScale;
         this.utterance = utterance;
         this.wallet = wallet;
+        this.userLlm = userLlm;
     }
 
     // ---------- 开局 ----------
@@ -101,6 +104,16 @@ public class MatchService {
         store.createMatch(id, userId, topicId, String.valueOf(topic.get("title")), mode,
                 TurnEngine.joinSeats(seats), turnSec, pace, difficulty, kind, deadline,
                 queryRounds, freeRounds);
+        // 用户自带 key：这一场的模型调用走他自己的额度，平台只收服务费
+        boolean ownKey = false;
+        if (userLlm != null) {
+            var profile = userLlm.profileOf(userId);
+            if (profile != null) {
+                ownKey = true;
+                store.setOwnKey(id, true);
+            }
+        }
+
         // 计费：开局预扣（余额不足直接拒绝，不给开）
         if (wallet != null) {
             long held = wallet.hold(userId, id);
@@ -190,11 +203,13 @@ public class MatchService {
             String aiSeat = pickAiSeat(m, cur);
             if (aiSeat == null) return;                     // 全是玩家席位，等玩家抢
             ai.bind(id);
+            ai.useOwnProfile(str(m.get("user_id")), userLlm);
             String line;
             try {
                 line = ai.speak(aiSeat, cur.seg(), str(m.get("topic_title")),
                     str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
             } finally {
+                ai.clearOwnProfile();
                 ai.unbind();
             }
             FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
@@ -220,11 +235,13 @@ public class MatchService {
                     "content", "（超时未发言）", "timeout", true));
         } else {
             ai.bind(id);
+            ai.useOwnProfile(str(m.get("user_id")), userLlm);
             String line;
             try {
                 line = ai.speak(cur.seat(), cur.seg(), str(m.get("topic_title")),
                     str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
             } finally {
+                ai.clearOwnProfile();
                 ai.unbind();
             }
             // 按难度概率埋一处逻辑漏洞，供玩家抓
@@ -372,6 +389,15 @@ public class MatchService {
         try {
             String userId = str(m.get("user_id"));
             // 按对局精确归集：不受其它对局 / 其它接口调用影响
+            boolean own = "true".equalsIgnoreCase(str(m.get("own_key")));
+            if (own) {
+                // 用用户自己的 key：模型成本不计，只收服务费
+                Map<String, Object> bill = wallet.settleOwnKey(userId, matchId);
+                store.saveBill(matchId, 0);
+                hub.emit(matchId, "bill", bill);
+                ai.clearMatchUsage(matchId);
+                return;
+            }
             long used = ai.tokensForMatch(matchId);
             if (used <= 0) {
                 // 兜底：极端情况下（模型未启用、全部走模板）用全局差值

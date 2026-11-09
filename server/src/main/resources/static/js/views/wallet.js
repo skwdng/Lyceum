@@ -59,6 +59,36 @@ function openWallet() {
         </div>
       </div>
 
+      <div class="card" style="margin-top:14px;padding:12px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <b style="font-size:12.5px">用自己的 API</b>
+          <span id="vLlmState" style="font-size:11.5px;color:#8A909C">读取中…</span>
+        </div>
+        <div style="font-size:11.5px;color:#A8ADB8;margin:4px 0 8px">
+          填自己的 key 跑对局：模型成本不算钱，只收 0.30 元/场服务费。
+        </div>
+        <div id="vLlmBlock">
+          <div class="field" style="margin-bottom:8px">
+            <label>Base URL</label>
+            <input id="vLlmBase" class="vinput" placeholder="https://api.deepseek.com/v1" style="width:100%;background:#FCFBF8;border:1px solid #E6E3DC;border-radius:9px;padding:8px 10px;color:#1A1D24;font-size:13px">
+          </div>
+          <div class="field" style="margin-bottom:8px">
+            <label>模型</label>
+            <input id="vLlmModel" class="vinput" placeholder="deepseek-chat" style="width:100%;background:#FCFBF8;border:1px solid #E6E3DC;border-radius:9px;padding:8px 10px;color:#1A1D24;font-size:13px">
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <label>API Key（留空表示不改）</label>
+            <input id="vLlmKey" type="password" class="vinput" placeholder="sk-…" style="width:100%;background:#FCFBF8;border:1px solid #E6E3DC;border-radius:9px;padding:8px 10px;color:#1A1D24;font-size:13px">
+          </div>
+          <div class="row" style="gap:8px">
+            <button class="btn sm ghost" onclick="saveLlmProfile(true)">保存并启用</button>
+            <button class="btn sm ghost" onclick="saveLlmProfile(false)">停用</button>
+            <button class="btn sm ghost" onclick="testLlm()">测试连通</button>
+          </div>
+          <div id="vLlmMsg" style="font-size:11.5px;margin-top:8px;color:#8A909C"></div>
+        </div>
+      </div>
+
       <div style="margin-top:16px">
         <b style="font-size:12.5px">最近流水</b>
         <div id="walletTx" style="margin-top:6px"><div class="empty" style="padding:12px 0">加载中…</div></div>
@@ -66,6 +96,7 @@ function openWallet() {
     </div>`;
   host.appendChild(m);
   refreshWalletTx();
+  if (typeof loadLlmProfile === 'function') loadLlmProfile();
 }
 
 async function refreshWalletTx() {
@@ -125,4 +156,45 @@ function billHTML(billTokens) {
     <div class="kv"><span>服务费</span><b>¥${money(fee)}</b></div>
     <div style="font-size:11.5px;color:#A8ADB8;margin-top:4px">已从钱包扣除；余额 ¥${money(info.balanceCents)}</div>
   </div>`;
+}
+
+
+// ---------- 用自己的 API（BYOK） ----------
+async function loadLlmProfile() {
+  const st = document.getElementById('vLlmState');
+  try {
+    const d = await api('/api/llm/profile');
+    if (st) st.textContent = d.enabled ? '已启用 · ' + (d.keyMask || '') : (d.configured ? '已保存（未启用）' : '未配置');
+    const b = document.getElementById('vLlmBase'); if (b && d.baseUrl) b.value = d.baseUrl;
+    const m = document.getElementById('vLlmModel'); if (m && d.model) m.value = d.model;
+  } catch (e) { if (st) st.textContent = '读取失败'; }
+}
+
+async function saveLlmProfile(enabled) {
+  const msg = document.getElementById('vLlmMsg');
+  try {
+    const d = await api('/api/llm/profile', {
+      method: 'POST',
+      body: {
+        baseUrl: (document.getElementById('vLlmBase') || {}).value || '',
+        model: (document.getElementById('vLlmModel') || {}).value || '',
+        apiKey: (document.getElementById('vLlmKey') || {}).value || '',
+        enabled: !!enabled
+      }
+    });
+    if (msg) msg.textContent = enabled ? ('已启用 · ' + (d.keyMask || '')) : '已停用（改用平台额度）';
+    const k = document.getElementById('vLlmKey'); if (k) k.value = '';
+    loadLlmProfile();
+  } catch (e) { if (msg) msg.textContent = '保存失败：' + e.message; }
+}
+
+async function testLlm() {
+  const msg = document.getElementById('vLlmMsg');
+  if (msg) msg.textContent = '测试中…';
+  try {
+    const d = await api('/api/llm/test', { method: 'POST' });
+    if (msg) msg.textContent = d.ok
+      ? ('连通正常 · ' + d.latencyMs + 'ms · 模型回「' + (d.reply || '') + '」')
+      : ('失败：' + (d.reason || '未知原因'));
+  } catch (e) { if (msg) msg.textContent = '测试失败：' + e.message; }
 }
