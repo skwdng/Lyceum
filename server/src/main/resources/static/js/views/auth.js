@@ -93,6 +93,9 @@ async function authRestore() {
   if (!authToken()) { S.user = null; return; }
   try {
     S.user = await authApi('/api/auth/me', 'GET');
+    // 恢复完登录态刷一下侧栏（含余额胶囊）
+    authRenderMeBox();
+    if (S.user && typeof walletRefresh === 'function') walletRefresh();
   } catch (e) {
     // 401 已在 authApi 里清 token；其它错误（网络/503）保留 token，下次再试
     if ((e && e.code) === 'UNAUTHORIZED') S.user = null;
@@ -278,6 +281,22 @@ function authRenderMeBox() {
   if (av) av.textContent = u ? (name.slice(0, 1) || '?') : '登';
   if (nm) nm.textContent = u ? name : '未登录';
   if (sub) sub.textContent = u ? '@' + u.account : '点此登录 / 注册';
+  // 登录后挂一个余额胶囊（点一下开钱包）
+  const oldChip = box.querySelector('.wchip');
+  if (oldChip) oldChip.remove();
+  if (u && typeof openWallet === 'function') {
+    const chip = document.createElement('span');
+    chip.className = 'wchip';
+    chip.textContent = '¥' + ((typeof W !== 'undefined' && W.info) ? money(W.info.balanceCents) : '—');
+    chip.onclick = ev => { ev.stopPropagation(); openWallet(); };
+    box.appendChild(chip);
+    if (typeof walletRefresh === 'function') {
+      walletRefresh().then(() => {
+        const c = box.querySelector('.wchip');
+        if (c && W.info) c.textContent = '¥' + money(W.info.balanceCents);
+      });
+    }
+  }
   box.title = u ? '@' + u.account + ' · 点击管理账号' : '点击登录或注册';
   box.classList.toggle('on', !!u);
 }

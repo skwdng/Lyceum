@@ -70,16 +70,26 @@ public class Store {
 
     // ---------- match ----------
     public void createMatch(String id, String userId, String topicId, String topicTitle,
-                            String mode, String mySeats, int turnSec, String pace, String difficulty, String kind, Long deadline) {
+                            String mode, String mySeats, int turnSec, String pace, String difficulty, String kind, Long deadline, int queryRounds, int freeRounds) {
         if (deadline == null) {
-            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,step,status,deadline_at) "
-                    + "values(?,?,?,?,?,?,?,?,?,?,0,'RUNNING',null)",
-                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind);
+            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,step,status,deadline_at) "
+                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',null)",
+                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds);
         } else {
-            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,step,status,deadline_at) "
-                    + "values(?,?,?,?,?,?,?,?,?,?,0,'RUNNING',?)",
-                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, ts(deadline));
+            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,step,status,deadline_at) "
+                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',?)",
+                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds, ts(deadline));
         }
+    }
+
+    /** 开局时的全局 token 快照，结算用差值。 */
+    public void setTokenBase(String id, long tokens) {
+        jdbc.update("update sy_match set token_base=? where id=?", tokens, id);
+    }
+
+    /** 结算后把本场 token 用量写进对局。 */
+    public void saveBill(String id, long tokens) {
+        jdbc.update("update sy_match set bill_tokens=? where id=?", tokens, id);
     }
 
     public Map<String, Object> match(String id) {

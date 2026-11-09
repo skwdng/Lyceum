@@ -34,6 +34,8 @@ public class MatchService {
     private final AiService ai;
     private final ScoreService scorer;
     private final UtteranceCheck utterance;
+    private final java.util.Random rnd = new java.util.Random();
+    private final com.siyige.billing.WalletService wallet;
     private final HotRank hot;
     private final SseHub hub;
     private final FlawService flaw;
@@ -49,12 +51,14 @@ public class MatchService {
                         @Value("${siyige.pace.ai-think-ms:1800}") long aiThinkMs,
                         @Value("${siyige.pace.turn-seconds:300}") int defaultTurnSeconds,
                         @Value("${siyige.pace.ai-delay-scale:1.0}") double aiDelayScale,
-                        UtteranceCheck utterance) {
+                        UtteranceCheck utterance,
+                        com.siyige.billing.WalletService wallet) {
         this.store = store; this.ai = ai; this.scorer = scorer; this.hot = hot; this.hub = hub;
         this.flaw = flaw; this.json = json; this.timeScale = timeScale; this.aiThinkMs = aiThinkMs;
         this.defaultTurnSeconds = defaultTurnSeconds;
         this.aiDelayScale = aiDelayScale;
         this.utterance = utterance;
+        this.wallet = wallet;
     }
 
     // ---------- 开局 ----------
@@ -86,13 +90,27 @@ public class MatchService {
         if (topic == null) throw new IllegalArgumentException("辩题不存在");
 
         String id = "m" + UUID.randomUUID().toString().replace("-", "").substring(0, 10);
-        List<Format.Step> steps = Format.stepsOf(mode);
+        // 质询 2–4 轮/方，自由辩 3–6 轮，每场随机——真实比赛不固定
+        int queryRounds = Format.randomQueryRounds(rnd);
+        int freeRounds = Format.randomFreeRounds(rnd);
+        List<Format.Step> steps = Format.stepsOf(mode, queryRounds, freeRounds);
         boolean firstMine = TurnEngine.isMine(seats, steps.get(0).seat());
         int turnSec = stepSeconds(steps.get(0), turnSeconds, pace, kind);
         // 开场不需要"等对方说完"，AI 直接开口（1.2 秒）
         Long deadline = firstMine ? deadlineFor(turnSec) : Long.valueOf(openingDelay());
         store.createMatch(id, userId, topicId, String.valueOf(topic.get("title")), mode,
-                TurnEngine.joinSeats(seats), turnSec, pace, difficulty, kind, deadline);
+                TurnEngine.joinSeats(seats), turnSec, pace, difficulty, kind, deadline,
+                queryRounds, freeRounds);
+        // 计费：开局预扣（余额不足直接拒绝，不给开）
+        if (wallet != null) {
+            long held = wallet.hold(userId, id);
+            if (held < 0) {
+                throw new IllegalStateException("余额不足，请先充值（本场预估 "
+                        + (wallet.estimateCents() / 100.0) + " 元）");
+            }
+            store.setTokenBase(id, wallet.tokenSnapshot());
+        }
+
         store.incPlays(topicId);
         hot.zincrby(topicId, 1);   // 开辩 +1
         hub.emit(id, "match.start", Map.of(
@@ -105,7 +123,7 @@ public class MatchService {
 
     public Map<String, Object> submit(String matchId, String content, String inputType) throws Exception {
         Map<String, Object> m = require(matchId);
-        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")));
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
         int step = num(m.get("step"));
         Format.Step cur = Format.stepAt(steps, step);
         if (cur == null) throw new IllegalStateException("对局已结束");
@@ -154,7 +172,7 @@ public class MatchService {
         }
         if (Instant.now().isBefore(deadline)) return;
 
-        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")));
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
         int step = num(m.get("step"));
         Format.Step cur = Format.stepAt(steps, step);
         if (cur == null) { finish(id, m); return; }
@@ -229,7 +247,7 @@ public class MatchService {
         if (used >= com.siyige.domain.Pace.MAX_EXTEND)
             return Map.of("extended", false, "reason", "max", "used", used);
 
-        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")));
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
         Format.Step cur = Format.stepAt(steps, num(m.get("step")));
         if (cur == null) return Map.of("extended", false, "reason", "finished");
         if (!TurnEngine.isMine(TurnEngine.parseSeats(str(m.get("my_seats"))), cur.seat()))
@@ -285,7 +303,7 @@ public class MatchService {
         java.util.Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
         if (mine.isEmpty()) return Map.of("ok", false, "reason", "你没有席位");
         String seat = mine.iterator().next();
-        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")));
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
         Format.Step cur = Format.stepAt(steps, num(m.get("step")));
         int turnSec = stepSeconds(cur, 0, str(m.get("pace")), str(m.get("kind")));
         store.setPhaseWithBuzz(matchId, "STEP", seat);      // 记下是谁抢到的
@@ -327,7 +345,7 @@ public class MatchService {
             return Map.of("ok", false, "reason", "多人对局不能跳过");
         if ("BUZZ".equals(str(m.get("phase"))))
             return Map.of("ok", false, "reason", "抢拍阶段不能跳过");
-        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")));
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
         Format.Step cur = Format.stepAt(steps, num(m.get("step")));
         if (cur == null) return Map.of("ok", false, "reason", "已结束");
         if (TurnEngine.isMine(TurnEngine.parseSeats(str(m.get("my_seats"))), cur.seat()))
@@ -336,7 +354,23 @@ public class MatchService {
         hub.emit(matchId, "skip", Map.of("step", num(m.get("step")) + 1));
         return Map.of("ok", true);
     }
+    /** 结算本场费用：按实际 token 用量多退少补。 */
+    private void settleBilling(String matchId, Map<String, Object> m) {
+        if (wallet == null) return;
+        try {
+            String userId = str(m.get("user_id"));
+            long base = num(m.get("token_base"));
+            long used = Math.max(0, wallet.tokenSnapshot() - base);
+            Map<String, Object> bill = wallet.settle(userId, matchId, used);
+            store.saveBill(matchId, used);
+            hub.emit(matchId, "bill", bill);
+        } catch (Exception e) {
+            log.warn("结算失败 {}: {}", matchId, e.toString());
+        }
+    }
+
     private void finish(String matchId, Map<String, Object> m) throws Exception {
+        settleBilling(matchId, m);
         List<Map<String, Object>> turns = store.turns(matchId);
         Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
         ScoreService.Score sc = scorer.score(turns, mine, str(m.get("topic_id")), store.flaws(matchId));
@@ -394,7 +428,7 @@ public class MatchService {
 
     public Map<String, Object> detail(String matchId) throws Exception {
         Map<String, Object> m = require(matchId);
-        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")));
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
         int step = num(m.get("step"));
         Format.Step cur = Format.stepAt(steps, step);
         Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
@@ -432,6 +466,9 @@ public class MatchService {
         // 按席位分别给分：占两个位置时能看出每个位置打得怎么样
         out.put("seatScores", scorer.scorePerSeat(turns, mine, str(m.get("topic_id")), store.flaws(matchId)));
         out.put("turns", turns);
+        out.put("billTokens", num(m.get("bill_tokens")));
+        out.put("queryRounds", num(m.get("query_rounds")));
+        out.put("freeRounds", num(m.get("free_rounds")));
         return out;
     }
 

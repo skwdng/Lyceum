@@ -83,6 +83,8 @@ function viewReview(){
       <div id="panelBody"></div>
     </div>
 
+    ${billHTML(S.review?.billTokens)}
+
     <div class="row" style="margin-top:16px">
       <button class="btn primary" onclick="go('solo')">再来一场</button>
       <button class="btn ghost" onclick="go('diag')">看能力画像</button>

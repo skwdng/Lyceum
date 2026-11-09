@@ -41,6 +41,14 @@ public class AuthFilterConfig {
      * <p>与社区同构：**浏览匿名可看、写操作要登录**——广场/详情不登录也能刷，
      * 发布、点赞、评论必须登录。用 COMMUNITY 作用域即可（规则一致）。
      */
+    /** 钱包与计费：读写都要登录（余额、充值、流水）。 */
+    @Bean
+    public FilterRegistrationBean<JwtAuthFilter> walletJwtFilter(JwtService jwt, TokenBlacklist blacklist,
+                                                                 UserStatusSource userStatus) {
+        return register("walletJwtFilter", jwt, blacklist, userStatus,
+                JwtAuthFilter.Scope.DEBATE, "/api/wallet", "/api/wallet/*");
+    }
+
     @Bean
     public FilterRegistrationBean<JwtAuthFilter> videoJwtFilter(JwtService jwt, TokenBlacklist blacklist,
                                                                 UserStatusSource userStatus) {

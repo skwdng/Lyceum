@@ -451,3 +451,9 @@
 
 /* 会话信息异常提示条（2026-11-07，账号切换后旧状态被作废时的兜底提示） */
 .chat-warn{background:#FFF7E6;border-bottom:1px solid #F5DFB8;color:#8A5A00;font-size:12px;padding:8px 16px;flex-shrink:0}
+
+
+/* 钱包余额胶囊 */
+.wchip{display:inline-block;margin-left:8px;font-size:11px;padding:1px 7px;border-radius:20px;
+  background:#EDF1FE;color:#2F5BEA;border:1px solid #D6E0FF;cursor:pointer;vertical-align:middle}
+.wchip:hover{background:#E2E9FF}
