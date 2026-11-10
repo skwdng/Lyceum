@@ -37,6 +37,7 @@ public class MatchService {
     private final java.util.Random rnd = new java.util.Random();
     private final com.siyige.billing.WalletService wallet;
     private final com.siyige.billing.UserLlmService userLlm;
+    private final com.siyige.ai.AiTier aiTier;
     private final HotRank hot;
     private final SseHub hub;
     private final FlawService flaw;
@@ -54,7 +55,8 @@ public class MatchService {
                         @Value("${siyige.pace.ai-delay-scale:1.0}") double aiDelayScale,
                         UtteranceCheck utterance,
                         com.siyige.billing.WalletService wallet,
-                        com.siyige.billing.UserLlmService userLlm) {
+                        com.siyige.billing.UserLlmService userLlm,
+                        com.siyige.ai.AiTier aiTier) {
         this.store = store; this.ai = ai; this.scorer = scorer; this.hot = hot; this.hub = hub;
         this.flaw = flaw; this.json = json; this.timeScale = timeScale; this.aiThinkMs = aiThinkMs;
         this.defaultTurnSeconds = defaultTurnSeconds;
@@ -62,6 +64,7 @@ public class MatchService {
         this.utterance = utterance;
         this.wallet = wallet;
         this.userLlm = userLlm;
+        this.aiTier = aiTier;
     }
 
     // ---------- 开局 ----------
@@ -85,6 +88,12 @@ public class MatchService {
 
     public String create(String userId, String topicId, String seatsRaw, String mode, int turnSeconds,
                          String pace, String difficulty, String kind) throws Exception {
+        return create(userId, topicId, seatsRaw, mode, turnSeconds, pace, difficulty, kind, null, null);
+    }
+
+    /** 带 AI 档位与付款人的开局（多人房间传房主为付款人）。 */
+    public String create(String userId, String topicId, String seatsRaw, String mode, int turnSeconds,
+                         String pace, String difficulty, String kind, String tierRaw, String payerUserId) throws Exception {
         Set<String> seats = TurnEngine.parseSeats(seatsRaw);
         for (String s : seats) {
             if (!TurnEngine.validSeat(s)) throw new IllegalArgumentException("非法席位: " + s);
@@ -101,22 +110,29 @@ public class MatchService {
         int turnSec = stepSeconds(steps.get(0), turnSeconds, pace, kind);
         // 开场不需要"等对方说完"，AI 直接开口（1.2 秒）
         Long deadline = firstMine ? deadlineFor(turnSec) : Long.valueOf(openingDelay());
+        String tier = aiTier == null ? "PRO" : aiTier.normalize(tierRaw);
         store.createMatch(id, userId, topicId, String.valueOf(topic.get("title")), mode,
                 TurnEngine.joinSeats(seats), turnSec, pace, difficulty, kind, deadline,
-                queryRounds, freeRounds);
-        // 用户自带 key：这一场的模型调用走他自己的额度，平台只收服务费
-        boolean ownKey = false;
-        if (userLlm != null) {
-            var profile = userLlm.profileOf(userId);
-            if (profile != null) {
-                ownKey = true;
+                queryRounds, freeRounds, tier, payerUserId);
+        // 档位落地：BYOK 需要真的有 key；没配 key 就退回 PRO
+        if ("BYOK".equals(tier) && userLlm != null) {
+            if (userLlm.profileOf(userId) == null) {
+                tier = "PRO";
+                store.setTier(id, tier);
+            } else {
                 store.setOwnKey(id, true);
             }
+        } else if (userLlm != null && userLlm.profileOf(userId) != null) {
+            // 配了自己的 key 但没选档位：默认按自带 Key 走（不多收模型成本）
+            store.setOwnKey(id, true);
         }
 
-        // 计费：开局预扣（余额不足直接拒绝，不给开）
-        if (wallet != null) {
-            long held = wallet.hold(userId, id);
+        // 计费：基础版 / 自带 Key 都免费，不预扣；只有高级版按预估冻结
+        boolean freeTier = "BYOK".equals(tier)
+                || (aiTier != null && !aiTier.chargeModelCost(tier) && !aiTier.chargeServiceFee(tier));
+        String payer = (payerUserId == null || payerUserId.isBlank()) ? userId : payerUserId;
+        if (wallet != null && !freeTier) {
+            long held = wallet.hold(payer, id);
             if (held < 0) {
                 throw new IllegalStateException("余额不足，请先充值（本场预估 "
                         + (wallet.estimateCents() / 100.0) + " 元）");
@@ -203,7 +219,7 @@ public class MatchService {
             String aiSeat = pickAiSeat(m, cur);
             if (aiSeat == null) return;                     // 全是玩家席位，等玩家抢
             ai.bind(id);
-            ai.useOwnProfile(str(m.get("user_id")), userLlm);
+            applyTier(m);
             String line;
             try {
                 line = ai.speak(aiSeat, cur.seg(), str(m.get("topic_title")),
@@ -235,7 +251,7 @@ public class MatchService {
                     "content", "（超时未发言）", "timeout", true));
         } else {
             ai.bind(id);
-            ai.useOwnProfile(str(m.get("user_id")), userLlm);
+            applyTier(m);
             String line;
             try {
                 line = ai.speak(cur.seat(), cur.seg(), str(m.get("topic_title")),
@@ -384,14 +400,44 @@ public class MatchService {
         return Map.of("ok", true);
     }
     /** 结算本场费用：按实际 token 用量多退少补。 */
+    /**
+     * 按本场档位切换模型：
+     * BASIC → 本地 ollama；BYOK → 用户自己的 key；PRO → 平台默认（不动 profile）。
+     */
+    private void applyTier(Map<String, Object> m) {
+        String tier = str(m.get("tier"));
+        String owner = str(m.get("user_id"));
+        if ("BYOK".equals(tier) || "true".equalsIgnoreCase(str(m.get("own_key")))) {
+            ai.useOwnProfile(owner, userLlm);
+            return;
+        }
+        if (aiTier != null) {
+            var p = aiTier.profileOf(tier);
+            if (p != null) ai.useProfile(p);      // BASIC
+        }
+    }
+
     private void settleBilling(String matchId, Map<String, Object> m) {
         if (wallet == null) return;
         try {
-            String userId = str(m.get("user_id"));
+            // 付款人：多人房间由房主承担；单人就是自己
+            String userId = str(m.get("payer_user_id"));
+            if (userId.isBlank()) userId = str(m.get("user_id"));
+
+            String tier = str(m.get("tier"));
+            // 基础版（本地模型）：免费，不结算也不扣服务费
+            if (aiTier != null && !aiTier.chargeModelCost(tier) && !aiTier.chargeServiceFee(tier)) {
+                Map<String, Object> bill = Map.of("freeTier", true, "tier", tier,
+                        "tokens", 0, "modelCostCents", 0, "serviceFeeCents", 0, "totalCents", 0);
+                store.saveBill(matchId, 0);
+                hub.emit(matchId, "bill", bill);
+                ai.clearMatchUsage(matchId);
+                return;
+            }
             // 按对局精确归集：不受其它对局 / 其它接口调用影响
-            boolean own = "true".equalsIgnoreCase(str(m.get("own_key")));
+            boolean own = "true".equalsIgnoreCase(str(m.get("own_key"))) || "BYOK".equals(tier);
             if (own) {
-                // 用用户自己的 key：模型成本不计，只收服务费
+                // 自带 Key：模型成本不计，服务费也不收（可能指向用户本地模型，平台零成本）
                 Map<String, Object> bill = wallet.settleOwnKey(userId, matchId);
                 store.saveBill(matchId, 0);
                 hub.emit(matchId, "bill", bill);
@@ -413,6 +459,26 @@ public class MatchService {
         }
     }
 
+    /**
+     * 本场是否有「真人队友」。
+     *
+     * <p>注意：单人模式里同侧还有 AI 补位（B1/B3/B4 都是 AI），它们不算队友；
+     * 只有同侧其它席位由真人发言（input_type != "ai"）才算。否则单人模式的协同维度
+     * 会被 AI 的发言带成 100 或 0，画像就不准了。
+     */
+    private boolean hasTeammate(List<Map<String, Object>> turns, java.util.Set<String> mine) {
+        if (mine.isEmpty()) return false;
+        String side = str(mine.iterator().next()).substring(0, 1);
+        for (Map<String, Object> t2 : turns) {
+            String seat = str(t2.get("seat"));
+            if (seat.length() < 2) continue;
+            if (!seat.startsWith(side) || mine.contains(seat)) continue;
+            String input = str(t2.get("input_type"));
+            if (!"ai".equalsIgnoreCase(input)) return true;   // 真人队友
+        }
+        return false;
+    }
+
     private void finish(String matchId, Map<String, Object> m) throws Exception {
         settleBilling(matchId, m);
         List<Map<String, Object>> turns = store.turns(matchId);
@@ -420,11 +486,9 @@ public class MatchService {
         ScoreService.Score sc = scorer.score(turns, mine, str(m.get("topic_id")), store.flaws(matchId));
 
         store.finishMatch(matchId, "FINISHED", sc.total());
-        store.insertRecord(str(m.get("user_id")), matchId, str(m.get("topic_title")),
-                str(m.get("my_seats")), sc.total(), sc.turns());
         hot.zincrby(str(m.get("topic_id")), 5 + sc.turns() * 0.0);   // 打完 +5
 
-        // 五维画像：滑动平均（含场次样本数）+ 本场数据单独存一份，用于算增量
+        // 六维画像：滑动平均（含场次样本数）+ 本场数据单独存一份，用于算增量
         Map<String, Object> diag = store.diag(str(m.get("user_id")));
         int prevSamples = diag == null ? 0 : num(diag.get("samples"));
         Map<String, Integer> avg = new LinkedHashMap<>();
@@ -441,6 +505,12 @@ public class MatchService {
         now.put("表达", sc.manner());
         now.put("应变", sc.adapt());
         now.put("论据", sc.evidence());
+        // 第六维：协同（本场协同分 0–3 换算成 0–100）
+        // 单人模式没有队友，协同分恒为 0，这时记中性基线 60，否则会把画像冤枉成短板
+        boolean hasMate = hasTeammate(turns, mine);
+        now.put("协同", hasMate
+                ? (int) Math.min(100, Math.round(sc.collab() * 100.0 / 3))
+                : 60);
 
         if (avg.isEmpty()) {
             avg = new LinkedHashMap<>(now);
@@ -458,6 +528,10 @@ public class MatchService {
         int streak = diag == null ? 1 : num(diag.get("streak")) + 1;
         store.saveDiag(str(m.get("user_id")), json.writeValueAsString(avg), json.writeValueAsString(flaws),
                 streak, prevSamples + 1, json.writeValueAsString(now));
+
+        // 记录本场（含六维），供能力分析按「最近 N 场」重新聚合
+        store.insertRecord(str(m.get("user_id")), matchId, str(m.get("topic_title")),
+                str(m.get("my_seats")), sc.total(), sc.turns(), json.writeValueAsString(now));
 
         hub.emit(matchId, "match.end", Map.of(
                 "total", sc.total(), "matter", sc.matter(), "method", sc.method(), "manner", sc.manner(),

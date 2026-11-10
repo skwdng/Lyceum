@@ -70,16 +70,27 @@ public class Store {
 
     // ---------- match ----------
     public void createMatch(String id, String userId, String topicId, String topicTitle,
-                            String mode, String mySeats, int turnSec, String pace, String difficulty, String kind, Long deadline, int queryRounds, int freeRounds) {
+                            String mode, String mySeats, int turnSec, String pace, String difficulty, String kind,
+                            Long deadline, int queryRounds, int freeRounds, String tier, String payerUserId) {
+        String payer = (payerUserId == null || payerUserId.isBlank()) ? userId : payerUserId;
+        String t = (tier == null || tier.isBlank()) ? "PRO" : tier;
         if (deadline == null) {
-            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,step,status,deadline_at) "
-                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',null)",
-                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds);
+            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,tier,payer_user_id,step,status,deadline_at) "
+                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',null)",
+                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds, t, payer);
         } else {
-            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,step,status,deadline_at) "
-                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',?)",
-                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds, ts(deadline));
+            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,tier,payer_user_id,step,status,deadline_at) "
+                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',?)",
+                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds, t, payer, ts(deadline));
         }
+    }
+
+    public void setTier(String id, String tier) {
+        jdbc.update("update sy_match set tier=? where id=?", tier, id);
+    }
+
+    public void setPayer(String id, String payerUserId) {
+        jdbc.update("update sy_match set payer_user_id=? where id=?", payerUserId, id);
     }
 
     /** 开局时的全局 token 快照，结算用差值。 */
@@ -154,9 +165,23 @@ public class Store {
     }
 
     // ---------- record / diag ----------
-    public void insertRecord(String userId, String matchId, String topicTitle, String seats, int total, int turns) {
-        jdbc.update("insert into sy_record(user_id,match_id,topic_title,seats,total,turns) values(?,?,?,?,?,?)",
-                userId, matchId, topicTitle, seats, total, turns);
+    public void insertRecord(String userId, String matchId, String topicTitle, String seats,
+                             int total, int turns, String dimsJson) {
+        jdbc.update("insert into sy_record(user_id,match_id,topic_title,seats,total,turns,dims_json) values(?,?,?,?,?,?,?)",
+                userId, matchId, topicTitle, seats, total, turns, dimsJson);
+    }
+
+    /** 最近 n 场的六维分（新的在前）；n<=0 表示全部。 */
+    public java.util.List<Map<String, Object>> recentDims(String userId, int n) {
+        String sql = "select dims_json from sy_record where user_id=? and dims_json is not null order by id desc"
+                + (n > 0 ? " limit " + n : "");
+        return jdbc.queryForList(sql, userId);
+    }
+
+    /** 这个用户总共打过多少场。 */
+    public int recordCount(String userId) {
+        Integer v = jdbc.queryForObject("select count(*) from sy_record where user_id=?", Integer.class, userId);
+        return v == null ? 0 : v;
     }
 
     public List<Map<String, Object>> records(String userId) {

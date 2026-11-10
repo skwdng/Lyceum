@@ -80,14 +80,16 @@ class ApiIdentityTest {
 
     @Test
     void 建对局时身份来自令牌_忽略body里的userId() throws Exception {
-        when(matches.create(anyString(), any(), any(), any(), anyInt(), any(), any(), any())).thenReturn("m-new");
+        // AI 三档后 create 多了 tier / payerUserId 两个参数（10 参），桩也跟着补两个 any()
+        when(matches.create(anyString(), any(), any(), any(), anyInt(), any(), any(), any(), any(), any()))
+                .thenReturn("m-new");
 
         api.perform(post("/api/matches")
                 .contentType("application/json")
                 .content("{\"topicId\":\"t3\",\"userId\":\"a-user\",\"seats\":\"A1\"}"));
 
-        verify(matches).create(eq(ME), any(), any(), any(), anyInt(), any(), any(), any());
-        verify(matches, never()).create(eq("a-user"), any(), any(), any(), anyInt(), any(), any(), any());
+        verify(matches).create(eq(ME), any(), any(), any(), anyInt(), any(), any(), any(), any(), any());
+        verify(matches, never()).create(eq("a-user"), any(), any(), any(), anyInt(), any(), any(), any(), any(), any());
     }
 
     @Test

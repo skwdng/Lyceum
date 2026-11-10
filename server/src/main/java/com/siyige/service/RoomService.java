@@ -86,7 +86,12 @@ public class RoomService {
         rooms.fillEmptyWithAi(code);
         List<String> humanSeats = rooms.humanSeats(code);
         String seats = String.join(",", humanSeats.isEmpty() ? List.of("A1") : humanSeats);
-        String matchId = matches.create(userId, String.valueOf(room.get("topic_id")), seats, "FULL", 0, "normal", "pro", "room");
+        // 多人房：整场费用由房主承担（payer 传房主），档位取房间设置（没设就 PRO）
+        String tier = String.valueOf(room.getOrDefault("tier", "PRO"));
+        String hostId = String.valueOf(room.get("host_user"));
+        String matchId = matches.create(
+                hostId, String.valueOf(room.get("topic_id")), seats, "FULL", 0, "normal", "pro", "room",
+                tier, hostId);
         rooms.setStatus(code, "RUNNING", matchId);
 
         Map<String, Object> out = new LinkedHashMap<>();
