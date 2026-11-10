@@ -127,8 +127,9 @@ public class MatchService {
             store.setOwnKey(id, true);
         }
 
-        // 计费：基础版免费，不预扣；其余按预估冻结，余额不足直接拒绝
-        boolean freeTier = aiTier != null && !aiTier.chargeModelCost(tier) && !aiTier.chargeServiceFee(tier);
+        // 计费：基础版 / 自带 Key 都免费，不预扣；只有高级版按预估冻结
+        boolean freeTier = "BYOK".equals(tier)
+                || (aiTier != null && !aiTier.chargeModelCost(tier) && !aiTier.chargeServiceFee(tier));
         String payer = (payerUserId == null || payerUserId.isBlank()) ? userId : payerUserId;
         if (wallet != null && !freeTier) {
             long held = wallet.hold(payer, id);
@@ -434,9 +435,9 @@ public class MatchService {
                 return;
             }
             // 按对局精确归集：不受其它对局 / 其它接口调用影响
-            boolean own = "true".equalsIgnoreCase(str(m.get("own_key")));
+            boolean own = "true".equalsIgnoreCase(str(m.get("own_key"))) || "BYOK".equals(tier);
             if (own) {
-                // 用用户自己的 key：模型成本不计，只收服务费
+                // 自带 Key：模型成本不计，服务费也不收（可能指向用户本地模型，平台零成本）
                 Map<String, Object> bill = wallet.settleOwnKey(userId, matchId);
                 store.saveBill(matchId, 0);
                 hub.emit(matchId, "bill", bill);

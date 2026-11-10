@@ -142,14 +142,17 @@ public class WalletService {
     }
 
     /**
-     * 用户自带 key 的结算：模型成本为 0，只扣服务费。
+     * 用户自带 key 的结算：**全免**。
+     *
+     * <p>自带 Key 意味着用户可能把 baseUrl 指到自己机器上的本地模型（ollama / LM Studio），
+     * 平台零成本，就不该收服务费。这里只把可能的预扣退回去，并把这一场记成 0 元流水，留痕。
      */
     public Map<String, Object> settleOwnKey(String userId, String matchId) {
         ensureWallet(userId);
         long held = -repo.matchNet(userId, matchId);
-        long should = serviceFeeCents;
+        long should = 0;
         long delta = held - should;
-        String note = "结算（用户自带 key）：模型成本 0 + 服务费 " + serviceFeeCents + " 分";
+        String note = "结算（自带 Key）：平台零成本，本场免费";
         if (delta > 0) {
             repo.add(userId, delta);
             repo.log(userId, "REFUND", delta, repo.balance(userId), matchId, note + "（退差额）");

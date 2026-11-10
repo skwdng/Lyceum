@@ -87,7 +87,8 @@ public class AiTier {
                 "model", "deepseek-chat", "note", "平台模型，按 token 计费 + 服务费"));
         m.put("byok", java.util.Map.of(
                 "key", BYOK, "label", "自带 Key", "available", true,
-                "model", "自己的模型", "note", "用自己的额度，只收服务费"));
+                "model", "自己的模型",
+                "note", "填自己的 key 或本地模型地址（如 http://127.0.0.1:11434/v1），完全免费"));
         return m;
     }
 }

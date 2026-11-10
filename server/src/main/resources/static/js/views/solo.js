@@ -253,9 +253,11 @@ async function renderTierBox(){
   try {
     const d = await api('/api/ai-tiers');
     const cur = S.aiTier || 'PRO';
+    // 基础版（本地 ollama）暂时搁置：不可用就不显示，等部署环境装好再开
     box.innerHTML = ['basic', 'pro', 'byok'].map(function (k) {
       const x = d[k];
       if (!x) return '';
+      if (x.available === false) return '';
       const on = cur === x.key;
       const dis = x.available === false;
       return '<div class="row" style="justify-content:space-between;align-items:center;gap:8px;margin-top:6px'
@@ -275,5 +277,5 @@ function pickTier(k){
   S.aiTier = k;
   renderTierBox();
   toast(k === 'BASIC' ? '已切到基础版（本地免费模型）'
-      : k === 'BYOK' ? '已切到自带 Key（在钱包里配置）' : '已切到高级版（平台模型）');
+      : k === 'BYOK' ? '已切到自带 Key（钱包里可填本地模型地址，完全免费）' : '已切到高级版（平台模型）');
 }

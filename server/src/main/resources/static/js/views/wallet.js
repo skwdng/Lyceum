@@ -65,7 +65,7 @@ function openWallet() {
           <span id="vLlmState" style="font-size:11.5px;color:#8A909C">读取中…</span>
         </div>
         <div style="font-size:11.5px;color:#A8ADB8;margin:4px 0 8px">
-          填自己的 key 跑对局：模型成本不算钱，只收 0.30 元/场服务费。
+          填自己的 key 或本地模型地址跑对局：完全免费，平台一分不收。
         </div>
         <div id="vLlmBlock">
           <div class="field" style="margin-bottom:8px">
@@ -153,7 +153,7 @@ function billHTML(billTokens) {
       <b style="font-size:14px">¥${money(total)}</b>
     </div>
     <div class="kv"><span>模型成本</span><b>${billTokens} token → ¥${money(model)}</b></div>
-    <div class="kv"><span>服务费</span><b>¥${money(fee)}</b></div>
+    <div class="kv"><span>服务费</span><b>${S.match && S.match.tier === 'BYOK' ? '免费' : '¥' + money(fee)}</b></div>
     <div style="font-size:11.5px;color:#A8ADB8;margin-top:4px">已从钱包扣除；余额 ¥${money(info.balanceCents)}</div>
   </div>`;
 }
