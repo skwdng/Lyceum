@@ -271,7 +271,7 @@ public class ApiController {
 
     private Map<String, Object> diagOf(String userId) {
         Map<String, Object> d = store.diag(userId);
-        if (d == null) return Map.of("dims", Map.of("立论",60,"论证",58,"表达",62,"应变",52,"论据",45),
+        if (d == null) return Map.of("dims", Map.of("立论",60,"论证",58,"表达",62,"应变",52,"论据",45,"协同",60),
                 "flaws", Map.of("未证明前提",0), "streak", 0);
         Map<String, Object> out = new LinkedHashMap<>();
         var om = new com.fasterxml.jackson.databind.ObjectMapper();

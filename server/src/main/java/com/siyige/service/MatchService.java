@@ -413,6 +413,26 @@ public class MatchService {
         }
     }
 
+    /**
+     * 本场是否有「真人队友」。
+     *
+     * <p>注意：单人模式里同侧还有 AI 补位（B1/B3/B4 都是 AI），它们不算队友；
+     * 只有同侧其它席位由真人发言（input_type != "ai"）才算。否则单人模式的协同维度
+     * 会被 AI 的发言带成 100 或 0，画像就不准了。
+     */
+    private boolean hasTeammate(List<Map<String, Object>> turns, java.util.Set<String> mine) {
+        if (mine.isEmpty()) return false;
+        String side = str(mine.iterator().next()).substring(0, 1);
+        for (Map<String, Object> t2 : turns) {
+            String seat = str(t2.get("seat"));
+            if (seat.length() < 2) continue;
+            if (!seat.startsWith(side) || mine.contains(seat)) continue;
+            String input = str(t2.get("input_type"));
+            if (!"ai".equalsIgnoreCase(input)) return true;   // 真人队友
+        }
+        return false;
+    }
+
     private void finish(String matchId, Map<String, Object> m) throws Exception {
         settleBilling(matchId, m);
         List<Map<String, Object>> turns = store.turns(matchId);
@@ -424,7 +444,7 @@ public class MatchService {
                 str(m.get("my_seats")), sc.total(), sc.turns());
         hot.zincrby(str(m.get("topic_id")), 5 + sc.turns() * 0.0);   // 打完 +5
 
-        // 五维画像：滑动平均（含场次样本数）+ 本场数据单独存一份，用于算增量
+        // 六维画像：滑动平均（含场次样本数）+ 本场数据单独存一份，用于算增量
         Map<String, Object> diag = store.diag(str(m.get("user_id")));
         int prevSamples = diag == null ? 0 : num(diag.get("samples"));
         Map<String, Integer> avg = new LinkedHashMap<>();
@@ -441,6 +461,12 @@ public class MatchService {
         now.put("表达", sc.manner());
         now.put("应变", sc.adapt());
         now.put("论据", sc.evidence());
+        // 第六维：协同（本场协同分 0–3 换算成 0–100）
+        // 单人模式没有队友，协同分恒为 0，这时记中性基线 60，否则会把画像冤枉成短板
+        boolean hasMate = hasTeammate(turns, mine);
+        now.put("协同", hasMate
+                ? (int) Math.min(100, Math.round(sc.collab() * 100.0 / 3))
+                : 60);
 
         if (avg.isEmpty()) {
             avg = new LinkedHashMap<>(now);

@@ -119,7 +119,7 @@ const LOGIN_ONLY_VIEWS = { solo:1, room:1, match:1, review:1, diag:1, records:1,
 
 function loginGateCard(view){
   const what = { solo:'开始一场单人辩论', room:'和朋友开一局多人辩论', match:'查看正在进行的对局',
-                 review:'查看复盘', diag:'查看能力诊断', records:'查看辩论记录' }[view] || '继续';
+                 review:'查看复盘', diag:'查看能力分析', records:'查看辩论记录' }[view] || '继续';
   return `<div class="card" style="max-width:560px;margin:48px auto;text-align:center;padding:32px 28px">
     <div style="font-size:34px;line-height:1;margin-bottom:10px">🔒</div>
     <div style="font-size:16px;font-weight:600;margin-bottom:8px">登录后可见</div>
@@ -130,7 +130,7 @@ function loginGateCard(view){
 
 const NAV = [
   {g:'训练'}, {k:'solo', n:'单人辩论'}, {k:'room', n:'多人辩论'}, {k:'hotb', n:'热辩榜'},
-  {g:'我的'}, {k:'diag', n:'能力诊断'}, {k:'records', n:'辩论记录'}, {g:'社区'}, {k:'community', n:'讨论社区'},
+  {g:'我的'}, {k:'diag', n:'能力分析'}, {k:'records', n:'辩论记录'}, {g:'社区'}, {k:'community', n:'讨论社区'},
     {g:'视频'}, {k:'video', n:'视频'},
   {g:'消息'}, {k:'chat', n:'消息'}, {k:'friends', n:'好友'}, {k:'notify', n:'通知'}
 ];
@@ -314,6 +314,8 @@ function render(){
   // 消息页有"渲染完要贴到底部"的活儿：innerHTML 一换，滚动位置就归零，
   // 所以在渲染之后补一次（函数在 chat.js 里，按需判断该不该贴）
   if (S.view === 'chat' && typeof chatAfterRender === 'function') chatAfterRender();
+  // 能力分析页：雷达从中心长出、条形图由 0 涨到目标值
+  if (S.view === 'diag' && typeof diagAnimate === 'function') diagAnimate();
 }
 
 const PACE_BASE = {立论:300, 驳立论:210, 质询:150, 自由辩:90, 总结:240};

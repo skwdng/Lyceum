@@ -457,3 +457,11 @@
 .wchip{display:inline-block;margin-left:8px;font-size:11px;padding:1px 7px;border-radius:20px;
   background:#EDF1FE;color:#2F5BEA;border:1px solid #D6E0FF;cursor:pointer;vertical-align:middle}
 .wchip:hover{background:#E2E9FF}
+/* 能力分析：六维雷达从中心长出 + 维度条从 0 涨到目标值 */
+.radar-grow{will-change:transform,opacity}
+.dim-fill{background:linear-gradient(90deg,#3A63FF,#5B7CFA)}
+.dim-num{font-variant-numeric:tabular-nums;min-width:22px;display:inline-block;text-align:right}
+@media (prefers-reduced-motion: reduce){
+  .radar-grow{transition:none !important}
+  .dim-fill{transition:none !important}
+}
