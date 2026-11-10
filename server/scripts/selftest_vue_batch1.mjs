@@ -219,7 +219,7 @@ await check('B1-5 好友「发消息」→ 进新版聊天页并带上对端', a
   return st.hash + ' 对端=' + (st.peer || '');
 });
 
-await check('B1-6 热辩榜：12 条 / 分数降序 / 热度条按比例 / 「开辩」回落旧页单人', async () => {
+await check('B1-6 热辩榜：条数 / 分数降序 / 热度条按比例 / 「开辩」进新版单人页', async () => {
   await openV2('hot');
   await waitFor(`document.querySelectorAll('table.t tbody tr').length > 0`, '热榜表格', 20000);
   const st = await ev(`(()=>{
@@ -234,9 +234,10 @@ await check('B1-6 热辩榜：12 条 / 分数降序 / 热度条按比例 / 「�
   const navigated = await ev(`(()=>{const b=[...document.querySelectorAll('table.t button')][0]; if(!b) return false; b.click(); return true;})()`);
   if (!navigated) throw new Error('没有开辩按钮');
   await sleep(2400);
-  const where = await ev(`location.pathname + location.search`);
-  if (where.indexOf('v=solo') < 0) throw new Error('开辩没回落旧页单人：' + where);
-  return `${st.n} 条，降序 OK，首条 ${st.w0}/末条 ${st.wLast}`;
+  // 批 2 起「开辩」不再回落旧页，直接进新版单人页并带上这道题
+  const where = await ev(`location.hash`);
+  if (where.indexOf('solo') < 0) throw new Error('开辩没进新版单人页：' + where);
+  return `${st.n} 条，降序 OK，首条 ${st.w0}/末条 ${st.wLast}，开辩→${where}`;
 });
 
 await check('B1-7 辩论记录：三张统计卡 + 表格或空态', async () => {

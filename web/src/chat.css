@@ -90,3 +90,7 @@
   background: repeating-linear-gradient(180deg, #d7dbe4 0 4px, transparent 4px 8px);
 }
 .chat-conv { position: relative; }
+/* 邀请好友弹窗（旧 app.css 的 .iv-*，数值照抄） */
+.iv-box { background: #fff; border-radius: 14px; width: 460px; max-width: 100%; max-height: 78vh; display: flex; flex-direction: column; padding: 16px 18px; box-shadow: 0 18px 50px rgba(20,22,28,.18); }
+.iv-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.iv-list { overflow: auto; margin: 0 -6px; padding: 0 6px; }

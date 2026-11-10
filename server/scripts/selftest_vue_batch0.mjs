@@ -186,7 +186,7 @@ await check('B0-6 未登录访问需要登录的页 → 登录引导卡（不白
   return '引导卡正常';
 });
 
-await check('B0-7 引导卡点「去登录」→ 登录后回到原页面（#/solo → 旧页 solo）', async () => {
+await check('B0-7 引导卡点「去登录」→ 登录后回到原页面（#/solo，批2 起是真页面）', async () => {
   await ev(`document.querySelector('#main .btn.primary').click()`);
   await sleep(1200);
   await waitFor(`!!document.querySelector('#authAccount')`, '登录表单', 15000);
@@ -195,10 +195,11 @@ await check('B0-7 引导卡点「去登录」→ 登录后回到原页面（#/so
     const set=(sel,v)=>{const el=document.querySelector(sel); el.value=v; el.dispatchEvent(new Event('input',{bubbles:true}));};
     set('#authAccount', ${JSON.stringify(ACC_A)}); set('#authPassword', ${JSON.stringify(PWD)}); return true;})()`);
   await ev(`document.querySelector('.auth-actions button').click()`);
-  // solo 还没迁移 → 登录后回到 #/solo，再被 LegacyRedirect 送到旧页 ?v=solo
+  // 批 2 起单人页已迁移：登录后应停在 #/solo（真页面），不再回落旧页
   await sleep(3000);
   const where = await ev(`location.pathname + location.search + location.hash`);
-  if (where.indexOf('v=solo') < 0) throw new Error('没回到目标页（旧页 solo）：' + where + ' next=' + hasNext);
+  if (where.indexOf('/solo') < 0) throw new Error('没回到目标页（#/solo）：' + where + ' next=' + hasNext);
+  if (await ev(`typeof S !== 'undefined'`)) throw new Error('停在旧页了，应在新版单人页');
   return where;
 });
 

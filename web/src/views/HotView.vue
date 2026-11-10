@@ -7,7 +7,10 @@
  * 记进遗留问题，批 2 迁单人页时改成直接带题进去。
  */
 import { ref, computed, onMounted } from 'vue';
-import { baseApi, API_BASE } from '../api.js';
+import { useRouter } from 'vue-router';
+import { baseApi } from '../api.js';
+
+const router = useRouter();
 
 const hot = ref(null);
 const error = ref('');
@@ -31,8 +34,9 @@ async function load() {
 
 onMounted(load);
 
-function openDebate() {
-  location.replace(API_BASE + '/?v=solo');
+/** 开辩：进新版单人页并带上这道题（批 2 之后不再回落旧页） */
+function openDebate(topicId) {
+  router.push({ name: 'solo', query: topicId ? { topic: topicId } : {} });
 }
 </script>
 
@@ -65,7 +69,7 @@ function openDebate() {
             </td>
             <td><div class="heatbar"><i :style="{ width: pct(x.score) + '%' }"></i></div></td>
             <td class="mono" style="color: #2f5bea; font-weight: 600">{{ x.score }}</td>
-            <td><button class="btn sm ghost" @click="openDebate">开辩</button></td>
+            <td><button class="btn sm ghost" @click="openDebate(x.topicId)">开辩</button></td>
           </tr>
           <tr v-if="!list.length"><td colspan="5" class="empty">暂无数据</td></tr>
         </tbody>

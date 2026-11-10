@@ -10,6 +10,10 @@ import RecordsView from './views/RecordsView.vue';
 import DiagView from './views/DiagView.vue';
 import WalletView from './views/WalletView.vue';
 import ChatView from './views/ChatView.vue';
+import SoloView from './views/SoloView.vue';
+import MatchView from './views/MatchView.vue';
+import ReviewView from './views/ReviewView.vue';
+import RoomView from './views/RoomView.vue';
 
 /**
  * 路由表。
@@ -43,12 +47,12 @@ const routes = [
   { path: '/diag', name: 'diag', component: DiagView, meta: { requiresAuth: true } },
   { path: '/wallet', name: 'wallet', component: WalletView, meta: { requiresAuth: true } },
 
-  // ---- 批 2 ----
-  { path: '/solo', name: 'solo', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'solo' } },
-  { path: '/room', name: 'room', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'room' } },
+  // ---- 批 2：单人/对局/复盘已迁移，房间待迁 ----
+  { path: '/solo', name: 'solo', component: SoloView, meta: { requiresAuth: true } },
+  { path: '/room', name: 'room', component: RoomView, meta: { requiresAuth: true } },
   { path: '/chat', name: 'chat', component: ChatView, meta: { requiresAuth: true } },
-  { path: '/match', name: 'match', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'solo' } },
-  { path: '/review', name: 'review', component: LegacyRedirect, meta: { requiresAuth: true, legacy: 'records' } },
+  { path: '/match', name: 'match', component: MatchView, meta: { requiresAuth: true } },
+  { path: '/review', name: 'review', component: ReviewView, meta: { requiresAuth: true } },
 
   // ---- 批 3 ----
   { path: '/community', name: 'community', component: LegacyRedirect, meta: { legacy: 'community' } },

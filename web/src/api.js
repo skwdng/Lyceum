@@ -131,6 +131,43 @@ export const socialApi = {
   unfriend: (userId) => http.del('/api/social/friends/' + encodeURIComponent(userId))
 };
 
+// ==================== 辩论 / 对局（批 2） ====================
+
+export const debateApi = {
+  topics: () => http.get('/api/topics'),
+  /** 自定义辩题先过可辩性审核：返回 {result: PASS|REJECT|FIX, reason, suggestions, cached} */
+  auditTopic: (title) => http.post('/api/topics/audit', { title }),
+  evidence: (topicId) => http.get('/api/topics/' + topicId + '/evidence'),
+  /** 作战卡（模型生成要几秒，首次点开才拉） */
+  brief: (topicId, side) => http.get('/api/topics/' + topicId + '/brief?side=' + side),
+  createMatch: (payload) => http.post('/api/matches', payload),
+  match: (matchId) => http.get('/api/matches/' + matchId),
+  submitTurn: (matchId, content) =>
+    http.post('/api/matches/' + matchId + '/turns', { content, inputType: 'kb' }),
+  keepalive: (matchId) => http.post('/api/matches/' + matchId + '/keepalive'),
+  buzz: (matchId) => http.post('/api/matches/' + matchId + '/buzz'),
+  skip: (matchId) => http.post('/api/matches/' + matchId + '/skip'),
+  review: (matchId) => http.get('/api/matches/' + matchId + '/review'),
+  panel: (matchId) => http.post('/api/matches/' + matchId + '/panel'),
+  /** SSE 地址：EventSource 不能设请求头，令牌只能走 ?token=（后端只对 /events 开口子） */
+  eventsUrl: (matchId, token) =>
+    API_BASE + '/api/matches/' + matchId + '/events?token=' + encodeURIComponent(token || '')
+};
+// ==================== 多人房间（批 2） ====================
+
+export const roomApi = {
+  list: () => http.get('/api/rooms'),
+  /** 建房：topicId 为空则后端随机抽题，房主坐 A1 */
+  create: (topicId) => http.post('/api/rooms', { topicId: topicId || null }),
+  detail: (code) => http.get('/api/rooms/' + encodeURIComponent(code)),
+  join: (code) => http.post('/api/rooms/' + encodeURIComponent(code) + '/join', {}),
+  leave: (code) => http.post('/api/rooms/' + encodeURIComponent(code) + '/leave', {}),
+  ready: (code, ready) => http.post('/api/rooms/' + encodeURIComponent(code) + '/ready', { ready }),
+  start: (code) => http.post('/api/rooms/' + encodeURIComponent(code) + '/start', {}),
+  /** 邀请走私聊消息（type=INVITE）：对方在聊天窗看到卡片，点一下就能进 */
+  invite: (toId, roomCode, topicTitle) =>
+    http.post('/api/social/messages', { toId, type: 'INVITE', roomCode, topicTitle })
+};
 // ==================== 私聊（批 2） ====================
 
 export const chatApi = {

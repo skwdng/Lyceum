@@ -13,7 +13,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import { useChatStore } from '../stores/chat.js';
 import { useAuthStore } from '../stores/auth.js';
-import { API_BASE } from '../api.js';
+
 
 const route = useRoute();
 const router = useRouter();
@@ -143,10 +143,10 @@ function invitePayload(m) {
   }
 }
 
-/** 邀请卡片「加入房间」：房间页还没迁（批 2 后半段），先回落旧页 */
+/** 邀请卡片「加入房间」：进新版房间页，带上房间号自动加入（批 2 已迁房间） */
 function joinInvite(code) {
   if (!code) return;
-  location.replace(API_BASE + '/?v=room');
+  router.push({ name: 'room', query: { join: code } });
 }
 
 function goFriends() {
