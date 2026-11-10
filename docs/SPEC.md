@@ -1304,3 +1304,46 @@ web/
 | 页面 | 17 个页面逐屏有实质内容，无空白、无 JS 异常 |
 | 实时 | 聊天 WS 双端收发；断线自动重连、降级轮询后仍可收 |
 | 自检 | `selftest_vue_batch0/1/2/2b/3/3b/entry.mjs` 全绿 |
+
+
+---
+
+## 25. AI 档位与能力分析（2026-11-10 追加）
+
+> 本节记录 2026-11-10 与「前端迁 Vue」同日上线的两块能力：**计费档位**与**能力分析画像**。
+> 接口与字段见 \`docs/社交接口契约.md\` 之外的两处实现：\`ai/AiTier.java\` 与 \`api/ApiController.diag\`。
+
+### 25.1 AI 档位
+
+| 档位 | key | 模型 | 计费 | 可用性 |
+|---|---|---|---|---|
+| 基础版 | \`BASIC\` | 本地 ollama（默认 \`qwen2.5:7b\`） | 免费（模型成本 0，服务费 0） | 需 \`SIYIGE_BASIC_ENABLED=true\` 且本地装了 ollama |
+| 高级版 | \`PRO\` | 平台模型（deepseek） | 按 token 实算 + 服务费 | 恒可用 |
+| 自带 Key | \`BYOK\` | 用户自己的 baseUrl / key / model | **全免费**（平台零成本） | 需在钱包里配过 key |
+
+- **R-TIER-01** \`GET /api/ai-tiers\` MUST 返回三档的 \`key / label / available / model / note\`。
+- **R-TIER-02** 档位取值非法或缺省 MUST 归一为 \`PRO\`；\`BASIC\` 未启用时 MUST 静默降级为 \`PRO\`。
+- **R-TIER-03** 选了 \`BYOK\` 但用户没配 key 时 MUST 退回 \`PRO\`（MUST NOT 按免费结算）。
+- **R-TIER-04** \`BYOK\` 与 \`BASIC\` MUST NOT 收任何费用（预扣、结算、服务费全免）。
+- **R-TIER-05** 多人房间整场费用 MUST 记在**房主**名下（\`sy_match.payer_user_id\`），与发起人分开。
+- **R-TIER-06** 前端 MUST NOT 自行计算费用，只显示后端返回的账单。
+
+### 25.2 能力分析
+
+- **R-DIAG-01** 画像 MUST 为**六维**：立论 / 论证 / 表达 / 应变 / 论据 / **协同**。
+- **R-DIAG-02** 「协同」MUST 只在**有真人队友**时计分；单人局同侧是 AI 补位（\`input_type=ai\`），
+  MUST 按中性 60 记，MUST NOT 让 AI 发言把协同拉成 0 或 100。
+- **R-DIAG-03** \`GET /api/diag?n=\` MUST 支持「最近 N 场」（\`n<=0\` 或省略 = 全部），
+  返回 MUST 带 \`total / window / samples / empty\`。
+- **R-DIAG-04** 每场结束 MUST 把该场六维写进 \`sy_record.dims_json\`，窗口均值 MUST 用逐场记录重算。
+- **R-DIAG-05** 没有任何逐场记录时 MUST 返回 \`empty:true\` 且 \`dims\` 为空，
+  MUST NOT 返回写死的占位维度（前端据此显示空态，不画假雷达）。
+- **R-DIAG-06** 前端雷达 MUST 支持从中心生长动画与「0→值」条形动画，且 MUST 显示与上一场的增减箭头。
+
+### 25.3 对局可继续（前端行为）
+
+- **R-RESUME-01** 离开对局页 MUST 只停轮询与 SSE，MUST NOT 清空 \`matchId / match\`。
+- **R-RESUME-02** 回到对局页 MUST 自动恢复轮询并立即拉一次状态。
+- **R-RESUME-03** 任意页面 MUST 能看到「有一场还没打完」入口并能一键回到该场。
+- **R-RESUME-04** 聊天区自动滚动 MUST 同时满足：贴底、用户 600ms 内没手动滚过、每 3 个字一次；
+  用户滚轮 / 触摸 / 方向键操作 MUST 立刻解除跟随。
