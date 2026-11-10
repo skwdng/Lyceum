@@ -10,7 +10,7 @@ export const NAV = [
   { k: 'room', n: '多人辩论' },
   { k: 'hot', n: '热辩榜' },
   { g: '我的' },
-  { k: 'diag', n: '能力诊断' },
+  { k: 'diag', n: '能力分析' },
   { k: 'records', n: '辩论记录' },
   { g: '社区' },
   { k: 'community', n: '讨论社区' },

@@ -35,7 +35,7 @@ const GATE_TEXT = {
   room: '和朋友开一局多人辩论',
   match: '查看正在进行的对局',
   review: '查看复盘',
-  diag: '查看能力诊断',
+  diag: '查看能力分析',
   records: '查看辩论记录',
   notify: '查看通知',
   friends: '查看好友',

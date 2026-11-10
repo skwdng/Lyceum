@@ -112,7 +112,8 @@ export const authApi = {
 export const baseApi = {
   topics: () => http.get('/api/topics'),
   hot: (n = 12) => http.get('/api/hot?n=' + n),
-  diag: () => http.get('/api/diag'),
+  /** n>0 只看最近 n 场；0/省略 = 全部（累计滑动平均） */
+  diag: (n) => http.get('/api/diag' + (n > 0 ? '?n=' + n : '')),
   records: () => http.get('/api/records')
 };
 

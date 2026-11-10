@@ -1,14 +1,14 @@
 
 /* 只写这一批新增的两块；其余全部复用 style.css 里的既有类名 */
-.gate-card[data-v-bdaf1c19] {
+.gate-card[data-v-c09b0165] {
   max-width: 560px;
   margin: 48px auto;
   text-align: center;
   padding: 32px 28px;
 }
-.gate-icon[data-v-bdaf1c19] { font-size: 34px; line-height: 1; margin-bottom: 10px;
+.gate-icon[data-v-c09b0165] { font-size: 34px; line-height: 1; margin-bottom: 10px;
 }
-.gate-title[data-v-bdaf1c19] { font-size: 16px; font-weight: 600; margin-bottom: 8px;
+.gate-title[data-v-c09b0165] { font-size: 16px; font-weight: 600; margin-bottom: 8px;
 }
 
 
