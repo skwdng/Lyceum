@@ -131,6 +131,47 @@ export const socialApi = {
   unfriend: (userId) => http.del('/api/social/friends/' + encodeURIComponent(userId))
 };
 
+// ==================== 社区（批 3） ====================
+
+export const communityApi = {
+  /** 列表：type/title/topicId/range/sort/page/size，空值不拼 */
+  posts: (q) => {
+    const p = q || {};
+    const qs = Object.keys(p)
+      .filter((k) => p[k] !== undefined && p[k] !== null && p[k] !== '')
+      .map((k) => k + '=' + encodeURIComponent(p[k]))
+      .join('&');
+    return http.get('/api/community/posts' + (qs ? '?' + qs : ''));
+  },
+  post: (id) => http.get('/api/community/posts/' + id),
+  /** 进详情先计数（旧版 B3 的顺序：先 view 再拉详情，否则每次都少算一次） */
+  markView: (id) => http.post('/api/community/posts/' + id + '/view', {}),
+  likePost: (id, on) => (on ? http.post('/api/community/posts/' + id + '/like', {}) : http.del('/api/community/posts/' + id + '/like')),
+  createPost: (payload) => http.post('/api/community/posts', payload),
+  updatePost: (id, payload) => http.patch('/api/community/posts/' + id, payload),
+  deletePost: (id) => http.del('/api/community/posts/' + id),
+
+  comments: (postId, q) => {
+    const p = q || {};
+    const qs = Object.keys(p)
+      .filter((k) => p[k] !== undefined && p[k] !== null && p[k] !== '')
+      .map((k) => k + '=' + encodeURIComponent(p[k]))
+      .join('&');
+    return http.get('/api/community/posts/' + postId + '/comments' + (qs ? '?' + qs : ''));
+  },
+  addComment: (postId, payload) => http.post('/api/community/posts/' + postId + '/comments', payload),
+  replies: (commentId, page = 1, size = 50) =>
+    http.get('/api/community/comments/' + commentId + '/replies?page=' + page + '&size=' + size),
+  likeComment: (id, on) =>
+    on ? http.post('/api/community/comments/' + id + '/like', {}) : http.del('/api/community/comments/' + id + '/like'),
+  deleteComment: (id) => http.del('/api/community/comments/' + id),
+
+  report: (payload) => http.post('/api/community/reports', payload),
+  myReports: (page = 1, size = 10) => http.get('/api/community/my-reports?page=' + page + '&size=' + size),
+  myBan: () => http.get('/api/community/me/ban'),
+  /** @ 提及候选（要登录） */
+  users: (q) => http.get('/api/community/users?q=' + encodeURIComponent(q))
+};
 // ==================== 辩论 / 对局（批 2） ====================
 
 export const debateApi = {

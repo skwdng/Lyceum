@@ -14,6 +14,8 @@ import SoloView from './views/SoloView.vue';
 import MatchView from './views/MatchView.vue';
 import ReviewView from './views/ReviewView.vue';
 import RoomView from './views/RoomView.vue';
+import CommunityView from './views/CommunityView.vue';
+import PostDetailView from './views/PostDetailView.vue';
 
 /**
  * 路由表。
@@ -55,7 +57,9 @@ const routes = [
   { path: '/review', name: 'review', component: ReviewView, meta: { requiresAuth: true } },
 
   // ---- 批 3 ----
-  { path: '/community', name: 'community', component: LegacyRedirect, meta: { legacy: 'community' } },
+  { path: '/community', name: 'community', component: CommunityView },
+  // 帖子详情走真实路由：通知点「帖子类」通知可以直接深链过来（?around=<评论id> 定位楼层）
+  { path: '/community/:postId', name: 'community-post', component: PostDetailView },
   { path: '/video', name: 'video', component: LegacyRedirect, meta: { legacy: 'video' } },
 
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）

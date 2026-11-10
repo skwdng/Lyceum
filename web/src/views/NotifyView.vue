@@ -12,7 +12,7 @@
  */
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { notifyApi, API_BASE } from '../api.js';
+import { notifyApi } from '../api.js';
 import { useUnreadStore } from '../stores/unread.js';
 import { useAuthStore } from '../stores/auth.js';
 import { relTime } from '../utils/format.js';
@@ -67,10 +67,12 @@ function open(item) {
     router.push({ name: 'me' });
     return;
   }
-  // 社区未迁移（批 3）：回旧页并带上定位参数
-  const q = '?v=community&postId=' + encodeURIComponent(link.postId) +
-    (link.commentId ? '&commentId=' + encodeURIComponent(link.commentId) : '');
-  location.replace(API_BASE + '/' + q);
+  // 批 3 起社区已迁移：直接本地路由跳过去，带 around 定位到那一楼
+  router.push({
+    name: 'community-post',
+    params: { postId: String(link.postId) },
+    query: link.commentId ? { around: String(link.commentId) } : {}
+  });
 }
 </script>
 
