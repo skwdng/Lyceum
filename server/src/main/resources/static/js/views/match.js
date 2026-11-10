@@ -70,7 +70,8 @@ async function loadMatch(first){
     if (first || prevCount !== S.turns.length || stateChanged || S.view !== 'match') {
       if (S.view !== 'match') return;
       render();
-      const c = $('#chat'); if (c) c.scrollTop = c.scrollHeight;
+      // 贴底时自动跟随；用户往上翻了就別拽他
+      if (S.stickBottom !== false) { const c = $('#chat'); if (c) c.scrollTop = c.scrollHeight; }
     } else {
       const hint = $('#cHint'); if (hint) hint.textContent = S.waiting ? '轮到你发言' : '等待对方发言…';
     }
@@ -319,7 +320,12 @@ setInterval(function(){
   let idx = (S.progress[key] || 0) + 1;
   S.progress[key] = idx;
   node.textContent = full.slice(0, idx);
-  if (S.stickBottom !== false && chat) chat.scrollTop = chat.scrollHeight;
+  // 三重条件才自动滚：① 处于贴底 ② 用户 600ms 内没手动滚过 ③ 每 3 个字滚一次（别每字都抢）
+  if (S.stickBottom !== false && chat
+      && Date.now() - (S.lastUserScroll || 0) > 600
+      && idx % 3 === 0) {
+    chat.scrollTop = chat.scrollHeight;
+  }
 
   if (idx >= full.length) { S.typed.add(key); return; }
 
@@ -338,10 +344,30 @@ function bindChatScroll(){
   const chat = $('#chat');
   if (!chat || chat.dataset.bound) return;
   chat.dataset.bound = '1';
-  chat.addEventListener('scroll', () => {
-    S.stickBottom = nearBottom(chat);
+
+  const markScroll = () => { S.lastUserScroll = Date.now(); };
+  const stopFollow = () => {
+    S.stickBottom = false;
+    markScroll();
     const tip = $('#scrollTip');
-    if (tip) tip.style.display = S.stickBottom ? 'none' : 'block';
+    if (tip) tip.style.display = 'block';
+  };
+
+  chat.addEventListener('scroll', () => {
+    // 程序化滚动也会触发 scroll，所以只在"用户确实离底超过阈值"时才算手动
+    const nb = nearBottom(chat);
+    S.stickBottom = nb;
+    if (!nb) markScroll();
+    const tip = $('#scrollTip');
+    if (tip) tip.style.display = nb ? 'none' : 'block';
+  }, { passive: true });
+
+  // 滚轮 / 触摸 / 方向键：立刻解除跟随，别等 scroll 事件（打字循环会抢先把它拽回去）
+  chat.addEventListener('wheel', stopFollow, { passive: true });
+  chat.addEventListener('touchstart', markScroll, { passive: true });
+  chat.addEventListener('touchmove', stopFollow, { passive: true });
+  chat.addEventListener('keydown', (e) => {
+    if (['ArrowUp','ArrowDown','PageUp','PageDown','Home','End'].includes(e.key)) stopFollow();
   });
 }
 

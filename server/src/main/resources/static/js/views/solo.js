@@ -8,6 +8,20 @@ function viewSolo(){
   <h1 class="pg">单人辩论</h1>
   <p class="sub">选一道题（或自己填）→ 选位置 → 直接开打。不建房、不等人，缺的席位由 AI 补齐。</p>
 
+  ${(S.matchId && S.match && S.match.status === 'RUNNING') ? `
+  <div class="card" style="margin-bottom:14px;border-color:#D6E0FF;background:#FBFCFE;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div style="flex:1;min-width:220px">
+      <b style="font-size:13px">有一场还没打完</b>
+      <div style="font-size:11.5px;color:#8A909C;margin-top:3px">
+        ${esc(S.match.topic_title || '')} · 你占 ${esc(S.match.my_seats || '')}
+      </div>
+    </div>
+    <div class="row" style="gap:8px">
+      <button class="btn primary sm" onclick="go('match')">继续这一场</button>
+      <button class="btn ghost sm" onclick="S.matchId=null;S.match=null;stopPoll();render()">放弃</button>
+    </div>
+  </div>` : ''}
+
   <div class="grid g2" style="margin-bottom:16px">
     <div class="card" style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap">
       <div style="flex:1;min-width:240px">

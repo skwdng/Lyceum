@@ -31,6 +31,7 @@ async function api(path, opts){
 }
 
 const S = {
+  lastUserScroll: 0,     // 用户最后一次手动滚动的时间戳（打字机不抢滚动条用）
   view:'solo', topics:[], hot:null, diag:null, records:[],
   mySeats: JSON.parse(localStorage.getItem('sy_seats') || '["A1"]'),
   mode:'FULL',
@@ -237,11 +238,18 @@ function stopNotifyPoll(){
 }
 
 function go(v){
-  if (S.pollTimer && v !== 'match') { stopPoll(); S.matchId = null; S.match = null; S.roomMode = false; }
+  // 离开对局页：只停轮询和 SSE（省流量），不清 S.matchId / S.match ——
+  // 之前这里顺手把对局置空，用户切走再回来这一场就"没了"，也没法继续。
+  if (v !== 'match' && S.pollTimer) { stopPoll(); S.roomMode = false; }
   // 记下来路：登录/注册成功后要回到这里（'me' 是登录页本身，不算来路）
   if (v !== 'me') S.lastVisitedView = v;
   S.view = v; render();
   // 社区：不再跳独立页（D4），进页面时重置筛选并拉第一页列表
+  if (v === 'match' && S.matchId) {          // 回到还没打完的对局：恢复轮询并立刻拉一次
+    if (!S.pollTimer && typeof startPoll === 'function') startPoll();
+    if (typeof loadMatch === 'function') loadMatch(true);
+    return;
+  }
   if (v === 'community') { cmEnterCommunity(); return; }
   if (v === 'notify') { loadNotify(1); return; }
   if (v === 'friends') { loadFriends(); return; }
@@ -287,10 +295,21 @@ function render(){
   const v = { solo:viewSolo, room:viewRoom, hotb:viewHot, diag:viewDiag, records:viewRecords,
               match:viewMatch, review:viewReview, community:viewCommunity, video:viewVideo,
               notify:viewNotify, friends:viewFriends, chat:viewChat, me:viewAuth }[S.view];
+  // 对局页：innerHTML 一换滚动位置就归 0，先记住再还原（否则用户往上翻会被拽回底部）
+  let prevChatTop = null, prevSticky = null;
+  if (S.view === 'match') {
+    const c0 = document.querySelector('#chat');
+    if (c0) { prevChatTop = c0.scrollTop; prevSticky = S.stickBottom !== false; }
+  }
   $('#main').innerHTML = v ? v() : viewSolo();
   if (S.view === 'match') {
     renderStrip();
     bindChatScroll();
+    const c1 = document.querySelector('#chat');
+    if (c1) {
+      if (prevSticky === false && prevChatTop != null) c1.scrollTop = prevChatTop;
+      else c1.scrollTop = c1.scrollHeight;
+    }
   }
   // 消息页有"渲染完要贴到底部"的活儿：innerHTML 一换，滚动位置就归零，
   // 所以在渲染之后补一次（函数在 chat.js 里，按需判断该不该贴）
