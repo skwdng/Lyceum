@@ -284,7 +284,7 @@ LOBBY ──(房主开始 · 全员就绪)──▶ RUNNING ──(12 步走完)
 - **R-TOPIC-05** `REJECT` / `NEED_EDIT` MUST 给出**可照抄的改写示例**，例如：
   > 「AI 好不好」→ 建议：「AI 生成内容是否应当享有著作权」
 - **R-TOPIC-06** 审核结果 MUST 落库：`topic.moderation_status`、`moderation_reason`、`moderation_at`；相同文本（按 sha256）MUST 命中缓存，不重复调模型。
-- **R-TOPIC-07** 审核 MUST NOT 阻断主流程以外的动作：题库浏览、历史记录、能力诊断都不受审核影响。
+- **R-TOPIC-07** 审核 MUST NOT 阻断主流程以外的动作：题库浏览、历史记录、能力分析都不受审核影响。
 - **R-TOPIC-08** 审核失败（模型超时/报错）MUST 走规则兜底放行并标 `pending`，MUST NOT 把用户卡死在「审核中」。
 - **R-TOPIC-09** `pending` 的辩题 MUST 在对局结束前异步补审；补审 `REJECT` 时 MUST 保留已产生记录，但该题不进热辩榜。
 - **R-TOPIC-10** 用户 MUST 能对 `REJECT` 结果提人工复核（P2 实现，本期仅提供入口与提示）。
