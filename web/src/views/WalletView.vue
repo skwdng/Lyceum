@@ -165,7 +165,7 @@ async function testLlm() {
         <span style="font-size: 11.5px; color: #8a909c">{{ llm.state }}</span>
       </div>
       <div style="font-size: 11.5px; color: #a8adb8; margin: 4px 0 10px">
-        填自己的 key 跑对局：模型成本不算钱，只收 0.30 元/场服务费。
+        填自己的 key 或本地模型地址跑对局：完全免费，平台一分不收。
       </div>
 
       <div class="auth-field">

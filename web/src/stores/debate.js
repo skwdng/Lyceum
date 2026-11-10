@@ -17,7 +17,7 @@ export const SEATS = [
 ];
 
 const LS = {
-  seats: 'sy_seats', mode: 'sy_mode', pace: 'sy_pace', diff: 'sy_diff'
+  seats: 'sy_seats', mode: 'sy_mode', pace: 'sy_pace', diff: 'sy_diff', tier: 'sy_tier'
 };
 
 function readSeats() {
@@ -52,6 +52,8 @@ export const useDebateStore = defineStore('debate', {
     mode: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.mode)) || 'FULL',
     pace: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.pace)) || 'normal',
     difficulty: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.diff)) || 'pro',
+    /** AI 档位：BASIC(本地免费) / PRO(平台) / BYOK(自带 Key)，默认 PRO；后端会兜底降级 */
+    tier: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.tier)) || 'PRO',
     pendingTopicId: null,
     pendingTitle: null,
 
@@ -184,6 +186,14 @@ export const useDebateStore = defineStore('debate', {
         /* 忽略 */
       }
     },
+    setTier(t) {
+      this.tier = t;
+      try {
+        localStorage.setItem(LS.tier, t);
+      } catch (e) {
+        /* 忽略 */
+      }
+    },
     setMode(m) {
       this.mode = m;
       try {
@@ -205,6 +215,7 @@ export const useDebateStore = defineStore('debate', {
         mode: this.mode,
         pace: this.pace,
         difficulty: this.difficulty,
+        tier: this.tier || 'PRO',
         ...(extra || {})
       };
       if (!payload.topicId && this.pendingTitle) payload.title = this.pendingTitle;
@@ -519,6 +530,7 @@ export const useDebateStore = defineStore('debate', {
       this.typed = {};
       this.review = null;
       this.panel = null;
+      this.tier = 'PRO';   // 换账号/离开对局：档位回默认，避免把上一个账号的选择带过去
       this.err = '';
     }
   }

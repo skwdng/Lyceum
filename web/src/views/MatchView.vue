@@ -9,18 +9,35 @@
  * · 倒计时只在轮到我时走，最后 30 秒标红；打字太慢会自动续时（上限 3 次）。
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useDebateStore, SEAT_OF, SEG_OF } from '../stores/debate.js';
+import { useAuthStore } from '../stores/auth.js';
 import { toast } from '../utils/toast.js';
 
+const route = useRoute();
 const router = useRouter();
 const debate = useDebateStore();
+const auth = useAuthStore();
 
 const draft = ref('');
 const chatEl = ref(null);
 const showTip = ref(false);
 
 const m = computed(() => debate.match || {});
+
+/** 本场 AI 档位：BASIC(基础版) / PRO(高级版) / BYOK(自带 Key)，后端没给就按高级版展示 */
+const tierLabel = computed(() => {
+  const t = String(m.value.tier || 'PRO').toUpperCase();
+  return t === 'BYOK' ? '自带 Key（免费）' : t === 'BASIC' ? '基础版（免费）' : '高级版';
+});
+
+/** 多人房整场费用由房主承担：付款人不是**当前这个用户**时才提示「由房主承担」 */
+const payerLabel = computed(() => {
+  const payer = m.value.payer_user_id || '';
+  const me = (auth.user && auth.user.id) || '';
+  if (!payer || !me) return '';
+  return String(payer) === String(me) ? '' : '房主';
+});
 const activeSeat = computed(() => SEAT_OF[debate.stepNo] || '');
 
 const cdText = computed(() => {
@@ -37,6 +54,9 @@ const cdColor = computed(() => {
 });
 
 onMounted(async () => {
+  // 支持深链 #/match?match=<id>：多人房里队友刷新页面、或从房间/消息点进来时，
+  // 内存里没有 matchId，但后端允许 owner 与同房间席位成员读这一场（MatchAccess）。
+  if (!debate.matchId && route.query.match) debate.matchId = String(route.query.match);
   // 直接刷新/从别处进来：matchId 可能不在内存里
   if (!debate.matchId) {
     router.replace({ name: 'solo' });
@@ -85,8 +105,9 @@ function scrollBottom() {
 function onScroll() {
   const el = chatEl.value;
   if (!el) return;
-  debate.stickBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-  showTip.value = !debate.stickBottom;
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  debate.stickBottom = nearBottom;
+  showTip.value = !nearBottom;
 }
 
 async function submit() {
@@ -377,6 +398,8 @@ const verdictOf = (t) => (t.typing ? '' : '');
           <div style="margin-top: 8px">
             <div class="kv"><span>你的席位</span><b>{{ m.my_seats }}</b></div>
             <div class="kv"><span>已记录发言</span><b>{{ debate.turns.length }}</b></div>
+            <div class="kv"><span>AI 档位</span><b>{{ tierLabel }}</b></div>
+            <div v-if="payerLabel" class="kv"><span>费用</span><b>由{{ payerLabel }}承担</b></div>
           </div>
         </div>
       </div>

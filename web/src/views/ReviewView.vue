@@ -8,17 +8,32 @@
 import { computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useDebateStore } from '../stores/debate.js';
+import { useAuthStore } from '../stores/auth.js';
 import BillStrip from '../components/BillStrip.vue';
 
 const route = useRoute();
 const router = useRouter();
 const debate = useDebateStore();
+const auth = useAuthStore();
 
 const r = computed(() => (debate.review && debate.review.score) || null);
 const seatScores = computed(() => (debate.review && debate.review.seatScores) || {});
 const seatKeys = computed(() => Object.keys(seatScores.value));
 const match = computed(() => debate.match || {});
 const billTokens = computed(() => (debate.review && debate.review.billTokens) || 0);
+/** 本场 AI 档位（BASIC/PRO/BYOK）：自带 Key 与基础版都免费，账单里要显示成「免费」 */
+const billTier = computed(() => (debate.match && debate.match.tier) || '');
+/**
+ * 付款人：多人房整场费用记在房主名下（后端 payer_user_id）。
+ * 和自己不是同一个人时显示「房主」——注意要和**当前登录用户**比，不能拿 user_id 比，
+ * 因为房间开局时后端把 user_id 也写成了房主，两者恒等，那样永远显示不出来。
+ */
+const billPayer = computed(() => {
+  const payer = (debate.match && debate.match.payer_user_id) || '';
+  const me = (auth.user && auth.user.id) || '';
+  if (!payer || !me || String(payer) === String(me)) return '';
+  return '房主';
+});
 
 const DIMS = [
   ['立论', 'matter', '25%'],
@@ -246,8 +261,8 @@ function verdictClass(v) {
         </template>
       </div>
 
-      <!-- 本场费用（复用批 1 的 BillStrip） -->
-      <BillStrip :bill-tokens="billTokens" />
+      <!-- 本场费用（复用批 1 的 BillStrip）：带上档位与付款人，自带 Key / 基础版会显示「免费」 -->
+      <BillStrip :bill-tokens="billTokens" :tier="billTier" :payer="billPayer" />
 
       <div class="row" style="margin-top: 16px">
         <button class="btn primary" @click="router.push({ name: 'solo' })">再来一场</button>

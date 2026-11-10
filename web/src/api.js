@@ -182,6 +182,8 @@ export const debateApi = {
   evidence: (topicId) => http.get('/api/topics/' + topicId + '/evidence'),
   /** 作战卡（模型生成要几秒，首次点开才拉） */
   brief: (topicId, side) => http.get('/api/topics/' + topicId + '/brief?side=' + side),
+  /** AI 档位说明：{basic,pro,byok} 各含 key/label/available/model/note */
+  aiTiers: () => http.get('/api/ai-tiers'),
   createMatch: (payload) => http.post('/api/matches', payload),
   match: (matchId) => http.get('/api/matches/' + matchId),
   submitTurn: (matchId, content) =>

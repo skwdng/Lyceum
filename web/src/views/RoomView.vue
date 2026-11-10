@@ -35,6 +35,12 @@ const r = computed(() => (room.value && room.value.room) || {});
 const seats = computed(() => (room.value && room.value.seats) || []);
 const hostId = computed(() => (room.value && room.value.host) || r.value.host_user || '');
 
+/**
+ * 房间档位：后端 `RoomService.start` 取 `room.tier`，没设就是 PRO。
+ * 前端**不提供档位选择**（房间层没有这个入参），只把当前口径显示清楚。
+ */
+const roomTier = computed(() => String(r.value.tier || 'PRO').toUpperCase());
+
 const myReady = computed(() => {
   const mine = seats.value.find((s) => s.seat_key === mySeat.value);
   return !!(mine && mine.ready);
@@ -282,6 +288,15 @@ function roleTag(s) {
       </span>
       <span style="margin-left: 12px; font-size: 11.5px; color: #8a909c">
         队友在「多人辩论 → 房间号加入」里输入这一串
+      </span>
+    </div>
+
+    <!-- 多人房的计费口径：整场记在房主名下（后端 payer_user_id = 房主），档位取房间设置，默认 PRO -->
+    <div class="card" style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+      <b style="font-size: 12.5px">费用</b>
+      <span style="font-size: 12.5px; color: #4a5568">本场费用由房主承担 · 档位 高级版({{ roomTier }})</span>
+      <span style="font-size: 11.5px; color: #8a909c">
+        其余席位不扣费；账单记在房主名下{{ room && room.isHost ? '（你是房主）' : '' }}
       </span>
     </div>
 

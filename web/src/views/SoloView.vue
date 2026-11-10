@@ -12,12 +12,14 @@ import { useRoute, useRouter } from 'vue-router';
 import { debateApi, baseApi, ApiError } from '../api.js';
 import { useDebateStore, SEATS, SEAT_OF, SEG_OF } from '../stores/debate.js';
 import { useAuthStore } from '../stores/auth.js';
+import { useMetaStore } from '../stores/meta.js';
 import { toast } from '../utils/toast.js';
 
 const route = useRoute();
 const router = useRouter();
 const debate = useDebateStore();
 const auth = useAuthStore();
+const meta = useMetaStore();
 
 const topics = ref([]);
 const hot = ref(null);
@@ -56,6 +58,32 @@ function diffClass(d) {
 function openSeat(topicId) {
   debate.pendingTopicId = topicId == null ? null : String(topicId);
   seatOpen.value = true;
+  // 档位是「这个部署环境有什么」的静态信息，进面板拉一次（meta 里缓存 5 分钟）
+  meta.ensureAiTiers();
+}
+
+/**
+ * 可选档位：基础版（本地 ollama）没启用时后端给 available:false —— 那种情况**整行不渲染**，
+ * 不做置灰（置灰会让用户以为"再充钱就能用"）。后端拉不到时退化成只有高级版，保证还能开局。
+ */
+const tierList = computed(() => {
+  const all = meta.aiTiers ? ['basic', 'pro', 'byok'].map((k) => meta.aiTiers[k]).filter((x) => x && x.available !== false) : [];
+  return all.length ? all : [{ key: 'PRO', label: '高级版', note: '平台模型，按 token 计费 + 服务费' }];
+});
+
+const curTier = computed(() => tierList.value.find((x) => x.key === debate.tier) || tierList.value[0]);
+const tierName = computed(() => (curTier.value && curTier.value.label) || '高级版');
+
+/** 选档位：只存偏好，真正的降级（比如 BYOK 没配 key）由后端 normalize 决定，前端不自己猜 */
+function pickTier(t) {
+  debate.setTier(t.key);
+  toast(
+    t.key === 'BASIC'
+      ? '已切到基础版（本地免费模型）'
+      : t.key === 'BYOK'
+        ? '已切到自带 Key（钱包里可填本地模型地址，完全免费）'
+        : '已切到高级版（平台模型）'
+  );
 }
 
 async function startFromPanel() {
@@ -277,9 +305,29 @@ function errText(e) {
         <span style="font-size: 11.5px; color: #8a909c">竞赛难度会故意犯逻辑错误，等你抓</span>
       </div>
 
+      <!-- AI 档位：基础版未启用时后端 available=false，这里整行不出现（不是置灰） -->
+      <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #f3f1eb">
+        <div class="row" style="gap: 8px; align-items: center; flex-wrap: wrap">
+          <span style="font-size: 12.5px; color: #4a5568">AI 档位</span>
+          <button
+            v-for="t in tierList"
+            :key="t.key"
+            class="preset"
+            :class="{ on: debate.tier === t.key }"
+            :title="t.note || ''"
+            @click="pickTier(t)"
+          >
+            {{ t.label }}
+          </button>
+        </div>
+        <div style="font-size: 11.5px; color: #a8adb8; margin-top: 6px; line-height: 1.6">
+          {{ (curTier && curTier.note) || '' }}
+        </div>
+      </div>
+
       <div class="sum">
         已选：<b>{{ [...debate.mySeats].sort().join(' ') }}</b> · 本场你将发言
-        <b>{{ debate.myTurnCount }}</b> 次 · 节奏 <b>{{ paceName }}</b>
+        <b>{{ debate.myTurnCount }}</b> 次 · 节奏 <b>{{ paceName }}</b> · 档位 <b>{{ tierName }}</b>
       </div>
 
       <div class="row" style="justify-content: flex-end; margin-top: 16px">
