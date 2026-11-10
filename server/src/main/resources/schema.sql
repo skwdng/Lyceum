@@ -181,3 +181,5 @@ alter table sy_match add column if not exists bill_tokens bigint default 0;
 
 -- 用户自带 key 的对局标记
 alter table sy_match add column if not exists own_key boolean default false;
+-- 能力分析「最近 N 场」：每场结束把六维分写进记录（dims_json）
+alter table sy_record add column if not exists dims_json varchar(400);

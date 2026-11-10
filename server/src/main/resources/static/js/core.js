@@ -73,7 +73,7 @@ const persistSeats = () => localStorage.setItem('sy_seats', JSON.stringify(S.myS
 async function loadDash(){
   if (!S.user) { S.diag = null; S.records = []; S.rooms = []; return; }
   try {
-    const [diag, records] = await Promise.all([api('/api/diag'), api('/api/records')]);
+    const [diag, records] = await Promise.all([api('/api/diag' + (S.diagWindow > 0 ? '?n=' + S.diagWindow : '')), api('/api/records')]);
     S.diag = diag; S.records = records;
   } catch (e) { S.diag = null; S.records = []; }
   await loadRooms();
@@ -273,7 +273,7 @@ async function refreshDash(v){
   try {
     S.hot = await api('/api/hot?n=12');
     if (S.user) {
-      const [diag, records] = await Promise.all([api('/api/diag'), api('/api/records')]);
+      const [diag, records] = await Promise.all([api('/api/diag' + (S.diagWindow > 0 ? '?n=' + S.diagWindow : '')), api('/api/records')]);
       S.diag = diag; S.records = records;
     }
     authRenderMeBox();

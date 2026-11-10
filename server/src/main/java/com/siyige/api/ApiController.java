@@ -264,15 +264,21 @@ public class ApiController {
         return store.records(UserContext.requireId());
     }
 
+    /**
+     * 能力分析。
+     *
+     * @param n 只看最近 n 场；n<=0 或省略表示累计滑动平均（全部场次）
+     */
     @GetMapping("/diag")
-    public Map<String, Object> diag() throws Exception {
-        return diagOf(UserContext.requireId());
+    public Map<String, Object> diag(@RequestParam(value = "n", defaultValue = "0") int n) throws Exception {
+        return diagOf(UserContext.requireId(), n);
     }
 
-    private Map<String, Object> diagOf(String userId) {
+    private Map<String, Object> diagOf(String userId, int n) {
         Map<String, Object> d = store.diag(userId);
         if (d == null) return Map.of("dims", Map.of("立论",60,"论证",58,"表达",62,"应变",52,"论据",45,"协同",60),
-                "flaws", Map.of("未证明前提",0), "streak", 0);
+                "flaws", Map.of("未证明前提",0), "streak", 0,
+                "total", 0, "window", Math.max(0, n), "samples", 0);
         Map<String, Object> out = new LinkedHashMap<>();
         var om = new com.fasterxml.jackson.databind.ObjectMapper();
         Map<String, Object> dims = Map.of(), flaws = Map.of(), last = Map.of(), delta = new LinkedHashMap<String, Object>();
@@ -282,18 +288,53 @@ public class ApiController {
             if (d.get("last_json") != null) last = om.readValue(String.valueOf(d.get("last_json")), Map.class);
             for (var e : last.entrySet()) {
                 int now = ((Number) e.getValue()).intValue();
-                int avg = dims.get(e.getKey()) instanceof Number n ? n.intValue() : now;
+                int avg = dims.get(e.getKey()) instanceof Number num0 ? num0.intValue() : now;
                 delta.put(e.getKey(), now - avg);
             }
         } catch (Exception e) {
             // 保持空
         }
+        // 「最近 n 场」：拿记录里的每场六维重新平均，最准（不受滑动平均的先后影响）
+        int total = store.recordCount(userId);
+        int window = n > 0 ? Math.min(n, Math.max(total, 1)) : total;
+        if (n > 0) {
+            var rows = store.recentDims(userId, n);
+            if (!rows.isEmpty()) {
+                Map<String, Double> sum = new LinkedHashMap<>();
+                for (var row : rows) {
+                    try {
+                        Map<String, Object> one = om.readValue(String.valueOf(row.get("dims_json")), Map.class);
+                        for (var e : one.entrySet()) {
+                            double v = ((Number) e.getValue()).doubleValue();
+                            sum.merge(e.getKey(), v, Double::sum);
+                        }
+                    } catch (Exception ignore) { }
+                }
+                Map<String, Integer> win = new LinkedHashMap<>();
+                int cnt = rows.size();
+                sum.forEach((k, v) -> win.put(k, (int) Math.round(v / cnt)));
+                if (!win.isEmpty()) {
+                    // delta 用「本场 vs 这个窗口的均值」
+                    Map<String, Object> d2 = new LinkedHashMap<>();
+                    for (var e : last.entrySet()) {
+                        int now = ((Number) e.getValue()).intValue();
+                        int base = win.getOrDefault(e.getKey(), now);
+                        d2.put(e.getKey(), now - base);
+                    }
+                    dims = new LinkedHashMap<>(win);
+                    delta = d2;
+                }
+            }
+        }
+
         out.put("dims", dims);
         out.put("last", last);
         out.put("delta", delta);
         out.put("flaws", flaws);
         out.put("samples", d.get("samples") == null ? 0 : d.get("samples"));
         out.put("streak", d.get("streak"));
+        out.put("total", total);
+        out.put("window", n > 0 ? window : 0);
         return out;
     }
 

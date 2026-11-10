@@ -154,9 +154,23 @@ public class Store {
     }
 
     // ---------- record / diag ----------
-    public void insertRecord(String userId, String matchId, String topicTitle, String seats, int total, int turns) {
-        jdbc.update("insert into sy_record(user_id,match_id,topic_title,seats,total,turns) values(?,?,?,?,?,?)",
-                userId, matchId, topicTitle, seats, total, turns);
+    public void insertRecord(String userId, String matchId, String topicTitle, String seats,
+                             int total, int turns, String dimsJson) {
+        jdbc.update("insert into sy_record(user_id,match_id,topic_title,seats,total,turns,dims_json) values(?,?,?,?,?,?,?)",
+                userId, matchId, topicTitle, seats, total, turns, dimsJson);
+    }
+
+    /** 最近 n 场的六维分（新的在前）；n<=0 表示全部。 */
+    public java.util.List<Map<String, Object>> recentDims(String userId, int n) {
+        String sql = "select dims_json from sy_record where user_id=? and dims_json is not null order by id desc"
+                + (n > 0 ? " limit " + n : "");
+        return jdbc.queryForList(sql, userId);
+    }
+
+    /** 这个用户总共打过多少场。 */
+    public int recordCount(String userId) {
+        Integer v = jdbc.queryForObject("select count(*) from sy_record where user_id=?", Integer.class, userId);
+        return v == null ? 0 : v;
     }
 
     public List<Map<String, Object>> records(String userId) {

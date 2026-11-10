@@ -95,12 +95,20 @@ function viewDiag(){
   const dims = d.dims || {};
   const delta = d.delta || {};
   const n = Object.keys(dims).length;
+  const win = d.window || 0;
+  const total = d.total || d.samples || 0;
+  const opt = (v, label) => `<button class="btn sm ${(win === v ? "" : "ghost")}" onclick="diagWindow(${v})">${label}</button>`;
   return `
   <h1 class="pg">能力分析</h1>
-  <p class="sub">滑动平均（最近 ${d.samples || 0} 场）· 只和你自己比，没有段位也没有排名。</p>
+  <p class="sub">${win > 0 ? "最近 " + win + " 场" : "全部 " + (total || 0) + " 场"}的平均 · 只和你自己比，没有段位也没有排名。</p>
   <div class="grid g2">
     <div class="card">
-      <b style="font-size:13px">${n || 6} 维画像</b>
+      <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <b style="font-size:13px">${n || 6} 维画像</b>
+        <div class="row" style="gap:6px">
+          ${opt(3, "最近 3 场")}${opt(5, "最近 5 场")}${opt(10, "最近 10 场")}${opt(0, "全部 " + (total || ""))}
+        </div>
+      </div>
       <div class="row" style="align-items:center;margin-top:6px">
         <div style="flex:1;min-width:250px">${radar(dims)}</div>
         <div style="flex:1;min-width:220px">${bars(dims, delta)}</div>
@@ -125,4 +133,13 @@ function viewDiag(){
       </div>
     </div>
   </div>`;
+}
+
+/** 切换统计窗口：只影响展示，不改数据库里的累计平均 */
+async function diagWindow(n){
+  S.diagWindow = n;
+  try {
+    S.diag = await api('/api/diag' + (n > 0 ? '?n=' + n : ''));
+    render();            // render 里会调 diagAnimate()，动画自动重放
+  } catch (e) { toast('加载失败：' + e.message); }
 }

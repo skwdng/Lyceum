@@ -440,8 +440,6 @@ public class MatchService {
         ScoreService.Score sc = scorer.score(turns, mine, str(m.get("topic_id")), store.flaws(matchId));
 
         store.finishMatch(matchId, "FINISHED", sc.total());
-        store.insertRecord(str(m.get("user_id")), matchId, str(m.get("topic_title")),
-                str(m.get("my_seats")), sc.total(), sc.turns());
         hot.zincrby(str(m.get("topic_id")), 5 + sc.turns() * 0.0);   // 打完 +5
 
         // 六维画像：滑动平均（含场次样本数）+ 本场数据单独存一份，用于算增量
@@ -484,6 +482,10 @@ public class MatchService {
         int streak = diag == null ? 1 : num(diag.get("streak")) + 1;
         store.saveDiag(str(m.get("user_id")), json.writeValueAsString(avg), json.writeValueAsString(flaws),
                 streak, prevSamples + 1, json.writeValueAsString(now));
+
+        // 记录本场（含六维），供能力分析按「最近 N 场」重新聚合
+        store.insertRecord(str(m.get("user_id")), matchId, str(m.get("topic_title")),
+                str(m.get("my_seats")), sc.total(), sc.turns(), json.writeValueAsString(now));
 
         hub.emit(matchId, "match.end", Map.of(
                 "total", sc.total(), "matter", sc.matter(), "method", sc.method(), "manner", sc.manner(),
