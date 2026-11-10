@@ -289,6 +289,11 @@ await check('T7 全程零 JS 异常', async () => {
   return '无异常';
 });
 
+// 跑完把这一套改动过的本地偏好清掉：sy_seats / sy_tier 会被后面的脚本当成默认值，
+// 留着会让别的套件（例如「多选席位 → 发言次数」）拿到意外的初始状态，跑出假失败。
+await ev(`(function(){ localStorage.removeItem('sy_seats'); localStorage.removeItem('sy_tier');
+  localStorage.removeItem('sy_mode'); return true })()`).catch(() => {});
+
 console.log(out.join('\n'));
 const bad = out.filter((x) => x.startsWith('FAIL')).length;
 console.log('\n汇总：' + (out.length - bad) + '/' + out.length + ' 通过');

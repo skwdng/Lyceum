@@ -252,16 +252,20 @@ await check('B1-7 辩论记录：三张统计卡 + 表格或空态', async () =>
   return `卡片 ${st.cards} 个，表格行 ${st.rows} 行${st.hasEmpty ? '（空态）' : ''}`;
 });
 
-await check('B1-8 能力诊断：雷达 SVG + 五维条 + 连续天数', async () => {
+await check('B1-8 能力分析：标题改名 + 新账号显示空状态（不再画假维度）', async () => {
   await openV2('diag');
   await sleep(1800);
-  const st = await ev(`({svg: document.querySelectorAll('#main svg polygon').length,
+  const st = await ev(`({svg: document.querySelectorAll('svg polygon').length,
                         dims: document.querySelectorAll('.dim').length,
-                        tag: (document.querySelector('.tag.g')||{}).textContent,
-                        title: document.querySelector('h1.pg').textContent})`);
-  if (st.title !== '能力诊断') throw new Error('标题不对');
-  if (!st.svg) throw new Error('雷达图没画出来');
-  return `雷达多边形 ${st.svg} 个，维度条 ${st.dims} 个，${(st.tag || '').trim()}`;
+                        title: (document.querySelector('h1.pg')||{}).textContent,
+                        empty: document.body.innerText.indexOf('还没有数据') >= 0,
+                        goBtn: [...document.querySelectorAll('button')].some(b=>b.textContent.includes('去打第一场'))})`);
+  if (String(st.title).trim() !== '能力分析') throw new Error('标题不对：' + st.title);
+  // 批 5：一场没打时后端返回 empty=true（dims 为空），前端不再画写死的假维度
+  if (!st.empty) throw new Error('新账号没有显示空状态');
+  if (!st.goBtn) throw new Error('空状态没有「去打第一场」');
+  if (st.svg || st.dims) throw new Error('空状态却画了图：svg=' + st.svg + ' dims=' + st.dims);
+  return '空状态（六维雷达由 selftest_vue_diag6 用真实对局覆盖）';
 });
 
 await check('B1-9 钱包：充值 ¥1.00 → 页内收银台 → 余额与流水更新', async () => {
