@@ -655,7 +655,7 @@ siyige:
 | 缓存/状态 | Redis | 7.x | 房间快照、发言令牌、限流、榜单 |
 | AI 框架 | Spring AI | 1.x | `ChatClient.stream()` / `.entity()` / `@Tool` |
 | 模型 | DeepSeek API（OpenAI 兼容） | – | deepseek-chat |
-| 前端 | Vue 3.4 + Vite 5 + Arco Design Vue + Pinia + ECharts | – | 页面/图表 |
+| 前端 | Vue 3 + Vite 6 + Pinia（**无 UI 库、无图表库**） | – | 见 §24（§14.1 为原计划，实际按 §24 实现） |
 | SSE 客户端 | `@microsoft/fetch-event-source` | 2.x | 原生 EventSource 不能带 header |
 | 部署 | Docker Compose + Nginx | – | 一键起 MySQL/Redis/App/Nginx |
 
@@ -1220,3 +1220,87 @@ location /api/ {
   若将来要加，MUST 在网关 / 过滤器层做，MUST NOT 塞进 `ChatService`（会把事务与限流耦在一起）。
 
 ---
+
+
+---
+
+## 24. 前端：Vue 3 实现（2026-11-10 追加）
+
+> 本节描述**实际实现**。§14.1 的技术表是立项时的计划（Vue 3.4 + Arco + ECharts + MySQL + WebFlux），
+> 实际交付与此有偏差；前端以本节为准，偏差原因见各条说明。
+>
+> 背景：原前端是原生 JS（`core.js` + `js/views/*.js`，约 5,400 行）。2026-11-10 分 5 批整体迁到
+> Vue 3，17 个页面全部重写（约 7,000 行），旧文件删除，**同一批修掉了一个线上白屏事故**。
+
+### 24.1 选型（与 §14.1 的差异及原因）
+
+| 项 | 计划 | 实际 | 原因 |
+|---|---|---|---|
+| 框架 | Vue 3.4 | **Vue 3.5** | 直接装最新稳定版 |
+| 构建 | Vite 5 | **Vite 6** | 同上 |
+| UI 库 | Arco Design Vue | **不用** | 现有界面风格已定型，引 UI 库等于重做视觉；且包体会翻倍 |
+| 图表 | ECharts | **手写 SVG 雷达** | 只用一个雷达图，引 ECharts（≈300KB）不划算 |
+| 语言 | 未定 | **JavaScript（非 TS）** | 与团队现状一致，改用 TS 的成本在类型标注而非代码 |
+
+### 24.2 硬性要求
+
+- **R-WEB-01** 前端 MUST 为 Vue 3 单页应用（`web/`），MUST NOT 再新增原生 JS 视图文件，
+  MUST NOT 重新引入第二套前端。
+- **R-WEB-02** 路由 MUST 使用 **Hash 模式**（`createWebHashHistory`）。理由：Spring 静态资源
+  没有 SPA fallback，History 模式一刷新即 404，而后端本期不得改动。
+- **R-WEB-03** 静态资源路径 MUST 由构建 `base` 生成（相对 `'./'`），**MUST NOT 手写**
+  `/js/...`、`/css/...` 这类根绝对路径。
+  > 这是真实事故：旧 `index.html` 有 17 处根绝对路径，部署在 `/siyige/` 子路径下全部 404，
+  > 页面停在「正在连接后端…」，与直接双击 `static/index.html` 的症状一致。
+- **R-WEB-04** 用户令牌 MUST 存 `localStorage['sy_jwt']`（兼容旧会话）；管理员令牌 MUST 独立为
+  `localStorage['sy_admin_jwt']`，MUST NOT 混用。
+- **R-WEB-05** 接口前缀 MUST 由 `location.pathname` 判断 `/siyige` 得到，统一收敛在 `api.js`；
+  业务代码 MUST NOT 自己拼 URL 前缀。
+- **R-WEB-06** 构建产物 MUST 提交到 `server/src/main/resources/static/v2/`，
+  生产服务器 MUST NOT 依赖 Node/npm。
+- **R-WEB-07** 未读角标 MUST 只有一处轮询（`stores/unread.js`，45 秒）；页面组件 MUST NOT
+  自建 `setInterval`。WebSocket 同一用户同一时刻 MUST 只有一条连接。
+- **R-WEB-08** 切换账号 MUST 重置全部 store（`reset()`），MUST NOT 让上一个账号的会话、
+  未读、余额残留。历史缺陷：换账号后「标题显示自己、未读消不掉、发消息失败」。
+- **R-WEB-09** 每批迁移 MUST 配套浏览器自检脚本（`server/scripts/selftest_vue_*.mjs`），
+  脚本开头 MUST 清 `localStorage` 并等待应用挂载完成，否则多脚本共用一个浏览器 profile 会互相污染。
+- **R-WEB-10** 旧前端文件 MUST 在新页面验收通过后统一删除；删除 MUST 与入口切换放在同一批提交，
+  MUST NOT 出现「新旧两套都在改」的状态。
+
+### 24.3 入口与部署
+
+```text
+用户访问  /siyige/                    -> static/index.html（21 行，只做一次跳转）
+          /siyige/v2/index.html#/<路由> -> Vue 应用本体（Hash 路由）
+管理台    /siyige/v2/index.html#/admin  -> 裸布局 + sy_admin_jwt + /api/admin
+```
+
+- 跳转 MUST 保留 `query` 与 `hash`：老书签 `/?v=community`、`/#/community/12` 不得失效
+- 构建：`cd web && npm i && npm run build`（产物直接落进 `static/v2/`）
+- 服务器侧 **无需改 Nginx**（仍走现有 `/siyige/ → 127.0.0.1:8080`）；
+  唯一例外是聊天 WebSocket，仍需 `/siyige/ws/` 的 Upgrade 配置（见 §23 上线前置条件）
+
+### 24.4 目录
+
+```text
+web/
+├── vite.config.js      base='./' + outDir=static/v2 + dev proxy(/api, /ws)
+├── src/App.vue         外壳（侧栏 / 内容区 / 未读角标）
+├── src/router.js       Hash 路由（17 个页面）
+├── src/nav.js          侧栏导航（加页面 = 加一行）
+├── src/api.js          API_BASE / 401 / 错误体
+├── src/stores/         auth / unread / wallet / chat / debate / meta
+├── src/utils/          chatWs / community / markdown / format / toast
+├── src/components/     AppShell / ToastHost / ReportModal
+└── src/views/*.vue     一人一块，与旧 js/views/*.js 一一对应
+```
+
+### 24.5 验收
+
+| 项 | 标准 |
+|---|---|
+| 入口 | `/` 落到新版；`/js/core.js`、`/css/app.css`、`/admin.html` 均 404 |
+| 登录 | 注册/登录/改密/退出全通；刷新不掉登录；换账号不串状态 |
+| 页面 | 17 个页面逐屏有实质内容，无空白、无 JS 异常 |
+| 实时 | 聊天 WS 双端收发；断线自动重连、降级轮询后仍可收 |
+| 自检 | `selftest_vue_batch0/1/2/2b/3/3b/entry.mjs` 全绿 |

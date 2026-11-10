@@ -38,6 +38,13 @@ cp config/application.example.yml config/application.yml   # 填 api-key（不�
 mvn spring-boot:run                                        # 打开 http://localhost:8080
 ```
 
+前端构建产物已经放在 `server/src/main/resources/static/v2/`，跑后端即可使用；
+改了前端源码再重新构建（服务器不需要装 Node）：
+
+```bash
+cd web && npm i && npm run build      # → server/src/main/resources/static/v2/
+```
+
 需要本地 Redis（社区浏览计数与去重用，必需）：
 
 ```bash
@@ -46,21 +53,26 @@ docker run -d --name siyige-redis -p 6379:6379 redis:7-alpine --requirepass siyi
 
 ## 技术栈
 
-Java 17 · Spring Boot 3.3 · SSE + WebSocket · H2/Redis · 原生 JS（无框架无构建） · DeepSeek
+Java 17 · Spring Boot 3.3 · SSE + WebSocket · H2/Redis · Vue 3 + Vite 6（Hash 路由） · DeepSeek
 
 密码 Argon2id 哈希 · 会话 JWT（HS256，2 小时）
 
 ## 目录
 
 ```
-server/src/main/java/com/siyige/   api / service / ai / domain / engine / repo / community / auth / admin / social
-server/src/main/resources/static/  index.html + admin.html + css + js/views/*（一人一块）
+server/src/main/java/com/siyige/   api / service / ai / domain / engine / repo / community / auth / admin / social / billing / judges
+web/                               Vue 3 源码：views/*.vue + router + stores（一人一块仍然适用）
+server/src/main/resources/static/  构建产物：index.html（跳转）+ v2/（应用本体，随仓库提交）
 docs/                              SPEC 规格 / AI 方案 / 协作规范 / 项目进度 / 接口契约
 ```
 
 ## 更新记录
 
 > 每次开发完在下面加一段，新的放最上面。一行说清「改了什么 / 为什么」。
+
+### 2026-11-10
+- **前端整体迁到 Vue 3 + Vite**：17 个页面重写为组件（约 7,000 行），旧的 `js/views/*`、`core.js`、`app.css`、`admin.html` 全部删除；Hash 路由，构建产物随仓库提交，服务器不用装 Node
+- **顺带修掉线上白屏**：旧 `index.html` 有 17 处 `/js/...` 根绝对路径，挂到 `/siyige/` 子路径后全 404、页面卡在「正在连接后端…」；新版用相对 `base`，本地与线上同一份产物
 
 ### 2026-11-09
 
