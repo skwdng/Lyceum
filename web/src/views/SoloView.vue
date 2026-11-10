@@ -86,6 +86,22 @@ function pickTier(t) {
   );
 }
 
+/** 正在进行的对局（离开对局页不会清空，所以这里能读出来） */
+const running = computed(() => {
+  const m = debate.match;
+  return debate.matchId && m && m.status === 'RUNNING' ? m : null;
+});
+
+function resumeMatch() {
+  router.push({ name: 'match' });
+}
+
+/** 放弃这一场：只清本地状态（后端那一局会自然超时结束），与旧版一致 */
+function abandonMatch() {
+  debate.reset();
+  toast('已放弃这一场');
+}
+
 async function startFromPanel() {
   seatOpen.value = false;
   if (!auth.user) {
@@ -138,6 +154,24 @@ function errText(e) {
 <template>
   <h1 class="pg">单人辩论</h1>
   <p class="sub">选一道题（或自己填）→ 选位置 → 直接开打。不建房、不等人，缺的席位由 AI 补齐。</p>
+
+  <!-- 有一场还没打完：离开对局页不会清空状态，这里给个回来的入口（旧版同款） -->
+  <div
+    v-if="running"
+    class="card"
+    style="margin-bottom: 14px; border-color: #d6e0ff; background: #fbfcfe; display: flex; align-items: center; gap: 14px; flex-wrap: wrap"
+  >
+    <div style="flex: 1; min-width: 220px">
+      <b style="font-size: 13px">有一场还没打完</b>
+      <div style="font-size: 11.5px; color: #8a909c; margin-top: 3px">
+        {{ running.topic_title || '（未命名辩题）' }} · 你占 {{ running.my_seats || '' }}
+      </div>
+    </div>
+    <div class="row" style="gap: 8px">
+      <button class="btn primary sm" @click="resumeMatch">继续这一场</button>
+      <button class="btn ghost sm" @click="abandonMatch">放弃</button>
+    </div>
+  </div>
 
   <div v-if="err" class="card"><div class="empty">{{ err }}</div></div>
 

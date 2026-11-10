@@ -66,11 +66,23 @@ onMounted(async () => {
   debate.startPoll();
   debate.startClock();
   debate.startTyping();
+  // 打字机要滚的时候由这里决定怎么滚（store 里只做「要不要滚」的判断）
+  debate.scrollToBottom = scrollBottom;
   await nextTick();
-  scrollBottom();
+  bindScrollGuards();
+  // 从别处切回来：保留原来的滚动位置（贴底就跟到底，翻着看历史就停在原处）
+  if (debate.stickBottom === false && debate.chatScrollTop > 0 && chatEl.value) {
+    chatEl.value.scrollTop = debate.chatScrollTop;
+    showTip.value = true;
+  } else {
+    scrollBottom();
+  }
 });
 
 onBeforeUnmount(() => {
+  // 离开前记住位置，下次回来（还没打完的那一场）接着看
+  if (chatEl.value) debate.chatScrollTop = chatEl.value.scrollTop;
+  debate.scrollToBottom = null;
   debate.stopPoll();
   debate.stopClock();
   debate.stopTyping();
@@ -108,7 +120,39 @@ function onScroll() {
   const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   debate.stickBottom = nearBottom;
   showTip.value = !nearBottom;
+  // 程序化滚动也会触发 scroll，所以只在「确实离底」时才算用户手动滚过
+  if (!nearBottom) debate.lastUserScroll = Date.now();
 }
+
+/**
+ * 滚轮/触摸/方向键：**立刻**解除跟随，不等 scroll 事件。
+ * 打字循环可能先一步把滚动条拽回去，只靠 scroll 事件会「刚翻上去又被弹下来」。
+ *
+ * 注意：对局页首帧可能还在「正在加载」，`.chat` 要到 match 回来才渲染，
+ * 所以这里既在 mounted 后调一次，也挂 watch 兜住「元素后来才出现」的情况。
+ */
+function bindScrollGuards() {
+  const el = chatEl.value;
+  if (!el || el.dataset.guards === '1') return;
+  el.dataset.guards = '1';
+  const stopFollow = () => {
+    debate.stickBottom = false;
+    debate.lastUserScroll = Date.now();
+    showTip.value = true;
+  };
+  el.addEventListener('wheel', stopFollow, { passive: true });
+  el.addEventListener('touchstart', () => {
+    debate.lastUserScroll = Date.now();
+  }, { passive: true });
+  el.addEventListener('touchmove', stopFollow, { passive: true });
+  el.addEventListener('keydown', (e) => {
+    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) stopFollow();
+  });
+}
+
+watch(chatEl, (el) => {
+  if (el) bindScrollGuards();
+});
 
 async function submit() {
   const text = draft.value;

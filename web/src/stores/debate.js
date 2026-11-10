@@ -79,6 +79,10 @@ export const useDebateStore = defineStore('debate', {
     shown: {},
     typed: {},
     stickBottom: true,
+    /** 用户最后一次手动滚动的时间戳：打字机 600ms 内不自动滚（旧版同款防拽） */
+    lastUserScroll: 0,
+    /** 离开对局页时的滚动位置：切回来接着看，不跳顶也不跳底 */
+    chatScrollTop: 0,
 
     // 复盘
     review: null,
@@ -359,7 +363,11 @@ export const useDebateStore = defineStore('debate', {
         if (now < (pauses[next.key] || 0)) return;
         const idx = next.shown + 1;
         this.shown[next.key] = idx;
-        if (this.stickBottom) this.scrollToBottom && this.scrollToBottom();
+        // 只在三个条件同时满足时自动滚：① 处于贴底 ② 用户 600ms 内没手动滚过 ③ 每 3 个字滚一次
+        // （旧版踩过：每字都滚会把正在往上翻历史的用户拽回底部）
+        if (this.stickBottom && Date.now() - (this.lastUserScroll || 0) > 600 && idx % 3 === 0) {
+          if (this.scrollToBottom) this.scrollToBottom();
+        }
         if (idx >= next.text.length) {
           this.typed[next.key] = true;
           return;
@@ -531,6 +539,8 @@ export const useDebateStore = defineStore('debate', {
       this.review = null;
       this.panel = null;
       this.tier = 'PRO';   // 换账号/离开对局：档位回默认，避免把上一个账号的选择带过去
+      this.lastUserScroll = 0;
+      this.chatScrollTop = 0;
       this.err = '';
     }
   }
