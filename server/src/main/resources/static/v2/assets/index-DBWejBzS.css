@@ -40,6 +40,71 @@
   border: 1px solid #dce3f5;
   border-radius: 12px;
 }
+
+/*
+ * 管理台的样式：数值从旧 admin.html 的 \3c style>（L13–L75）原样搬过来，未改。
+ *
+ * 为什么放 scoped：这套样式里有 .card / .btn / .tag / .panel / .bar / table 这些**通用类名**，
+ * 一旦全局导入就会盖掉主站其它页面（实测 .panel 被旧宽 760px 影响过）。scoped 让它只作用于本页。
+ * 原来 body{} 的三条（背景/字体/前景色）挪到 .adm-root 上，效果一致且不外溢。
+ */
+.adm-root[data-v-a715ca91]{min-height:100vh;background:#F5F6F8;color:#1D2129;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.adm-root[data-v-a715ca91] *{box-sizing:border-box}
+.login-wrap[data-v-a715ca91]{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#EEF2FF,#F7F8FA)}
+.login-card[data-v-a715ca91]{width:360px;background:#fff;border-radius:16px;padding:32px 28px;box-shadow:0 12px 40px rgba(20,30,60,.10)}
+.login-card h1[data-v-a715ca91]{margin:0 0 6px;font-size:20px}
+.login-card p[data-v-a715ca91]{margin:0 0 22px;color:#86909C;font-size:12.5px}
+label[data-v-a715ca91]{display:block;font-size:12.5px;color:#4E5969;margin:14px 0 6px}
+input[data-v-a715ca91],select[data-v-a715ca91],textarea[data-v-a715ca91]{width:100%;border:1px solid #E5E6EB;border-radius:9px;padding:10px 12px;font:inherit;background:#FCFCFD;outline:none}
+input[data-v-a715ca91]:focus,textarea[data-v-a715ca91]:focus,select[data-v-a715ca91]:focus{border-color:#165DFF;box-shadow:0 0 0 3px rgba(22,93,255,.10)}
+.btn[data-v-a715ca91]{border:1px solid #E5E6EB;background:#fff;color:#1D2129;border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn[data-v-a715ca91]:hover{background:#F7F8FA}
+.btn.primary[data-v-a715ca91]{background:#165DFF;border-color:#165DFF;color:#fff}
+.btn.primary[data-v-a715ca91]:hover{background:#0E42D2}
+.btn.danger[data-v-a715ca91]{background:#F53F3F;border-color:#F53F3F;color:#fff}
+.btn.warn[data-v-a715ca91]{background:#FF7D00;border-color:#FF7D00;color:#fff}
+.btn.sm[data-v-a715ca91]{padding:5px 10px;font-size:12px}
+.btn[disabled][data-v-a715ca91]{opacity:.45;cursor:not-allowed}
+header[data-v-a715ca91]{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #E5E6EB;padding:0 24px}
+.bar[data-v-a715ca91]{display:flex;align-items:center;gap:18px;height:60px;max-width:1240px;margin:0 auto}
+.brand[data-v-a715ca91]{font-weight:700;font-size:16px}
+.tabs[data-v-a715ca91]{display:flex;gap:6px}
+.tabs button[data-v-a715ca91]{border:none;background:transparent;padding:8px 14px;border-radius:9px;font-size:13.5px;color:#4E5969;cursor:pointer}
+.tabs button.on[data-v-a715ca91]{background:#E8F3FF;color:#165DFF;font-weight:600}
+.badge[data-v-a715ca91]{display:inline-block;margin-left:4px;background:#F53F3F;color:#fff;border-radius:8px;padding:0 5px;font-size:11px}
+.old-entry[data-v-a715ca91]{font-size:12px;color:#2F5BEA;background:#EDF1FE;border-radius:8px;padding:6px 10px;text-decoration:none;white-space:nowrap}
+.old-entry[data-v-a715ca91]:hover{background:#E3EAFD}
+.spacer[data-v-a715ca91]{flex:1}
+main[data-v-a715ca91]{max-width:1240px;margin:0 auto;padding:20px 24px 60px}
+.cards[data-v-a715ca91]{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.card[data-v-a715ca91]{background:#fff;border-radius:12px;padding:16px 18px;border:1px solid #EFF0F1}
+.card .k[data-v-a715ca91]{font-size:12.5px;color:#86909C}
+.card .v[data-v-a715ca91]{font-size:26px;font-weight:700;margin-top:4px}
+.panel[data-v-a715ca91]{background:#fff;border-radius:12px;border:1px solid #EFF0F1;overflow:hidden;width:auto}
+.panel h2[data-v-a715ca91]{margin:0;padding:14px 18px;font-size:14px;border-bottom:1px solid #EFF0F1;display:flex;gap:10px;align-items:center}
+table[data-v-a715ca91]{width:100%;border-collapse:collapse}
+th[data-v-a715ca91],td[data-v-a715ca91]{text-align:left;padding:10px 18px;font-size:13px;border-bottom:1px solid #F2F3F5;vertical-align:top}
+th[data-v-a715ca91]{color:#86909C;font-weight:500;background:#FAFBFC}
+tr:hover td[data-v-a715ca91]{background:#FCFCFD}
+.tag[data-v-a715ca91]{display:inline-block;border-radius:6px;padding:1px 7px;font-size:11.5px;background:#F2F3F5;color:#4E5969;white-space:nowrap}
+.tag.red[data-v-a715ca91]{background:#FFECE8;color:#F53F3F}
+.tag.ok[data-v-a715ca91]{background:#E8FFEA;color:#00B42A}
+.tag.orange[data-v-a715ca91]{background:#FFF7E8;color:#B8740A}
+.tag.blue[data-v-a715ca91]{background:#E8F3FF;color:#165DFF}
+.muted[data-v-a715ca91]{color:#86909C}
+.mask[data-v-a715ca91]{position:fixed;inset:0;background:rgba(20,25,40,.45);display:flex;align-items:center;justify-content:center;padding:24px;z-index:100}
+.modal[data-v-a715ca91]{background:#fff;border-radius:14px;width:720px;max-width:100%;max-height:88vh;display:flex;flex-direction:column}
+.modal h3[data-v-a715ca91]{margin:0;padding:16px 20px;border-bottom:1px solid #EFF0F1;font-size:15px}
+.modal .body[data-v-a715ca91]{padding:16px 20px;overflow:auto}
+.modal .foot[data-v-a715ca91]{padding:14px 20px;border-top:1px solid #EFF0F1;display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.pager[data-v-a715ca91]{display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid #EFF0F1}
+.pager .muted[data-v-a715ca91]{font-size:12.5px}
+@media (max-width:860px){
+.cards[data-v-a715ca91]{grid-template-columns:1fr}
+.bar[data-v-a715ca91]{gap:10px;height:auto;padding:10px 0;flex-wrap:wrap}
+th[data-v-a715ca91],td[data-v-a715ca91]{padding:9px 12px}
+main[data-v-a715ca91]{padding:14px 12px 60px}
+}
 /* 新前端样式。
  *
  * 来源：从旧 `css/app.css` **摘录**实际用到的规则（变量、外壳、按钮、卡片、表单、通知、好友…），
@@ -693,4 +758,56 @@ table.t tr:last-child td { border-bottom: none; }
 /* 新版补丁：页头右侧操作区固定不换行（旧版 page-head 是 wrap，宽屏会掉到下一行） */
 .cm .page-head { align-items: center; }
 .cm .page-head > div:first-child { min-width: 0; }
-.cm .page-head > div:last-child { flex-shrink: 0; }
+.cm .page-head > div:last-child { flex-shrink: 0; }/* 批 3：视频样式
+ *
+ * 整段从旧 css/app.css 的 L302–L349（视频（辩论短视频）那一段，含它的手机端 media query）原样搬过来，
+ * 数值未改。
+ */
+/* ===== 视频（辩论短视频）===== */
+.vwrap{display:flex;flex-direction:column;height:calc(100vh - 60px);background:#0B0C10;border-radius:14px;overflow:hidden;border:1px solid #1B1E27}
+.vtop{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #1B1E27;background:#0E1015;color:#EDEEF2}
+.vfilter{display:flex;gap:6px;padding:10px 16px;overflow-x:auto;background:#0E1015;border-bottom:1px solid #1B1E27}
+.vseg{font-size:12.5px;padding:5px 12px;border-radius:20px;background:#161922;color:#9AA0AE;border:1px solid #232733;white-space:nowrap}
+.vseg.on{background:#3A63FF;color:#fff;border-color:#3A63FF}
+.vfeed{flex:1;overflow-y:scroll;scroll-snap-type:y mandatory;position:relative}
+.vfeed::-webkit-scrollbar{display:none}
+.vslide{position:relative;height:100%;scroll-snap-align:start;display:flex;align-items:center;justify-content:center;background:#000}
+.vslide video{width:100%;height:100%;object-fit:contain}
+.vwater{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:120px;font-weight:700;color:rgba(255,255,255,.05);background:linear-gradient(160deg,#131722,#0B0C10 45%,#161A24)}
+.vside{position:absolute;right:14px;bottom:120px;display:flex;flex-direction:column;gap:18px;z-index:5}
+.vside button{display:flex;flex-direction:column;align-items:center;gap:3px;color:#fff;font-size:22px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.vside button i{font-size:11.5px;font-style:normal}
+.vside button.on{color:#FF4D6A}
+.vinfo{position:absolute;left:0;right:70px;bottom:24px;padding:0 16px;z-index:5;background:linear-gradient(0deg,rgba(0,0,0,.75),transparent);color:#fff}
+.vinfo h3{font-size:15.5px;line-height:1.45;margin-bottom:6px}
+.vtags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.vtag{font-size:11px;padding:2px 8px;border-radius:5px;background:rgba(58,99,255,.22);color:#9DB4FF;border:1px solid rgba(58,99,255,.35)}
+.vtag.o{background:rgba(224,138,60,.18);color:#E8B279;border-color:rgba(224,138,60,.35)}
+.vby{font-size:12px;color:#9AA0AE}
+.vempty{color:#6B7280;font-size:13px;text-align:center;padding:30px 0}
+.vmask{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:90}
+.vmask.show{display:block}
+.vsheet{position:absolute;right:0;top:0;bottom:0;width:min(520px,100%);background:#0E1015;border-left:1px solid #1B1E27;display:flex;flex-direction:column}
+.vshd{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid #1B1E27;color:#EDEEF2}
+.vsbd{flex:1;overflow-y:auto;padding:16px;color:#EDEEF2}
+.vcard{background:#14161D;border:1px solid #1F232E;border-radius:12px;padding:14px;margin-bottom:10px;color:#EDEEF2}
+.vkv{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:#9AA0AE}
+.vkv b{color:#EDEEF2}
+.vpill{font-size:11px;padding:2px 8px;border-radius:20px}
+.vpill.ok{background:rgba(34,160,107,.18);color:#4ADE9B}
+.vpill.warn{background:rgba(224,138,60,.18);color:#E8B279}
+.vpill.bad{background:rgba(229,72,77,.18);color:#FF8A8D}
+.vcmt{background:#101219;border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:13.5px;color:#D5D8E0}
+.vwho{font-size:11.5px;color:#9AA0AE;margin-bottom:3px}
+.vinput{width:100%;background:#14161D;border:1px solid #1F232E;border-radius:10px;padding:10px 12px;color:#EDEEF2;font-size:14px}
+.vfield{margin-bottom:12px}
+.vfield label{display:block;font-size:12.5px;color:#9AA0AE;margin-bottom:6px}
+.vrow{display:flex;gap:8px;flex-wrap:wrap}
+.vrowitem{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.vthumb{width:54px;height:54px;border-radius:8px;background:#1B1E27;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+@media (max-width:860px){
+  .vwrap{height:calc(100vh - 130px)}
+  .vsheet{width:100%}
+  .vside{bottom:130px}
+}
+/* ==================== 通知（2026-11-04，V1） ====================

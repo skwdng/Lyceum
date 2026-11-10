@@ -245,3 +245,106 @@ export const notifyApi = {
   list: (page = 1, size = 20) => http.get('/api/community/notifications?page=' + page + '&size=' + size),
   unreadCount: () => http.get('/api/community/notifications/unread-count')
 };
+
+// ==================== 视频（批 3） ====================
+
+export const videoApi = {
+  /** 信息流：size 默认 6；cursor 分页；segment 按环节筛 */
+  feed: (cursor, segment) =>
+    http.get('/api/video/feed?size=6' + (cursor ? '&cursor=' + cursor : '') +
+      (segment ? '&segment=' + encodeURIComponent(segment) : '')),
+  detail: (id) => http.get('/api/video/videos/' + id),
+  like: (id, cancel) => http.post('/api/video/videos/' + id + '/like', { cancel: !!cancel }),
+  comment: (id, content) => http.post('/api/video/videos/' + id + '/comments', { content }),
+  publish: (payload) => http.post('/api/video/videos', payload),
+  /** 审核台是否开放由后端决定 */
+  rules: () => http.get('/api/video/audit/rules'),
+  queue: (status, size = 50) => http.get('/api/video/audit/queue?status=' + status + '&size=' + size),
+  logs: (id) => http.get('/api/video/audit/' + id + '/logs'),
+  decide: (id, decision, reason) => http.post('/api/video/audit/' + id + '/decide', { decision, reason }),
+  restore: (id) => http.post('/api/video/audit/' + id + '/restore', {})
+};
+
+// ==================== 管理后台（批 3，独立令牌） ====================
+
+export const ADMIN_TOKEN_KEY = 'sy_admin_jwt';
+
+export function getAdminToken() {
+  try {
+    return localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+export function setAdminToken(t) {
+  try {
+    if (t) localStorage.setItem(ADMIN_TOKEN_KEY, t);
+    else localStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch (e) {
+    /* 忽略 */
+  }
+}
+
+/**
+ * 管理后台请求：**与主站不同的令牌键**（sy_admin_jwt）与不同的前缀（/api/admin）。
+ *
+ * 旧 admin.js 里有个 keepLogin：400 是表单校验失败，不该把人踢下线。
+ * 这里保留同样语义 —— 只有 401 才清令牌。
+ */
+export async function adminRequest(path, opts = {}) {
+  const method = opts.method || 'GET';
+  const headers = {};
+  if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
+  const token = getAdminToken();
+  if (token) headers.Authorization = 'Bearer ' + token;
+
+  let resp;
+  try {
+    resp = await fetch(API_BASE + '/api/admin' + path, {
+      method,
+      headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+    });
+  } catch (e) {
+    throw new ApiError('后端未连接', 'NETWORK', 0);
+  }
+  const text = await resp.text();
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      data = null;
+    }
+  }
+  if (resp.status === 401 && !opts.keepLogin) {
+    setAdminToken('');
+    window.dispatchEvent(new CustomEvent('sy:admin-unauthorized'));
+  }
+  if (!resp.ok) {
+    const message = (data && data.message) || (typeof text === 'string' && text) || 'HTTP ' + resp.status;
+    throw new ApiError(message, (data && data.code) || 'HTTP_' + resp.status, resp.status);
+  }
+  return data;
+}
+
+export const adminApi = {
+  login: (account, password) => adminRequest('/auth/login', { method: 'POST', body: { account, password } }),
+  password: (oldPassword, newPassword) =>
+    adminRequest('/auth/password', { method: 'PATCH', body: { oldPassword, newPassword }, keepLogin: true }),
+  stats: () => adminRequest('/stats'),
+  reports: (status, page, size = 20) =>
+    adminRequest('/reports?status=' + (status || 'PENDING') + '&page=' + (page || 1) + '&size=' + size),
+  report: (reportId) => adminRequest('/reports/' + reportId),
+  resolve: (reportId, body) => adminRequest('/reports/' + reportId + '/resolve', { method: 'POST', body }),
+  audit: (page, size = 20) => adminRequest('/audit?page=' + (page || 1) + '&size=' + size),
+  restoreAudit: (id) => adminRequest('/audit/' + encodeURIComponent(id) + '/restore', { method: 'POST' }),
+  users: (q, page, size = 20) =>
+    adminRequest('/users?q=' + encodeURIComponent(q || '') + '&page=' + (page || 1) + '&size=' + size),
+  ban: (id, days, reason) =>
+    adminRequest('/users/' + encodeURIComponent(id) + '/ban', { method: 'POST', body: { days, reason } }),
+  unban: (id) => adminRequest('/users/' + encodeURIComponent(id) + '/unban', { method: 'POST' }),
+  setStatus: (id, status) =>
+    adminRequest('/users/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { status } })
+};

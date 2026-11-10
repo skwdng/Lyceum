@@ -2,7 +2,6 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import { useAuthStore } from './stores/auth.js';
 import LoginView from './views/LoginView.vue';
 import MeView from './views/MeView.vue';
-import LegacyRedirect from './views/LegacyRedirect.vue';
 import NotifyView from './views/NotifyView.vue';
 import FriendsView from './views/FriendsView.vue';
 import HotView from './views/HotView.vue';
@@ -16,6 +15,8 @@ import ReviewView from './views/ReviewView.vue';
 import RoomView from './views/RoomView.vue';
 import CommunityView from './views/CommunityView.vue';
 import PostDetailView from './views/PostDetailView.vue';
+import VideoView from './views/VideoView.vue';
+import AdminView from './views/AdminView.vue';
 
 /**
  * 路由表。
@@ -25,7 +26,7 @@ import PostDetailView from './views/PostDetailView.vue';
  *
  * 迁移期的两条规则：
  * 1. 已迁移页面 → 挂真组件；
- * 2. 未迁移页面 → 挂 `<LegacyRedirect>`，它把浏览器送到旧前端对应视图（`/siyige/?v=xxx`）。
+ * 2. 批 3 之后所有页面都已迁移，不再有回落旧页的路由（LegacyRedirect.vue 留着备用，批 4 再决定删不删）。
  *    —— 这样侧栏永远点得通，用户不会撞到空白页，我们也能一批一批搬。
  *
  * `meta.legacy` 的值必须是旧前端 boot() 认得的键（solo/room/hotb/diag/records/community/video/chat/friends/notify/me）。
@@ -60,7 +61,9 @@ const routes = [
   { path: '/community', name: 'community', component: CommunityView },
   // 帖子详情走真实路由：通知点「帖子类」通知可以直接深链过来（?around=<评论id> 定位楼层）
   { path: '/community/:postId', name: 'community-post', component: PostDetailView },
-  { path: '/video', name: 'video', component: LegacyRedirect, meta: { legacy: 'video' } },
+  { path: '/video', name: 'video', component: VideoView },
+  // 管理后台是独立 app：裸布局（无侧栏），自己的令牌 sy_admin_jwt、自己的前缀 /api/admin
+  { path: '/admin', name: 'admin', component: AdminView, meta: { bare: true } },
 
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）
   { path: '/:pathMatch(.*)*', redirect: '/me' }

@@ -122,16 +122,18 @@ await check('B0-1 打开 #/login：外壳 15 项导航 + 登录表单，零 JS �
   return `${st.navItems} 项 / ${st.groups} 组 / logo=${st.logo}`;
 });
 
-await check('B0-2 未迁移页面回落旧前端（#/community → 旧页 ?v=community）', async () => {
+await check('B0-2 批 3 之后所有页面都在新版（不再回落旧页）', async () => {
+  // 批 0 时这条验的是「社区回落旧页」；批 3 迁完后社区、视频都在新版了，
+  // 于是改成反过来验：点侧栏「讨论社区」应停在新版 #/community，而不是被送到 /?v=community。
   await ev(`[...document.querySelectorAll('.nav a')].find(a=>a.textContent.includes('讨论社区')).click()`);
-  await sleep(2500);
-  const href = await ev(`location.pathname + location.search`);
-  if (href.indexOf('v=community') < 0) throw new Error('没跳到旧页：' + href);
-  // 顺带确认旧页真的渲染出来了（不是白屏）
-  await waitFor(`!!document.querySelector('#nav a')`, '旧页外壳', 15000);
-  const oldNav = await ev(`document.querySelectorAll('#nav a').length`);
-  if (oldNav < 10) throw new Error('旧页导航没渲染：' + oldNav);
-  return href + ' 旧页导航 ' + oldNav + ' 项';
+  await sleep(2200);
+  const st = await ev(`({href: location.pathname + location.search, hash: location.hash,
+                        oldPage: typeof S !== 'undefined',
+                        isCm: !!document.querySelector('.cm')})`);
+  if (st.oldPage) throw new Error('还在回落旧页：' + st.href);
+  if (st.hash.indexOf('community') < 0) throw new Error('没进社区路由：' + st.hash);
+  if (!st.isCm) throw new Error('社区页没渲染');
+  return '停留 ' + st.hash + '（新版社区）';
 });
 
 await check('B0-3 注册新账号 → 落到 #/me，侧栏显示账号', async () => {
@@ -203,14 +205,16 @@ await check('B0-7 引导卡点「去登录」→ 登录后回到原页面（#/so
   return where;
 });
 
-await check('B0-8 退出登录：清 token、回社区（旧页）', async () => {
+await check('B0-8 退出登录：清 token、回到社区（新版）', async () => {
   await openV2('me');
   await waitFor(`!!document.querySelector('#authName')`, '我的面板', 15000);
   await ev(`[...document.querySelectorAll('.auth-actions button')].find(b=>b.textContent.includes('退出登录')).click()`);
   await sleep(2500);
-  const st = await ev(`({token: !!localStorage.getItem('sy_jwt'), where: location.pathname + location.search})`);
+  const st = await ev(`({token: !!localStorage.getItem('sy_jwt'), where: location.pathname + location.search + location.hash,
+                        oldPage: typeof S !== 'undefined'})`);
   if (st.token) throw new Error('退出后 sy_jwt 还在');
-  if (st.where.indexOf('v=community') < 0) throw new Error('退出后没回社区：' + st.where);
+  if (st.oldPage) throw new Error('退出后回落旧页了：' + st.where);
+  if (st.where.indexOf('community') < 0) throw new Error('退出后没回社区：' + st.where);
   return '已清 token，回到 ' + st.where;
 });
 

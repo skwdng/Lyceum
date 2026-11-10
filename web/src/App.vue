@@ -1,14 +1,21 @@
 <script setup>
-import { onMounted, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppShell from './components/AppShell.vue';
 import ToastHost from './components/ToastHost.vue';
 import { useAuthStore } from './stores/auth.js';
 import { useUnreadStore } from './stores/unread.js';
 
+const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const unread = useUnreadStore();
+
+/**
+ * 管理后台是独立 app（自己的令牌、自己的布局、没有侧栏），所以走「裸布局」：
+ * 路由 meta.bare = true 时直接渲染 RouterView，不套 AppShell。
+ */
+const bare = computed(() => !!route.meta.bare);
 
 /** 任何请求拿到 401，都回到登录页（等价旧版「401 只提示登录，不自动重试」）。 */
 function onUnauthorized() {
@@ -33,7 +40,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <AppShell>
+  <RouterView v-if="bare" />
+  <AppShell v-else>
     <RouterView />
   </AppShell>
   <ToastHost />
