@@ -237,18 +237,19 @@ await check('B0-9 通知角标：有未读时侧栏「通知」出现红点', as
   return '通知角标=' + badge;
 });
 
-await check('B0-10 旧页完全不受影响（旧入口仍可用、仍是旧实现）', async () => {
-  await send('Page.navigate', { url: BASE + '/?v=community' });
+await check('B0-10 入口已切换：/ 直接落到新版，旧静态资源已删除', async () => {
+  // 批 4：旧前端（js/**、css/app.css）已删除，index.html 只剩一次跳转
+  await send('Page.navigate', { url: BASE + '/' });
   await sleep(2200);
-  await waitFor(`!!document.querySelector('#nav a')`, '旧页外壳', 15000);
-  const st = await ev(`({nav:document.querySelectorAll('#nav a').length,
-                        v2Entry: !!document.querySelector('.v2-entry'),
-                        v2Href: (document.querySelector('.v2-entry')||{}).getAttribute('href'),
-                        hasMain: !!document.querySelector('#main')})`);
-  if (!st.hasMain) throw new Error('旧页 #main 丢了');
-  if (!st.v2Entry) throw new Error('旧页侧栏没有「试用新版」入口');
-  if (!st.v2Href || st.v2Href.indexOf('v2/index.html') < 0) throw new Error('「试用新版」链接不对：' + st.v2Href);
-  return `旧页导航 ${st.nav} 项，新版入口 ${st.v2Href}`;
+  const st = await ev(`({path: location.pathname, hash: location.hash,
+                        oldPage: typeof S !== 'undefined',
+                        app: !!document.querySelector('#app')})`);
+  if (st.oldPage) throw new Error('还停在旧页：' + st.path);
+  if (st.path.indexOf('/v2/index.html') < 0) throw new Error('没跳到新版入口：' + st.path);
+  if (!st.app) throw new Error('新版没渲染');
+  const gone = await fetch(BASE + '/js/views/community.js');
+  if (gone.status !== 404) throw new Error('旧 JS 还在：' + gone.status);
+  return st.path + st.hash + '（旧 JS 已 404）';
 });
 
 await check('B0-12 未登录访问 #/me → 自动去登录页（不停在"恢复中"）', async () => {

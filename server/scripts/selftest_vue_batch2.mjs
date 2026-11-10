@@ -248,11 +248,11 @@ await check('B2-C5 历史消息：能加载更早的一页（>20 条时出现按
   return `${n0} → ${n1} 条`;
 });
 
-await check('B2-C6 旧页「消息」入口已切到新版（不再自己开 WebSocket）', async () => {
+await check('B2-C6 入口已切换：老链接 /?v=chat 也会落到新版', async () => {
   await tabA.send('Page.navigate', { url: BASE + '/?v=chat' });
-  await sleep(3000);
+  await sleep(2800);
   const where = await tabA.ev(`location.pathname + location.search + location.hash`);
-  if (where.indexOf('/v2/index.html#/chat') < 0) throw new Error('旧页没把消息入口切到新版：' + where);
+  if (where.indexOf('/v2/index.html') < 0) throw new Error('没落到新版：' + where);
   const isNew = await tabA.ev(`typeof S === 'undefined'`);
   if (!isNew) throw new Error('还停在旧页');
   return where;

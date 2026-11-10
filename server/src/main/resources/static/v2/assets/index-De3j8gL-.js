@@ -10658,11 +10658,6 @@ const _sfc_main$r = {
               ], 64);
             }), 128))
           ]),
-          _cache[1] || (_cache[1] = createBaseVNode("a", {
-            class: "sb-old",
-            href: "../",
-            title: "回到旧版界面"
-          }, "← 返回旧版", -1)),
           createBaseVNode("div", {
             class: "me",
             onClick: goMe
@@ -10682,8 +10677,8 @@ const _sfc_main$r = {
         ]),
         createBaseVNode("main", _hoisted_9$l, [
           gated.value ? (openBlock(), createElementBlock("div", _hoisted_10$l, [
-            _cache[2] || (_cache[2] = createBaseVNode("div", { class: "gate-icon" }, "🔒", -1)),
-            _cache[3] || (_cache[3] = createBaseVNode("div", { class: "gate-title" }, "登录后可见", -1)),
+            _cache[1] || (_cache[1] = createBaseVNode("div", { class: "gate-icon" }, "🔒", -1)),
+            _cache[2] || (_cache[2] = createBaseVNode("div", { class: "gate-title" }, "登录后可见", -1)),
             createBaseVNode("p", _hoisted_11$j, "登录后就能" + toDisplayString(gateWhat.value) + "。现在未登录，先注册或登录吧。", 1),
             createBaseVNode("button", {
               class: "btn primary",
@@ -10695,7 +10690,7 @@ const _sfc_main$r = {
     };
   }
 };
-const AppShell = /* @__PURE__ */ _export_sfc(_sfc_main$r, [["__scopeId", "data-v-b944e611"]]);
+const AppShell = /* @__PURE__ */ _export_sfc(_sfc_main$r, [["__scopeId", "data-v-bdaf1c19"]]);
 const _hoisted_1$p = { id: "toast" };
 const _sfc_main$q = {
   __name: "ToastHost",
@@ -17650,37 +17645,32 @@ const _sfc_main = {
               createBaseVNode("button", {
                 class: "btn sm",
                 onClick: logout
-              }, "退出登录"),
-              _cache[35] || (_cache[35] = createBaseVNode("a", {
-                class: "old-entry",
-                href: "../admin.html",
-                title: "旧管理台（迁移期保留）"
-              }, "← 回旧版", -1))
+              }, "退出登录")
             ])
           ]),
           createBaseVNode("main", null, [
             createBaseVNode("div", _hoisted_8, [
               createBaseVNode("div", _hoisted_9, [
-                _cache[36] || (_cache[36] = createBaseVNode("div", { class: "k" }, "待处理举报", -1)),
+                _cache[35] || (_cache[35] = createBaseVNode("div", { class: "k" }, "待处理举报", -1)),
                 createBaseVNode("div", _hoisted_10, toDisplayString(stats.value && stats.value.pendingReports || 0), 1)
               ]),
               createBaseVNode("div", _hoisted_11, [
-                _cache[37] || (_cache[37] = createBaseVNode("div", { class: "k" }, "今日新增", -1)),
+                _cache[36] || (_cache[36] = createBaseVNode("div", { class: "k" }, "今日新增", -1)),
                 createBaseVNode("div", _hoisted_12, toDisplayString(stats.value && stats.value.todayReports || 0), 1)
               ]),
               createBaseVNode("div", _hoisted_13, [
-                _cache[38] || (_cache[38] = createBaseVNode("div", { class: "k" }, "禁言中用户", -1)),
+                _cache[37] || (_cache[37] = createBaseVNode("div", { class: "k" }, "禁言中用户", -1)),
                 createBaseVNode("div", _hoisted_14, toDisplayString(stats.value && stats.value.bannedUsers || 0), 1)
               ])
             ]),
             withDirectives(createBaseVNode("div", _hoisted_15, [
               createBaseVNode("h2", null, [
-                _cache[39] || (_cache[39] = createTextVNode(" 举报队列 ", -1)),
-                _cache[40] || (_cache[40] = createBaseVNode("span", {
+                _cache[38] || (_cache[38] = createTextVNode(" 举报队列 ", -1)),
+                _cache[39] || (_cache[39] = createBaseVNode("span", {
                   class: "muted",
                   style: { "font-weight": "400" }
                 }, "按目标聚合 · 举报人数多的在前", -1)),
-                _cache[41] || (_cache[41] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+                _cache[40] || (_cache[40] = createBaseVNode("span", { class: "spacer" }, null, -1)),
                 (openBlock(), createElementBlock(Fragment, null, renderList([["PENDING", "待处理"], ["RESOLVED", "已处理"], ["REJECTED", "已驳回"]], (q) => {
                   return createBaseVNode("button", {
                     key: q[0],
@@ -17690,7 +17680,7 @@ const _sfc_main = {
                 }), 64))
               ]),
               !reports.value ? (openBlock(), createElementBlock("div", _hoisted_17, "加载中…")) : !(reports.value.items || []).length ? (openBlock(), createElementBlock("div", _hoisted_18, " 没有待处理的举报 🎉 ")) : (openBlock(), createElementBlock("table", _hoisted_19, [
-                _cache[42] || (_cache[42] = createBaseVNode("thead", null, [
+                _cache[41] || (_cache[41] = createBaseVNode("thead", null, [
                   createBaseVNode("tr", null, [
                     createBaseVNode("th", { style: { "width": "72px" } }, "类型"),
                     createBaseVNode("th", null, "被举报内容"),
@@ -17757,12 +17747,12 @@ const _sfc_main = {
               [vShow, tab.value === "reports"]
             ]),
             withDirectives(createBaseVNode("div", _hoisted_30, [
-              _cache[45] || (_cache[45] = createBaseVNode("h2", null, [
+              _cache[44] || (_cache[44] = createBaseVNode("h2", null, [
                 createTextVNode("处理记录"),
                 createBaseVNode("span", { class: "spacer" })
               ], -1)),
               !audit.value ? (openBlock(), createElementBlock("div", _hoisted_31, "加载中…")) : !(audit.value.items || []).length ? (openBlock(), createElementBlock("div", _hoisted_32, " 还没有处理记录 ")) : (openBlock(), createElementBlock("table", _hoisted_33, [
-                _cache[44] || (_cache[44] = createBaseVNode("thead", null, [
+                _cache[43] || (_cache[43] = createBaseVNode("thead", null, [
                   createBaseVNode("tr", null, [
                     createBaseVNode("th", { style: { "width": "130px" } }, "时间"),
                     createBaseVNode("th", { style: { "width": "90px" } }, "操作人"),
@@ -17790,7 +17780,7 @@ const _sfc_main = {
                       createBaseVNode("td", null, toDisplayString(r.detail || ""), 1),
                       createBaseVNode("td", null, [
                         r.action === "RESTORE" ? (openBlock(), createElementBlock("span", _hoisted_38, "—")) : r.undone ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
-                          _cache[43] || (_cache[43] = createBaseVNode("span", { class: "tag" }, "已撤销", -1)),
+                          _cache[42] || (_cache[42] = createBaseVNode("span", { class: "tag" }, "已撤销", -1)),
                           createBaseVNode("div", _hoisted_39, toDisplayString(fmtTime(r.undoAt)), 1)
                         ], 64)) : (openBlock(), createElementBlock("span", _hoisted_40, "生效中"))
                       ]),
@@ -17825,8 +17815,8 @@ const _sfc_main = {
             ]),
             withDirectives(createBaseVNode("div", _hoisted_49, [
               createBaseVNode("h2", null, [
-                _cache[46] || (_cache[46] = createTextVNode(" 用户管理 ", -1)),
-                _cache[47] || (_cache[47] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+                _cache[45] || (_cache[45] = createTextVNode(" 用户管理 ", -1)),
+                _cache[46] || (_cache[46] = createBaseVNode("span", { class: "spacer" }, null, -1)),
                 withDirectives(createBaseVNode("input", {
                   "onUpdate:modelValue": _cache[10] || (_cache[10] = ($event) => usersQ.value = $event),
                   placeholder: "搜账号或昵称",
@@ -17841,7 +17831,7 @@ const _sfc_main = {
                 }, "搜索")
               ]),
               !users.value ? (openBlock(), createElementBlock("div", _hoisted_50, "加载中…")) : !(users.value.items || []).length ? (openBlock(), createElementBlock("div", _hoisted_51, " 没有匹配的用户 ")) : (openBlock(), createElementBlock("table", _hoisted_52, [
-                _cache[49] || (_cache[49] = createBaseVNode("thead", null, [
+                _cache[48] || (_cache[48] = createBaseVNode("thead", null, [
                   createBaseVNode("tr", null, [
                     createBaseVNode("th", null, "用户"),
                     createBaseVNode("th", { style: { "width": "110px" } }, "全站"),
@@ -17874,7 +17864,7 @@ const _sfc_main = {
                         withDirectives(createBaseVNode("select", {
                           "onUpdate:modelValue": ($event) => banDaysByUser.value[u.id] = $event,
                           style: { "width": "82px", "display": "inline-block" }
-                        }, [..._cache[48] || (_cache[48] = [
+                        }, [..._cache[47] || (_cache[47] = [
                           createBaseVNode("option", { value: 1 }, "1 天", -1),
                           createBaseVNode("option", { value: 3 }, "3 天", -1),
                           createBaseVNode("option", { value: 7 }, "7 天", -1)
@@ -17926,7 +17916,7 @@ const _sfc_main = {
             onClick: _cache[22] || (_cache[22] = withModifiers(($event) => detail.value = null, ["self"]))
           }, [
             createBaseVNode("div", _hoisted_69, [
-              _cache[53] || (_cache[53] = createBaseVNode("h3", null, "处理举报", -1)),
+              _cache[52] || (_cache[52] = createBaseVNode("h3", null, "处理举报", -1)),
               createBaseVNode("div", _hoisted_70, [
                 detail.value.report ? (openBlock(), createElementBlock("div", _hoisted_71, toDisplayString(detail.value.report.targetType === "POST" ? "帖子" : "评论") + " · 举报人 " + toDisplayString(detail.value.report.reporterName || detail.value.report.reporterId) + " · " + toDisplayString(reasonName2(detail.value.report.reason)), 1)) : createCommentVNode("", true),
                 createBaseVNode("div", _hoisted_72, [
@@ -17934,7 +17924,7 @@ const _sfc_main = {
                   createBaseVNode("div", _hoisted_74, " 作者 " + toDisplayString(detail.value.target && detail.value.target.author || "-"), 1),
                   detail.value.report.detail ? (openBlock(), createElementBlock("div", _hoisted_75, " 补充：" + toDisplayString(detail.value.report.detail), 1)) : createCommentVNode("", true)
                 ]),
-                _cache[51] || (_cache[51] = createBaseVNode("label", { style: { "margin-top": "12px", "display": "block" } }, "处理备注（可选）", -1)),
+                _cache[50] || (_cache[50] = createBaseVNode("label", { style: { "margin-top": "12px", "display": "block" } }, "处理备注（可选）", -1)),
                 withDirectives(createBaseVNode("input", {
                   "onUpdate:modelValue": _cache[15] || (_cache[15] = ($event) => note.value = $event),
                   placeholder: "写明依据，会记进审计",
@@ -17942,11 +17932,11 @@ const _sfc_main = {
                 }, null, 512), [
                   [vModelText, note.value]
                 ]),
-                _cache[52] || (_cache[52] = createBaseVNode("label", { style: { "margin-top": "12px", "display": "block" } }, "禁言天数（选择「禁言」时生效）", -1)),
+                _cache[51] || (_cache[51] = createBaseVNode("label", { style: { "margin-top": "12px", "display": "block" } }, "禁言天数（选择「禁言」时生效）", -1)),
                 withDirectives(createBaseVNode("select", {
                   "onUpdate:modelValue": _cache[16] || (_cache[16] = ($event) => banDays.value = $event),
                   style: { "width": "140px" }
-                }, [..._cache[50] || (_cache[50] = [
+                }, [..._cache[49] || (_cache[49] = [
                   createBaseVNode("option", { value: 1 }, "1 天", -1),
                   createBaseVNode("option", { value: 3 }, "3 天", -1),
                   createBaseVNode("option", { value: 7 }, "7 天", -1),
@@ -17985,13 +17975,13 @@ const _sfc_main = {
             onClick: _cache[27] || (_cache[27] = withModifiers(($event) => pwdOpen.value = false, ["self"]))
           }, [
             createBaseVNode("div", _hoisted_77, [
-              _cache[58] || (_cache[58] = createBaseVNode("h3", null, "修改密码", -1)),
+              _cache[57] || (_cache[57] = createBaseVNode("h3", null, "修改密码", -1)),
               createBaseVNode("div", _hoisted_78, [
-                _cache[54] || (_cache[54] = createBaseVNode("p", {
+                _cache[53] || (_cache[53] = createBaseVNode("p", {
                   class: "muted",
                   style: { "font-size": "12.5px", "margin": "0 0 12px" }
                 }, " 8–64 位，必须同时包含数字和字母。改完后所有设备上的登录都会失效，需要重新登录。 ", -1)),
-                _cache[55] || (_cache[55] = createBaseVNode("label", null, "当前密码", -1)),
+                _cache[54] || (_cache[54] = createBaseVNode("label", null, "当前密码", -1)),
                 withDirectives(createBaseVNode("input", {
                   "onUpdate:modelValue": _cache[23] || (_cache[23] = ($event) => pwdOld.value = $event),
                   type: "password",
@@ -17999,7 +17989,7 @@ const _sfc_main = {
                 }, null, 512), [
                   [vModelText, pwdOld.value]
                 ]),
-                _cache[56] || (_cache[56] = createBaseVNode("label", null, "新密码", -1)),
+                _cache[55] || (_cache[55] = createBaseVNode("label", null, "新密码", -1)),
                 withDirectives(createBaseVNode("input", {
                   "onUpdate:modelValue": _cache[24] || (_cache[24] = ($event) => pwdNew.value = $event),
                   type: "password",
@@ -18007,7 +17997,7 @@ const _sfc_main = {
                 }, null, 512), [
                   [vModelText, pwdNew.value]
                 ]),
-                _cache[57] || (_cache[57] = createBaseVNode("label", null, "确认新密码", -1)),
+                _cache[56] || (_cache[56] = createBaseVNode("label", null, "确认新密码", -1)),
                 withDirectives(createBaseVNode("input", {
                   "onUpdate:modelValue": _cache[25] || (_cache[25] = ($event) => pwdNew2.value = $event),
                   type: "password",
@@ -18033,11 +18023,11 @@ const _sfc_main = {
     };
   }
 };
-const AdminView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-a715ca91"]]);
+const AdminView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-7d810568"]]);
 const routes = [
   // 默认落点必须是**已迁移**的页面。
   // 早先这里 redirect 到 /community，而社区要批 3 才迁，结果是从旧页点「试用新版」进来后
-  // 立刻被 LegacyRedirect 送回旧页 —— 用户看到的是"点了没反应"。
+  // 用 catch-all 兜住 —— 否则用户会看到"点了没反应"。
   // 现在统一进 /me：未登录时 MeView 自己会再跳 /login，最多一跳。
   { path: "/", redirect: "/me" },
   // ---- 批 0：已经迁移 ----

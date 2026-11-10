@@ -305,15 +305,14 @@ await check('B3-C11 通知里的「帖子类」点击 → 本地路由到帖子�
   if (!focused) throw new Error('没定位到楼层');
   return hash;
 });
-await check('B3-C12 旧页社区仍可用（旧实现照旧渲染）', async () => {
-  await send('Page.navigate', { url: BASE + '/?v=community' });
-  await sleep(2600);
-  await waitFor(`!!document.querySelector('#nav a')`, '旧页外壳', 20000);
-  const st = await ev(`({old: typeof S !== 'undefined', posts: document.querySelectorAll('.cm .post').length,
-                        nav: document.querySelectorAll('#nav a').length})`);
-  if (!st.old) throw new Error('没进旧页');
-  if (!st.posts) throw new Error('旧页社区没渲染帖子');
-  return `旧页社区 ${st.posts} 篇，导航 ${st.nav} 项`;
+await check('B3-C12 旧静态资源已删除（旧社区 JS / CSS / 管理台均 404）', async () => {
+  const js = await fetch(BASE + '/js/views/community.js');
+  const css = await fetch(BASE + '/css/app.css');
+  const adm = await fetch(BASE + '/admin.html');
+  if (js.status !== 404) throw new Error('旧社区 JS 还在：' + js.status);
+  if (css.status !== 404) throw new Error('旧 app.css 还在：' + css.status);
+  if (adm.status !== 404) throw new Error('旧管理台还在：' + adm.status);
+  return 'community.js / app.css / admin.html 全部 404';
 });
 
 await check('B3-C13 全程零 JS 异常', async () => {

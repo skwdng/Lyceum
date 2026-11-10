@@ -7,7 +7,7 @@
  *
  * 迁移期的两处"额外"东西：
  * 1. 未登录时，需要登录的页面渲染**登录引导卡**（等价旧版 loginGateCard）；
- * 2. 侧栏底部给一个「返回旧版」入口，方便并排对比（批 4 删旧文件时去掉）。
+ * 2. 批 4 已删掉「返回旧版」入口（旧前端文件同一批删除）。
  */
 import { computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -103,8 +103,6 @@ const avatarText = computed(() => {
         </template>
       </nav>
 
-      <a class="sb-old" href="../" title="回到旧版界面">← 返回旧版</a>
-
       <div class="me" @click="goMe">
         <div class="av">{{ avatarText }}</div>
         <div style="min-width: 0">
@@ -141,15 +139,4 @@ const avatarText = computed(() => {
 .gate-icon { font-size: 34px; line-height: 1; margin-bottom: 10px; }
 .gate-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 
-/* 「返回旧版」：迁移期临时入口，批 4 删旧文件时一起删掉 */
-.sb-old {
-  display: block;
-  margin: 10px 10px 0;
-  padding: 6px 8px;
-  font-size: 11.5px;
-  color: #a8adb8;
-  text-decoration: none;
-  border-radius: 8px;
-}
-.sb-old:hover { background: #f6f4ef; color: #4a5568; }
 </style>

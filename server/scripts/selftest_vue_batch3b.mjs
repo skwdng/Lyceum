@@ -187,15 +187,6 @@ await check('B3-V5 审核台按钮按后端 consoleEnabled 隐藏（本环境 fa
   return 'consoleEnabled=' + enabled + '，按钮=' + st.btn + '（一致）';
 });
 
-await check('B3-V6 旧页视频仍可用', async () => {
-  await send('Page.navigate', { url: BASE + '/?v=video' });
-  await sleep(2600);
-  const st = await ev(`({old: typeof S !== 'undefined', slides: document.querySelectorAll('.vslide').length, wrap: !!document.querySelector('.vwrap')})`);
-  if (!st.old) throw new Error('没进旧页');
-  if (!st.wrap) throw new Error('旧页视频容器没渲染');
-  return `旧页视频 ${st.slides} 条`;
-});
-
 // ==================== 管理后台 ====================
 
 await check('B3-A1 管理台登录页：独立布局（无侧栏）+ 错误密码提示', async () => {
@@ -278,44 +269,15 @@ await check('B3-A4 用户管理：搜索 + 表格字段（全站/禁言/待处�
   return `${st.rows} 行 · 列 ${st.head}`;
 });
 
-await check('B3-A5 旧管理台（admin.html）仍可用', async () => {
-  await send('Page.navigate', { url: BASE + '/admin.html' });
-  await sleep(2200);
-  const st = await ev(`({login: !!document.querySelector('.login-wrap'), brand: (document.querySelector('.brand')||document.querySelector('h1')||{}).textContent})`);
-  if (!st.login) throw new Error('旧管理台登录页没渲染');
-  return '旧 admin.html 正常';
-});
-
-await check('B3-A6 旧管理台有「试用新版」入口，点了能进新版 #/admin', async () => {
-  await send('Page.navigate', { url: BASE + '/admin.html' });
-  await sleep(2000);
-  const st = await ev(`(()=>{const a=document.querySelector('.login-card .v2-entry');
-    return {found: !!a, href: a?a.getAttribute('href'):''}})()`);
-  if (!st.found) throw new Error('旧管理台登录页没有新版入口');
-  if (st.href.indexOf('v2/index.html#/admin') < 0) throw new Error('入口指向不对：' + st.href);
-  // 真点一下（不带 sy_admin_jwt，进新版应停在登录页）
-  await ev(`localStorage.removeItem('sy_admin_jwt'); true`);
-  await ev(`document.querySelector('.login-card .v2-entry').click()`);
-  await sleep(2200);
-  const where = await ev(`location.pathname + location.hash`);
-  if (where.indexOf('/v2/index.html') < 0 || where.indexOf('/admin') < 0) throw new Error('没进新版管理台：' + where);
-  const login = await ev(`!!document.querySelector('.login-wrap')`);
-  if (!login) throw new Error('新版管理台登录页没渲染');
-  return '旧页入口 → ' + where;
-});
-
-await check('B3-A7 新版管理台有「回旧版」入口，点了能回旧管理台', async () => {
+await check('B3-A5 旧管理台已删除（/admin.html 404），新版页头不再有「回旧版」', async () => {
+  const r = await fetch(BASE + '/admin.html');
+  if (r.status !== 404) throw new Error('旧管理台还在：' + r.status);
   await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(adminToken())}); true`);
   await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#/admin' });
   await sleep(2200);
-  await waitFor(`!!document.querySelector('.bar .old-entry')`, '新版没有回旧版入口', 15000);
-  const href = await ev(`document.querySelector('.bar .old-entry').getAttribute('href')`);
-  await ev(`document.querySelector('.bar .old-entry').click()`);
-  await sleep(2200);
-  const where = await ev(`({path: location.pathname, oldAdmin: !!document.querySelector('.login-wrap, #appView')})`);
-  if (where.path.indexOf('admin.html') < 0) throw new Error('没回旧管理台：' + where.path);
-  if (!where.oldAdmin) throw new Error('旧管理台没渲染');
-  return `href=${href} → ${where.path}`;
+  await waitFor(`!!document.querySelector('.bar')`, '管理台', 20000);
+  if (await ev(`!!document.querySelector('.bar .old-entry')`)) throw new Error('页头还有「回旧版」入口');
+  return '/admin.html 404 · 页头无回旧版';
 });
 
 await check('B3-A8 全程零 JS 异常', async () => {

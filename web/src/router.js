@@ -26,7 +26,7 @@ import AdminView from './views/AdminView.vue';
  *
  * 迁移期的两条规则：
  * 1. 已迁移页面 → 挂真组件；
- * 2. 批 3 之后所有页面都已迁移，不再有回落旧页的路由（LegacyRedirect.vue 留着备用，批 4 再决定删不删）。
+ * 2. 批 4 之后所有页面都在本应用内，旧前端已删除，没有任何回落路由。
  *    —— 这样侧栏永远点得通，用户不会撞到空白页，我们也能一批一批搬。
  *
  * `meta.legacy` 的值必须是旧前端 boot() 认得的键（solo/room/hotb/diag/records/community/video/chat/friends/notify/me）。
@@ -34,7 +34,7 @@ import AdminView from './views/AdminView.vue';
 const routes = [
   // 默认落点必须是**已迁移**的页面。
   // 早先这里 redirect 到 /community，而社区要批 3 才迁，结果是从旧页点「试用新版」进来后
-  // 立刻被 LegacyRedirect 送回旧页 —— 用户看到的是"点了没反应"。
+  // 用 catch-all 兜住 —— 否则用户会看到"点了没反应"。
   // 现在统一进 /me：未登录时 MeView 自己会再跳 /login，最多一跳。
   { path: '/', redirect: '/me' },
 

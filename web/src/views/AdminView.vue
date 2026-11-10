@@ -283,8 +283,6 @@ function goSite() {
         <div class="spacer"></div>
         <button class="btn sm" @click="pwdOpen = true">修改密码</button>
         <button class="btn sm" @click="logout">退出登录</button>
-        <!-- 迁移期对照入口：旧管理台还在，随时能点回去 -->
-        <a class="old-entry" href="../admin.html" title="旧管理台（迁移期保留）">← 回旧版</a>
       </div>
     </header>
 
@@ -584,8 +582,6 @@ header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid 
 .tabs button{border:none;background:transparent;padding:8px 14px;border-radius:9px;font-size:13.5px;color:#4E5969;cursor:pointer}
 .tabs button.on{background:#E8F3FF;color:#165DFF;font-weight:600}
 .badge{display:inline-block;margin-left:4px;background:#F53F3F;color:#fff;border-radius:8px;padding:0 5px;font-size:11px}
-.old-entry{font-size:12px;color:#2F5BEA;background:#EDF1FE;border-radius:8px;padding:6px 10px;text-decoration:none;white-space:nowrap}
-.old-entry:hover{background:#E3EAFD}
 .spacer{flex:1}
 main{max-width:1240px;margin:0 auto;padding:20px 24px 60px}
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}

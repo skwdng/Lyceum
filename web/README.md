@@ -82,25 +82,40 @@ web/
 - [x] 批 1：通知 / 钱包 / 好友 / 热辩榜 / 记录 / 诊断
 - [x] 批 2：聊天（WS）/ 复盘 / 单人 / 多人 / 对局
 - [x] 批 3：社区 / 视频 / 管理台
-- [ ] 批 4：切换入口 + 删旧文件 + 全量回归
+- [x] 批 4：切换入口 + 删旧文件 + 全量回归
 
-**批 3 之后所有页面都已迁移**：`router.js` 里已经没有任何路由挂 `LegacyRedirect`
-（组件文件先留着，批 4 再决定删不删）；旧前端的 `?v=<key>` 深链仍然可用，进度对照表见下。
+**迁移已收口**：旧前端（`static/js/**`、`static/css/app.css`、`admin.html`、`community.html`、
+`index.backup.html`）与 `LegacyRedirect.vue` 已删除，`static/index.html` 只剩一次跳转。
+现在 `static/` 下只有 `index.html` + `v2/`。
 
-管理台是**独立 app**，走裸布局（无侧栏）：`/siyige/v2/index.html#/admin`，
-自己的令牌 `localStorage['sy_admin_jwt']`、自己的接口前缀 `/api/admin`，与普通登录态互不影响。
-
-迁移期两个方向都能点：
-· 旧管理台（`/admin.html`）登录卡片和页头各有「试用新版管理台 →」；
-· 新版管理台页头有「← 回旧版」。
-
-### 迁移期遗留（每批结束在这里登记，批 4 前必须清空）
-
-| 遗留 | 现状 | 计划 |
+| 入口 | 地址 | 说明 |
 |---|---|---|
-| 旧页仍保留单人/多人/对局/复盘/社区/视频入口 | 两套实现并存（互不影响：各自独立的 match 与 SSE） | 批 4 统一切到 v2 入口 |
-| 旧静态文件（`static/js/**`、`static/css/app.css`、`admin.html`） | 原样保留，旧页仍可独立工作 | 批 4 验收通过后删 |
-| `LegacyRedirect.vue` | 已无路由使用（留着兜底） | 批 4 决定删或保留 |
+| 站点 | `/siyige/` | 跳转页 → `/siyige/v2/index.html#/` |
+| 应用 | `/siyige/v2/index.html#/<路由>` | 15 个侧栏入口全在这里（hash 路由，Spring 不需要 SPA fallback） |
+| 管理台 | `/siyige/v2/index.html#/admin` | 裸布局（无侧栏）、独立令牌 `sy_admin_jwt`、前缀 `/api/admin` |
+
+老链接仍然能用：`/?v=chat` 这类会被跳转页带到新版（`v` 参数忽略，落到首页）。
+
+### 验证脚本（批 4 之后只剩这些，全部打新版）
+
+| 脚本 | 覆盖 | 结果 |
+|---|---|---|
+| `selftest_vue_entry.mjs` | 入口切换、侧栏 10 项逐个点、老链接兜底、旧资源 404、零异常 | 7/7 |
+| `selftest_vue_batch0.mjs` | 外壳 / 路由 / 登录注册 / 我的 / 角标 | 12/12 |
+| `selftest_vue_batch1.mjs` | 通知 / 钱包 / 好友 / 热辩榜 / 记录 / 诊断 | 12/12 |
+| `selftest_vue_batch2.mjs` | 聊天（双标签 WS、未读、换账号） | 9/9 |
+| `selftest_vue_batch2b.mjs` | 单人 / 对局 / 复盘 / 多人房间 | 14/14 |
+| `selftest_vue_batch3.mjs` | 社区（列表/详情/发帖/评论/楼中楼/@/举报/通知深链） | 13/13 |
+| `selftest_vue_batch3b.mjs` | 视频 + 管理台 | 11/11 |
+
+旧的 14 个脚本（`selftest_ai / auth / community / debate_auth / notify / report / social /
+admin / audit / mobile / mobile2 / password / serial / typing / ui`、`test_panel_*`、`test_wallet_ui`、
+`diag_*`）驱动的是已删除的旧前端，批 4 一并删除；覆盖能力已由上面 7 个脚本承接。
+
+### 迁移期遗留
+
+（已清空）批 1～3 登记的遗留都在批 4 关闭了：通知帖子深链改本地路由、
+「返回旧版 / 试用新版」链接全部撤掉、旧静态文件与旧管理台删除、`LegacyRedirect` 删除。
 
 已关闭（批 2）：好友「发消息」直达新版聊天并带对端、热辩榜「开辩」带题进新版单人页、
 侧栏「消息」角标由 chat store 提供、聊天邀请卡片「加入房间」进新版房间页并自动加入。

@@ -4,42 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>思弈阁 · AI 辩论训练</title>
-<link rel="stylesheet" href="/css/app.css">
-</head>
-<body>
-<div class="app">
-  <aside class="sb">
-    <div class="logo"><div class="m">思</div><div><b>思弈阁</b><span>AI 辩论训练</span></div></div>
-    <nav class="nav" id="nav"></nav>
-    <!-- 迁移期：新版前端入口。用相对路径，本地(/v2/)与线上(/siyige/v2/)都能定位；
-         带 index.html 是因为 Spring 静态资源不做目录索引，/v2/ 会 404 -->
-    <a class="v2-entry" href="v2/index.html#/" title="新版界面（Vue）">试用新版 →</a>
-    <div class="me" id="meBox" onclick="go('me')"><div class="av" id="meAv">登</div><div><div id="meName">演示用户</div><div style="font-size:11px;color:#A8ADB8" id="meSub">连接中…</div></div></div>
-  </aside>
-  <main id="main"><div class="empty">正在连接后端…</div></main>
-</div>
-<div id="modalHost"></div>
-<div id="toast"></div>
+<!--
+  批 4：入口已切到 Vue 版。
 
-<!-- 核心 -->
-<script src="/js/core.js"></script>
-<!-- 各板块（一人一块，互不冲突） -->
-<script src="/js/views/solo.js"></script>
-<script src="/js/views/match.js"></script>
-<script src="/js/views/review.js"></script>
-<script src="/js/views/hot.js"></script>
-<script src="/js/views/diag.js"></script>
-<script src="/js/views/records.js"></script>
-<script src="/js/views/room.js"></script>
-<script src="/js/views/community.js"></script>
-<script src="/js/views/video.js"></script>
-<script src="/js/views/wallet.js"></script>
-<script src="/js/views/notify.js"></script>
-<script src="/js/chat-ws.js"></script>
-<script src="/js/views/friends.js"></script>
-<script src="/js/views/chat.js"></script>
-<script src="/js/views/auth.js"></script>
-<!-- 启动 -->
-<script>boot();</script>
+  这里只做一次跳转，保留 query 与 hash：
+  · 普通访问        /            → v2/index.html#/
+  · 老链接          /?v=community → v2/index.html?v=community#/ （v 会被忽略，落到首页）
+  · 带定位的老链接  /#/community/12 → v2/index.html#/community/12
+
+  旧前端（js/**、css/app.css、admin.html）已在同一批删除，所以这里没有任何脚本依赖。
+-->
+<script>
+  (function () {
+    var hash = location.hash || '#/';
+    location.replace('v2/index.html' + location.search + hash);
+  })();
+</script>
+</head>
+<body style="margin:0;background:#F5F6F8;color:#86909C;font:14px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif">
+  <div style="max-width:520px;margin:90px auto;padding:0 20px;text-align:center">
+    <p style="font-size:15px;color:#1D2129;font-weight:600">正在进入思弈阁…</p>
+    <p>如果你的浏览器没有自动跳转，<a href="v2/index.html#/" style="color:#2F5BEA">点这里</a>。</p>
+  </div>
 </body>
 </html>

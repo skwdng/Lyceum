@@ -318,17 +318,10 @@ await check('B1-11 换账号：余额/角标不串（坑 #6）', async () => {
   return `B 余额 ${st.bal}（A 已充到 ¥2.00），胶囊 ${st.chip}，角标「${st.badge || '无'}」`;
 });
 
-await check('B1-12 旧页仍可用（通知/好友入口照旧）+ 全程零 JS 异常', async () => {
-  await send('Page.navigate', { url: BASE + '/?v=notify' });
-  await sleep(2500);
-  await waitFor(`!!document.querySelector('#nav a')`, '旧页外壳', 15000);
-  const old = await ev(`({nav: document.querySelectorAll('#nav a').length,
-                          rows: document.querySelectorAll('.notify-row').length,
-                          main: !!document.querySelector('#main')})`);
-  if (!old.main || old.nav < 10) throw new Error('旧页没正常渲染：' + JSON.stringify(old));
+await check('B1-12 全程零 JS 异常', async () => {
   const meaningful = errs.filter((e) => !/ResizeObserver|favicon/i.test(e || ''));
   if (meaningful.length) throw new Error('有 JS 异常：' + meaningful.slice(0, 2).join(' | '));
-  return `旧页导航 ${old.nav} 项，通知行 ${old.rows} 条`;
+  return '无异常';
 });
 
 console.log(out.join('\n'));
