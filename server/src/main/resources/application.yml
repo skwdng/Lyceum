@@ -49,6 +49,13 @@ siyige:
     # 关闭时走纯规则审核；打开需要配 llm
     llm-enabled: false
   # 充值计费
+  ai-tier:
+    tiers:
+      basic:
+        enabled: ${SIYIGE_BASIC_ENABLED:false}
+        base-url: ${SIYIGE_BASIC_BASE_URL:http://127.0.0.1:11434/v1}
+        model: ${SIYIGE_BASIC_MODEL:qwen2.5:7b}
+        api-key: ${SIYIGE_BASIC_KEY:ollama}
   billing:
     cents-per-1k-tokens: 3      # 每千 token 收 3 分（0.03 元）
     service-fee-cents: 30       # 每场服务费 30 分（0.30 元）

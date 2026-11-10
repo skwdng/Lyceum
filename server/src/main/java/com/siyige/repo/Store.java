@@ -70,16 +70,27 @@ public class Store {
 
     // ---------- match ----------
     public void createMatch(String id, String userId, String topicId, String topicTitle,
-                            String mode, String mySeats, int turnSec, String pace, String difficulty, String kind, Long deadline, int queryRounds, int freeRounds) {
+                            String mode, String mySeats, int turnSec, String pace, String difficulty, String kind,
+                            Long deadline, int queryRounds, int freeRounds, String tier, String payerUserId) {
+        String payer = (payerUserId == null || payerUserId.isBlank()) ? userId : payerUserId;
+        String t = (tier == null || tier.isBlank()) ? "PRO" : tier;
         if (deadline == null) {
-            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,step,status,deadline_at) "
-                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',null)",
-                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds);
+            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,tier,payer_user_id,step,status,deadline_at) "
+                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',null)",
+                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds, t, payer);
         } else {
-            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,step,status,deadline_at) "
-                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',?)",
-                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds, ts(deadline));
+            jdbc.update("insert into sy_match(id,user_id,topic_id,topic_title,mode,my_seats,turn_sec,pace,difficulty,kind,query_rounds,free_rounds,tier,payer_user_id,step,status,deadline_at) "
+                    + "values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,'RUNNING',?)",
+                    id, userId, topicId, topicTitle, mode, mySeats, turnSec, pace, difficulty, kind, queryRounds, freeRounds, t, payer, ts(deadline));
         }
+    }
+
+    public void setTier(String id, String tier) {
+        jdbc.update("update sy_match set tier=? where id=?", tier, id);
+    }
+
+    public void setPayer(String id, String payerUserId) {
+        jdbc.update("update sy_match set payer_user_id=? where id=?", payerUserId, id);
     }
 
     /** 开局时的全局 token 快照，结算用差值。 */

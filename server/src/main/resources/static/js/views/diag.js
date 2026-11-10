@@ -95,6 +95,21 @@ function viewDiag(){
   const dims = d.dims || {};
   const delta = d.delta || {};
   const n = Object.keys(dims).length;
+
+  // 一场都没打：不画图，直接说清楚怎么才有数据
+  if (!n) {
+    return `
+    <h1 class="pg">能力分析</h1>
+    <p class="sub">还没有对局记录，所以没有画像 —— 打的每一场都会累加进来。</p>
+    <div class="card" style="text-align:center;padding:44px 24px">
+      <div style="font-size:34px;margin-bottom:8px">📊</div>
+      <b style="font-size:14px">还没有数据</b>
+      <div style="font-size:12.5px;color:#8A909C;margin:8px 0 16px;line-height:1.8">
+        打满 1 场就能看到六维雷达；<br>打满 3 场后曲线才有参考价值。
+      </div>
+      <button class="btn primary" onclick="go('solo')">去打第一场</button>
+    </div>`;
+  }
   const win = d.window || 0;
   const total = d.total || d.samples || 0;
   const opt = (v, label) => `<button class="btn sm ${(win === v ? "" : "ghost")}" onclick="diagWindow(${v})">${label}</button>`;

@@ -254,6 +254,7 @@ function go(v){
   if (v === 'notify') { loadNotify(1); return; }
   if (v === 'friends') { loadFriends(); return; }
   if (v === 'chat') { chatEnter(); return; }   // 进来要重拉当前会话并标已读，不能只刷列表
+  if (v === 'solo' && typeof renderTierBox === 'function') setTimeout(renderTierBox, 0);
   if (v === 'records' || v === 'diag' || v === 'hotb' || v === 'solo') refreshDash(v);
 }
 
@@ -277,7 +278,10 @@ async function refreshDash(v){
       S.diag = diag; S.records = records;
     }
     authRenderMeBox();
-    if (S.view === v) render();
+      if (S.view === v) {
+        render();
+        if (v === 'solo' && typeof renderTierBox === 'function') renderTierBox();
+      }
   } catch (e) { /* 忽略，保留旧数据 */ }
 }
 

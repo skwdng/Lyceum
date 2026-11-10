@@ -46,6 +46,11 @@ function viewSolo(){
           <option value="SPRINT" ${S.mode==='SPRINT'?'selected':''}>快速 8 步</option>
         </select>
       </div>
+
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #F3F1EB">
+          <b style="font-size:13px">AI 档位</b>
+          <div id="tierBox" style="margin-top:6px;font-size:12px;color:#8A909C">加载中…</div>
+        </div>
     </div>
   </div>
 
@@ -228,7 +233,8 @@ function adopt(t){ $('#customTopic').value = t; useCustomTopic(); }
 async function createMatch(body){
   try {
     // 身份由令牌携带，payload 里不再需要 userId（后端也不认了）
-    const payload = Object.assign({seats:S.mySeats, mode:S.mode, pace:S.pace, difficulty:S.difficulty}, body);
+    const payload = Object.assign({seats:S.mySeats, mode:S.mode, pace:S.pace, difficulty:S.difficulty,
+        tier: S.aiTier || 'PRO'}, body);
     if (!payload.topicId && S.pendingTitle) payload.title = S.pendingTitle;
     const r = await api('/api/matches', {method:'POST', body:payload});
     S.matchId = r.matchId; S.pendingTitle = null;
@@ -238,4 +244,36 @@ async function createMatch(body){
   } catch (e) {
     toast('开局失败：' + e.message);
   }
+}
+
+// ---------- AI 档位（基础版 / 高级版 / 自带 Key） ----------
+async function renderTierBox(){
+  const box = document.getElementById('tierBox');
+  if (!box) return;
+  try {
+    const d = await api('/api/ai-tiers');
+    const cur = S.aiTier || 'PRO';
+    box.innerHTML = ['basic', 'pro', 'byok'].map(function (k) {
+      const x = d[k];
+      if (!x) return '';
+      const on = cur === x.key;
+      const dis = x.available === false;
+      return '<div class="row" style="justify-content:space-between;align-items:center;gap:8px;margin-top:6px'
+        + (dis ? ';opacity:.45' : '') + '">'
+        + '<div style="flex:1;min-width:0">'
+        + '<b style="font-size:12.5px">' + esc(x.label) + (dis ? '（未启用）' : '') + '</b>'
+        + '<div style="font-size:11px;color:#A8ADB8">' + esc(x.note || '') + '</div>'
+        + '</div>'
+        + '<button class="btn sm ' + (on ? '' : 'ghost') + '"' + (dis ? ' disabled' : '')
+        + ' onclick="pickTier(\'' + x.key + '\')">' + (on ? '已选' : '选它') + '</button>'
+        + '</div>';
+    }).join('');
+  } catch (e) { box.textContent = '档位加载失败'; }
+}
+
+function pickTier(k){
+  S.aiTier = k;
+  renderTierBox();
+  toast(k === 'BASIC' ? '已切到基础版（本地免费模型）'
+      : k === 'BYOK' ? '已切到自带 Key（在钱包里配置）' : '已切到高级版（平台模型）');
 }

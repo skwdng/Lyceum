@@ -224,6 +224,9 @@ public class AiService {
     }
 
     public void clearOwnProfile() { llm.clearProfile(); }
+
+    /** 基础版：切到本地 ollama 的配置。 */
+    public void useProfile(com.siyige.ai.LlmClient.Profile p) { llm.useProfile(p); }
     public void unbind() { llm.unbindMatch(); }
     public long tokensForMatch(String matchId) { return llm.tokensForMatch(matchId); }
     public void clearMatchUsage(String matchId) { llm.clearMatchUsage(matchId); }

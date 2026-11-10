@@ -27,6 +27,7 @@ public class ApiController {
     private final SseHub sse;
     private final com.siyige.service.EvidenceService evidence;
     private final com.siyige.service.BriefService brief;
+    private final com.siyige.ai.AiTier aiTier;
     /** 对局归属校验的唯一入口：owner 或同房间席位成员。控制器不许自己拼 SQL 判归属。 */
     private final MatchAccess matchAccess;
     private final com.siyige.ai.LlmClient llm;
@@ -35,10 +36,12 @@ public class ApiController {
     public ApiController(Store store, AuditService audit, MatchService matches, HotRank hot, SseHub sse,
                           com.siyige.ai.LlmClient llm,
                          com.siyige.service.EvidenceService evidence,
-                         com.siyige.service.BriefService brief, MatchAccess matchAccess) {
+                         com.siyige.service.BriefService brief, MatchAccess matchAccess,
+                         com.siyige.ai.AiTier aiTier) {
         this.store = store; this.audit = audit; this.matches = matches; this.hot = hot; this.sse = sse;
         this.evidence = evidence;
         this.brief = brief;
+        this.aiTier = aiTier;
         this.llm = llm;
         this.matchAccess = matchAccess;
     }
@@ -62,7 +65,7 @@ public class ApiController {
     public ApiController(Store store, AuditService audit, MatchService matches, HotRank hot, SseHub sse,
                          com.siyige.service.EvidenceService evidence,
                          com.siyige.service.BriefService brief, MatchAccess matchAccess) {
-        this(store, audit, matches, hot, sse, null, evidence, brief, matchAccess);
+        this(store, audit, matches, hot, sse, null, evidence, brief, matchAccess, null);
     }
 
     // ---------- 基础 ----------
@@ -119,6 +122,12 @@ public class ApiController {
 
     // ---------- 对局 ----------
 
+    /** AI 档位说明（基础版/高级版/自带 Key）。 */
+    @GetMapping("/ai-tiers")
+    public Map<String, Object> aiTiers() {
+        return aiTier == null ? Map.of() : aiTier.describe();
+    }
+
     @PostMapping("/matches")
     public Map<String, Object> createMatch(@RequestBody Map<String, Object> body) throws Exception {
         // 身份只认令牌（JWT 的 sub）。body 里若还带 userId 一律**忽略**（不报错）
@@ -137,7 +146,9 @@ public class ApiController {
         String pace = String.valueOf(body.getOrDefault("pace", "normal"));
         String difficulty = String.valueOf(body.getOrDefault("difficulty", "pro"));
         String kind = String.valueOf(body.getOrDefault("kind", "solo"));
-        String id = matches.create(userId, topicId, seats, mode, turnSec, pace, difficulty, kind);
+        // AI 档位：BASIC(本地免费) / PRO(平台) / BYOK(自带 Key)，默认 PRO
+        String tier = String.valueOf(body.getOrDefault("tier", "PRO"));
+        String id = matches.create(userId, topicId, seats, mode, turnSec, pace, difficulty, kind, tier, null);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("matchId", id);
         out.put("topicId", topicId);
@@ -276,9 +287,8 @@ public class ApiController {
 
     private Map<String, Object> diagOf(String userId, int n) {
         Map<String, Object> d = store.diag(userId);
-        if (d == null) return Map.of("dims", Map.of("立论",60,"论证",58,"表达",62,"应变",52,"论据",45,"协同",60),
-                "flaws", Map.of("未证明前提",0), "streak", 0,
-                "total", 0, "window", Math.max(0, n), "samples", 0);
+        if (d == null) return Map.of("dims", Map.of(), "flaws", Map.of(), "streak", 0,
+                "total", 0, "window", Math.max(0, n), "samples", 0, "empty", true);
         Map<String, Object> out = new LinkedHashMap<>();
         var om = new com.fasterxml.jackson.databind.ObjectMapper();
         Map<String, Object> dims = Map.of(), flaws = Map.of(), last = Map.of(), delta = new LinkedHashMap<String, Object>();
@@ -296,6 +306,11 @@ public class ApiController {
         }
         // 「最近 n 场」：拿记录里的每场六维重新平均，最准（不受滑动平均的先后影响）
         int total = store.recordCount(userId);
+        if (total == 0) {
+            // 有旧的滑动平均但没有逐场记录：也不能当作有效画像
+            return Map.of("dims", Map.of(), "flaws", flaws, "streak", d.get("streak"),
+                    "total", 0, "window", Math.max(0, n), "samples", 0, "empty", true);
+        }
         int window = n > 0 ? Math.min(n, Math.max(total, 1)) : total;
         if (n > 0) {
             var rows = store.recentDims(userId, n);
