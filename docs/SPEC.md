@@ -1311,39 +1311,94 @@ web/
 ## 25. AI 档位与能力分析（2026-11-10 追加）
 
 > 本节记录 2026-11-10 与「前端迁 Vue」同日上线的两块能力：**计费档位**与**能力分析画像**。
-> 接口与字段见 \`docs/社交接口契约.md\` 之外的两处实现：\`ai/AiTier.java\` 与 \`api/ApiController.diag\`。
+> 接口与字段见 `docs/社交接口契约.md` 之外的两处实现：`ai/AiTier.java` 与 `api/ApiController.diag`。
 
 ### 25.1 AI 档位
 
 | 档位 | key | 模型 | 计费 | 可用性 |
 |---|---|---|---|---|
-| 基础版 | \`BASIC\` | 本地 ollama（默认 \`qwen2.5:7b\`） | 免费（模型成本 0，服务费 0） | 需 \`SIYIGE_BASIC_ENABLED=true\` 且本地装了 ollama |
-| 高级版 | \`PRO\` | 平台模型（deepseek） | 按 token 实算 + 服务费 | 恒可用 |
-| 自带 Key | \`BYOK\` | 用户自己的 baseUrl / key / model | **全免费**（平台零成本） | 需在钱包里配过 key |
+| 基础版 | `BASIC` | 本地 ollama（默认 `qwen2.5:7b`） | 免费（模型成本 0，服务费 0） | 需 `SIYIGE_BASIC_ENABLED=true` 且本地装了 ollama |
+| 高级版 | `PRO` | 平台模型（deepseek） | 按 token 实算 + 服务费 | 恒可用 |
+| 自带 Key | `BYOK` | 用户自己的 baseUrl / key / model | **全免费**（平台零成本） | 需在钱包里配过 key |
 
-- **R-TIER-01** \`GET /api/ai-tiers\` MUST 返回三档的 \`key / label / available / model / note\`。
-- **R-TIER-02** 档位取值非法或缺省 MUST 归一为 \`PRO\`；\`BASIC\` 未启用时 MUST 静默降级为 \`PRO\`。
-- **R-TIER-03** 选了 \`BYOK\` 但用户没配 key 时 MUST 退回 \`PRO\`（MUST NOT 按免费结算）。
-- **R-TIER-04** \`BYOK\` 与 \`BASIC\` MUST NOT 收任何费用（预扣、结算、服务费全免）。
-- **R-TIER-05** 多人房间整场费用 MUST 记在**房主**名下（\`sy_match.payer_user_id\`），与发起人分开。
+- **R-TIER-01** `GET /api/ai-tiers` MUST 返回三档的 `key / label / available / model / note`。
+- **R-TIER-02** 档位取值非法或缺省 MUST 归一为 `PRO`；`BASIC` 未启用时 MUST 静默降级为 `PRO`。
+- **R-TIER-03** 选了 `BYOK` 但用户没配 key 时 MUST 退回 `PRO`（MUST NOT 按免费结算）。
+- **R-TIER-04** `BYOK` 与 `BASIC` MUST NOT 收任何费用（预扣、结算、服务费全免）。
+- **R-TIER-05** 多人房间整场费用 MUST 记在**房主**名下（`sy_match.payer_user_id`），与发起人分开。
 - **R-TIER-06** 前端 MUST NOT 自行计算费用，只显示后端返回的账单。
 
 ### 25.2 能力分析
 
 - **R-DIAG-01** 画像 MUST 为**六维**：立论 / 论证 / 表达 / 应变 / 论据 / **协同**。
-- **R-DIAG-02** 「协同」MUST 只在**有真人队友**时计分；单人局同侧是 AI 补位（\`input_type=ai\`），
+- **R-DIAG-02** 「协同」MUST 只在**有真人队友**时计分；单人局同侧是 AI 补位（`input_type=ai`），
   MUST 按中性 60 记，MUST NOT 让 AI 发言把协同拉成 0 或 100。
-- **R-DIAG-03** \`GET /api/diag?n=\` MUST 支持「最近 N 场」（\`n<=0\` 或省略 = 全部），
-  返回 MUST 带 \`total / window / samples / empty\`。
-- **R-DIAG-04** 每场结束 MUST 把该场六维写进 \`sy_record.dims_json\`，窗口均值 MUST 用逐场记录重算。
-- **R-DIAG-05** 没有任何逐场记录时 MUST 返回 \`empty:true\` 且 \`dims\` 为空，
+- **R-DIAG-03** `GET /api/diag?n=` MUST 支持「最近 N 场」（`n<=0` 或省略 = 全部），
+  返回 MUST 带 `total / window / samples / empty`。
+- **R-DIAG-04** 每场结束 MUST 把该场六维写进 `sy_record.dims_json`，窗口均值 MUST 用逐场记录重算。
+- **R-DIAG-05** 没有任何逐场记录时 MUST 返回 `empty:true` 且 `dims` 为空，
   MUST NOT 返回写死的占位维度（前端据此显示空态，不画假雷达）。
 - **R-DIAG-06** 前端雷达 MUST 支持从中心生长动画与「0→值」条形动画，且 MUST 显示与上一场的增减箭头。
 
 ### 25.3 对局可继续（前端行为）
 
-- **R-RESUME-01** 离开对局页 MUST 只停轮询与 SSE，MUST NOT 清空 \`matchId / match\`。
+- **R-RESUME-01** 离开对局页 MUST 只停轮询与 SSE，MUST NOT 清空 `matchId / match`。
 - **R-RESUME-02** 回到对局页 MUST 自动恢复轮询并立即拉一次状态。
 - **R-RESUME-03** 任意页面 MUST 能看到「有一场还没打完」入口并能一键回到该场。
 - **R-RESUME-04** 聊天区自动滚动 MUST 同时满足：贴底、用户 600ms 内没手动滚过、每 3 个字一次；
   用户滚轮 / 触摸 / 方向键操作 MUST 立刻解除跟随。
+
+
+---
+
+## 26. 管理后台与报表（2026-11-11 追加）
+
+> 本节对应 `feature-rebuild-admin` 这一批：管理台从「单页 + 三个 tab」改成左侧栏 + 六个子页，
+> 并新增模块浏览统计、活跃用户埋点与报表页。后端聚合在 `admin/analytics/`，采集在 `track/`。
+
+### 26.1 布局与路由
+
+- **R-ADM-01** 管理台 MUST 为左侧栏 + 嵌套路由结构，子页 MUST 为
+  `概览 / 报表分析 / 举报处理 / 用户管理 / 处理记录 / 设置`。
+- **R-ADM-02** 未持有管理员令牌访问任意子页 MUST 被送到登录页；已登录访问登录页 MUST 回到概览。
+- **R-ADM-03** 侧栏 MUST 可折叠（宽屏 208px → 56px），折叠状态 MUST 持久化；窄屏（<760px）
+  MUST 默认收起并提供抽屉式展开。
+- **R-ADM-04** `GET /admin` MUST 302 到 SPA 入口（相对路径，兼容 `/siyige/` 子路径部署），
+  MUST NOT 再用 forward（会因相对 base 变成白屏）。
+
+### 26.2 模块浏览统计
+
+- **R-STAT-01** 统计单元 MUST 是**模块**（11 个：community / chat / match / solo / video / hot /
+  diag / records / wallet / friends / admin），MUST NOT 按具体页面路径统计。
+- **R-STAT-02** 上报 MUST 由前端路由切换触发（`POST /api/track/pv`），同一模块连续切换 MUST 去抖；
+  该接口 MUST 允许匿名访问（匿名只计 PV，登录用户才进 UV）。
+- **R-STAT-03** 未在白名单内的 module 值 MUST 返回 400。
+- **R-STAT-04** PV MUST 用 Redis Hash 累加、UV MUST 用 HyperLogLog（去重且省内存）；
+  两者 MUST 由定时任务落库 `sy_module_view`（PV 每 5 分钟、UV 每小时快照），
+  取增量 MUST 用「读取并清空」的原子脚本，落库失败 MUST 把增量补回。
+- **R-STAT-05** 未回写的实时增量 MUST 叠加进报表今日数据（只读不删，避免与落库重复计数）。
+
+### 26.3 活跃用户
+
+- **R-ACT-01** 活跃 MUST 只统计「有效行为」：登录、开局、提交发言、发帖、评论、发私信、点赞、举报；
+  MUST NOT 把浏览、轮询、心跳、SSE 连接算作活跃。
+- **R-ACT-02** 打点 MUST 用注解 + AOP 实现（`@Active`），MUST NOT 修改业务方法体。
+- **R-ACT-03** DAU MUST 用 HyperLogLog 按日记录，每天落库 `sy_daily_active`；
+  WAU / MAU MUST 现场用 PFMERGE 合并计算，MUST NOT 额外建表。
+- **R-ACT-04** 本期 MUST NOT 做历史回填（当前无历史数据，且 H2 为内存库）。
+
+### 26.4 报表与导出
+
+- **R-RPT-01** 报表接口 MUST 只读，路径前缀 `/api/admin/analytics/**`，与「举报管理」
+  （`AdminReport*`，report = 举报）**命名区分**，不得混淆。
+- **R-RPT-02** 报表 MUST 支持时间范围 `7d / 30d / 90d` 与自定义 `from/to`；KPI MUST 带与上一周期对比。
+- **R-RPT-03** 报表缓存 MUST ≤ 5 秒并支持手动刷新（数据要能"点完就看到变化"）。
+- **R-RPT-04** 导出 MUST 同时支持 CSV 与 XLSX；CSV MUST 带 UTF-8 BOM；
+  XLSX MUST 为真实 zip 包（不得用 CSV 改名冒充），本期 MUST NOT 引入 POI / EasyExcel。
+- **R-RPT-05** 图表 MUST 为自研 SVG，MUST NOT 引入图表库；空数据 MUST 显示占位而不画空坐标系。
+
+### 26.5 本期不做（记待办）
+
+- 管理员权限分级（只读 / 运营 / 超级）
+- 漏洞（失败原因）统计：系统内存在两套命名不一致的漏洞枚举，需先统一再统计
+- 留存分析（次日 / 7 日）
