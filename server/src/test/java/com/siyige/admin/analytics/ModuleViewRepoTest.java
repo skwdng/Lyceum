@@ -33,6 +33,12 @@ class ModuleViewRepoTest {
 
         // sy_user 是 countNewUsers 的数据源（这里只建最小列集）
         jdbc.execute("create table sy_user (id varchar(32) primary key, name varchar(64), created_at timestamp default current_timestamp)");
+        // P3 的索引 DDL 建在这些表上：给最小桩表，让 schema-analytics.sql 能整份跑通（顺带验索引语句）
+        jdbc.execute("create table sy_match (id varchar(40) primary key, started_at timestamp)");
+        jdbc.execute("create table sy_wallet_tx (id bigint auto_increment primary key, created_at timestamp)");
+        jdbc.execute("create table sy_report (id bigint auto_increment primary key, created_at timestamp)");
+        jdbc.execute("create table sy_turn (id bigint auto_increment primary key, created_at timestamp)");
+        jdbc.execute("create table sy_record (id bigint auto_increment primary key, created_at timestamp)");
         runSchema("/schema-analytics.sql");
         repo = new ModuleViewRepo(jdbc);
     }

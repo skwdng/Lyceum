@@ -43,4 +43,15 @@ public interface PvStore {
 
     /** 当天的去重活跃人数。 */
     long countActive(String day);
+
+    /**
+     * 合并若干天的活跃集合后去重计数（WAU / MAU 用，设计文档 §3.2）。
+     *
+     * <p>为什么必须 PFMERGE 而不是把每天的 DAU 相加：同一个人一周内活跃 3 天，
+     * 相加会算成 3 个人。HLL 合并是"求并集"，这才是周活/月活的定义。
+     *
+     * @param days {@code yyyyMMdd} 列表（最近 7 / 30 天）
+     * @return 去重后的活跃人数；Redis 不可用返回 0
+     */
+    long unionActive(java.util.List<String> days);
 }

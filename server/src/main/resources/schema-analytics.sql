@@ -33,3 +33,20 @@ create table if not exists sy_daily_active (
   dau       int  not null default 0,
   new_users int  not null default 0
 );
+
+-- ============================================================================
+-- 报表查询用到的索引（设计文档 §5.4）
+--
+-- 与设计初稿的两处差异，都是照着真实表结构来的：
+--   · sy_match 没有 created_at，开局时间列叫 started_at；
+--   · sy_post **不再重复建** ix_post_created —— 已有 ix_post_new(status, created_at)
+--     和 ix_post_type(status, type, created_at)，报表的「status=1 + 时间区间」正好走它们，
+--     再建一条 (created_at) 只会多占写入成本。
+-- ============================================================================
+
+create index if not exists ix_match_started  on sy_match(started_at);
+create index if not exists ix_user_created   on sy_user(created_at);
+create index if not exists ix_tx_created     on sy_wallet_tx(created_at);
+create index if not exists ix_report_created on sy_report(created_at);
+create index if not exists ix_turn_created   on sy_turn(created_at);
+create index if not exists ix_record_created on sy_record(created_at);

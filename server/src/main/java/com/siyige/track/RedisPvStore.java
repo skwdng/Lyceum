@@ -165,6 +165,26 @@ public class RedisPvStore implements PvStore, DisposableBean {
         return n == null ? 0L : n;
     }
 
+    /**
+     * WAU / MAU：把最近 N 天的 {@code act:dau:*} 合并成一个临时 HLL 再数。
+     *
+     * <p>临时 key 用完即删（并带 60s TTL 兜底），不污染 act:dau 的命名空间。
+     */
+    @Override
+    public long unionActive(List<String> days) {
+        if (days == null || days.isEmpty()) return 0L;
+        String dest = "act:dau:tmp:" + java.util.UUID.randomUUID();
+        try {
+            String[] keys = days.stream().map(RedisPvStore::dauKey).toArray(String[]::new);
+            flushRedis.opsForHyperLogLog().union(dest, keys);
+            flushRedis.expire(dest, Duration.ofSeconds(60));
+            Long n = flushRedis.opsForHyperLogLog().size(dest);
+            return n == null ? 0L : n;
+        } finally {
+            flushRedis.delete(dest);
+        }
+    }
+
     // ==================== Key（单测直接断言格式） ====================
 
     static String pvCntKey(String day) {

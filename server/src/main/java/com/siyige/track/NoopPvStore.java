@@ -63,4 +63,9 @@ public class NoopPvStore implements PvStore {
     public long countActive(String day) {
         return 0L;
     }
+
+    @Override
+    public long unionActive(java.util.List<String> days) {
+        return 0L;
+    }
 }
