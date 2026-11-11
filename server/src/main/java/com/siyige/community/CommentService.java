@@ -1,5 +1,6 @@
 package com.siyige.community;
 
+import com.siyige.admin.analytics.Active;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.siyige.community.ai.AiAccount;
@@ -184,6 +185,7 @@ public class CommentService {
 
     /** 发布评论：root_id / reply_object_* 全部由服务端派生（R-COM-19）。 */
     @Transactional
+    @Active
     public Map<String, Object> create(String userId, long postId, Map<String, Object> body) {
         muteGuard.assertNotMuted(userId);          // 被禁言不能发评论
         requirePost(postId);

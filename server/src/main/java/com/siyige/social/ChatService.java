@@ -1,5 +1,6 @@
 package com.siyige.social;
 
+import com.siyige.admin.analytics.Active;
 import com.siyige.community.SensitiveWordMasker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,6 +73,7 @@ public class ChatService {
      * @param payload 结构化附加信息（INVITE 用），TEXT 传 null
      * @return 落库后的消息视图（含 messageId / convId / createdAt）
      */
+    @Active
     @Transactional
     public Map<String, Object> send(String fromId, String toId, String body, String type, String payload) {
         String target = toId == null ? null : toId.trim();
@@ -117,6 +119,7 @@ public class ChatService {
     }
 
     /** WS 帧 {"type":"send",...} 的入口（V3 用；V2 只有 HTTP，但形状一致便于切换）。 */
+    @Active
     @Transactional
     public Map<String, Object> sendFromFrame(String fromId, Map<String, Object> in) {
         return send(fromId, str(in.get("toId")), str(in.get("body")), "TEXT", null);

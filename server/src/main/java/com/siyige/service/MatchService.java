@@ -1,6 +1,7 @@
 package com.siyige.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.siyige.admin.analytics.Active;
 import com.siyige.ai.AiService;
 import com.siyige.api.SseHub;
 import com.siyige.domain.Format;
@@ -92,6 +93,7 @@ public class MatchService {
     }
 
     /** 带 AI 档位与付款人的开局（多人房间传房主为付款人）。 */
+    @Active
     public String create(String userId, String topicId, String seatsRaw, String mode, int turnSeconds,
                          String pace, String difficulty, String kind, String tierRaw, String payerUserId) throws Exception {
         Set<String> seats = TurnEngine.parseSeats(seatsRaw);
@@ -150,6 +152,7 @@ public class MatchService {
 
     // ---------- 玩家提交 ----------
 
+    @Active
     public Map<String, Object> submit(String matchId, String content, String inputType) throws Exception {
         Map<String, Object> m = require(matchId);
         List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));

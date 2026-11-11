@@ -1,5 +1,6 @@
 package com.siyige.community;
 
+import com.siyige.admin.analytics.Active;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
@@ -51,6 +52,7 @@ public class ReportService {
 
     // ==================== 提交举报 ====================
 
+    @Active
     public Map<String, Object> submit(String userId, Map<String, Object> body) {
         if (body == null) throw new IllegalArgumentException("INVALID_PARAM: 请求体不能为空");
 

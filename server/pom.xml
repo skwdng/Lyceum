@@ -42,6 +42,16 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-jdbc</artifactId>
     </dependency>
+
+    <!--
+      管理台埋点（P1）：@Active 活跃打点用 Spring AOP 织入 8 个业务方法，
+      只加注解、不改方法体。spring-aop 本来就从 spring-context 传递进来，
+      缺的只是 @Aspect / @annotation 切点解析要用的 aspectjweaver（版本由 Boot BOM 管）。
+    -->
+    <dependency>
+      <groupId>org.aspectj</groupId>
+      <artifactId>aspectjweaver</artifactId>
+    </dependency>
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>

@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { useAuthStore } from './stores/auth.js';
 import { getAdminToken } from './api.js';
+import { trackView } from './utils/track.js';
 import LoginView from './views/LoginView.vue';
 import MeView from './views/MeView.vue';
 import NotifyView from './views/NotifyView.vue';
@@ -126,5 +127,16 @@ router.beforeEach(async (to) => {
 
   return true;
 });
+
+/**
+ * 模块浏览上报（管理台报表 P1）：每次跳转都把「路径 -> 模块」报给后端。
+ *
+ * 放在 afterEach 而不是 beforeEach：只统计**真正落地**的页面（被守卫拦下来的跳转不算浏览）；
+ * 去抖、白名单、失败静默都在 utils/track.js 里，这里只挂一行。
+ */
+router.afterEach((to) => {
+  trackView(to.path);
+});
+
 
 export default router;

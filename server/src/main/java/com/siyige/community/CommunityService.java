@@ -1,5 +1,6 @@
 package com.siyige.community;
 
+import com.siyige.admin.analytics.Active;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.siyige.community.ai.AiQueue;
@@ -116,6 +117,7 @@ public class CommunityService {
      * 昵称由 {@code sy_user.name} 经 {@code left join} 展示——**不再**从请求体接收昵称，
      * 也不再 upsert 用户行（账号由 auth 模块创建，社区只引用）。
      */
+    @Active
     public Map<String, Object> create(String userId, Map<String, Object> body) {
         muteGuard.assertNotMuted(userId);          // 被禁言不能发帖
         String type = requireType(body.get("type"));
