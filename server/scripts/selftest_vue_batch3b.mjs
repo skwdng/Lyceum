@@ -271,7 +271,7 @@ await check('B3-A3 令牌进入 → 侧栏 5 项 + 当前项高亮 + 徽标=待�
   await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(ADMIN)}); true`);
   await openAdmin('admin/dashboard');
   await waitFor(`document.querySelectorAll('.adm-nav a').length > 0`, '侧栏', 20000);
-  await waitFor(`document.querySelectorAll('[data-panel="dashboard"] .cards .card').length === 3`, '概览统计卡', 15000);
+  await waitFor(`document.querySelectorAll('[data-panel="dashboard"] .adm-kpi').length === 8`, '概览 KPI 卡', 20000);
   // 徽标要等 stats 回来才渲染，单独等一次，避免读到空串
   await waitFor(`!!document.querySelector('.adm-nav a .badge')`, '待处理举报徽标', 20000);
 
@@ -286,11 +286,11 @@ await check('B3-A3 令牌进入 → 侧栏 5 项 + 当前项高亮 + 徽标=待�
       on: on?on.textContent.replace(/\\s+/g,''):'',
       title: (document.querySelector('.adm-title')||{}).textContent,
       who: (document.querySelector('.adm-who')||{}).textContent,
-      cards: [...document.querySelectorAll('[data-panel="dashboard"] .cards .card')].map(c=>c.querySelector('.k').textContent+':'+c.querySelector('.v').textContent),
+      cards: [...document.querySelectorAll('[data-panel="dashboard"] .adm-kpi')].map(c=>c.querySelector('.k').textContent+':'+c.querySelector('.v').textContent.replace(/\\s+/g,'')),
       badge: badge?badge.textContent.trim():'',
       hash: location.hash}})()`);
 
-  if (st.menus.length !== 5) throw new Error('侧栏菜单项应为 5 个，实际 ' + st.menus.length + '：' + JSON.stringify(st.menus));
+  if (st.menus.length !== 6) throw new Error('侧栏菜单项应为 6 个（概览/报表分析/举报处理/用户管理/处理记录/设置），实际 ' + st.menus.length + '：' + JSON.stringify(st.menus));
   if (st.groups.length !== 3) throw new Error('菜单分组应为 3 组（总览/运营/系统），实际：' + JSON.stringify(st.groups));
   if (!st.on.includes('概览')) throw new Error('当前项没高亮成「概览」：' + JSON.stringify(st.on));
   if (String(st.title).trim() !== '概览') throw new Error('顶栏标题不对：' + st.title);
@@ -429,6 +429,41 @@ await check('B3-A9 顶栏退出 / 接口 401：都清令牌并回登录页（统
 
   await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(ADMIN)}); true`);   // 复原
   return '退出与 401 都回登录页并清令牌';
+});
+
+await check('B3-A11 报表分析页：五个区块 + 图表渲染 + 导出 CSV/XLSX', async () => {
+  await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(ADMIN)}); localStorage.setItem('sy_admin_collapsed','0'); true`);
+  await openAdmin('admin/analytics');
+  await waitFor(`location.hash === '#/admin/analytics'`, '切到报表分析', 20000);
+  await waitFor(`document.querySelectorAll('[data-panel="analytics"] .panel').length >= 5`, '五个区块', 25000);
+  await waitFor(`document.querySelectorAll('[data-panel="analytics"] svg').length >= 3`, '图表 svg', 25000);
+
+  const st = await ev(`({panels: document.querySelectorAll('[data-panel="analytics"] .panel').length,
+                       svgs: document.querySelectorAll('[data-panel="analytics"] svg').length,
+                       title: (document.querySelector('.adm-title')||{}).textContent,
+                       on: (document.querySelector('.adm-nav a.on')||{textContent:''}).textContent.replace(/\\s+/g,'')})`);
+  if (String(st.title).trim() !== '报表分析') throw new Error('顶栏标题不对：' + st.title);
+  if (!st.on.includes('报表分析')) throw new Error('当前项高亮不对：' + st.on);
+
+  const auth = { headers: { Authorization: 'Bearer ' + ADMIN } };
+
+  // CSV：必须带 UTF-8 BOM（否则 Excel 打开中文乱码）+ 表头 + 英文文件名
+  const csv = await fetch(BASE + '/api/admin/analytics/export?format=csv&report=modules&range=7d', auth);
+  if (csv.status !== 200) throw new Error('导出 CSV 失败：HTTP ' + csv.status);
+  const buf = Buffer.from(await csv.arrayBuffer());
+  if (!(buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF)) throw new Error('CSV 缺 UTF-8 BOM');
+  if (!buf.toString('utf8').includes('模块,PV,UV(人天)')) throw new Error('CSV 表头不对：' + buf.toString('utf8').slice(0, 80));
+  const disp = csv.headers.get('content-disposition') || '';
+  if (!/modules_\d{4}-\d{2}-\d{2}\.csv/.test(disp)) throw new Error('CSV 文件名不对：' + disp);
+
+  // XLSX：必须是 zip（PK 头）且不是空壳
+  const xlsx = await fetch(BASE + '/api/admin/analytics/export?format=xlsx&report=breakdown&dim=tier&range=7d', auth);
+  if (xlsx.status !== 200) throw new Error('导出 XLSX 失败：HTTP ' + xlsx.status);
+  const xb = Buffer.from(await xlsx.arrayBuffer());
+  if (!(xb[0] === 0x50 && xb[1] === 0x4B)) throw new Error('XLSX 不是 zip（缺 PK 头）');
+  if (xb.length < 800) throw new Error('XLSX 太小，可能是空壳：' + xb.length + ' 字节');
+
+  return `${st.panels} 个区块 · ${st.svgs} 个 svg · CSV ${buf.length}B · XLSX ${xb.length}B`;
 });
 
 await check('B3-A10 全程零 JS 异常', async () => {

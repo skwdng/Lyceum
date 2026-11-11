@@ -1,5 +1,8 @@
 package com.siyige.admin.analytics;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,9 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AnalyticsController {
 
     private final AnalyticsService service;
+    private final AnalyticsExportService exporter;
 
-    public AnalyticsController(AnalyticsService service) {
+    public AnalyticsController(AnalyticsService service, AnalyticsExportService exporter) {
         this.service = service;
+        this.exporter = exporter;
     }
 
     @GetMapping("/overview")
@@ -66,5 +71,25 @@ public class AnalyticsController {
     @GetMapping("/quality")
     public AnalyticsDtos.Quality quality(@RequestParam(required = false) String range) {
         return service.quality(range);
+    }
+
+    /**
+     * 导出：{@code GET /api/admin/analytics/export?format=csv|xlsx&report=&range=&metric=&dim=}
+     *
+     * <p>文件名是**英文 + 日期**（{@code modules_2026-11-11.xlsx}），
+     * 不用中文：不同浏览器/系统对下载文件名编码的处理不一致，中文容易乱码。
+     */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> export(@RequestParam(required = false) String format,
+                                        @RequestParam(required = false) String report,
+                                        @RequestParam(required = false) String range,
+                                        @RequestParam(required = false) String metric,
+                                        @RequestParam(required = false) String dim) {
+        AnalyticsExportService.ExportFile file = exporter.export(format, report, range, metric, dim);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.filename() + "\"")
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .contentLength(file.bytes().length)
+                .body(file.bytes());
     }
 }

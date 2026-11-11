@@ -16,9 +16,8 @@ export const ADMIN_MENU = [
   {
     group: '总览',
     items: [
-      { to: '/admin/dashboard', label: '概览', icon: '◧' }
-      // 报表分析：P4 接入（先有 P3 的 /api/admin/analytics/** 才有数据可画）
-      // { to: '/admin/analytics', label: '报表分析', icon: '◔' },
+      { to: '/admin/dashboard', label: '概览', icon: '◧' },
+      { to: '/admin/analytics', label: '报表分析', icon: '◔' }
     ]
   },
   {

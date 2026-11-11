@@ -41,8 +41,13 @@ export function compact(value) {
  *
  * 为什么不用固定 viewBox + preserveAspectRatio：那样文字会被拉伸变形；
  * 图表要画在真实像素坐标里，宽度就得实测。ResizeObserver 不可用时退回 fallback。
+ *
+ * @param host      容器元素 ref
+ * @param fallback  ResizeObserver 不可用时的默认宽度
+ * @param minWidth  最小宽度 —— 默认 240 适合整块图表；**Sparkline 要传小值**
+ *                  （卡片里可能只有 180px，硬套 240 会溢出卡片）
  */
-export function useWidth(host, fallback = 720) {
+export function useWidth(host, fallback = 720, minWidth = 240) {
   const width = ref(fallback);
   let ro = null;
 
@@ -50,7 +55,7 @@ export function useWidth(host, fallback = 720) {
     if (!host.value || typeof ResizeObserver === 'undefined') return;
     ro = new ResizeObserver((entries) => {
       const w = Math.round(entries[0]?.contentRect?.width || 0);
-      if (w > 0) width.value = Math.max(240, w);
+      if (w > 0) width.value = Math.max(minWidth, w);
     });
     ro.observe(host.value);
   });

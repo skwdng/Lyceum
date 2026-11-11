@@ -23,7 +23,8 @@ const props = defineProps({
 });
 
 const host = ref(null);
-const width = useWidth(host, 160);
+// 卡片里可能只有 180px 宽：最小宽度必须给小值，否则会把卡片撑破（实测溢出 51px）
+const width = useWidth(host, 120, 40);
 
 const line = computed(() => toSeries(props)[0] || null);
 const pts = computed(() => (line.value ? line.value.points.map((p) => ({ x: p.x, y: Number(p.y) || 0 })) : []));

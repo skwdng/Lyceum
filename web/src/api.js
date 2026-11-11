@@ -351,3 +351,30 @@ export const adminApi = {
   setStatus: (id, status) =>
     adminRequest('/users/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { status } })
 };
+
+// ==================== 管理台报表（P3 接口 / P4 页面） ====================
+
+/** 把参数对象拼成 query（空值不拼）。与 communityApi 里那套写法保持一致。 */
+function toQuery(params) {
+  return Object.keys(params || {})
+    .filter((k) => params[k] !== undefined && params[k] !== null && params[k] !== '')
+    .map((k) => k + '=' + encodeURIComponent(params[k]))
+    .join('&');
+}
+
+/**
+ * 报表接口：全部走 {@link adminRequest}（同 adminApi，带 sy_admin_jwt、401 统一广播）。
+ *
+ * 出参形状见 docs/管理接口契约.md §10：后端已经补好零、排好序、算好占比，
+ * 前端这里不做任何聚合，直接塞给 components/charts/* 的 points。
+ */
+export const analyticsApi = {
+  overview: (from, to) => adminRequest('/analytics/overview?' + toQuery({ from, to })),
+  modules: (range) => adminRequest('/analytics/modules?' + toQuery({ range })),
+  trend: (metric, range) => adminRequest('/analytics/trend?' + toQuery({ metric, range })),
+  breakdown: (dim, range) => adminRequest('/analytics/breakdown?' + toQuery({ dim, range })),
+  active: (range) => adminRequest('/analytics/active?' + toQuery({ range })),
+  quality: (range) => adminRequest('/analytics/quality?' + toQuery({ range })),
+  /** 导出走二进制下载，用 exportFile.js 里的 downloadExport（要带令牌，不能直接 window.open） */
+  exportPath: (params) => '/api/admin/analytics/export?' + toQuery(params)
+};

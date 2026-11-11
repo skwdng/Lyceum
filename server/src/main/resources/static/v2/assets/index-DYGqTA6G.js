@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-Ch7zkmQe.js","./admin-CzrI9OMV.js","./AdminLayout-DAVGV7Gb.css","./AdminLogin-DEoc_Ff_.js","./DashboardView-BdtvkZf8.js","./ReportsView-DL-ow-q-.js","./UsersView-BX2tWoAl.js","./AuditView-WCYzENg6.js","./SettingsView-BThNJ7Fb.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-ChzEmfbj.js","./admin-UBrA_Zep.js","./helpers-D_KARve0.js","./AdminLayout-DAVGV7Gb.css","./AdminLogin-COSqO-nR.js","./DashboardView-B2cNJFJK.js","./LineChart-BYm6SlLn.js","./LineChart-DIduibKn.css","./DashboardView-Dfxi8bUr.css","./AnalyticsView-D_JPhdys.js","./AnalyticsView-BMRLT4SX.css","./ReportsView-BciHGFel.js","./UsersView-By1afnV5.js","./AuditView-B4XMUo2m.js","./SettingsView-DRsLGdZq.js"])))=>i.map(i=>d[i]);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -9250,6 +9250,19 @@ const adminApi = {
   unban: (id) => adminRequest("/users/" + encodeURIComponent(id) + "/unban", { method: "POST" }),
   setStatus: (id, status) => adminRequest("/users/" + encodeURIComponent(id) + "/status", { method: "POST", body: { status } })
 };
+function toQuery(params) {
+  return Object.keys(params || {}).filter((k) => params[k] !== void 0 && params[k] !== null && params[k] !== "").map((k) => k + "=" + encodeURIComponent(params[k])).join("&");
+}
+const analyticsApi = {
+  overview: (from, to) => adminRequest("/analytics/overview?" + toQuery({ from, to })),
+  modules: (range) => adminRequest("/analytics/modules?" + toQuery({ range })),
+  trend: (metric, range) => adminRequest("/analytics/trend?" + toQuery({ metric, range })),
+  breakdown: (dim, range) => adminRequest("/analytics/breakdown?" + toQuery({ dim, range })),
+  active: (range) => adminRequest("/analytics/active?" + toQuery({ range })),
+  quality: (range) => adminRequest("/analytics/quality?" + toQuery({ range })),
+  /** 导出走二进制下载，用 exportFile.js 里的 downloadExport（要带令牌，不能直接 window.open） */
+  exportPath: (params) => "/api/admin/analytics/export?" + toQuery(params)
+};
 const api = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   ADMIN_TOKEN_KEY,
@@ -9258,6 +9271,7 @@ const api = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty(
   TOKEN_KEY,
   adminApi,
   adminRequest,
+  analyticsApi,
   authApi,
   baseApi,
   chatApi,
@@ -17631,20 +17645,21 @@ const routes = [
   {
     path: "/admin",
     meta: { bare: true },
-    component: () => __vitePreload(() => import("./AdminLayout-Ch7zkmQe.js"), true ? __vite__mapDeps([0,1,2]) : void 0, import.meta.url),
+    component: () => __vitePreload(() => import("./AdminLayout-ChzEmfbj.js"), true ? __vite__mapDeps([0,1,2,3]) : void 0, import.meta.url),
     children: [
       { path: "", redirect: "/admin/dashboard" },
-      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-DEoc_Ff_.js"), true ? __vite__mapDeps([3,1]) : void 0, import.meta.url), meta: { guest: true } },
-      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-BdtvkZf8.js"), true ? __vite__mapDeps([4,1]) : void 0, import.meta.url), meta: { title: "概览" } },
+      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-COSqO-nR.js"), true ? __vite__mapDeps([4,1,2]) : void 0, import.meta.url), meta: { guest: true } },
+      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-B2cNJFJK.js"), true ? __vite__mapDeps([5,6,7,2,8]) : void 0, import.meta.url), meta: { title: "概览" } },
+      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-D_JPhdys.js"), true ? __vite__mapDeps([9,6,7,2,10]) : void 0, import.meta.url), meta: { title: "报表分析" } },
       {
         path: "reports",
         name: "admin-reports",
-        component: () => __vitePreload(() => import("./ReportsView-DL-ow-q-.js"), true ? __vite__mapDeps([5,1]) : void 0, import.meta.url),
+        component: () => __vitePreload(() => import("./ReportsView-BciHGFel.js"), true ? __vite__mapDeps([11,1,2]) : void 0, import.meta.url),
         meta: { title: "举报处理", badge: "pendingReports" }
       },
-      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-BX2tWoAl.js"), true ? __vite__mapDeps([6,1]) : void 0, import.meta.url), meta: { title: "用户管理" } },
-      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-WCYzENg6.js"), true ? __vite__mapDeps([7,1]) : void 0, import.meta.url), meta: { title: "处理记录" } },
-      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-BThNJ7Fb.js"), true ? __vite__mapDeps([8,1]) : void 0, import.meta.url), meta: { title: "设置" } }
+      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-By1afnV5.js"), true ? __vite__mapDeps([12,1,2]) : void 0, import.meta.url), meta: { title: "用户管理" } },
+      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-B4XMUo2m.js"), true ? __vite__mapDeps([13,1,2]) : void 0, import.meta.url), meta: { title: "处理记录" } },
+      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-DRsLGdZq.js"), true ? __vite__mapDeps([14,1,2]) : void 0, import.meta.url), meta: { title: "设置" } }
     ]
   },
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）
@@ -17675,12 +17690,17 @@ app.use(createPinia());
 app.use(router);
 app.mount("#app");
 export {
-  adminApi as A,
+  API_BASE as A,
   ApiError as B,
-  defineStore as C,
-  setAdminToken as D,
-  getAdminToken as E,
+  normalizeStyle as C,
+  withModifiers as D,
+  nextTick as E,
   Fragment as F,
+  vModelSelect as G,
+  adminApi as H,
+  defineStore as I,
+  setAdminToken as J,
+  _export_sfc as _,
   onBeforeUnmount as a,
   createBlock as b,
   createElementBlock as c,
@@ -17705,6 +17725,6 @@ export {
   vModelText as v,
   watch as w,
   createTextVNode as x,
-  withModifiers as y,
-  vModelSelect as z
+  analyticsApi as y,
+  getAdminToken as z
 };

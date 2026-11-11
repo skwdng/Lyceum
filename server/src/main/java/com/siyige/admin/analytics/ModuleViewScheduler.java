@@ -37,7 +37,14 @@ public class ModuleViewScheduler {
         }
     }
 
-    @Scheduled(fixedDelay = 3_600_000, initialDelay = 3_600_000)
+    /**
+     * UV 快照：每小时一次。
+     *
+     * <p>首次延迟只给 60 秒（不是 1 小时）：发布/重启后如果等到 1 小时才快照，
+     * 报表里的 UV 会在这一小时内一直显示 0，看起来像"抓不到数据"。
+     * 快照本身是「取大覆盖」，多跑一次无副作用。
+     */
+    @Scheduled(fixedDelay = 3_600_000, initialDelay = 60_000)
     public void snapshotUv() {
         try {
             int written = flush.snapshotUv();

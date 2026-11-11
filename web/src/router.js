@@ -77,6 +77,7 @@ const routes = [
       { path: '', redirect: '/admin/dashboard' },
       { path: 'login', name: 'admin-login', component: () => import('./views/admin/AdminLogin.vue'), meta: { guest: true } },
       { path: 'dashboard', name: 'admin-dashboard', component: () => import('./views/admin/DashboardView.vue'), meta: { title: '概览' } },
+      { path: 'analytics', name: 'admin-analytics', component: () => import('./views/admin/AnalyticsView.vue'), meta: { title: '报表分析' } },
       {
         path: 'reports',
         name: 'admin-reports',

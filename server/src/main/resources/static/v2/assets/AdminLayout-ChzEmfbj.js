@@ -1,12 +1,12 @@
-import { r as ref, w as watch, o as onMounted, a as onBeforeUnmount, c as createElementBlock, b as createBlock, n as normalizeClass, d as createBaseVNode, F as Fragment, e as renderList, u as unref, f as createCommentVNode, t as toDisplayString, g as createVNode, h as computed, i as useRouter, j as useRoute, k as openBlock, l as withCtx, m as resolveComponent } from "./index-CNvC6fMv.js";
-import { u as useAdminStore } from "./admin-CzrI9OMV.js";
+import { r as ref, w as watch, o as onMounted, a as onBeforeUnmount, c as createElementBlock, b as createBlock, n as normalizeClass, d as createBaseVNode, F as Fragment, e as renderList, u as unref, f as createCommentVNode, t as toDisplayString, g as createVNode, h as computed, i as useRouter, j as useRoute, k as openBlock, l as withCtx, m as resolveComponent } from "./index-DYGqTA6G.js";
+import { u as useAdminStore } from "./admin-UBrA_Zep.js";
+import "./helpers-D_KARve0.js";
 const ADMIN_MENU = [
   {
     group: "总览",
     items: [
-      { to: "/admin/dashboard", label: "概览", icon: "◧" }
-      // 报表分析：P4 接入（先有 P3 的 /api/admin/analytics/** 才有数据可画）
-      // { to: '/admin/analytics', label: '报表分析', icon: '◔' },
+      { to: "/admin/dashboard", label: "概览", icon: "◧" },
+      { to: "/admin/analytics", label: "报表分析", icon: "◔" }
     ]
   },
   {
