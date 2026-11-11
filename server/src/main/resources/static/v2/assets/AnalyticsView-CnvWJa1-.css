@@ -1,0 +1,29 @@
+
+.adm-toolbar[data-v-bb6f2ade] { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.adm-chips[data-v-bb6f2ade] { display: flex; gap: 6px;
+}
+.adm-chip[data-v-bb6f2ade] { border: 1px solid #E5E6EB; background: #fff; color: #4E5969; border-radius: 8px; padding: 5px 12px; font-size: 12.5px; cursor: pointer;
+}
+.adm-chip[data-v-bb6f2ade]:hover { background: #F7F8FA;
+}
+.adm-chip.on[data-v-bb6f2ade] { background: #E8F3FF; border-color: #165DFF; color: #165DFF; font-weight: 600;
+}
+.adm-split[data-v-bb6f2ade] { display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+}
+.adm-pane[data-v-bb6f2ade] { min-width: 0;
+}
+.adm-pane-t[data-v-bb6f2ade] { font-size: 12px; color: #86909C; margin-bottom: 6px;
+}
+.adm-stats[data-v-bb6f2ade] { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
+}
+.adm-stat[data-v-bb6f2ade] { flex: 1; min-width: 140px; background: #FAFBFC; border: 1px solid #EFF0F1; border-radius: 10px; padding: 10px 14px;
+}
+.adm-stat .k[data-v-bb6f2ade] { font-size: 12px; color: #86909C;
+}
+.adm-stat .v[data-v-bb6f2ade] { font-size: 20px; font-weight: 700;
+}
+@media (max-width: 900px) {
+.adm-split[data-v-bb6f2ade] { grid-template-columns: 1fr;
+}
+}

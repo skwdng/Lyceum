@@ -1,6 +1,6 @@
-import { z as getAdminToken, A as API_BASE, y as analyticsApi, B as ApiError, _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, f as createCommentVNode, t as toDisplayString, r as ref, s as toast, h as computed, k as openBlock, n as normalizeClass } from "./index-DGMQj2O6.js";
-import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-B4IlKb76.js";
-import { e as errText } from "./helpers-DTG4n1BK.js";
+import { z as getAdminToken, A as API_BASE, y as analyticsApi, B as ApiError, _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, f as createCommentVNode, t as toDisplayString, r as ref, s as toast, h as computed, k as openBlock, n as normalizeClass } from "./index-B0ObNIhi.js";
+import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-CE6QvFVO.js";
+import { e as errText } from "./helpers-Bo9J2p-8.js";
 async function downloadExport(params, fallbackName = "export.csv") {
   const token = getAdminToken();
   const resp = await fetch(API_BASE + analyticsApi.exportPath(params), {
@@ -43,67 +43,68 @@ const _hoisted_1 = { "data-panel": "analytics" };
 const _hoisted_2 = { class: "adm-toolbar" };
 const _hoisted_3 = { class: "adm-chips" };
 const _hoisted_4 = ["onClick"];
-const _hoisted_5 = {
+const _hoisted_5 = ["disabled"];
+const _hoisted_6 = {
   key: 0,
   class: "muted",
   style: { "padding": "24px" }
 };
-const _hoisted_6 = { class: "panel" };
-const _hoisted_7 = { class: "body scroll" };
-const _hoisted_8 = { class: "adm-split" };
-const _hoisted_9 = { class: "adm-pane" };
+const _hoisted_7 = { class: "panel" };
+const _hoisted_8 = { class: "body scroll" };
+const _hoisted_9 = { class: "adm-split" };
 const _hoisted_10 = { class: "adm-pane" };
-const _hoisted_11 = {
+const _hoisted_11 = { class: "adm-pane" };
+const _hoisted_12 = {
   key: 0,
   class: "tbl-x",
   style: { "margin-top": "12px" }
 };
-const _hoisted_12 = { class: "muted" };
-const _hoisted_13 = {
+const _hoisted_13 = { class: "muted" };
+const _hoisted_14 = {
   key: 1,
   class: "muted",
   style: { "font-size": "11.5px", "margin-top": "8px" }
 };
-const _hoisted_14 = {
+const _hoisted_15 = {
   class: "panel",
   style: { "margin-top": "14px" }
 };
-const _hoisted_15 = { class: "body" };
-const _hoisted_16 = { class: "adm-stats" };
-const _hoisted_17 = { class: "adm-stat" };
-const _hoisted_18 = { class: "v" };
-const _hoisted_19 = { class: "adm-stat" };
-const _hoisted_20 = { class: "v" };
-const _hoisted_21 = { class: "adm-stat" };
-const _hoisted_22 = { class: "v" };
-const _hoisted_23 = {
+const _hoisted_16 = { class: "body" };
+const _hoisted_17 = { class: "adm-stats" };
+const _hoisted_18 = { class: "adm-stat" };
+const _hoisted_19 = { class: "v" };
+const _hoisted_20 = { class: "adm-stat" };
+const _hoisted_21 = { class: "v" };
+const _hoisted_22 = { class: "adm-stat" };
+const _hoisted_23 = { class: "v" };
+const _hoisted_24 = {
   class: "panel",
   style: { "margin-top": "14px" }
 };
-const _hoisted_24 = { class: "body" };
-const _hoisted_25 = { class: "adm-split" };
-const _hoisted_26 = { class: "adm-pane" };
+const _hoisted_25 = { class: "body" };
+const _hoisted_26 = { class: "adm-split" };
 const _hoisted_27 = { class: "adm-pane" };
-const _hoisted_28 = {
+const _hoisted_28 = { class: "adm-pane" };
+const _hoisted_29 = {
   class: "panel",
   style: { "margin-top": "14px" }
 };
-const _hoisted_29 = { class: "body" };
-const _hoisted_30 = { class: "adm-split" };
-const _hoisted_31 = { class: "adm-pane" };
+const _hoisted_30 = { class: "body" };
+const _hoisted_31 = { class: "adm-split" };
 const _hoisted_32 = { class: "adm-pane" };
-const _hoisted_33 = {
+const _hoisted_33 = { class: "adm-pane" };
+const _hoisted_34 = {
   class: "panel",
   style: { "margin-top": "14px" }
 };
-const _hoisted_34 = { class: "body" };
-const _hoisted_35 = { class: "adm-stats" };
-const _hoisted_36 = { class: "adm-stat" };
-const _hoisted_37 = { class: "v" };
-const _hoisted_38 = { class: "adm-stat" };
-const _hoisted_39 = { class: "v" };
-const _hoisted_40 = { class: "adm-stat" };
-const _hoisted_41 = { class: "v" };
+const _hoisted_35 = { class: "body" };
+const _hoisted_36 = { class: "adm-stats" };
+const _hoisted_37 = { class: "adm-stat" };
+const _hoisted_38 = { class: "v" };
+const _hoisted_39 = { class: "adm-stat" };
+const _hoisted_40 = { class: "v" };
+const _hoisted_41 = { class: "adm-stat" };
+const _hoisted_42 = { class: "v" };
 const _sfc_main = {
   __name: "AnalyticsView",
   setup(__props) {
@@ -201,34 +202,43 @@ const _sfc_main = {
                 }
               }, toDisplayString(r[1]), 11, _hoisted_4);
             }), 64))
-          ])
+          ]),
+          createBaseVNode("button", {
+            class: "btn sm",
+            disabled: loading.value,
+            onClick: _cache[0] || (_cache[0] = ($event) => load())
+          }, "刷新", 8, _hoisted_5),
+          _cache[12] || (_cache[12] = createBaseVNode("span", {
+            class: "muted",
+            style: { "font-size": "12px" }
+          }, "服务端缓存 5 秒；今天的数据包含尚未落库的实时增量", -1))
         ]),
-        loading.value ? (openBlock(), createElementBlock("div", _hoisted_5, "加载中…")) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
-          createBaseVNode("div", _hoisted_6, [
+        loading.value ? (openBlock(), createElementBlock("div", _hoisted_6, "加载中…")) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
+          createBaseVNode("div", _hoisted_7, [
             createBaseVNode("h2", null, [
-              _cache[11] || (_cache[11] = createTextVNode(" 模块浏览 ", -1)),
-              _cache[12] || (_cache[12] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+              _cache[13] || (_cache[13] = createTextVNode(" 模块浏览 ", -1)),
+              _cache[14] || (_cache[14] = createBaseVNode("span", { class: "spacer" }, null, -1)),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[0] || (_cache[0] = ($event) => exportReport({ format: "csv", report: "modules" }))
+                onClick: _cache[1] || (_cache[1] = ($event) => exportReport({ format: "csv", report: "modules" }))
               }, "CSV"),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[1] || (_cache[1] = ($event) => exportReport({ format: "xlsx", report: "modules" }))
+                onClick: _cache[2] || (_cache[2] = ($event) => exportReport({ format: "xlsx", report: "modules" }))
               }, "XLSX")
             ]),
-            createBaseVNode("div", _hoisted_7, [
-              createBaseVNode("div", _hoisted_8, [
-                createBaseVNode("div", _hoisted_9, [
-                  _cache[13] || (_cache[13] = createBaseVNode("div", { class: "adm-pane-t" }, "PV 排行（前 10）", -1)),
+            createBaseVNode("div", _hoisted_8, [
+              createBaseVNode("div", _hoisted_9, [
+                createBaseVNode("div", _hoisted_10, [
+                  _cache[15] || (_cache[15] = createBaseVNode("div", { class: "adm-pane-t" }, "PV 排行（前 10）", -1)),
                   createVNode(BarChart, {
                     points: moduleBars.value,
                     height: 210,
                     empty: "这段时间没有浏览数据"
                   }, null, 8, ["points"])
                 ]),
-                createBaseVNode("div", _hoisted_10, [
-                  _cache[14] || (_cache[14] = createBaseVNode("div", { class: "adm-pane-t" }, "PV 占比（前 6）", -1)),
+                createBaseVNode("div", _hoisted_11, [
+                  _cache[16] || (_cache[16] = createBaseVNode("div", { class: "adm-pane-t" }, "PV 占比（前 6）", -1)),
                   createVNode(DonutChart, {
                     points: moduleDonut.value,
                     height: 210,
@@ -237,7 +247,7 @@ const _sfc_main = {
                   }, null, 8, ["points"])
                 ])
               ]),
-              _cache[16] || (_cache[16] = createBaseVNode("div", {
+              _cache[18] || (_cache[18] = createBaseVNode("div", {
                 class: "adm-pane-t",
                 style: { "margin-top": "14px" }
               }, "PV 趋势（前 5 模块）", -1)),
@@ -246,9 +256,9 @@ const _sfc_main = {
                 height: 220,
                 empty: "暂无趋势数据"
               }, null, 8, ["series"]),
-              modules.value && modules.value.modules.length ? (openBlock(), createElementBlock("div", _hoisted_11, [
+              modules.value && modules.value.modules.length ? (openBlock(), createElementBlock("div", _hoisted_12, [
                 createBaseVNode("table", null, [
-                  _cache[15] || (_cache[15] = createBaseVNode("thead", null, [
+                  _cache[17] || (_cache[17] = createBaseVNode("thead", null, [
                     createBaseVNode("tr", null, [
                       createBaseVNode("th", null, "模块"),
                       createBaseVNode("th", { style: { "width": "100px" } }, "PV"),
@@ -266,41 +276,41 @@ const _sfc_main = {
                         createBaseVNode("td", null, toDisplayString(m.pv), 1),
                         createBaseVNode("td", null, toDisplayString(m.uv), 1),
                         createBaseVNode("td", null, toDisplayString(m.uvPeak), 1),
-                        createBaseVNode("td", _hoisted_12, toDisplayString(m.sharePct) + "%", 1)
+                        createBaseVNode("td", _hoisted_13, toDisplayString(m.sharePct) + "%", 1)
                       ]);
                     }), 128))
                   ])
                 ])
               ])) : createCommentVNode("", true),
-              modules.value && modules.value.liveToday ? (openBlock(), createElementBlock("div", _hoisted_13, " 今日数据 = 已落库 + 尚未回写的实时增量（回写每 5 分钟一次，刚浏览完也能看到） ")) : createCommentVNode("", true)
+              modules.value && modules.value.liveToday ? (openBlock(), createElementBlock("div", _hoisted_14, " 今日数据 = 已落库 + 尚未回写的实时增量（回写每 5 分钟一次，刚浏览完也能看到） ")) : createCommentVNode("", true)
             ])
           ]),
-          createBaseVNode("div", _hoisted_14, [
+          createBaseVNode("div", _hoisted_15, [
             createBaseVNode("h2", null, [
-              _cache[17] || (_cache[17] = createTextVNode(" 活跃用户 ", -1)),
-              _cache[18] || (_cache[18] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+              _cache[19] || (_cache[19] = createTextVNode(" 活跃用户 ", -1)),
+              _cache[20] || (_cache[20] = createBaseVNode("span", { class: "spacer" }, null, -1)),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[2] || (_cache[2] = ($event) => exportReport({ format: "csv", report: "active" }))
+                onClick: _cache[3] || (_cache[3] = ($event) => exportReport({ format: "csv", report: "active" }))
               }, "CSV"),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[3] || (_cache[3] = ($event) => exportReport({ format: "xlsx", report: "active" }))
+                onClick: _cache[4] || (_cache[4] = ($event) => exportReport({ format: "xlsx", report: "active" }))
               }, "XLSX")
             ]),
-            createBaseVNode("div", _hoisted_15, [
-              createBaseVNode("div", _hoisted_16, [
-                createBaseVNode("div", _hoisted_17, [
-                  _cache[19] || (_cache[19] = createBaseVNode("div", { class: "k" }, "今日 DAU", -1)),
-                  createBaseVNode("div", _hoisted_18, toDisplayString(active.value ? active.value.dau : 0), 1)
+            createBaseVNode("div", _hoisted_16, [
+              createBaseVNode("div", _hoisted_17, [
+                createBaseVNode("div", _hoisted_18, [
+                  _cache[21] || (_cache[21] = createBaseVNode("div", { class: "k" }, "今日 DAU", -1)),
+                  createBaseVNode("div", _hoisted_19, toDisplayString(active.value ? active.value.dau : 0), 1)
                 ]),
-                createBaseVNode("div", _hoisted_19, [
-                  _cache[20] || (_cache[20] = createBaseVNode("div", { class: "k" }, "WAU（近 7 天去重）", -1)),
-                  createBaseVNode("div", _hoisted_20, toDisplayString(active.value ? active.value.wau : 0), 1)
+                createBaseVNode("div", _hoisted_20, [
+                  _cache[22] || (_cache[22] = createBaseVNode("div", { class: "k" }, "WAU（近 7 天去重）", -1)),
+                  createBaseVNode("div", _hoisted_21, toDisplayString(active.value ? active.value.wau : 0), 1)
                 ]),
-                createBaseVNode("div", _hoisted_21, [
-                  _cache[21] || (_cache[21] = createBaseVNode("div", { class: "k" }, "MAU（近 30 天去重）", -1)),
-                  createBaseVNode("div", _hoisted_22, toDisplayString(active.value ? active.value.mau : 0), 1)
+                createBaseVNode("div", _hoisted_22, [
+                  _cache[23] || (_cache[23] = createBaseVNode("div", { class: "k" }, "MAU（近 30 天去重）", -1)),
+                  createBaseVNode("div", _hoisted_23, toDisplayString(active.value ? active.value.mau : 0), 1)
                 ])
               ]),
               createVNode(LineChart, {
@@ -311,35 +321,35 @@ const _sfc_main = {
               }, null, 8, ["series", "y-format"])
             ])
           ]),
-          createBaseVNode("div", _hoisted_23, [
+          createBaseVNode("div", _hoisted_24, [
             createBaseVNode("h2", null, [
-              _cache[22] || (_cache[22] = createTextVNode(" 内容与治理 ", -1)),
-              _cache[23] || (_cache[23] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+              _cache[24] || (_cache[24] = createTextVNode(" 内容与治理 ", -1)),
+              _cache[25] || (_cache[25] = createBaseVNode("span", { class: "spacer" }, null, -1)),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[4] || (_cache[4] = ($event) => exportReport({ format: "csv", report: "trend", metric: "reports" }))
+                onClick: _cache[5] || (_cache[5] = ($event) => exportReport({ format: "csv", report: "trend", metric: "reports" }))
               }, "举报 CSV"),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[5] || (_cache[5] = ($event) => exportReport({ format: "csv", report: "trend", metric: "posts" }))
+                onClick: _cache[6] || (_cache[6] = ($event) => exportReport({ format: "csv", report: "trend", metric: "posts" }))
               }, "发帖 CSV"),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[6] || (_cache[6] = ($event) => exportReport({ format: "xlsx", report: "breakdown", dim: "report_reason" }))
+                onClick: _cache[7] || (_cache[7] = ($event) => exportReport({ format: "xlsx", report: "breakdown", dim: "report_reason" }))
               }, "举报原因 XLSX")
             ]),
-            createBaseVNode("div", _hoisted_24, [
-              createBaseVNode("div", _hoisted_25, [
-                createBaseVNode("div", _hoisted_26, [
-                  _cache[24] || (_cache[24] = createBaseVNode("div", { class: "adm-pane-t" }, "举报数", -1)),
+            createBaseVNode("div", _hoisted_25, [
+              createBaseVNode("div", _hoisted_26, [
+                createBaseVNode("div", _hoisted_27, [
+                  _cache[26] || (_cache[26] = createBaseVNode("div", { class: "adm-pane-t" }, "举报数", -1)),
                   createVNode(LineChart, {
                     series: [{ name: "举报", color: "#F53F3F", points: reportsTrend.value }],
                     height: 180,
                     empty: "没有举报"
                   }, null, 8, ["series"])
                 ]),
-                createBaseVNode("div", _hoisted_27, [
-                  _cache[25] || (_cache[25] = createBaseVNode("div", { class: "adm-pane-t" }, "举报原因分布", -1)),
+                createBaseVNode("div", _hoisted_28, [
+                  _cache[27] || (_cache[27] = createBaseVNode("div", { class: "adm-pane-t" }, "举报原因分布", -1)),
                   createVNode(DonutChart, {
                     points: reasonDonut.value,
                     height: 180,
@@ -348,7 +358,7 @@ const _sfc_main = {
                   }, null, 8, ["points"])
                 ])
               ]),
-              _cache[26] || (_cache[26] = createBaseVNode("div", {
+              _cache[28] || (_cache[28] = createBaseVNode("div", {
                 class: "adm-pane-t",
                 style: { "margin-top": "12px" }
               }, "发帖数", -1)),
@@ -359,23 +369,23 @@ const _sfc_main = {
               }, null, 8, ["series"])
             ])
           ]),
-          createBaseVNode("div", _hoisted_28, [
+          createBaseVNode("div", _hoisted_29, [
             createBaseVNode("h2", null, [
-              _cache[27] || (_cache[27] = createTextVNode(" 营收 ", -1)),
-              _cache[28] || (_cache[28] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+              _cache[29] || (_cache[29] = createTextVNode(" 营收 ", -1)),
+              _cache[30] || (_cache[30] = createBaseVNode("span", { class: "spacer" }, null, -1)),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[7] || (_cache[7] = ($event) => exportReport({ format: "csv", report: "trend", metric: "revenue" }))
+                onClick: _cache[8] || (_cache[8] = ($event) => exportReport({ format: "csv", report: "trend", metric: "revenue" }))
               }, "CSV"),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[8] || (_cache[8] = ($event) => exportReport({ format: "xlsx", report: "breakdown", dim: "tier" }))
+                onClick: _cache[9] || (_cache[9] = ($event) => exportReport({ format: "xlsx", report: "breakdown", dim: "tier" }))
               }, "档位 XLSX")
             ]),
-            createBaseVNode("div", _hoisted_29, [
-              createBaseVNode("div", _hoisted_30, [
-                createBaseVNode("div", _hoisted_31, [
-                  _cache[29] || (_cache[29] = createBaseVNode("div", { class: "adm-pane-t" }, "每日充值收入（元）", -1)),
+            createBaseVNode("div", _hoisted_30, [
+              createBaseVNode("div", _hoisted_31, [
+                createBaseVNode("div", _hoisted_32, [
+                  _cache[31] || (_cache[31] = createBaseVNode("div", { class: "adm-pane-t" }, "每日充值收入（元）", -1)),
                   createVNode(LineChart, {
                     series: [{ name: "收入", color: "#FF7D00", points: revenueTrend.value }],
                     height: 180,
@@ -383,8 +393,8 @@ const _sfc_main = {
                     empty: "没有充值记录"
                   }, null, 8, ["series", "y-format"])
                 ]),
-                createBaseVNode("div", _hoisted_32, [
-                  _cache[30] || (_cache[30] = createBaseVNode("div", { class: "adm-pane-t" }, "对局档位分布", -1)),
+                createBaseVNode("div", _hoisted_33, [
+                  _cache[32] || (_cache[32] = createBaseVNode("div", { class: "adm-pane-t" }, "对局档位分布", -1)),
                   createVNode(DonutChart, {
                     points: tierDonut.value,
                     height: 180,
@@ -395,35 +405,35 @@ const _sfc_main = {
               ])
             ])
           ]),
-          createBaseVNode("div", _hoisted_33, [
+          createBaseVNode("div", _hoisted_34, [
             createBaseVNode("h2", null, [
-              _cache[31] || (_cache[31] = createTextVNode(" 对局质量 ", -1)),
-              _cache[32] || (_cache[32] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+              _cache[33] || (_cache[33] = createTextVNode(" 对局质量 ", -1)),
+              _cache[34] || (_cache[34] = createBaseVNode("span", { class: "spacer" }, null, -1)),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[9] || (_cache[9] = ($event) => exportReport({ format: "csv", report: "quality" }))
+                onClick: _cache[10] || (_cache[10] = ($event) => exportReport({ format: "csv", report: "quality" }))
               }, "CSV"),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[10] || (_cache[10] = ($event) => exportReport({ format: "xlsx", report: "quality" }))
+                onClick: _cache[11] || (_cache[11] = ($event) => exportReport({ format: "xlsx", report: "quality" }))
               }, "XLSX")
             ]),
-            createBaseVNode("div", _hoisted_34, [
-              createBaseVNode("div", _hoisted_35, [
-                createBaseVNode("div", _hoisted_36, [
-                  _cache[33] || (_cache[33] = createBaseVNode("div", { class: "k" }, "平均轮数", -1)),
-                  createBaseVNode("div", _hoisted_37, toDisplayString(quality.value ? quality.value.avgTurns : 0), 1)
+            createBaseVNode("div", _hoisted_35, [
+              createBaseVNode("div", _hoisted_36, [
+                createBaseVNode("div", _hoisted_37, [
+                  _cache[35] || (_cache[35] = createBaseVNode("div", { class: "k" }, "平均轮数", -1)),
+                  createBaseVNode("div", _hoisted_38, toDisplayString(quality.value ? quality.value.avgTurns : 0), 1)
                 ]),
-                createBaseVNode("div", _hoisted_38, [
-                  _cache[34] || (_cache[34] = createBaseVNode("div", { class: "k" }, "AI 发言占比", -1)),
-                  createBaseVNode("div", _hoisted_39, toDisplayString(quality.value ? quality.value.aiRatio : 0) + "%", 1)
+                createBaseVNode("div", _hoisted_39, [
+                  _cache[36] || (_cache[36] = createBaseVNode("div", { class: "k" }, "AI 发言占比", -1)),
+                  createBaseVNode("div", _hoisted_40, toDisplayString(quality.value ? quality.value.aiRatio : 0) + "%", 1)
                 ]),
-                createBaseVNode("div", _hoisted_40, [
-                  _cache[35] || (_cache[35] = createBaseVNode("div", { class: "k" }, "复盘样本", -1)),
-                  createBaseVNode("div", _hoisted_41, toDisplayString(quality.value ? quality.value.samples : 0), 1)
+                createBaseVNode("div", _hoisted_41, [
+                  _cache[37] || (_cache[37] = createBaseVNode("div", { class: "k" }, "复盘样本", -1)),
+                  createBaseVNode("div", _hoisted_42, toDisplayString(quality.value ? quality.value.samples : 0), 1)
                 ])
               ]),
-              _cache[36] || (_cache[36] = createBaseVNode("div", { class: "adm-pane-t" }, "六维平均分", -1)),
+              _cache[38] || (_cache[38] = createBaseVNode("div", { class: "adm-pane-t" }, "六维平均分", -1)),
               createVNode(BarChart, {
                 points: qualityBars.value,
                 height: 200,
@@ -437,7 +447,7 @@ const _sfc_main = {
     };
   }
 };
-const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-f4d1b078"]]);
+const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-bb6f2ade"]]);
 export {
   AnalyticsView as default
 };

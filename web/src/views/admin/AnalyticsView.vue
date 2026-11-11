@@ -119,6 +119,8 @@ async function exportReport(params) {
           {{ r[1] }}
         </button>
       </div>
+      <button class="btn sm" :disabled="loading" @click="load()">刷新</button>
+      <span class="muted" style="font-size: 12px">服务端缓存 5 秒；今天的数据包含尚未落库的实时增量</span>
     </div>
 
     <div v-if="loading" class="muted" style="padding: 24px">加载中…</div>

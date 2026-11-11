@@ -82,6 +82,19 @@ async function load() {
 
 onMounted(load);
 
+/**
+ * 手动刷新：图表数据是一次性拉取的（切 7/30 天不重拉），所以刷新时要把它们清掉再拉，
+ * 否则点"刷新"只会更新 KPI 卡，下面的折线/柱状还是旧值。
+ */
+function reload() {
+  modules.value = null;
+  tiers.value = null;
+  matchesTrend.value = [];
+  postsTrend.value = [];
+  activeTrend.value = [];
+  load();
+}
+
 // ---------- KPI 卡 ----------
 const KPI_SERIES = {
   matches: () => matchesTrend.value,
@@ -141,6 +154,7 @@ const trendSeries = computed(() => [
       <span v-if="overview" class="muted" style="font-size: 12.5px">
         {{ overview.from }} ~ {{ overview.to }} · 对比 {{ overview.prevFrom }} ~ {{ overview.prevTo }}
       </span>
+      <button class="btn sm" :disabled="loading" @click="reload()">刷新</button>
     </div>
 
     <div v-if="loading" class="muted" style="padding: 24px">加载中…</div>
