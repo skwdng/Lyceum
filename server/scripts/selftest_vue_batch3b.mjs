@@ -466,6 +466,49 @@ await check('B3-A11 报表分析页：五个区块 + 图表渲染 + 导出 CSV/X
   return `${st.panels} 个区块 · ${st.svgs} 个 svg · CSV ${buf.length}B · XLSX ${xb.length}B`;
 });
 
+await check('B3-A12 报表页接口失败：显示「加载失败 + 重试」，重试后恢复', async () => {
+  await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(ADMIN)}); localStorage.setItem('sy_admin_collapsed','0'); true`);
+  await openAdmin('admin/analytics');
+  await waitFor(`document.querySelectorAll('[data-panel="analytics"] .panel').length >= 5`, '报表五个区块', 25000);
+
+  // 拦掉报表接口，再点「刷新」——模拟后端挂了
+  await send('Network.setBlockedURLs', { urls: ['*/api/admin/analytics/*'] });
+  await ev(`[...document.querySelectorAll('[data-panel="analytics"] .btn')].find((b) => b.textContent.trim() === '刷新').click(); true`);
+  await waitFor(`!!document.querySelector('[data-panel="analytics"] .adm-error')`, '加载失败块', 15000);
+  const txt = await ev(`document.querySelector('[data-panel="analytics"] .adm-error').innerText.replace(/\\s+/g, ' ')`);
+  if (!txt.includes('加载失败')) throw new Error('错误块文案不对：' + txt);
+
+  // 恢复网络，点「重试」
+  await send('Network.setBlockedURLs', { urls: [] });
+  await ev(`document.querySelector('[data-panel="analytics"] .adm-error .btn').click(); true`);
+  await waitFor(`!document.querySelector('[data-panel="analytics"] .adm-error')`, '错误块消失', 20000);
+  await waitFor(`document.querySelectorAll('[data-panel="analytics"] .panel').length >= 5`, '重试后五个区块', 20000);
+  return `错误块「${txt.replace('重试', '').trim().slice(0, 34)}」→ 重试后恢复`;
+});
+
+await check('B3-A13 窄屏 375px：报表页无横向溢出，表格可横向滚动', async () => {
+  await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 667, deviceScaleFactor: 1, mobile: true });
+  await openAdmin('admin/analytics');
+  await waitFor(`document.querySelectorAll('[data-panel="analytics"] .panel').length >= 5`, '报表五个区块', 25000);
+  await sleep(800);
+
+  const st = await ev(`(() => {
+    const tbl = document.querySelector('.tbl-x');
+    const main = document.querySelector('.adm-main');
+    return {
+      overflow: document.documentElement.scrollWidth - window.innerWidth,
+      panels: document.querySelectorAll('[data-panel="analytics"] .panel').length,
+      tblScrollable: tbl ? tbl.scrollWidth > tbl.clientWidth + 1 : null,
+      mainScrolls: main.scrollHeight > main.clientHeight + 1
+    };
+  })()`);
+
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
+  if (st.overflow > 1) throw new Error('页面横向溢出了 ' + st.overflow + 'px（窄屏会左右晃）');
+  if (st.panels < 5) throw new Error('窄屏下区块没渲染全：' + st.panels);
+  return `${st.panels} 区块 · 横向溢出 ${st.overflow}px · 表格横向可滚=${st.tblScrollable} · 页面可滚=${st.mainScrolls}`;
+});
+
 await check('B3-A10 全程零 JS 异常', async () => {
   const all = errs.filter((e) => !/ResizeObserver|favicon/i.test(e || ''));
   if (all.length) throw new Error(all.slice(0, 2).join(' | '));

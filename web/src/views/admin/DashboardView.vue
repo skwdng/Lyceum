@@ -25,6 +25,8 @@ const CHART_RANGE = '30d';
 
 const range = ref('7d');
 const loading = ref(true);
+/** 加载失败时显示「加载失败 + 重试」，而不是只留一片空白 */
+const error = ref('');
 
 const overview = ref(null);
 const modules = ref(null);
@@ -53,6 +55,7 @@ const toPoints = (res) => (res && res.points ? res.points : []);
 
 async function load() {
   loading.value = true;
+  error.value = '';
   const { from, to } = datesOf(range.value);
   try {
     // 概览跟随切换；图表固定 30 天（只拉一次）
@@ -74,6 +77,8 @@ async function load() {
       activeTrend.value = toPoints(at);
     }
   } catch (e) {
+    // 401 由 adminRequest 统一广播（回登录页），能到这儿的都是真失败
+    error.value = errText(e) || '请求失败';
     toast(errText(e));
   } finally {
     loading.value = false;
@@ -157,9 +162,20 @@ const trendSeries = computed(() => [
       <button class="btn sm" :disabled="loading" @click="reload()">刷新</button>
     </div>
 
-    <div v-if="loading" class="muted" style="padding: 24px">加载中…</div>
+    <div v-if="error" class="adm-error">
+      <b>加载失败</b>
+      <span class="msg">{{ error }}</span>
+      <button class="btn sm" @click="reload()">重试</button>
+    </div>
 
-    <template v-else-if="overview">
+    <div v-if="loading && !overview" class="panel">
+      <div class="body">
+        <div class="sk" style="height: 96px; margin-bottom: 12px"></div>
+        <div class="sk" style="height: 240px"></div>
+      </div>
+    </div>
+
+    <template v-else-if="overview && !error">
       <!-- KPI 卡 -->
       <div class="adm-kpis">
         <div v-for="item in overview.items" :key="item.key" class="adm-kpi">

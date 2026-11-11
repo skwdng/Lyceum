@@ -20,6 +20,10 @@ import { downloadExport } from './exportFile.js';
 const RANGES = [['7d', '近 7 天'], ['30d', '近 30 天'], ['90d', '近 90 天']];
 const range = ref('30d');
 const loading = ref(true);
+/** 整页级的加载失败：显示「加载失败 + 重试」，而不是只弹个 toast 留一片空白 */
+const error = ref('');
+/** 正在导出中的按钮 key（导出是二进制下载，连点会重复下文件） */
+const exporting = ref('');
 
 const modules = ref(null);
 const active = ref(null);
@@ -40,6 +44,7 @@ const toPoints = (res) => (res && res.points ? res.points : []);
 
 async function load() {
   loading.value = true;
+  error.value = '';
   const r = range.value;
   try {
     const [mod, act, q, rt, pt, vt, reason, tier] = await Promise.all([
@@ -62,6 +67,8 @@ async function load() {
     reasonDonut.value = reasonLabeled(toPoints(reason));
     tierDonut.value = toPoints(tier);
   } catch (e) {
+    // 401 由 adminRequest 统一广播（自动回登录页），能走到这里的就是真失败
+    error.value = errText(e) || '请求失败';
     toast(errText(e));
   } finally {
     loading.value = false;
@@ -95,12 +102,17 @@ const moduleTrendSeries = computed(() => {
 const qualityBars = computed(() => (quality.value ? quality.value.dims.map((d) => ({ x: d.label, y: d.value })) : []));
 
 // ---------- 导出 ----------
-async function exportReport(params) {
+/** 导出中不允许再点（二进制下载，连点会重复下好几个文件） */
+async function exportReport(params, key) {
+  if (exporting.value) return;
+  exporting.value = key || 'export';
   try {
     const name = await downloadExport({ ...params, range: range.value });
     toast('已导出 ' + name);
   } catch (e) {
     toast(errText(e));
+  } finally {
+    exporting.value = '';
   }
 }
 </script>
@@ -120,19 +132,34 @@ async function exportReport(params) {
         </button>
       </div>
       <button class="btn sm" :disabled="loading" @click="load()">刷新</button>
+      <span v-if="exporting" class="muted" style="font-size: 12px">导出中…</span>
       <span class="muted" style="font-size: 12px">服务端缓存 5 秒；今天的数据包含尚未落库的实时增量</span>
     </div>
 
-    <div v-if="loading" class="muted" style="padding: 24px">加载中…</div>
+    <!-- 加载失败：给一个明确出口，而不是只弹 toast 留一片空白 -->
+    <div v-if="error" class="adm-error">
+      <b>加载失败</b>
+      <span class="msg">{{ error }}</span>
+      <button class="btn sm" @click="load()">重试</button>
+    </div>
 
-    <template v-else>
+    <!-- 骨架屏（比一行"加载中…"更能说明"马上要来东西了"） -->
+    <div v-if="loading && !modules" class="panel">
+      <div class="body">
+        <div class="sk" style="height: 240px"></div>
+        <div class="sk sk-row" style="width: 60%"></div>
+        <div class="sk sk-row" style="width: 85%"></div>
+      </div>
+    </div>
+
+    <template v-else-if="!error">
       <!-- ======== 模块浏览 ======== -->
       <div class="panel">
         <h2>
           模块浏览
           <span class="spacer"></span>
-          <button class="btn sm" @click="exportReport({ format: 'csv', report: 'modules' })">CSV</button>
-          <button class="btn sm" @click="exportReport({ format: 'xlsx', report: 'modules' })">XLSX</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'modules' })">CSV</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'modules' })">XLSX</button>
         </h2>
         <div class="body scroll">
           <div class="adm-split">
@@ -182,8 +209,8 @@ async function exportReport(params) {
         <h2>
           活跃用户
           <span class="spacer"></span>
-          <button class="btn sm" @click="exportReport({ format: 'csv', report: 'active' })">CSV</button>
-          <button class="btn sm" @click="exportReport({ format: 'xlsx', report: 'active' })">XLSX</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'active' })">CSV</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'active' })">XLSX</button>
         </h2>
         <div class="body">
           <div class="adm-stats">
@@ -205,9 +232,9 @@ async function exportReport(params) {
         <h2>
           内容与治理
           <span class="spacer"></span>
-          <button class="btn sm" @click="exportReport({ format: 'csv', report: 'trend', metric: 'reports' })">举报 CSV</button>
-          <button class="btn sm" @click="exportReport({ format: 'csv', report: 'trend', metric: 'posts' })">发帖 CSV</button>
-          <button class="btn sm" @click="exportReport({ format: 'xlsx', report: 'breakdown', dim: 'report_reason' })">举报原因 XLSX</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'trend', metric: 'reports' })">举报 CSV</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'trend', metric: 'posts' })">发帖 CSV</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'breakdown', dim: 'report_reason' })">举报原因 XLSX</button>
         </h2>
         <div class="body">
           <div class="adm-split">
@@ -230,8 +257,8 @@ async function exportReport(params) {
         <h2>
           营收
           <span class="spacer"></span>
-          <button class="btn sm" @click="exportReport({ format: 'csv', report: 'trend', metric: 'revenue' })">CSV</button>
-          <button class="btn sm" @click="exportReport({ format: 'xlsx', report: 'breakdown', dim: 'tier' })">档位 XLSX</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'trend', metric: 'revenue' })">CSV</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'breakdown', dim: 'tier' })">档位 XLSX</button>
         </h2>
         <div class="body">
           <div class="adm-split">
@@ -257,8 +284,8 @@ async function exportReport(params) {
         <h2>
           对局质量
           <span class="spacer"></span>
-          <button class="btn sm" @click="exportReport({ format: 'csv', report: 'quality' })">CSV</button>
-          <button class="btn sm" @click="exportReport({ format: 'xlsx', report: 'quality' })">XLSX</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'quality' })">CSV</button>
+          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'quality' })">XLSX</button>
         </h2>
         <div class="body">
           <div class="adm-stats">

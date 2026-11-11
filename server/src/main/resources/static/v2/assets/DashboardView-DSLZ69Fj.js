@@ -1,6 +1,6 @@
-import { _ as _export_sfc, k as openBlock, c as createElementBlock, t as toDisplayString, f as createCommentVNode, d as createBaseVNode, r as ref, h as computed, o as onMounted, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, y as analyticsApi, s as toast, n as normalizeClass, b as createBlock } from "./index-B0ObNIhi.js";
-import { u as useWidth, e as emptyTextOf, P as PALETTE, t as toSeries, L as LineChart, D as DonutChart, B as BarChart } from "./LineChart-CE6QvFVO.js";
-import { e as errText } from "./helpers-Bo9J2p-8.js";
+import { _ as _export_sfc, k as openBlock, c as createElementBlock, t as toDisplayString, f as createCommentVNode, d as createBaseVNode, r as ref, h as computed, o as onMounted, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, y as analyticsApi, s as toast, n as normalizeClass, b as createBlock } from "./index--pCBImaI.js";
+import { u as useWidth, e as emptyTextOf, P as PALETTE, t as toSeries, L as LineChart, D as DonutChart, B as BarChart } from "./LineChart-DAEbm74B.js";
+import { e as errText } from "./helpers-BBYN1Bwv.js";
 const _hoisted_1$1 = {
   key: 0,
   class: "ch-spark-empty"
@@ -106,35 +106,39 @@ const _hoisted_5 = {
 const _hoisted_6 = ["disabled"];
 const _hoisted_7 = {
   key: 0,
-  class: "muted",
-  style: { "padding": "24px" }
+  class: "adm-error"
 };
-const _hoisted_8 = { class: "adm-kpis" };
-const _hoisted_9 = { class: "k" };
-const _hoisted_10 = { class: "v" };
-const _hoisted_11 = { key: 0 };
-const _hoisted_12 = { key: 0 };
-const _hoisted_13 = {
+const _hoisted_8 = { class: "msg" };
+const _hoisted_9 = {
+  key: 1,
+  class: "panel"
+};
+const _hoisted_10 = { class: "adm-kpis" };
+const _hoisted_11 = { class: "k" };
+const _hoisted_12 = { class: "v" };
+const _hoisted_13 = { key: 0 };
+const _hoisted_14 = { key: 0 };
+const _hoisted_15 = {
   key: 1,
   class: "muted"
 };
-const _hoisted_14 = {
+const _hoisted_16 = {
   class: "muted",
   style: { "margin-left": "6px" }
 };
-const _hoisted_15 = {
+const _hoisted_17 = {
   class: "adm-grid",
   style: { "grid-template-columns": "1.6fr 1fr" }
 };
-const _hoisted_16 = { class: "panel" };
-const _hoisted_17 = { class: "body" };
 const _hoisted_18 = { class: "panel" };
 const _hoisted_19 = { class: "body" };
-const _hoisted_20 = {
+const _hoisted_20 = { class: "panel" };
+const _hoisted_21 = { class: "body" };
+const _hoisted_22 = {
   class: "panel",
   style: { "margin-top": "14px" }
 };
-const _hoisted_21 = { class: "body" };
+const _hoisted_23 = { class: "body" };
 const CHART_RANGE = "30d";
 const _sfc_main = {
   __name: "DashboardView",
@@ -142,6 +146,7 @@ const _sfc_main = {
     const RANGES = [["7d", "近 7 天"], ["30d", "近 30 天"]];
     const range = ref("7d");
     const loading = ref(true);
+    const error = ref("");
     const overview = ref(null);
     const modules = ref(null);
     const tiers = ref(null);
@@ -172,6 +177,7 @@ const _sfc_main = {
     const toPoints = (res) => res && res.points ? res.points : [];
     async function load() {
       loading.value = true;
+      error.value = "";
       const { from, to } = datesOf(range.value);
       try {
         const [o] = await Promise.all([analyticsApi.overview(from, to)]);
@@ -191,6 +197,7 @@ const _sfc_main = {
           activeTrend.value = toPoints(at);
         }
       } catch (e) {
+        error.value = errText(e) || "请求失败";
         toast(errText(e));
       } finally {
         loading.value = false;
@@ -257,23 +264,42 @@ const _sfc_main = {
             onClick: _cache[0] || (_cache[0] = ($event) => reload())
           }, "刷新", 8, _hoisted_6)
         ]),
-        loading.value ? (openBlock(), createElementBlock("div", _hoisted_7, "加载中…")) : overview.value ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
-          createBaseVNode("div", _hoisted_8, [
+        error.value ? (openBlock(), createElementBlock("div", _hoisted_7, [
+          _cache[2] || (_cache[2] = createBaseVNode("b", null, "加载失败", -1)),
+          createBaseVNode("span", _hoisted_8, toDisplayString(error.value), 1),
+          createBaseVNode("button", {
+            class: "btn sm",
+            onClick: _cache[1] || (_cache[1] = ($event) => reload())
+          }, "重试")
+        ])) : createCommentVNode("", true),
+        loading.value && !overview.value ? (openBlock(), createElementBlock("div", _hoisted_9, [..._cache[3] || (_cache[3] = [
+          createBaseVNode("div", { class: "body" }, [
+            createBaseVNode("div", {
+              class: "sk",
+              style: { "height": "96px", "margin-bottom": "12px" }
+            }),
+            createBaseVNode("div", {
+              class: "sk",
+              style: { "height": "240px" }
+            })
+          ], -1)
+        ])])) : overview.value && !error.value ? (openBlock(), createElementBlock(Fragment, { key: 2 }, [
+          createBaseVNode("div", _hoisted_10, [
             (openBlock(true), createElementBlock(Fragment, null, renderList(overview.value.items, (item) => {
               return openBlock(), createElementBlock("div", {
                 key: item.key,
                 class: "adm-kpi"
               }, [
-                createBaseVNode("div", _hoisted_9, toDisplayString(item.label), 1),
-                createBaseVNode("div", _hoisted_10, [
+                createBaseVNode("div", _hoisted_11, toDisplayString(item.label), 1),
+                createBaseVNode("div", _hoisted_12, [
                   createTextVNode(toDisplayString(formatValue(item)) + " ", 1),
-                  item.unit && item.unit !== "分" ? (openBlock(), createElementBlock("small", _hoisted_11, toDisplayString(item.unit), 1)) : createCommentVNode("", true)
+                  item.unit && item.unit !== "分" ? (openBlock(), createElementBlock("small", _hoisted_13, toDisplayString(item.unit), 1)) : createCommentVNode("", true)
                 ]),
                 createBaseVNode("div", {
                   class: normalizeClass(["d", deltaClass(item)])
                 }, [
-                  deltaText(item) ? (openBlock(), createElementBlock("span", _hoisted_12, toDisplayString(deltaText(item)), 1)) : (openBlock(), createElementBlock("span", _hoisted_13, "—")),
-                  createBaseVNode("span", _hoisted_14, "上期 " + toDisplayString(item.prev), 1)
+                  deltaText(item) ? (openBlock(), createElementBlock("span", _hoisted_14, toDisplayString(deltaText(item)), 1)) : (openBlock(), createElementBlock("span", _hoisted_15, "—")),
+                  createBaseVNode("span", _hoisted_16, "上期 " + toDisplayString(item.prev), 1)
                 ], 2),
                 sparkOf(item.key).length ? (openBlock(), createBlock(Sparkline, {
                   key: 0,
@@ -283,26 +309,26 @@ const _sfc_main = {
               ]);
             }), 128))
           ]),
-          createBaseVNode("div", _hoisted_15, [
-            createBaseVNode("div", _hoisted_16, [
+          createBaseVNode("div", _hoisted_17, [
+            createBaseVNode("div", _hoisted_18, [
               createBaseVNode("h2", null, [
-                _cache[1] || (_cache[1] = createTextVNode("近 30 天趋势", -1)),
-                _cache[2] || (_cache[2] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+                _cache[4] || (_cache[4] = createTextVNode("近 30 天趋势", -1)),
+                _cache[5] || (_cache[5] = createBaseVNode("span", { class: "spacer" }, null, -1)),
                 createBaseVNode("span", {
                   class: "muted",
                   style: { "font-weight": "400" }
                 }, toDisplayString(CHART_RANGE))
               ]),
-              createBaseVNode("div", _hoisted_17, [
+              createBaseVNode("div", _hoisted_19, [
                 createVNode(LineChart, {
                   series: trendSeries.value,
                   height: 230
                 }, null, 8, ["series"])
               ])
             ]),
-            createBaseVNode("div", _hoisted_18, [
-              _cache[3] || (_cache[3] = createBaseVNode("h2", null, "档位分布", -1)),
-              createBaseVNode("div", _hoisted_19, [
+            createBaseVNode("div", _hoisted_20, [
+              _cache[6] || (_cache[6] = createBaseVNode("h2", null, "档位分布", -1)),
+              createBaseVNode("div", _hoisted_21, [
                 createVNode(DonutChart, {
                   points: tierDonut.value,
                   height: 210,
@@ -311,9 +337,9 @@ const _sfc_main = {
               ])
             ])
           ]),
-          createBaseVNode("div", _hoisted_20, [
-            _cache[4] || (_cache[4] = createBaseVNode("h2", null, "模块浏览排行（30 天 PV）", -1)),
-            createBaseVNode("div", _hoisted_21, [
+          createBaseVNode("div", _hoisted_22, [
+            _cache[7] || (_cache[7] = createBaseVNode("h2", null, "模块浏览排行（30 天 PV）", -1)),
+            createBaseVNode("div", _hoisted_23, [
               createVNode(BarChart, {
                 points: moduleBars.value,
                 height: 200
@@ -325,7 +351,7 @@ const _sfc_main = {
     };
   }
 };
-const DashboardView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-991fb424"]]);
+const DashboardView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-815b4000"]]);
 export {
   DashboardView as default
 };

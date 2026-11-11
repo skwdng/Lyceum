@@ -120,8 +120,7 @@
 .adm-root th{color:#86909C;font-weight:500;background:#FAFBFC}
 .adm-root tr:hover td{background:#FCFCFD}
 
-/* 长内容在**板块内**滚动：滚动条挂在板块右边缘，而不是表格里冒出一个 380px 的小滚动条。
-   （表格自带滚动条在矮屏下确实难看：一个很小的框套着几行数据，滚动条挤在角落）
+/* 长内容在**板块内**滚动：滚动条挂在板块右边缘，而不是表格里冒出一个 380px 的小滚动条。   （表格自带滚动条在矮屏下确实难看：一个很小的框套着几行数据，滚动条挤在角落）
 
    刻意**不加** overscroll-behavior:contain —— 加了以后在板块滚到底时滚轮会被吃掉，
    页面不再接力往下滚，看起来像"卡住了"；让滚动可以穿透到外层才是自然的。 */
@@ -131,6 +130,26 @@
 
 /* 表格只保留横向滚动（窄屏时列不会被挤没），不再限制高度 */
 .adm-root .tbl-x{overflow-x:auto}
+
+/* ==================== 加载 / 错误态（P5） ==================== */
+
+/* 骨架屏：比一行"加载中…"更能说明"马上要来东西了" */
+.adm-root .sk{background:linear-gradient(90deg,#F2F3F5 25%,#F7F8FA 37%,#F2F3F5 63%);
+  background-size:400% 100%;border-radius:10px;animation:adm-sk 1.2s ease-in-out infinite}
+@keyframes adm-sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+.adm-root .sk-row{height:14px;margin:12px 0}
+
+/* 错误块：给明确出口（重试），而不是只弹一次 toast 留一片空白 */
+.adm-root .adm-error{display:flex;align-items:center;gap:10px;background:#FFF3F3;border:1px solid #FFD2D2;
+  color:#CB2634;border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:14px}
+.adm-root .adm-error .msg{color:#8B1A25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.adm-root .adm-error .btn{background:#fff;border-color:#FFC9C9;color:#CB2634}
+
+/* 窄屏（<480px）：内边距收紧；板块内滚动在手机上体验很差，宽度不够时交回页面滚 */
+@media (max-width:480px){
+  .adm-root .panel > .body{padding:12px}
+  .adm-root .panel > .body.scroll{max-height:none}
+}
 
 .adm-root .pager{display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid #EFF0F1}
 .adm-root .pager .muted{font-size:12.5px}
