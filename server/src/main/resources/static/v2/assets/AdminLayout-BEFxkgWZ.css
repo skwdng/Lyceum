@@ -47,7 +47,8 @@
 
 /* ==================== 布局：侧栏 + 顶栏（本批新增） ==================== */
 
-.adm-root .adm-layout{display:flex;min-height:100vh}
+/* 固定外壳：整页不再随内容变长，只有内容区自己滚（矮屏下侧栏/顶栏不动，滚动条属于内容区） */
+.adm-root .adm-layout{display:flex;height:100vh;overflow:hidden}
 
 .adm-root .adm-side{width:208px;flex:0 0 208px;background:#fff;border-right:1px solid #E5E6EB;
   display:flex;flex-direction:column;padding:14px 10px;position:sticky;top:0;height:100vh;
@@ -76,7 +77,8 @@
 .adm-root .adm-layout.collapsed .adm-nav a .badge{position:absolute;top:4px;right:8px;
   width:8px;height:8px;padding:0;border-radius:50%;font-size:0;overflow:hidden}
 
-.adm-root .adm-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.adm-root .adm-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;
+  overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
 .adm-root .adm-top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #E5E6EB;
   height:56px;display:flex;align-items:center;gap:12px;padding:0 20px}
 .adm-root .adm-title{font-size:15px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -117,6 +119,14 @@
 .adm-root th,.adm-root td{text-align:left;padding:10px 18px;font-size:13px;border-bottom:1px solid #F2F3F5;vertical-align:top}
 .adm-root th{color:#86909C;font-weight:500;background:#FAFBFC}
 .adm-root tr:hover td{background:#FCFCFD}
+
+/* 长表格自己的滚动条：不把整页撑长，矮屏下也能把表看完。
+   表头 sticky 在滚动区顶部，往下翻时字段名不会跑掉；窄屏时横向也能滚（表格有最小宽度）。 */
+.adm-root .tbl-scroll{max-height:min(46vh,380px);overflow:auto;border:1px solid #F2F3F5;
+  border-radius:10px;overscroll-behavior:contain}
+.adm-root .tbl-scroll table{min-width:520px;border-collapse:separate;border-spacing:0}
+.adm-root .tbl-scroll thead th{position:sticky;top:0;z-index:1;background:#FAFBFC}
+.adm-root .tbl-scroll tbody tr:last-child td{border-bottom:none}
 
 .adm-root .pager{display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid #EFF0F1}
 .adm-root .pager .muted{font-size:12.5px}

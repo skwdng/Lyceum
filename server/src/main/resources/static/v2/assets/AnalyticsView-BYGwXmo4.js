@@ -1,6 +1,6 @@
-import { z as getAdminToken, A as API_BASE, y as analyticsApi, B as ApiError, _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, f as createCommentVNode, t as toDisplayString, r as ref, s as toast, h as computed, k as openBlock, n as normalizeClass } from "./index-DYGqTA6G.js";
-import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-BYm6SlLn.js";
-import { e as errText } from "./helpers-D_KARve0.js";
+import { z as getAdminToken, A as API_BASE, y as analyticsApi, B as ApiError, _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, f as createCommentVNode, t as toDisplayString, r as ref, s as toast, h as computed, k as openBlock, n as normalizeClass } from "./index-CXfHjSLl.js";
+import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-C3IJHLGx.js";
+import { e as errText } from "./helpers-CxLXzY48.js";
 async function downloadExport(params, fallbackName = "export.csv") {
   const token = getAdminToken();
   const resp = await fetch(API_BASE + analyticsApi.exportPath(params), {
@@ -55,6 +55,7 @@ const _hoisted_9 = { class: "adm-pane" };
 const _hoisted_10 = { class: "adm-pane" };
 const _hoisted_11 = {
   key: 0,
+  class: "tbl-scroll",
   style: { "margin-top": "12px" }
 };
 const _hoisted_12 = { class: "muted" };
@@ -240,28 +241,30 @@ const _sfc_main = {
                 height: 220,
                 empty: "暂无趋势数据"
               }, null, 8, ["series"]),
-              modules.value && modules.value.modules.length ? (openBlock(), createElementBlock("table", _hoisted_11, [
-                _cache[15] || (_cache[15] = createBaseVNode("thead", null, [
-                  createBaseVNode("tr", null, [
-                    createBaseVNode("th", null, "模块"),
-                    createBaseVNode("th", { style: { "width": "100px" } }, "PV"),
-                    createBaseVNode("th", { style: { "width": "120px" } }, "UV（人天）"),
-                    createBaseVNode("th", { style: { "width": "120px" } }, "单日峰值 UV"),
-                    createBaseVNode("th", { style: { "width": "90px" } }, "占比")
+              modules.value && modules.value.modules.length ? (openBlock(), createElementBlock("div", _hoisted_11, [
+                createBaseVNode("table", null, [
+                  _cache[15] || (_cache[15] = createBaseVNode("thead", null, [
+                    createBaseVNode("tr", null, [
+                      createBaseVNode("th", null, "模块"),
+                      createBaseVNode("th", { style: { "width": "100px" } }, "PV"),
+                      createBaseVNode("th", { style: { "width": "120px" } }, "UV（人天）"),
+                      createBaseVNode("th", { style: { "width": "120px" } }, "单日峰值 UV"),
+                      createBaseVNode("th", { style: { "width": "90px" } }, "占比")
+                    ])
+                  ], -1)),
+                  createBaseVNode("tbody", null, [
+                    (openBlock(true), createElementBlock(Fragment, null, renderList(modules.value.modules, (m) => {
+                      return openBlock(), createElementBlock("tr", {
+                        key: m.module
+                      }, [
+                        createBaseVNode("td", null, toDisplayString(moduleName(m.module)), 1),
+                        createBaseVNode("td", null, toDisplayString(m.pv), 1),
+                        createBaseVNode("td", null, toDisplayString(m.uv), 1),
+                        createBaseVNode("td", null, toDisplayString(m.uvPeak), 1),
+                        createBaseVNode("td", _hoisted_12, toDisplayString(m.sharePct) + "%", 1)
+                      ]);
+                    }), 128))
                   ])
-                ], -1)),
-                createBaseVNode("tbody", null, [
-                  (openBlock(true), createElementBlock(Fragment, null, renderList(modules.value.modules, (m) => {
-                    return openBlock(), createElementBlock("tr", {
-                      key: m.module
-                    }, [
-                      createBaseVNode("td", null, toDisplayString(moduleName(m.module)), 1),
-                      createBaseVNode("td", null, toDisplayString(m.pv), 1),
-                      createBaseVNode("td", null, toDisplayString(m.uv), 1),
-                      createBaseVNode("td", null, toDisplayString(m.uvPeak), 1),
-                      createBaseVNode("td", _hoisted_12, toDisplayString(m.sharePct) + "%", 1)
-                    ]);
-                  }), 128))
                 ])
               ])) : createCommentVNode("", true)
             ])
@@ -428,7 +431,7 @@ const _sfc_main = {
     };
   }
 };
-const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-a31d0862"]]);
+const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-27cf560f"]]);
 export {
   AnalyticsView as default
 };

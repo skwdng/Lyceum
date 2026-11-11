@@ -147,26 +147,28 @@ async function exportReport(params) {
           <div class="adm-pane-t" style="margin-top: 14px">PV 趋势（前 5 模块）</div>
           <LineChart :series="moduleTrendSeries" :height="220" empty="暂无趋势数据" />
 
-          <table v-if="modules && modules.modules.length" style="margin-top: 12px">
-            <thead>
-              <tr>
-                <th>模块</th>
-                <th style="width: 100px">PV</th>
-                <th style="width: 120px">UV（人天）</th>
-                <th style="width: 120px">单日峰值 UV</th>
-                <th style="width: 90px">占比</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="m in modules.modules" :key="m.module">
-                <td>{{ moduleName(m.module) }}</td>
-                <td>{{ m.pv }}</td>
-                <td>{{ m.uv }}</td>
-                <td>{{ m.uvPeak }}</td>
-                <td class="muted">{{ m.sharePct }}%</td>
-              </tr>
-            </tbody>
-          </table>
+          <div v-if="modules && modules.modules.length" class="tbl-scroll" style="margin-top: 12px">
+            <table>
+              <thead>
+                <tr>
+                  <th>模块</th>
+                  <th style="width: 100px">PV</th>
+                  <th style="width: 120px">UV（人天）</th>
+                  <th style="width: 120px">单日峰值 UV</th>
+                  <th style="width: 90px">占比</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="m in modules.modules" :key="m.module">
+                  <td>{{ moduleName(m.module) }}</td>
+                  <td>{{ m.pv }}</td>
+                  <td>{{ m.uv }}</td>
+                  <td>{{ m.uvPeak }}</td>
+                  <td class="muted">{{ m.sharePct }}%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 

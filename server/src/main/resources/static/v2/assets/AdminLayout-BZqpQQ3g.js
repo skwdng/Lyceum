@@ -1,6 +1,6 @@
-import { r as ref, w as watch, o as onMounted, a as onBeforeUnmount, c as createElementBlock, b as createBlock, n as normalizeClass, d as createBaseVNode, F as Fragment, e as renderList, u as unref, f as createCommentVNode, t as toDisplayString, g as createVNode, h as computed, i as useRouter, j as useRoute, k as openBlock, l as withCtx, m as resolveComponent } from "./index-DYGqTA6G.js";
-import { u as useAdminStore } from "./admin-UBrA_Zep.js";
-import "./helpers-D_KARve0.js";
+import { r as ref, w as watch, o as onMounted, a as onBeforeUnmount, c as createElementBlock, b as createBlock, n as normalizeClass, d as createBaseVNode, F as Fragment, e as renderList, u as unref, f as createCommentVNode, t as toDisplayString, g as createVNode, h as computed, i as useRouter, j as useRoute, k as openBlock, l as withCtx, m as resolveComponent } from "./index-CXfHjSLl.js";
+import { u as useAdminStore } from "./admin-wc_HU86g.js";
+import "./helpers-CxLXzY48.js";
 const ADMIN_MENU = [
   {
     group: "总览",
@@ -34,11 +34,10 @@ const _hoisted_7 = {
   key: 0,
   class: "badge"
 };
-const _hoisted_8 = { class: "adm-main" };
-const _hoisted_9 = { class: "adm-top" };
-const _hoisted_10 = { class: "adm-title" };
-const _hoisted_11 = { class: "adm-who" };
-const _hoisted_12 = { class: "adm-body" };
+const _hoisted_8 = { class: "adm-top" };
+const _hoisted_9 = { class: "adm-title" };
+const _hoisted_10 = { class: "adm-who" };
+const _hoisted_11 = { class: "adm-body" };
 const _sfc_main = {
   __name: "AdminLayout",
   setup(__props) {
@@ -50,6 +49,10 @@ const _sfc_main = {
     const drawerOpen = ref(false);
     const isGuest = computed(() => route.meta.guest === true);
     const title = computed(() => route.meta && route.meta.title || "管理台");
+    const mainEl = ref(null);
+    watch(() => route.fullPath, () => {
+      if (mainEl.value) mainEl.value.scrollTop = 0;
+    });
     const collapsed = computed(() => admin.collapsed && !isNarrow.value);
     function badgeOf(key) {
       if (key !== "pendingReports") return "";
@@ -134,25 +137,29 @@ const _sfc_main = {
             "aria-label": "关闭菜单",
             onClick: closeDrawer
           })) : createCommentVNode("", true),
-          createBaseVNode("div", _hoisted_8, [
-            createBaseVNode("header", _hoisted_9, [
+          createBaseVNode("div", {
+            class: "adm-main",
+            ref_key: "mainEl",
+            ref: mainEl
+          }, [
+            createBaseVNode("header", _hoisted_8, [
               createBaseVNode("button", {
                 class: "adm-iconbtn",
                 "aria-label": "展开/收起菜单",
                 onClick: onToggle
               }, "☰"),
-              createBaseVNode("h1", _hoisted_10, toDisplayString(title.value), 1),
+              createBaseVNode("h1", _hoisted_9, toDisplayString(title.value), 1),
               _cache[1] || (_cache[1] = createBaseVNode("span", { class: "spacer" }, null, -1)),
-              createBaseVNode("span", _hoisted_11, toDisplayString(unref(admin).account || "管理员"), 1),
+              createBaseVNode("span", _hoisted_10, toDisplayString(unref(admin).account || "管理员"), 1),
               createBaseVNode("button", {
                 class: "btn sm",
                 onClick: logout
               }, "退出登录")
             ]),
-            createBaseVNode("div", _hoisted_12, [
+            createBaseVNode("div", _hoisted_11, [
               createVNode(_component_RouterView)
             ])
-          ])
+          ], 512)
         ], 2))
       ]);
     };

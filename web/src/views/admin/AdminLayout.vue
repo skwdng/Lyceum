@@ -32,6 +32,15 @@ const isGuest = computed(() => route.meta.guest === true);
 /** 顶栏标题取路由 meta.title（菜单文案的同一份来源） */
 const title = computed(() => (route.meta && route.meta.title) || '管理台');
 
+/**
+ * 内容区是独立滚动容器（整页高度固定 100vh），所以切页时必须手动把滚动位置归零 ——
+ * 否则从"报表分析"（很长）切到"概览"会停在半空中，看起来像页面空白。
+ */
+const mainEl = ref(null);
+watch(() => route.fullPath, () => {
+  if (mainEl.value) mainEl.value.scrollTop = 0;
+});
+
 /** 折叠只在宽屏生效；窄屏永远是抽屉（宽度由 CSS 固定 208px） */
 const collapsed = computed(() => admin.collapsed && !isNarrow.value);
 
@@ -125,7 +134,7 @@ onBeforeUnmount(() => {
       <!-- 窄屏抽屉的遮罩：点一下关掉（z-index 低于 toast，不会盖住提示） -->
       <button v-if="drawerOpen" class="adm-mask" aria-label="关闭菜单" @click="closeDrawer"></button>
 
-      <div class="adm-main">
+      <div class="adm-main" ref="mainEl">
         <header class="adm-top">
           <button class="adm-iconbtn" aria-label="展开/收起菜单" @click="onToggle">☰</button>
           <h1 class="adm-title">{{ title }}</h1>
