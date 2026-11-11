@@ -26,6 +26,17 @@ public interface PvStore {
      */
     Map<String, Long> takePv(String day);
 
+    /**
+     * 还没回写进库的当日 PV（即 Redis 里此刻的值，**不取走**）。
+     *
+     * <p>用途：报表要显示"今天"的真实浏览数。定时任务每 5 分钟才落一次库，
+     * 只读库的话用户刚浏览完看到的还是旧数字（最多差 5 分钟 + 60 秒缓存）。
+     * 这里只读不删，落库仍然由 {@link #takePv} 原子取走，所以不会重复计数。
+     *
+     * @return 模块 -> 待回写次数；Redis 不可用返回空 Map
+     */
+    Map<String, Long> pendingPv(String day);
+
     /** 落库失败时把刚取走的 PV 增量补回去，避免静默丢计数。 */
     void restorePv(String day, Map<String, Long> increments);
 

@@ -39,16 +39,10 @@ class AnalyticsServiceTest {
 
     @Test
     void 模块趋势按天补零且排名带占比() {
-        LocalDate d1 = today().minusDays(6);
         LocalDate d2 = today().minusDays(5);
-        when(repo.moduleTotals(any(), any())).thenReturn(List.of(
-                new AnalyticsRepo.ModuleTotal("community", 75, 30, 20),
-                new AnalyticsRepo.ModuleTotal("chat", 25, 10, 10)
-        ));
-        // 只在 d2 有数据：d1 必须补 0
         when(repo.moduleByDay(any(), any())).thenReturn(List.of(
-                new AnalyticsRepo.ModuleDay(d2, "community", 40, 12),
-                new AnalyticsRepo.ModuleDay(d2, "chat", 5, 3)
+                new AnalyticsRepo.ModuleDay(d2, "community", 75, 20),
+                new AnalyticsRepo.ModuleDay(d2, "chat", 25, 10)
         ));
 
         AnalyticsDtos.Modules out = service.modules("7d");
@@ -58,13 +52,40 @@ class AnalyticsServiceTest {
         assertEquals("community", out.modules().get(0).module());     // 按 pv 降序
         assertEquals(75.0, out.modules().get(0).sharePct(), 0.01);    // 75/100
         assertEquals(25.0, out.modules().get(1).sharePct(), 0.01);
+        assertEquals(20, out.modules().get(0).uvPeak());             // 单日峰值
 
         List<Long> communityPv = out.trend().series().get(0).pv();
         assertEquals(7, communityPv.size());
-        assertEquals(0L, communityPv.get(0));        // d1 补零
-        assertEquals(40L, communityPv.get(1));       // d2 有值
+        assertEquals(0L, communityPv.get(0));        // 没数据的那天补零
+        assertEquals(75L, communityPv.get(1));       // d2 有值
         assertEquals(0L, communityPv.get(6));
-        assertEquals(12L, out.trend().series().get(0).uv().get(1));   // d2 的 uv
+        assertEquals(20L, out.trend().series().get(0).uv().get(1));
+    }
+
+    @Test
+    void 今日叠加Redis未回写的PV与实时UV() {
+        when(repo.moduleByDay(any(), any())).thenReturn(List.of(
+                new AnalyticsRepo.ModuleDay(today(), "community", 10, 3)));
+        when(pv.pendingPv(anyString())).thenReturn(Map.of("community", 6L, "admin", 2L));
+        when(pv.countUv(anyString(), anyString()))
+                .thenAnswer((inv) -> "community".equals(inv.getArgument(1)) ? 9L : 4L);
+
+        AnalyticsDtos.Modules out = service.modules("7d");
+
+        assertTrue(out.liveToday());
+        AnalyticsDtos.ModuleStat community = byModule(out, "community");
+        assertEquals(16, community.pv());        // 10 已落库 + 6 待回写
+        assertEquals(9, community.uv());         // 快照 3 落后于 HLL 9 -> 取 9
+        assertEquals(16, out.trend().series().get(0).pv().get(6));   // 今天那一点也叠加了
+
+        AnalyticsDtos.ModuleStat admin = byModule(out, "admin");     // 库里还没有，靠待回写量出现
+        assertEquals(2, admin.pv());
+        assertEquals(4, admin.uv());
+        assertEquals(18, out.modules().stream().mapToLong(AnalyticsDtos.ModuleStat::pv).sum());
+    }
+
+    private static AnalyticsDtos.ModuleStat byModule(AnalyticsDtos.Modules out, String module) {
+        return out.modules().stream().filter((m) -> m.module().equals(module)).findFirst().orElseThrow();
     }
 
     @Test

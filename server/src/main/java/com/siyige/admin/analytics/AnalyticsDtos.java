@@ -42,8 +42,14 @@ public final class AnalyticsDtos {
     /** 模块趋势：days 是横轴，series 与 days 等长。 */
     public record ModuleTrend(List<String> days, List<ModuleSeries> series) { }
 
-    /** 模块浏览：排行 + 趋势。 */
-    public record Modules(String range, String from, String to, List<ModuleStat> modules, ModuleTrend trend) { }
+    /**
+     * 模块浏览：排行 + 趋势。
+     *
+     * @param liveToday 今天这一格是否叠加了「还没回写进 Redis→库」的实时增量
+     *                  （界面据此提示"今日含实时数据"，避免用户拿它对账时困惑）
+     */
+    public record Modules(String range, String from, String to, boolean liveToday,
+                          List<ModuleStat> modules, ModuleTrend trend) { }
 
     /** 时间序列（已补零）。 */
     public record Trend(String metric, String range, String granularity, List<Point> points) { }

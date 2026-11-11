@@ -145,19 +145,25 @@ class AnalyticsRepoTest {
     }
 
     @Test
-    void 模块排行_合计与单日峰值() {
+    void 模块逐日行_按天按模块各一行() {
         jdbc.update("insert into sy_module_view(day_key, module, pv, uv) values (?, 'community', 10, 3)", Date.valueOf(D1));
         jdbc.update("insert into sy_module_view(day_key, module, pv, uv) values (?, 'community', 5, 7)", Date.valueOf(D2));
         jdbc.update("insert into sy_module_view(day_key, module, pv, uv) values (?, 'chat', 2, 2)", Date.valueOf(D2));
 
-        List<AnalyticsRepo.ModuleTotal> totals = repo.moduleTotals(D1, D2);
-        assertEquals("community", totals.get(0).module());
-        assertEquals(15, totals.get(0).pv());
-        assertEquals(10, totals.get(0).uv());      // 3 + 7（人天）
-        assertEquals(7, totals.get(0).uvPeak());   // 单日峰值
-        assertEquals("chat", totals.get(1).module());
+        List<AnalyticsRepo.ModuleDay> rows = repo.moduleByDay(D1, D2);
+        assertEquals(3, rows.size());
+        assertEquals(D1, rows.get(0).day());                 // 按日期排序：第一天只有 community
+        assertEquals("community", rows.get(0).module());
+        assertEquals(10, rows.get(0).pv());
+        assertEquals(3, rows.get(0).uv());
 
-        assertEquals(3, repo.moduleByDay(D1, D2).size());
+        // 同一天多个模块时按模块名排序（不依赖数据库返回顺序）
+        long communityD2 = rows.stream()
+                .filter((r) -> r.day().equals(D2) && r.module().equals("community"))
+                .findFirst().orElseThrow().pv();
+        assertEquals(5, communityD2);
+
+        assertTrue(repo.moduleByDay(D1.plusDays(30), D2.plusDays(30)).isEmpty());
     }
 
     @Test

@@ -110,23 +110,12 @@ public class AnalyticsRepo {
 
     // ==================== 模块浏览（P1 的两张表） ====================
 
-    /** 一个模块行的合计（uvPeak = 单日峰值，说明"一天最多多少人"）。 */
-    public record ModuleTotal(String module, long pv, long uv, long uvPeak) { }
-
-    public List<ModuleTotal> moduleTotals(LocalDate from, LocalDate to) {
-        return jdbc.query("select module, coalesce(sum(pv),0) pv, coalesce(sum(uv),0) uv, coalesce(max(uv),0) uv_peak " +
-                        "from sy_module_view where day_key >= ? and day_key <= ? group by module order by pv desc",
-                (rs, i) -> new ModuleTotal(rs.getString("module"), rs.getLong("pv"),
-                        rs.getLong("uv"), rs.getLong("uv_peak")),
-                Date.valueOf(from), Date.valueOf(to));
-    }
-
-    /** 某天某模块的一行（趋势用）。 */
+    /** 某天某模块的一行（排行、合计、峰值、趋势都由它推出来，见 AnalyticsService#buildModules）。 */
     public record ModuleDay(LocalDate day, String module, long pv, long uv) { }
 
     public List<ModuleDay> moduleByDay(LocalDate from, LocalDate to) {
         return jdbc.query("select day_key, module, pv, uv from sy_module_view " +
-                        "where day_key >= ? and day_key <= ? order by day_key",
+                        "where day_key >= ? and day_key <= ? order by day_key, module",
                 (rs, i) -> new ModuleDay(rs.getDate("day_key").toLocalDate(), rs.getString("module"),
                         rs.getLong("pv"), rs.getLong("uv")),
                 Date.valueOf(from), Date.valueOf(to));

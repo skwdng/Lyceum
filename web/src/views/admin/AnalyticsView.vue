@@ -169,6 +169,9 @@ async function exportReport(params) {
               </tbody>
             </table>
           </div>
+          <div v-if="modules && modules.liveToday" class="muted" style="font-size: 11.5px; margin-top: 8px">
+            今日数据 = 已落库 + 尚未回写的实时增量（回写每 5 分钟一次，刚浏览完也能看到）
+          </div>
         </div>
       </div>
 

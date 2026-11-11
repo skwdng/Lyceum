@@ -1,6 +1,6 @@
-import { z as getAdminToken, A as API_BASE, y as analyticsApi, B as ApiError, _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, f as createCommentVNode, t as toDisplayString, r as ref, s as toast, h as computed, k as openBlock, n as normalizeClass } from "./index-DatmapBW.js";
-import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-DLOm0L4O.js";
-import { e as errText } from "./helpers-d4JaD3Du.js";
+import { z as getAdminToken, A as API_BASE, y as analyticsApi, B as ApiError, _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, f as createCommentVNode, t as toDisplayString, r as ref, s as toast, h as computed, k as openBlock, n as normalizeClass } from "./index-DGMQj2O6.js";
+import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-B4IlKb76.js";
+import { e as errText } from "./helpers-DTG4n1BK.js";
 async function downloadExport(params, fallbackName = "export.csv") {
   const token = getAdminToken();
   const resp = await fetch(API_BASE + analyticsApi.exportPath(params), {
@@ -60,45 +60,50 @@ const _hoisted_11 = {
 };
 const _hoisted_12 = { class: "muted" };
 const _hoisted_13 = {
+  key: 1,
+  class: "muted",
+  style: { "font-size": "11.5px", "margin-top": "8px" }
+};
+const _hoisted_14 = {
   class: "panel",
   style: { "margin-top": "14px" }
 };
-const _hoisted_14 = { class: "body" };
-const _hoisted_15 = { class: "adm-stats" };
-const _hoisted_16 = { class: "adm-stat" };
-const _hoisted_17 = { class: "v" };
-const _hoisted_18 = { class: "adm-stat" };
-const _hoisted_19 = { class: "v" };
-const _hoisted_20 = { class: "adm-stat" };
-const _hoisted_21 = { class: "v" };
-const _hoisted_22 = {
+const _hoisted_15 = { class: "body" };
+const _hoisted_16 = { class: "adm-stats" };
+const _hoisted_17 = { class: "adm-stat" };
+const _hoisted_18 = { class: "v" };
+const _hoisted_19 = { class: "adm-stat" };
+const _hoisted_20 = { class: "v" };
+const _hoisted_21 = { class: "adm-stat" };
+const _hoisted_22 = { class: "v" };
+const _hoisted_23 = {
   class: "panel",
   style: { "margin-top": "14px" }
 };
-const _hoisted_23 = { class: "body" };
-const _hoisted_24 = { class: "adm-split" };
-const _hoisted_25 = { class: "adm-pane" };
+const _hoisted_24 = { class: "body" };
+const _hoisted_25 = { class: "adm-split" };
 const _hoisted_26 = { class: "adm-pane" };
-const _hoisted_27 = {
+const _hoisted_27 = { class: "adm-pane" };
+const _hoisted_28 = {
   class: "panel",
   style: { "margin-top": "14px" }
 };
-const _hoisted_28 = { class: "body" };
-const _hoisted_29 = { class: "adm-split" };
-const _hoisted_30 = { class: "adm-pane" };
+const _hoisted_29 = { class: "body" };
+const _hoisted_30 = { class: "adm-split" };
 const _hoisted_31 = { class: "adm-pane" };
-const _hoisted_32 = {
+const _hoisted_32 = { class: "adm-pane" };
+const _hoisted_33 = {
   class: "panel",
   style: { "margin-top": "14px" }
 };
-const _hoisted_33 = { class: "body" };
-const _hoisted_34 = { class: "adm-stats" };
-const _hoisted_35 = { class: "adm-stat" };
-const _hoisted_36 = { class: "v" };
-const _hoisted_37 = { class: "adm-stat" };
-const _hoisted_38 = { class: "v" };
-const _hoisted_39 = { class: "adm-stat" };
-const _hoisted_40 = { class: "v" };
+const _hoisted_34 = { class: "body" };
+const _hoisted_35 = { class: "adm-stats" };
+const _hoisted_36 = { class: "adm-stat" };
+const _hoisted_37 = { class: "v" };
+const _hoisted_38 = { class: "adm-stat" };
+const _hoisted_39 = { class: "v" };
+const _hoisted_40 = { class: "adm-stat" };
+const _hoisted_41 = { class: "v" };
 const _sfc_main = {
   __name: "AnalyticsView",
   setup(__props) {
@@ -266,10 +271,11 @@ const _sfc_main = {
                     }), 128))
                   ])
                 ])
-              ])) : createCommentVNode("", true)
+              ])) : createCommentVNode("", true),
+              modules.value && modules.value.liveToday ? (openBlock(), createElementBlock("div", _hoisted_13, " 今日数据 = 已落库 + 尚未回写的实时增量（回写每 5 分钟一次，刚浏览完也能看到） ")) : createCommentVNode("", true)
             ])
           ]),
-          createBaseVNode("div", _hoisted_13, [
+          createBaseVNode("div", _hoisted_14, [
             createBaseVNode("h2", null, [
               _cache[17] || (_cache[17] = createTextVNode(" 活跃用户 ", -1)),
               _cache[18] || (_cache[18] = createBaseVNode("span", { class: "spacer" }, null, -1)),
@@ -282,19 +288,19 @@ const _sfc_main = {
                 onClick: _cache[3] || (_cache[3] = ($event) => exportReport({ format: "xlsx", report: "active" }))
               }, "XLSX")
             ]),
-            createBaseVNode("div", _hoisted_14, [
-              createBaseVNode("div", _hoisted_15, [
-                createBaseVNode("div", _hoisted_16, [
+            createBaseVNode("div", _hoisted_15, [
+              createBaseVNode("div", _hoisted_16, [
+                createBaseVNode("div", _hoisted_17, [
                   _cache[19] || (_cache[19] = createBaseVNode("div", { class: "k" }, "今日 DAU", -1)),
-                  createBaseVNode("div", _hoisted_17, toDisplayString(active.value ? active.value.dau : 0), 1)
+                  createBaseVNode("div", _hoisted_18, toDisplayString(active.value ? active.value.dau : 0), 1)
                 ]),
-                createBaseVNode("div", _hoisted_18, [
+                createBaseVNode("div", _hoisted_19, [
                   _cache[20] || (_cache[20] = createBaseVNode("div", { class: "k" }, "WAU（近 7 天去重）", -1)),
-                  createBaseVNode("div", _hoisted_19, toDisplayString(active.value ? active.value.wau : 0), 1)
+                  createBaseVNode("div", _hoisted_20, toDisplayString(active.value ? active.value.wau : 0), 1)
                 ]),
-                createBaseVNode("div", _hoisted_20, [
+                createBaseVNode("div", _hoisted_21, [
                   _cache[21] || (_cache[21] = createBaseVNode("div", { class: "k" }, "MAU（近 30 天去重）", -1)),
-                  createBaseVNode("div", _hoisted_21, toDisplayString(active.value ? active.value.mau : 0), 1)
+                  createBaseVNode("div", _hoisted_22, toDisplayString(active.value ? active.value.mau : 0), 1)
                 ])
               ]),
               createVNode(LineChart, {
@@ -305,7 +311,7 @@ const _sfc_main = {
               }, null, 8, ["series", "y-format"])
             ])
           ]),
-          createBaseVNode("div", _hoisted_22, [
+          createBaseVNode("div", _hoisted_23, [
             createBaseVNode("h2", null, [
               _cache[22] || (_cache[22] = createTextVNode(" 内容与治理 ", -1)),
               _cache[23] || (_cache[23] = createBaseVNode("span", { class: "spacer" }, null, -1)),
@@ -322,9 +328,9 @@ const _sfc_main = {
                 onClick: _cache[6] || (_cache[6] = ($event) => exportReport({ format: "xlsx", report: "breakdown", dim: "report_reason" }))
               }, "举报原因 XLSX")
             ]),
-            createBaseVNode("div", _hoisted_23, [
-              createBaseVNode("div", _hoisted_24, [
-                createBaseVNode("div", _hoisted_25, [
+            createBaseVNode("div", _hoisted_24, [
+              createBaseVNode("div", _hoisted_25, [
+                createBaseVNode("div", _hoisted_26, [
                   _cache[24] || (_cache[24] = createBaseVNode("div", { class: "adm-pane-t" }, "举报数", -1)),
                   createVNode(LineChart, {
                     series: [{ name: "举报", color: "#F53F3F", points: reportsTrend.value }],
@@ -332,7 +338,7 @@ const _sfc_main = {
                     empty: "没有举报"
                   }, null, 8, ["series"])
                 ]),
-                createBaseVNode("div", _hoisted_26, [
+                createBaseVNode("div", _hoisted_27, [
                   _cache[25] || (_cache[25] = createBaseVNode("div", { class: "adm-pane-t" }, "举报原因分布", -1)),
                   createVNode(DonutChart, {
                     points: reasonDonut.value,
@@ -353,7 +359,7 @@ const _sfc_main = {
               }, null, 8, ["series"])
             ])
           ]),
-          createBaseVNode("div", _hoisted_27, [
+          createBaseVNode("div", _hoisted_28, [
             createBaseVNode("h2", null, [
               _cache[27] || (_cache[27] = createTextVNode(" 营收 ", -1)),
               _cache[28] || (_cache[28] = createBaseVNode("span", { class: "spacer" }, null, -1)),
@@ -366,9 +372,9 @@ const _sfc_main = {
                 onClick: _cache[8] || (_cache[8] = ($event) => exportReport({ format: "xlsx", report: "breakdown", dim: "tier" }))
               }, "档位 XLSX")
             ]),
-            createBaseVNode("div", _hoisted_28, [
-              createBaseVNode("div", _hoisted_29, [
-                createBaseVNode("div", _hoisted_30, [
+            createBaseVNode("div", _hoisted_29, [
+              createBaseVNode("div", _hoisted_30, [
+                createBaseVNode("div", _hoisted_31, [
                   _cache[29] || (_cache[29] = createBaseVNode("div", { class: "adm-pane-t" }, "每日充值收入（元）", -1)),
                   createVNode(LineChart, {
                     series: [{ name: "收入", color: "#FF7D00", points: revenueTrend.value }],
@@ -377,7 +383,7 @@ const _sfc_main = {
                     empty: "没有充值记录"
                   }, null, 8, ["series", "y-format"])
                 ]),
-                createBaseVNode("div", _hoisted_31, [
+                createBaseVNode("div", _hoisted_32, [
                   _cache[30] || (_cache[30] = createBaseVNode("div", { class: "adm-pane-t" }, "对局档位分布", -1)),
                   createVNode(DonutChart, {
                     points: tierDonut.value,
@@ -389,7 +395,7 @@ const _sfc_main = {
               ])
             ])
           ]),
-          createBaseVNode("div", _hoisted_32, [
+          createBaseVNode("div", _hoisted_33, [
             createBaseVNode("h2", null, [
               _cache[31] || (_cache[31] = createTextVNode(" 对局质量 ", -1)),
               _cache[32] || (_cache[32] = createBaseVNode("span", { class: "spacer" }, null, -1)),
@@ -402,19 +408,19 @@ const _sfc_main = {
                 onClick: _cache[10] || (_cache[10] = ($event) => exportReport({ format: "xlsx", report: "quality" }))
               }, "XLSX")
             ]),
-            createBaseVNode("div", _hoisted_33, [
-              createBaseVNode("div", _hoisted_34, [
-                createBaseVNode("div", _hoisted_35, [
+            createBaseVNode("div", _hoisted_34, [
+              createBaseVNode("div", _hoisted_35, [
+                createBaseVNode("div", _hoisted_36, [
                   _cache[33] || (_cache[33] = createBaseVNode("div", { class: "k" }, "平均轮数", -1)),
-                  createBaseVNode("div", _hoisted_36, toDisplayString(quality.value ? quality.value.avgTurns : 0), 1)
+                  createBaseVNode("div", _hoisted_37, toDisplayString(quality.value ? quality.value.avgTurns : 0), 1)
                 ]),
-                createBaseVNode("div", _hoisted_37, [
+                createBaseVNode("div", _hoisted_38, [
                   _cache[34] || (_cache[34] = createBaseVNode("div", { class: "k" }, "AI 发言占比", -1)),
-                  createBaseVNode("div", _hoisted_38, toDisplayString(quality.value ? quality.value.aiRatio : 0) + "%", 1)
+                  createBaseVNode("div", _hoisted_39, toDisplayString(quality.value ? quality.value.aiRatio : 0) + "%", 1)
                 ]),
-                createBaseVNode("div", _hoisted_39, [
+                createBaseVNode("div", _hoisted_40, [
                   _cache[35] || (_cache[35] = createBaseVNode("div", { class: "k" }, "复盘样本", -1)),
-                  createBaseVNode("div", _hoisted_40, toDisplayString(quality.value ? quality.value.samples : 0), 1)
+                  createBaseVNode("div", _hoisted_41, toDisplayString(quality.value ? quality.value.samples : 0), 1)
                 ])
               ]),
               _cache[36] || (_cache[36] = createBaseVNode("div", { class: "adm-pane-t" }, "六维平均分", -1)),
@@ -431,7 +437,7 @@ const _sfc_main = {
     };
   }
 };
-const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-c73d2d05"]]);
+const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-f4d1b078"]]);
 export {
   AnalyticsView as default
 };

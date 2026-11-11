@@ -126,9 +126,28 @@ public class RedisPvStore implements PvStore, DisposableBean {
         return out;
     }
 
+    /**
+     * 只读版 {@link #takePv}：报表显示"今天"时叠加用，**不删 key**
+     * （落库仍然由 takePv 原子取走，所以两边不会重复计数）。
+     */
     @Override
-    public void restorePv(String day, Map<String, Long> increments) {
-        if (increments == null || increments.isEmpty()) return;
+    public Map<String, Long> pendingPv(String day) {
+        Map<Object, Object> raw = flushRedis.opsForHash().entries(pvCntKey(day));
+        Map<String, Long> out = new LinkedHashMap<>();
+        if (raw == null || raw.isEmpty()) return out;
+        raw.forEach((k, v) -> {
+            try {
+                long n = Long.parseLong(String.valueOf(v));
+                if (n > 0) out.put(String.valueOf(k), n);
+            } catch (NumberFormatException ignored) {
+                // 脏数据跳过，不影响其它模块
+            }
+        });
+        return out;
+    }
+
+    @Override
+    public void restorePv(String day, Map<String, Long> increments) {        if (increments == null || increments.isEmpty()) return;
         increments.forEach((module, delta) -> {
             if (delta == null || delta <= 0) return;
             flushRedis.opsForHash().increment(pvCntKey(day), module, delta);

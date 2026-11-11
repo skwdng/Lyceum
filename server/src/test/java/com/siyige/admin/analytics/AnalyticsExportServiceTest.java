@@ -20,7 +20,7 @@ class AnalyticsExportServiceTest {
 
     @Test
     void 模块导出CSV_含表头与占比() {
-        when(analytics.modules("30d")).thenReturn(new AnalyticsDtos.Modules("30d", "2026-11-05", "2026-11-11",
+        when(analytics.modules("30d")).thenReturn(new AnalyticsDtos.Modules("30d", "2026-11-05", "2026-11-11", false,
                 List.of(new AnalyticsDtos.ModuleStat("community", 120, 30, 20, 60.0),
                         new AnalyticsDtos.ModuleStat("chat", 80, 10, 8, 40.0)),
                 new AnalyticsDtos.ModuleTrend(List.of(), List.of())));
@@ -38,7 +38,7 @@ class AnalyticsExportServiceTest {
 
     @Test
     void 模块导出XLSX_是zip且文件名正确() {
-        when(analytics.modules(any())).thenReturn(new AnalyticsDtos.Modules("7d", "2026-11-05", "2026-11-11",
+        when(analytics.modules(any())).thenReturn(new AnalyticsDtos.Modules("7d", "2026-11-05", "2026-11-11", false,
                 List.of(new AnalyticsDtos.ModuleStat("community", 120, 30, 20, 100.0)),
                 new AnalyticsDtos.ModuleTrend(List.of(), List.of())));
 

@@ -35,6 +35,11 @@ public class NoopPvStore implements PvStore {
     }
 
     @Override
+    public Map<String, Long> pendingPv(String day) {
+        return Map.of();
+    }
+
+    @Override
     public void restorePv(String day, Map<String, Long> increments) {
         // 无 Redis：无处可补
     }

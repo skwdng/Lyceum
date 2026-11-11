@@ -135,41 +135,91 @@ public class AnalyticsService {
     }
 
     private AnalyticsDtos.Modules buildModules(String range, AnalyticsRange r) {
-        List<AnalyticsRepo.ModuleTotal> totals = repo.moduleTotals(r.from(), r.to());
-        long totalPv = totals.stream().mapToLong(AnalyticsRepo.ModuleTotal::pv).sum();
-
-        List<AnalyticsDtos.ModuleStat> stats = new ArrayList<>();
-        for (AnalyticsRepo.ModuleTotal t : totals) {
-            double share = totalPv > 0 ? round1(t.pv() * 100.0 / totalPv) : 0;
-            stats.add(new AnalyticsDtos.ModuleStat(t.module(), t.pv(), t.uv(), t.uvPeak(), share));
-        }
-        stats.sort((a, b) -> Long.compare(b.pv(), a.pv()));
-
-        // 趋势：days 是横轴，每个模块一条等长序列（缺的日期补 0）
         List<LocalDate> days = r.days();
+        LocalDate today = DayKeys.todayDate();
+        boolean includesToday = !today.isBefore(r.from()) && !today.isAfter(r.to());
+
+        // 一次查询拿到所有逐日行：合计 / 单日峰值 / 趋势全从它推（少查两次，也不会出现口径不一致）
         Map<String, Map<LocalDate, AnalyticsRepo.ModuleDay>> byModule = new LinkedHashMap<>();
         for (AnalyticsRepo.ModuleDay row : repo.moduleByDay(r.from(), r.to())) {
             byModule.computeIfAbsent(row.module(), k -> new LinkedHashMap<>()).put(row.day(), row);
         }
 
-        List<AnalyticsDtos.ModuleSeries> series = new ArrayList<>();
-        for (AnalyticsDtos.ModuleStat s : stats) {
-            Map<LocalDate, AnalyticsRepo.ModuleDay> dayMap = byModule.getOrDefault(s.module(), Map.of());
+        // ★ 今天的实时增量：Redis 里还没回写的 PV + HLL 的当日 UV。
+        //   只读不删 —— 落库仍由定时任务原子取走，所以不会重复计数。
+        //   不叠加这一步的话，用户刚浏览完在报表里看不到变化（最多差 5 分钟回写 + 60 秒缓存）。
+        Map<String, Long> pending = includesToday ? safePendingPv(today) : Map.of();
+        pending.keySet().forEach(m -> byModule.computeIfAbsent(m, k -> new LinkedHashMap<>()));
+
+        List<ModuleAgg> aggs = new ArrayList<>();
+        for (Map.Entry<String, Map<LocalDate, AnalyticsRepo.ModuleDay>> e : byModule.entrySet()) {
+            Map<LocalDate, AnalyticsRepo.ModuleDay> rows = e.getValue();
             List<Long> pvList = new ArrayList<>(days.size());
             List<Long> uvList = new ArrayList<>(days.size());
+            long pvSum = 0;
+            long uvSum = 0;
+            long uvPeak = 0;
             for (LocalDate d : days) {
-                AnalyticsRepo.ModuleDay row = dayMap.get(d);
-                pvList.add(row == null ? 0L : row.pv());
-                uvList.add(row == null ? 0L : row.uv());
+                AnalyticsRepo.ModuleDay row = rows.get(d);
+                long pv = row == null ? 0L : row.pv();
+                long uv = row == null ? 0L : row.uv();
+                if (includesToday && d.equals(today)) {
+                    pv += pending.getOrDefault(e.getKey(), 0L);
+                    // UV 快照是每小时的，可能落后于 HLL：取较大值，避免"今天的 UV 反而比昨天小"。
+                    // 只在有 PV 的行上补 UV —— 否则会冒出"PV=0 但 UV=10"的幻影行
+                    // （典型场景：后台是内存库、重启把 PV 清了，而 Redis 里的 HLL 还在）。
+                    if (pv > 0) uv = Math.max(uv, safeModuleUv(today, e.getKey()));
+                }
+                pvList.add(pv);
+                uvList.add(uv);
+                pvSum += pv;
+                uvSum += uv;
+                uvPeak = Math.max(uvPeak, uv);
             }
-            series.add(new AnalyticsDtos.ModuleSeries(s.module(), pvList, uvList));
+            if (pvSum == 0 && uvSum == 0) continue;      // 这段时间完全没数据的模块不出现在表里
+            aggs.add(new ModuleAgg(e.getKey(), pvSum, uvSum, uvPeak, pvList, uvList));
+        }
+
+        aggs.sort((a, b) -> Long.compare(b.pv(), a.pv()));
+        long totalPv = aggs.stream().mapToLong(ModuleAgg::pv).sum();
+
+        List<AnalyticsDtos.ModuleStat> stats = new ArrayList<>(aggs.size());
+        List<AnalyticsDtos.ModuleSeries> series = new ArrayList<>(aggs.size());
+        for (ModuleAgg a : aggs) {
+            double share = totalPv > 0 ? round1(a.pv() * 100.0 / totalPv) : 0;
+            stats.add(new AnalyticsDtos.ModuleStat(a.module(), a.pv(), a.uv(), a.uvPeak(), share));
+            series.add(new AnalyticsDtos.ModuleSeries(a.module(), a.pvList(), a.uvList()));
         }
 
         List<String> dayLabels = new ArrayList<>(days.size());
         for (LocalDate d : days) dayLabels.add(mmdd(d));
 
         return new AnalyticsDtos.Modules(normalizeRange(range), r.from().toString(), r.to().toString(),
-                stats, new AnalyticsDtos.ModuleTrend(dayLabels, series));
+                includesToday, stats, new AnalyticsDtos.ModuleTrend(dayLabels, series));
+    }
+
+    /** 一个模块的合计 + 逐日序列（内部用，排完序再转成 DTO）。 */
+    private record ModuleAgg(String module, long pv, long uv, long uvPeak, List<Long> pvList, List<Long> uvList) { }
+
+    /** 读 Redis 里今天的待回写 PV；Redis 不可用按空处理（报表不能因此 500）。 */
+    private Map<String, Long> safePendingPv(LocalDate day) {
+        try {
+            Map<String, Long> m = pv.pendingPv(DayKeys.dayKey(day));
+            return m == null ? Map.of() : m;
+        } catch (Exception e) {
+            log.debug("读取待回写 PV 失败（按 0 处理）", e);
+            return Map.of();
+        }
+    }
+
+    /** 读某个模块今天的 HLL 去重 UV；失败按 0 处理。 */
+    private long safeModuleUv(LocalDate day, String module) {
+        try {
+            return pv.countUv(DayKeys.dayKey(day), module);
+        } catch (Exception e) {
+            log.debug("读取模块实时 UV 失败（按 0 处理）module={}", module, e);
+            return 0L;
+        }
     }
 
     // ==================== 3. 趋势 ====================
