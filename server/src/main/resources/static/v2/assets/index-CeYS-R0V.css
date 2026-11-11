@@ -21,75 +21,12 @@
 .pwd-title[data-v-549725b3] { font-size: 14px; font-weight: 600; margin-bottom: 4px;
 }
 
-.bill-strip[data-v-f7930f88] {
+.bill-strip[data-v-0f26f55a] {
   margin-top: 12px;
   padding: 12px 14px;
   background: #fbfcfe;
   border: 1px solid #dce3f5;
   border-radius: 12px;
-}
-
-/*
- * 管理台的样式：数值从旧 admin.html 的 \3c style>（L13–L75）原样搬过来，未改。
- *
- * 为什么放 scoped：这套样式里有 .card / .btn / .tag / .panel / .bar / table 这些**通用类名**，
- * 一旦全局导入就会盖掉主站其它页面（实测 .panel 被旧宽 760px 影响过）。scoped 让它只作用于本页。
- * 原来 body{} 的三条（背景/字体/前景色）挪到 .adm-root 上，效果一致且不外溢。
- */
-.adm-root[data-v-7d810568]{min-height:100vh;background:#F5F6F8;color:#1D2129;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
-.adm-root[data-v-7d810568] *{box-sizing:border-box}
-.login-wrap[data-v-7d810568]{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#EEF2FF,#F7F8FA)}
-.login-card[data-v-7d810568]{width:360px;background:#fff;border-radius:16px;padding:32px 28px;box-shadow:0 12px 40px rgba(20,30,60,.10)}
-.login-card h1[data-v-7d810568]{margin:0 0 6px;font-size:20px}
-.login-card p[data-v-7d810568]{margin:0 0 22px;color:#86909C;font-size:12.5px}
-label[data-v-7d810568]{display:block;font-size:12.5px;color:#4E5969;margin:14px 0 6px}
-input[data-v-7d810568],select[data-v-7d810568],textarea[data-v-7d810568]{width:100%;border:1px solid #E5E6EB;border-radius:9px;padding:10px 12px;font:inherit;background:#FCFCFD;outline:none}
-input[data-v-7d810568]:focus,textarea[data-v-7d810568]:focus,select[data-v-7d810568]:focus{border-color:#165DFF;box-shadow:0 0 0 3px rgba(22,93,255,.10)}
-.btn[data-v-7d810568]{border:1px solid #E5E6EB;background:#fff;color:#1D2129;border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap}
-.btn[data-v-7d810568]:hover{background:#F7F8FA}
-.btn.primary[data-v-7d810568]{background:#165DFF;border-color:#165DFF;color:#fff}
-.btn.primary[data-v-7d810568]:hover{background:#0E42D2}
-.btn.danger[data-v-7d810568]{background:#F53F3F;border-color:#F53F3F;color:#fff}
-.btn.warn[data-v-7d810568]{background:#FF7D00;border-color:#FF7D00;color:#fff}
-.btn.sm[data-v-7d810568]{padding:5px 10px;font-size:12px}
-.btn[disabled][data-v-7d810568]{opacity:.45;cursor:not-allowed}
-header[data-v-7d810568]{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #E5E6EB;padding:0 24px}
-.bar[data-v-7d810568]{display:flex;align-items:center;gap:18px;height:60px;max-width:1240px;margin:0 auto}
-.brand[data-v-7d810568]{font-weight:700;font-size:16px}
-.tabs[data-v-7d810568]{display:flex;gap:6px}
-.tabs button[data-v-7d810568]{border:none;background:transparent;padding:8px 14px;border-radius:9px;font-size:13.5px;color:#4E5969;cursor:pointer}
-.tabs button.on[data-v-7d810568]{background:#E8F3FF;color:#165DFF;font-weight:600}
-.badge[data-v-7d810568]{display:inline-block;margin-left:4px;background:#F53F3F;color:#fff;border-radius:8px;padding:0 5px;font-size:11px}
-.spacer[data-v-7d810568]{flex:1}
-main[data-v-7d810568]{max-width:1240px;margin:0 auto;padding:20px 24px 60px}
-.cards[data-v-7d810568]{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
-.card[data-v-7d810568]{background:#fff;border-radius:12px;padding:16px 18px;border:1px solid #EFF0F1}
-.card .k[data-v-7d810568]{font-size:12.5px;color:#86909C}
-.card .v[data-v-7d810568]{font-size:26px;font-weight:700;margin-top:4px}
-.panel[data-v-7d810568]{background:#fff;border-radius:12px;border:1px solid #EFF0F1;overflow:hidden;width:auto}
-.panel h2[data-v-7d810568]{margin:0;padding:14px 18px;font-size:14px;border-bottom:1px solid #EFF0F1;display:flex;gap:10px;align-items:center}
-table[data-v-7d810568]{width:100%;border-collapse:collapse}
-th[data-v-7d810568],td[data-v-7d810568]{text-align:left;padding:10px 18px;font-size:13px;border-bottom:1px solid #F2F3F5;vertical-align:top}
-th[data-v-7d810568]{color:#86909C;font-weight:500;background:#FAFBFC}
-tr:hover td[data-v-7d810568]{background:#FCFCFD}
-.tag[data-v-7d810568]{display:inline-block;border-radius:6px;padding:1px 7px;font-size:11.5px;background:#F2F3F5;color:#4E5969;white-space:nowrap}
-.tag.red[data-v-7d810568]{background:#FFECE8;color:#F53F3F}
-.tag.ok[data-v-7d810568]{background:#E8FFEA;color:#00B42A}
-.tag.orange[data-v-7d810568]{background:#FFF7E8;color:#B8740A}
-.tag.blue[data-v-7d810568]{background:#E8F3FF;color:#165DFF}
-.muted[data-v-7d810568]{color:#86909C}
-.mask[data-v-7d810568]{position:fixed;inset:0;background:rgba(20,25,40,.45);display:flex;align-items:center;justify-content:center;padding:24px;z-index:100}
-.modal[data-v-7d810568]{background:#fff;border-radius:14px;width:720px;max-width:100%;max-height:88vh;display:flex;flex-direction:column}
-.modal h3[data-v-7d810568]{margin:0;padding:16px 20px;border-bottom:1px solid #EFF0F1;font-size:15px}
-.modal .body[data-v-7d810568]{padding:16px 20px;overflow:auto}
-.modal .foot[data-v-7d810568]{padding:14px 20px;border-top:1px solid #EFF0F1;display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
-.pager[data-v-7d810568]{display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid #EFF0F1}
-.pager .muted[data-v-7d810568]{font-size:12.5px}
-@media (max-width:860px){
-.cards[data-v-7d810568]{grid-template-columns:1fr}
-.bar[data-v-7d810568]{gap:10px;height:auto;padding:10px 0;flex-wrap:wrap}
-th[data-v-7d810568],td[data-v-7d810568]{padding:9px 12px}
-main[data-v-7d810568]{padding:14px 12px 60px}
 }
 /* 新前端样式。
  *

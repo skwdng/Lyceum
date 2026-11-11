@@ -1,0 +1,146 @@
+/*
+ * 管理台样式（P0 骨架）。
+ *
+ * 来源分两部分：
+ * 1. 数值与配色**原样搬自**旧的 `views/AdminView.vue` <style scoped>（对应更早的 `admin.html`），
+ *    一个字没改 —— 管理台看起来必须和改造前一样；
+ * 2. 新增的只有"布局"那一节（侧栏 / 顶栏 / 抽屉），前缀统一 `adm-`。
+ *
+ * 为什么不再用 scoped、为什么每条规则都要 `.adm-root` 前缀：
+ * AdminView 里的类名是 `.card / .btn / .tag / .panel / table / label / input` 这类**通用名**，
+ * 一旦全局生效就会盖掉主站（原注释里记着"实测 .panel 被旧宽 760px 影响过"）。
+ * 拆分后 7 个组件共用一个样式表，没法靠单文件 scoped 覆盖子组件，
+ * 于是全部收进 `.adm-root` 这棵子树里：作用域等价于 scoped，且不会外溢。
+ * 挂载点 `<div class="adm-root">` 在 AdminLayout.vue 上，登录页也在它里面。
+ *
+ * ⚠️ 不要在这里写 `header / main / body` 这类元素选择器：style.css 里有全局的 `main{}`，
+ *    本文件只允许 `.adm-*` 和 `.adm-root <元素>` 两种形态。
+ */
+
+/* ==================== 基础 / 登录页 ==================== */
+
+.adm-root{min-height:100vh;background:#F5F6F8;color:#1D2129;font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.adm-root *{box-sizing:border-box}
+.adm-root .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#EEF2FF,#F7F8FA);padding:24px}
+/* 旧 CSS 里写的是 .login-card，而模板用的是 .login-box —— 两边对不上，登录框其实是没样式的。
+   这一批把它对到模板真实类名上（纯样式修正，不动任何逻辑）。 */
+.adm-root .login-box{width:360px;max-width:100%;background:#fff;border-radius:16px;padding:32px 28px;box-shadow:0 12px 40px rgba(20,30,60,.10)}
+.adm-root .login-box h1{margin:0 0 6px;font-size:20px}
+.adm-root .login-box p{margin:0 0 22px;color:#86909C;font-size:12.5px}
+
+/* ==================== 表单控件 ==================== */
+
+.adm-root label{display:block;font-size:12.5px;color:#4E5969;margin:14px 0 6px}
+.adm-root input,.adm-root select,.adm-root textarea{width:100%;border:1px solid #E5E6EB;border-radius:9px;padding:10px 12px;font:inherit;background:#FCFCFD;outline:none}
+.adm-root input:focus,.adm-root textarea:focus,.adm-root select:focus{border-color:#165DFF;box-shadow:0 0 0 3px rgba(22,93,255,.10)}
+
+/* ==================== 按钮 ==================== */
+
+.adm-root .btn{border:1px solid #E5E6EB;background:#fff;color:#1D2129;border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;white-space:nowrap}
+.adm-root .btn:hover{background:#F7F8FA}
+.adm-root .btn.primary{background:#165DFF;border-color:#165DFF;color:#fff}
+.adm-root .btn.primary:hover{background:#0E42D2}
+.adm-root .btn.danger{background:#F53F3F;border-color:#F53F3F;color:#fff}
+.adm-root .btn.warn{background:#FF7D00;border-color:#FF7D00;color:#fff}
+.adm-root .btn.sm{padding:5px 10px;font-size:12px}
+.adm-root .btn[disabled]{opacity:.45;cursor:not-allowed}
+
+/* ==================== 布局：侧栏 + 顶栏（本批新增） ==================== */
+
+.adm-root .adm-layout{display:flex;min-height:100vh}
+
+.adm-root .adm-side{width:208px;flex:0 0 208px;background:#fff;border-right:1px solid #E5E6EB;
+  display:flex;flex-direction:column;padding:14px 10px;position:sticky;top:0;height:100vh;
+  transition:width .16s ease,flex-basis .16s ease,padding .16s ease}
+.adm-root .adm-layout.collapsed .adm-side{width:56px;flex:0 0 56px;padding:14px 6px}
+
+.adm-root .adm-brand{display:flex;align-items:center;gap:9px;padding:2px 8px 14px;overflow:hidden}
+.adm-root .adm-brand .m{width:28px;height:28px;border-radius:8px;background:#165DFF;color:#fff;
+  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0}
+.adm-root .adm-brand b{font-size:14px;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+.adm-root .adm-brand span{display:block;font-size:10px;color:#86909C;line-height:1.1;white-space:nowrap}
+.adm-root .adm-layout.collapsed .adm-brand b,
+.adm-root .adm-layout.collapsed .adm-brand span{display:none}
+
+.adm-root .adm-nav{display:flex;flex-direction:column;gap:2px;overflow-y:auto;flex:1}
+.adm-root .adm-nav .g{font-size:10.5px;color:#A8ADB8;padding:12px 9px 4px;letter-spacing:.5px;white-space:nowrap}
+.adm-root .adm-nav a{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:9px;
+  font-size:13px;color:#4E5969;cursor:pointer;white-space:nowrap;position:relative}
+.adm-root .adm-nav a:hover{background:#F7F8FA}
+.adm-root .adm-nav a.on{background:#E8F3FF;color:#165DFF;font-weight:600}
+.adm-root .adm-nav .ic{width:18px;flex-shrink:0;text-align:center;font-size:14px}
+.adm-root .adm-layout.collapsed .adm-nav .g{display:none}
+.adm-root .adm-layout.collapsed .adm-nav a{justify-content:center;padding:9px 0}
+.adm-root .adm-layout.collapsed .adm-nav a .lb{display:none}
+/* 折叠态只留图标：徽标缩成红点，数字留在 title 里 */
+.adm-root .adm-layout.collapsed .adm-nav a .badge{position:absolute;top:4px;right:8px;
+  width:8px;height:8px;padding:0;border-radius:50%;font-size:0;overflow:hidden}
+
+.adm-root .adm-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.adm-root .adm-top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #E5E6EB;
+  height:56px;display:flex;align-items:center;gap:12px;padding:0 20px}
+.adm-root .adm-title{font-size:15px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-root .adm-iconbtn{width:32px;height:32px;border-radius:9px;border:1px solid #E5E6EB;background:#fff;
+  color:#4E5969;font-size:15px;line-height:1;cursor:pointer;flex-shrink:0}
+.adm-root .adm-iconbtn:hover{background:#F7F8FA;color:#165DFF}
+.adm-root .adm-who{font-size:12.5px;color:#86909C;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.adm-root .adm-body{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:20px 24px 60px}
+
+/* 窄屏：侧栏变抽屉（默认收起），遮罩点一下关掉 */
+.adm-root .adm-mask{position:fixed;inset:0;background:rgba(20,25,40,.45);z-index:90;border:none;padding:0}
+@media (max-width:760px){
+  .adm-root .adm-side{position:fixed;left:0;top:0;bottom:0;height:100vh;z-index:91;
+    width:208px;flex:none;transform:translateX(-100%);transition:transform .18s ease;
+    box-shadow:0 8px 30px rgba(20,30,60,.18)}
+  .adm-root .adm-layout.drawer .adm-side{transform:none}
+  .adm-root .adm-top{padding:0 12px;gap:8px}
+  .adm-root .adm-body{padding:14px 12px 60px}
+}
+
+/* ==================== 徽标 / 卡片 / 面板 / 表格 ==================== */
+
+.adm-root .badge{display:inline-block;margin-left:4px;background:#F53F3F;color:#fff;border-radius:8px;padding:0 5px;font-size:11px}
+.adm-root .spacer{flex:1}
+
+.adm-root .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+.adm-root .card{background:#fff;border-radius:12px;padding:16px 18px;border:1px solid #EFF0F1}
+.adm-root .card .k{font-size:12.5px;color:#86909C}
+.adm-root .card .v{font-size:26px;font-weight:700;margin-top:4px}
+
+.adm-root .panel{background:#fff;border-radius:12px;border:1px solid #EFF0F1;overflow:hidden;width:auto}
+.adm-root .panel h2{margin:0;padding:14px 18px;font-size:14px;border-bottom:1px solid #EFF0F1;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.adm-root .panel .body{padding:16px 18px}
+.adm-root .panel .foot{padding:14px 18px;border-top:1px solid #EFF0F1;display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+.adm-root .form-narrow{max-width:440px}
+
+.adm-root table{width:100%;border-collapse:collapse}
+.adm-root th,.adm-root td{text-align:left;padding:10px 18px;font-size:13px;border-bottom:1px solid #F2F3F5;vertical-align:top}
+.adm-root th{color:#86909C;font-weight:500;background:#FAFBFC}
+.adm-root tr:hover td{background:#FCFCFD}
+
+.adm-root .pager{display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid #EFF0F1}
+.adm-root .pager .muted{font-size:12.5px}
+
+/* ==================== 标签 ==================== */
+
+.adm-root .tag{display:inline-block;border-radius:6px;padding:1px 7px;font-size:11.5px;background:#F2F3F5;color:#4E5969;white-space:nowrap}
+.adm-root .tag.red{background:#FFECE8;color:#F53F3F}
+.adm-root .tag.ok{background:#E8FFEA;color:#00B42A}
+.adm-root .tag.orange{background:#FFF7E8;color:#B8740A}
+.adm-root .tag.blue{background:#E8F3FF;color:#165DFF}
+.adm-root .muted{color:#86909C}
+
+/* ==================== 弹窗（举报详情还在用它） ==================== */
+
+.adm-root .mask{position:fixed;inset:0;background:rgba(20,25,40,.45);display:flex;align-items:center;justify-content:center;padding:24px;z-index:100}
+.adm-root .modal{background:#fff;border-radius:14px;width:720px;max-width:100%;max-height:88vh;display:flex;flex-direction:column}
+.adm-root .modal h3{margin:0;padding:16px 20px;border-bottom:1px solid #EFF0F1;font-size:15px}
+.adm-root .modal .body{padding:16px 20px;overflow:auto}
+.adm-root .modal .foot{padding:14px 20px;border-top:1px solid #EFF0F1;display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
+
+/* ==================== 窄屏压缩（与旧版一致） ==================== */
+
+@media (max-width:860px){
+  .adm-root .cards{grid-template-columns:1fr}
+  .adm-root th,.adm-root td{padding:9px 12px}
+}

@@ -6,6 +6,7 @@
 // 所以管理台用「开发密钥签一个 typ=ADMIN 的令牌」注入 localStorage 来验证 UI。
 // 这不是绕过校验——后端仍然校验签名与 typ/role，只是没有真实管理员行可取令牌。
 import crypto from 'crypto';
+import http from 'node:http';
 
 const PORT = process.argv[2] || '9456';
 const BASE = (process.argv[3] || 'http://localhost:8080').replace(/\/$/, '');
@@ -187,27 +188,66 @@ await check('B3-V5 审核台按钮按后端 consoleEnabled 隐藏（本环境 fa
   return 'consoleEnabled=' + enabled + '，按钮=' + st.btn + '（一致）';
 });
 
-// ==================== 管理后台 ====================
+// ==================== 管理后台（P0：单页 tab -> 侧栏 + 子页） ====================
+//
+// 注意：管理台已经不是「一个页面 + 三个 tab」，而是 #/admin/<子页> 的嵌套路由。
+// 所以下面所有用例**一律通过点侧栏链接**来切页（顺带验证路由、高亮、徽标），
+// 不再用旧的 `.bar .tabs button`，也不再有 `[data-panel=...]` 之外的 v-show 面板。
 
-await check('B3-A1 管理台登录页：独立布局（无侧栏）+ 错误密码提示', async () => {
-  await ev(`localStorage.removeItem('sy_admin_jwt'); true`);
-  await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#/admin' });
-  await sleep(1800);
-  const st = await ev(`({login: !!document.querySelector('.login-wrap'), brand: (document.querySelector('.login-box h1')||{}).textContent,
-                        side: !!document.querySelector('#nav'), inputs: document.querySelectorAll('.login-box input').length})`);
-  if (!st.login) throw new Error('没渲染登录页：' + JSON.stringify(st));
-  if (st.side) throw new Error('管理台不该有主站侧栏');
+const ADMIN = adminToken();
+
+/** 原生 GET：只为读状态码和 Location（fetch 的 redirect:'manual' 在 Node 里拿不到响应头） */
+const rawGet = (path) => new Promise((resolve, reject) => {
+  const u = new URL(BASE + path);
+  const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname + u.search, method: 'GET' }, (r) => {
+    r.resume();
+    resolve({ status: r.statusCode, location: r.headers.location || '' });
+  });
+  req.on('error', reject);
+  req.end();
+});
+
+const openAdmin = async (hash) => {
+  await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#' + hash });
+  await sleep(1900);
+};
+
+/** 点侧栏某一项（按文案匹配，图标是单独 <span>，所以用 includes） */
+const clickMenu = (label) =>
+  ev(`(()=>{const a=[...document.querySelectorAll('.adm-nav a')]
+    .find(x=>x.textContent.includes(${JSON.stringify(label)}));
+    if(!a) return false; a.click(); return true})()`);
+
+
+await check('B3-A1 未登录深链 #/admin/dashboard 会被送到 #/admin/login（登录门禁）', async () => {
+  await ev(`localStorage.removeItem('sy_admin_jwt'); localStorage.removeItem('sy_admin_collapsed'); true`);
+  await openAdmin('admin/dashboard');
+  const st = await ev(`({hash: location.hash, login: !!document.querySelector('.login-wrap'),
+                        side: !!document.querySelector('.adm-side')})`);
+  if (st.hash !== '#/admin/login') throw new Error('没被送去登录页：' + st.hash);
+  if (!st.login) throw new Error('登录页没渲染：' + JSON.stringify(st));
+  if (st.side) throw new Error('登录页不该有侧栏');
+  return st.hash;
+});
+
+await check('B3-A2 管理台登录页：独立布局（无侧栏）+ 错误密码提示', async () => {
+  const st = await ev(`({brand: (document.querySelector('.login-box h1')||{}).textContent,
+                        side: !!document.querySelector('.adm-side'),
+                        inputs: document.querySelectorAll('.login-box input').length})`);
+  if (st.inputs !== 2) throw new Error('登录框输入框数量不对：' + st.inputs);
+  if (st.side) throw new Error('登录页不该有侧栏');
   await ev(`(()=>{const a=document.querySelectorAll('.login-box input')[0]; a.value='admin'; a.dispatchEvent(new Event('input',{bubbles:true}));
     const b=document.querySelectorAll('.login-box input')[1]; b.value='wrong-pass-123'; b.dispatchEvent(new Event('input',{bubbles:true})); return true})()`);
   await ev(`(()=>{const b=[...document.querySelectorAll('.login-box button')].find(x=>x.textContent.includes('登录')); b.click(); return true})()`);
   await sleep(1800);
   const toast = await ev(`(document.querySelector('.toast, .toast-host')||{}).textContent || document.body.innerText`);
   if (String(toast).indexOf('账号或密码错误') < 0 && String(toast).indexOf('密码') < 0) throw new Error('没有错误提示：' + String(toast).slice(-80));
+  if ((await ev(`location.hash`)) !== '#/admin/login') throw new Error('登录失败后不该离开登录页');
   return String(st.brand).trim() + ' · 错误密码有提示';
 });
 
-await check('B3-A2 管理员令牌进入 → 统计卡 + 举报队列表格', async () => {
-  // 自备一条待处理举报（内存库每次重启就空，不能依赖残留数据）
+await check('B3-A3 令牌进入 → 侧栏 5 项 + 当前项高亮 + 徽标=待处理举报数 + 概览三张卡', async () => {
+  // 自备一条待处理举报（内存库每次重启就空，不能依赖残留数据）；徽标要拿它来对数
   const author = await call('POST', '/api/auth/register', { account: 'ao' + stamp, password: 'abc12345' });
   const post = await call(
     'POST',
@@ -224,29 +264,60 @@ await check('B3-A2 管理员令牌进入 → 统计卡 + 举报队列表格', as
   );
   if (rep.status !== 200) throw new Error('造举报失败：' + JSON.stringify(rep).slice(0, 120));
 
-  await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(adminToken())}); true`);
-  await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#/admin' });
-  await sleep(2200);
-  await waitFor(`!!document.querySelector('.bar')`, '管理台主界面', 20000);
-  await waitFor(`document.querySelectorAll('.cards .card').length === 3`, '统计卡', 15000);
+  const stats = await call('GET', '/api/admin/stats', null, ADMIN);
+  const pending = Number((stats.body && stats.body.pendingReports) || 0);
+  if (!pending) throw new Error('后端 stats.pendingReports 应该是正数：' + JSON.stringify(stats.body).slice(0, 120));
+
+  await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(ADMIN)}); true`);
+  await openAdmin('admin/dashboard');
+  await waitFor(`document.querySelectorAll('.adm-nav a').length > 0`, '侧栏', 20000);
+  await waitFor(`document.querySelectorAll('[data-panel="dashboard"] .cards .card').length === 3`, '概览统计卡', 15000);
+  // 徽标要等 stats 回来才渲染，单独等一次，避免读到空串
+  await waitFor(`!!document.querySelector('.adm-nav a .badge')`, '待处理举报徽标', 20000);
+
+  const st = await ev(`(()=>{
+    const links=[...document.querySelectorAll('.adm-nav a')];
+    const on=document.querySelector('.adm-nav a.on');
+    const badgeLink=links.find(x=>x.textContent.includes('举报处理'));
+    const badge=badgeLink&&badgeLink.querySelector('.badge');
+    return {
+      menus: links.map(x=>x.textContent.replace(/\\s+/g,'')),
+      groups: [...document.querySelectorAll('.adm-nav .g')].map(x=>x.textContent.trim()),
+      on: on?on.textContent.replace(/\\s+/g,''):'',
+      title: (document.querySelector('.adm-title')||{}).textContent,
+      who: (document.querySelector('.adm-who')||{}).textContent,
+      cards: [...document.querySelectorAll('[data-panel="dashboard"] .cards .card')].map(c=>c.querySelector('.k').textContent+':'+c.querySelector('.v').textContent),
+      badge: badge?badge.textContent.trim():'',
+      hash: location.hash}})()`);
+
+  if (st.menus.length !== 5) throw new Error('侧栏菜单项应为 5 个，实际 ' + st.menus.length + '：' + JSON.stringify(st.menus));
+  if (st.groups.length !== 3) throw new Error('菜单分组应为 3 组（总览/运营/系统），实际：' + JSON.stringify(st.groups));
+  if (!st.on.includes('概览')) throw new Error('当前项没高亮成「概览」：' + JSON.stringify(st.on));
+  if (String(st.title).trim() !== '概览') throw new Error('顶栏标题不对：' + st.title);
+  if (String(st.who).trim() !== 'admin') throw new Error('顶栏当前管理员不对：' + st.who);
+  if (String(st.badge) !== String(pending)) throw new Error('徽标不是待处理举报数：徽标=' + st.badge + ' stats=' + pending);
+  if (st.hash !== '#/admin/dashboard') throw new Error('路由不对：' + st.hash);
+
+  // 点侧栏「举报处理」-> 真路由跳转 + 队列有行 + 高亮跟着走
+  if (!(await clickMenu('举报处理'))) throw new Error('侧栏里找不到「举报处理」');
+  await waitFor(`location.hash === '#/admin/reports'`, '切到举报页', 15000);
   await waitFor(`document.querySelectorAll('[data-panel="reports"] table tbody tr').length > 0`, '举报队列', 20000);
-  const st = await ev(`({cards: [...document.querySelectorAll('.cards .card')].map(c=>c.querySelector('.k').textContent+':'+c.querySelector('.v').textContent),
-                        tabs: document.querySelectorAll('.bar .tabs button').length,
-                        rows: document.querySelectorAll('[data-panel="reports"] table tbody tr').length})`);
-  if (st.tabs !== 3) throw new Error('Tab 数不对：' + st.tabs);
-  if (!st.rows) throw new Error('举报队列没有行');
-  return st.cards.join(' / ') + ` · 队列 ${st.rows} 行`;
+  const on = await ev(`(()=>{const a=document.querySelector('.adm-nav a.on'); return a?a.textContent.replace(/\\s+/g,''):''})()`);
+  if (!on.includes('举报处理')) throw new Error('切页后高亮没跟着走：' + on);
+  const rows = await ev(`document.querySelectorAll('[data-panel="reports"] table tbody tr').length`);
+  return st.cards.join(' / ') + ' · 菜单 ' + st.menus.length + ' 项 · 徽标 ' + st.badge + ' · 队列 ' + rows + ' 行';
 });
 
-await check('B3-A3 处理一条举报（忽略）→ 队列减少 + 处理记录里出现该操作', async () => {
+await check('B3-A4 处理一条举报（忽略）→ 队列减少 + 处理记录里出现该操作', async () => {
   const before = await ev(`document.querySelectorAll('[data-panel="reports"] table tbody tr').length`);
   await ev(`(()=>{const b=[...document.querySelectorAll('[data-panel="reports"] table tbody button')].find(x=>x.textContent.includes('处理')); b.click(); return true})()`);
   await waitFor(`!!document.querySelector('.mask .modal')`, '处理弹窗', 15000);
   await ev(`(()=>{const b=[...document.querySelectorAll('.modal .foot button')].find(x=>x.textContent.trim()==='忽略'); b.click(); return true})()`);
   await sleep(2400);
   const after = await ev(`document.querySelectorAll('[data-panel="reports"] table tbody tr').length`);
-  // 切到「处理记录」
-  await ev(`(()=>{const b=[...document.querySelectorAll('.bar .tabs button')].find(x=>x.textContent.includes('处理记录')); b.click(); return true})()`);
+  // 切到「处理记录」——走侧栏链接（旧版的 tab 按钮已经不存在）
+  if (!(await clickMenu('处理记录'))) throw new Error('侧栏里找不到「处理记录」');
+  await waitFor(`location.hash === '#/admin/audit'`, '切到处理记录', 15000);
   await waitFor(`document.querySelectorAll('[data-panel="audit"] table tbody tr').length > 0`, '处理记录表', 15000);
   const st = await ev(`({rows: document.querySelectorAll('[data-panel="audit"] table tbody tr').length,
                         text: (document.querySelector('[data-panel="audit"]')||{innerText:''}).innerText})`);
@@ -254,8 +325,9 @@ await check('B3-A3 处理一条举报（忽略）→ 队列减少 + 处理记录
   return `队列 ${before} → ${after} 行，处理记录 ${st.rows} 行`;
 });
 
-await check('B3-A4 用户管理：搜索 + 表格字段（全站/禁言/待处理举报）', async () => {
-  await ev(`(()=>{const b=[...document.querySelectorAll('.bar .tabs button')].find(x=>x.textContent.includes('用户管理')); b.click(); return true})()`);
+await check('B3-A5 用户管理：侧栏进入 + 搜索 + 表格字段（全站/禁言/待处理举报）', async () => {
+  if (!(await clickMenu('用户管理'))) throw new Error('侧栏里找不到「用户管理」');
+  await waitFor(`location.hash === '#/admin/users'`, '切到用户管理', 15000);
   await waitFor(`!!document.querySelector('[data-panel="users"] h2 input')`, '用户面板', 15000);
   await ev(`(()=>{const i=document.querySelector('[data-panel="users"] h2 input');
     i.value='vd' + ${JSON.stringify(stamp)}; i.dispatchEvent(new Event('input',{bubbles:true})); return true})()`);
@@ -269,18 +341,97 @@ await check('B3-A4 用户管理：搜索 + 表格字段（全站/禁言/待处�
   return `${st.rows} 行 · 列 ${st.head}`;
 });
 
-await check('B3-A5 旧管理台已删除（/admin.html 404），新版页头不再有「回旧版」', async () => {
+await check('B3-A6 入口自洽：/admin.html 404、GET /admin 302 到 v2/index.html#/admin', async () => {
   const r = await fetch(BASE + '/admin.html');
   if (r.status !== 404) throw new Error('旧管理台还在：' + r.status);
-  await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(adminToken())}); true`);
-  await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#/admin' });
-  await sleep(2200);
-  await waitFor(`!!document.querySelector('.bar')`, '管理台', 20000);
-  if (await ev(`!!document.querySelector('.bar .old-entry')`)) throw new Error('页头还有「回旧版」入口');
-  return '/admin.html 404 · 页头无回旧版';
+  // 这一条盯的是 P0 顺手修的 404：forward 已改成 redirect（相对路径，线上 /siyige 前缀也成立）
+  const red = await rawGet('/admin');
+  if (red.status !== 302 && red.status !== 301) throw new Error('/admin 没重定向：' + red.status);
+  if (!/v2\/index\.html#\/admin$/.test(red.location)) throw new Error('/admin 的 Location 不对：' + red.location);
+  await openAdmin('admin/dashboard');
+  await waitFor(`!!document.querySelector('.adm-top')`, '管理台顶栏', 20000);
+  if (await ev(`!!document.querySelector('.old-entry')`)) throw new Error('页头还有「回旧版」入口');
+  return '/admin.html 404 · /admin -> ' + red.location;
 });
 
-await check('B3-A8 全程零 JS 异常', async () => {
+await check('B3-A7 侧栏折叠：208px → 56px 只留图标，状态存 localStorage 且刷新后保持', async () => {
+  await ev(`localStorage.setItem('sy_admin_collapsed','0'); true`);
+  await openAdmin('admin/dashboard');
+  await waitFor(`!!document.querySelector('.adm-iconbtn')`, '折叠按钮', 20000);
+  const wide = await ev(`Math.round(document.querySelector('.adm-side').getBoundingClientRect().width)`);
+  if (wide !== 208) throw new Error('宽屏侧栏应是 208px，实际 ' + wide);
+
+  await ev(`document.querySelector('.adm-iconbtn').click()`);
+  await sleep(400);
+  const st = await ev(`({collapsed: !!document.querySelector('.adm-layout.collapsed'),
+                        width: Math.round(document.querySelector('.adm-side').getBoundingClientRect().width),
+                        stored: localStorage.getItem('sy_admin_collapsed')})`);
+  if (!st.collapsed) throw new Error('点了折叠按钮但布局没进 collapsed');
+  if (st.width !== 56) throw new Error('折叠后侧栏应是 56px，实际 ' + st.width);
+  if (st.stored !== '1') throw new Error('折叠状态没写进 localStorage：' + st.stored);
+
+  await openAdmin('admin/dashboard');
+  await waitFor(`!!document.querySelector('.adm-layout.collapsed')`, '刷新后仍是折叠', 20000);
+  const w2 = await ev(`Math.round(document.querySelector('.adm-side').getBoundingClientRect().width)`);
+  if (w2 !== 56) throw new Error('刷新后侧栏宽度应保持 56px，实际 ' + w2);
+
+  await ev(`localStorage.setItem('sy_admin_collapsed','0'); true`);   // 复原，别影响后面的用例
+  return '208px -> 56px -> 刷新仍 56px';
+});
+
+await check('B3-A8 窄屏（375px）：侧栏默认收起 → 汉堡开抽屉 → 点遮罩关闭', async () => {
+  await send('Emulation.setDeviceMetricsOverride', { width: 375, height: 800, deviceScaleFactor: 1, mobile: true });
+  await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(ADMIN)}); localStorage.setItem('sy_admin_collapsed','0'); true`);
+  await openAdmin('admin/dashboard');
+  await waitFor(`!!document.querySelector('.adm-iconbtn')`, '顶栏汉堡按钮', 20000);
+
+  const shut = await ev(`(()=>{const r=document.querySelector('.adm-side').getBoundingClientRect();
+    return {left: Math.round(r.left), width: Math.round(r.width), mask: !!document.querySelector('.adm-mask')}})()`);
+  if (shut.left >= 0) throw new Error('窄屏侧栏应默认收起（在视口外），实际 left=' + shut.left);
+  if (shut.width !== 208) throw new Error('抽屉宽度应为 208px，实际 ' + shut.width);
+  if (shut.mask) throw new Error('抽屉没打开时不该有遮罩');
+
+  await ev(`document.querySelector('.adm-iconbtn').click()`);
+  await sleep(450);
+  const open = await ev(`(()=>{const r=document.querySelector('.adm-side').getBoundingClientRect();
+    return {left: Math.round(r.left), mask: !!document.querySelector('.adm-mask')}})()`);
+  if (open.left !== 0) throw new Error('点汉堡后抽屉没滑出来，left=' + open.left);
+  if (!open.mask) throw new Error('抽屉打开时缺少遮罩');
+
+  await ev(`document.querySelector('.adm-mask').click()`);
+  await sleep(450);
+  const closed = await ev(`(()=>{const r=document.querySelector('.adm-side').getBoundingClientRect();
+    return {left: Math.round(r.left), mask: !!document.querySelector('.adm-mask')}})()`);
+  if (closed.mask) throw new Error('点遮罩后遮罩没消失');
+  if (closed.left >= 0) throw new Error('点遮罩后抽屉没收起，left=' + closed.left);
+
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
+  return '默认收起 → 汉堡滑出 → 遮罩关闭';
+});
+
+await check('B3-A9 顶栏退出 / 接口 401：都清令牌并回登录页（统一出口）', async () => {
+  // 1) 顶栏「退出登录」
+  await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(ADMIN)}); true`);
+  await openAdmin('admin/dashboard');
+  await waitFor(`!!document.querySelector('.adm-top')`, '顶栏', 20000);
+  await ev(`(()=>{const b=[...document.querySelectorAll('.adm-top button')].find(x=>x.textContent.includes('退出登录')); b.click(); return true})()`);
+  await waitFor(`location.hash === '#/admin/login'`, '退出后回登录页', 15000);
+  const tok = await ev(`localStorage.getItem('sy_admin_jwt')`);
+  if (tok) throw new Error('退出后令牌没清：' + tok);
+
+  // 2) 伪造令牌 -> 接口 401 -> 统一出口（api.js 广播 + AdminLayout 收尾）
+  await ev(`localStorage.setItem('sy_admin_jwt','not-a-real-token'); true`);
+  await openAdmin('admin/reports');
+  await waitFor(`location.hash === '#/admin/login'`, '401 后回登录页', 25000);
+  const tok2 = await ev(`localStorage.getItem('sy_admin_jwt')`);
+  if (tok2) throw new Error('401 后令牌没清：' + tok2);
+  if (!(await ev(`!!document.querySelector('.login-wrap')`))) throw new Error('401 后没渲染登录页');
+
+  await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(ADMIN)}); true`);   // 复原
+  return '退出与 401 都回登录页并清令牌';
+});
+
+await check('B3-A10 全程零 JS 异常', async () => {
   const all = errs.filter((e) => !/ResizeObserver|favicon/i.test(e || ''));
   if (all.length) throw new Error(all.slice(0, 2).join(' | '));
   return '无异常';
