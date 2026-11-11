@@ -1,4 +1,4 @@
-import { o as onMounted, a as onBeforeUnmount, r as ref, _ as _export_sfc, k as openBlock, c as createElementBlock, F as Fragment, e as renderList, d as createBaseVNode, C as normalizeStyle, u as unref, x as createTextVNode, t as toDisplayString, f as createCommentVNode, D as withModifiers, n as normalizeClass, h as computed, E as nextTick } from "./index-CXfHjSLl.js";
+import { o as onMounted, a as onBeforeUnmount, r as ref, _ as _export_sfc, k as openBlock, c as createElementBlock, F as Fragment, e as renderList, d as createBaseVNode, C as normalizeStyle, u as unref, x as createTextVNode, t as toDisplayString, f as createCommentVNode, D as withModifiers, n as normalizeClass, h as computed, E as nextTick } from "./index-DatmapBW.js";
 const PALETTE = ["#165DFF", "#00B42A", "#FF7D00", "#F53F3F", "#722ED1", "#0FC6C2", "#F7BA1E", "#86909C"];
 function niceScale(value, tickHint = 4) {
   const v = Number(value) || 0;

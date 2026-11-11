@@ -132,7 +132,7 @@ async function exportReport(params) {
           <button class="btn sm" @click="exportReport({ format: 'csv', report: 'modules' })">CSV</button>
           <button class="btn sm" @click="exportReport({ format: 'xlsx', report: 'modules' })">XLSX</button>
         </h2>
-        <div class="body">
+        <div class="body scroll">
           <div class="adm-split">
             <div class="adm-pane">
               <div class="adm-pane-t">PV 排行（前 10）</div>
@@ -147,7 +147,7 @@ async function exportReport(params) {
           <div class="adm-pane-t" style="margin-top: 14px">PV 趋势（前 5 模块）</div>
           <LineChart :series="moduleTrendSeries" :height="220" empty="暂无趋势数据" />
 
-          <div v-if="modules && modules.modules.length" class="tbl-scroll" style="margin-top: 12px">
+          <div v-if="modules && modules.modules.length" class="tbl-x" style="margin-top: 12px">
             <table>
               <thead>
                 <tr>

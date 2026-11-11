@@ -120,13 +120,17 @@
 .adm-root th{color:#86909C;font-weight:500;background:#FAFBFC}
 .adm-root tr:hover td{background:#FCFCFD}
 
-/* 长表格自己的滚动条：不把整页撑长，矮屏下也能把表看完。
-   表头 sticky 在滚动区顶部，往下翻时字段名不会跑掉；窄屏时横向也能滚（表格有最小宽度）。 */
-.adm-root .tbl-scroll{max-height:min(46vh,380px);overflow:auto;border:1px solid #F2F3F5;
-  border-radius:10px;overscroll-behavior:contain}
-.adm-root .tbl-scroll table{min-width:520px;border-collapse:separate;border-spacing:0}
-.adm-root .tbl-scroll thead th{position:sticky;top:0;z-index:1;background:#FAFBFC}
-.adm-root .tbl-scroll tbody tr:last-child td{border-bottom:none}
+/* 长内容在**板块内**滚动：滚动条挂在板块右边缘，而不是表格里冒出一个 380px 的小滚动条。
+   （表格自带滚动条在矮屏下确实难看：一个很小的框套着几行数据，滚动条挤在角落）
+
+   刻意**不加** overscroll-behavior:contain —— 加了以后在板块滚到底时滚轮会被吃掉，
+   页面不再接力往下滚，看起来像"卡住了"；让滚动可以穿透到外层才是自然的。 */
+.adm-root .panel > .body.scroll{max-height:calc(100vh - 200px);overflow-y:auto}
+/* 板块内滚动时表头依然吸顶（滚动条是板块的，表头也跟板块走） */
+.adm-root .panel > .body.scroll thead th{position:sticky;top:0;z-index:1;background:#FAFBFC}
+
+/* 表格只保留横向滚动（窄屏时列不会被挤没），不再限制高度 */
+.adm-root .tbl-x{overflow-x:auto}
 
 .adm-root .pager{display:flex;gap:10px;align-items:center;justify-content:flex-end;padding:12px 18px;border-top:1px solid #EFF0F1}
 .adm-root .pager .muted{font-size:12.5px}

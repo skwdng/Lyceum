@@ -1,6 +1,6 @@
-import { z as getAdminToken, A as API_BASE, y as analyticsApi, B as ApiError, _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, f as createCommentVNode, t as toDisplayString, r as ref, s as toast, h as computed, k as openBlock, n as normalizeClass } from "./index-CXfHjSLl.js";
-import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-C3IJHLGx.js";
-import { e as errText } from "./helpers-CxLXzY48.js";
+import { z as getAdminToken, A as API_BASE, y as analyticsApi, B as ApiError, _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, f as createCommentVNode, t as toDisplayString, r as ref, s as toast, h as computed, k as openBlock, n as normalizeClass } from "./index-DatmapBW.js";
+import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-DLOm0L4O.js";
+import { e as errText } from "./helpers-d4JaD3Du.js";
 async function downloadExport(params, fallbackName = "export.csv") {
   const token = getAdminToken();
   const resp = await fetch(API_BASE + analyticsApi.exportPath(params), {
@@ -49,13 +49,13 @@ const _hoisted_5 = {
   style: { "padding": "24px" }
 };
 const _hoisted_6 = { class: "panel" };
-const _hoisted_7 = { class: "body" };
+const _hoisted_7 = { class: "body scroll" };
 const _hoisted_8 = { class: "adm-split" };
 const _hoisted_9 = { class: "adm-pane" };
 const _hoisted_10 = { class: "adm-pane" };
 const _hoisted_11 = {
   key: 0,
-  class: "tbl-scroll",
+  class: "tbl-x",
   style: { "margin-top": "12px" }
 };
 const _hoisted_12 = { class: "muted" };
@@ -431,7 +431,7 @@ const _sfc_main = {
     };
   }
 };
-const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-27cf560f"]]);
+const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-c73d2d05"]]);
 export {
   AnalyticsView as default
 };
