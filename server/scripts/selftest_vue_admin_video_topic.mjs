@@ -173,6 +173,33 @@ await check('C5 管理页面点「通过」→ 视频变 PASSED 且上架', asyn
   return '行内 PASSED · 日志 operator=' + human.operator;
 });
 
+await check('C6 驳回后不上广场；恢复后回到驳回前的状态', async () => {
+  // 先记下驳回前的状态（C5 刚把它置成 PASSED，所以这里预期 prev=PASSED）
+  const before = await call('GET', `/api/admin/video-audit/${videoId}/logs`, undefined, ADMIN);
+  const prev = before.body.video.audit_status;
+
+  const rej = await call('POST', `/api/admin/video-audit/${videoId}/decide`, { decision: 'REJECT', reason: '自检驳回' }, ADMIN);
+  if (rej.status !== 200 || rej.body.visible !== false) throw new Error('驳回失败 ' + JSON.stringify(rej.body));
+
+  const feed1 = await call('GET', '/api/video/feed?size=50');
+  const list1 = (feed1.body && (feed1.body.list || feed1.body.items)) || [];
+  if (list1.some((v) => v.id === videoId)) throw new Error('驳回后视频还在广场里');
+
+  // 恢复 = 撤销最近一次判定 -> 回到 prev 状态（不是"回队列"，回队列只发生在 prev 是 REVIEW/PENDING 时）
+  const back = await call('POST', `/api/admin/video-audit/${videoId}/restore`, {}, ADMIN);
+  if (back.status !== 200) throw new Error('恢复失败 ' + JSON.stringify(back.body));
+  if (back.body.restoredTo !== prev) throw new Error(`恢复到的状态不对：${back.body.restoredTo} ≠ 驳回前 ${prev}`);
+
+  const after = await call('GET', `/api/admin/video-audit/${videoId}/logs`, undefined, ADMIN);
+  if (after.body.video.audit_status !== prev) throw new Error('恢复后 audit_status 没回去：' + after.body.video.audit_status);
+
+  const feed2 = await call('GET', '/api/video/feed?size=50');
+  const list2 = (feed2.body && (feed2.body.list || feed2.body.items)) || [];
+  const onSquare = list2.some((v) => v.id === videoId);
+  if (prev === 'PASSED' && !onSquare) throw new Error('恢复成 PASSED 后应该重新出现在广场');
+  return `驳回→广场 ${list1.length} 条不含它 · 恢复→${prev}（广场可见=${onSquare}）`;
+});
+
 // ==================== 二、辩题：下架 → 前台消失 → 管理端仍可见 ====================
 
 let topicId = null;

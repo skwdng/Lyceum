@@ -1,7 +1,7 @@
-import { _ as _export_sfc, k as openBlock, c as createElementBlock, f as createCommentVNode, F as Fragment, e as renderList, d as createBaseVNode, t as toDisplayString, g as createVNode, n as normalizeClass, w as watch, x as createTextVNode, D as withModifiers, r as ref, I as contentApi, s as toast, h as computed, E as nextTick, o as onMounted, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, b as createBlock, j as useRoute } from "./index-CcwKJfyj.js";
-import { e as errText } from "./helpers-DxF3KBWn.js";
-import { M as ModerationBar } from "./ModerationBar-BE0Emj4u.js";
-import { U as UserProfilePop } from "./UserProfilePop-BrlOJXkf.js";
+import { _ as _export_sfc, k as openBlock, c as createElementBlock, f as createCommentVNode, F as Fragment, e as renderList, d as createBaseVNode, t as toDisplayString, g as createVNode, n as normalizeClass, w as watch, x as createTextVNode, D as withModifiers, r as ref, I as contentApi, s as toast, h as computed, E as nextTick, o as onMounted, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, b as createBlock, j as useRoute } from "./index-C3pLguN6.js";
+import { e as errText } from "./helpers-BrzU9CtK.js";
+import { M as ModerationBar } from "./ModerationBar-LUQXNEkI.js";
+import { U as UserProfilePop } from "./UserProfilePop-rjth1qaD.js";
 const _hoisted_1$2 = { class: "ct" };
 const _hoisted_2$2 = {
   key: 0,
@@ -336,6 +336,9 @@ const _sfc_main = {
     const q = ref("");
     const type = ref("");
     const status = ref("");
+    const author = ref("");
+    const from = ref("");
+    const to = ref("");
     const page = ref(1);
     const total = ref(0);
     const items = ref([]);
@@ -363,6 +366,9 @@ const _sfc_main = {
           q: q.value.trim() || void 0,
           type: type.value || void 0,
           status: status.value || void 0,
+          authorId: author.value.trim() || void 0,
+          from: from.value || void 0,
+          to: to.value || void 0,
           page: page.value,
           size
         });
@@ -401,8 +407,8 @@ const _sfc_main = {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("div", _hoisted_2, [
           createBaseVNode("h2", null, [
-            _cache[8] || (_cache[8] = createTextVNode(" 帖子管理 ", -1)),
-            _cache[9] || (_cache[9] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            _cache[11] || (_cache[11] = createTextVNode(" 帖子管理 ", -1)),
+            _cache[12] || (_cache[12] = createBaseVNode("span", { class: "spacer" }, null, -1)),
             createBaseVNode("span", _hoisted_3, "共 " + toDisplayString(total.value) + " 条（含已屏蔽）", 1)
           ]),
           createBaseVNode("div", _hoisted_4, [
@@ -445,22 +451,58 @@ const _sfc_main = {
               ], 544), [
                 [vModelSelect, status.value]
               ]),
+              withDirectives(createBaseVNode("input", {
+                "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => author.value = $event),
+                class: "cp-input",
+                style: { "min-width": "150px" },
+                placeholder: "作者 ID（如 ao279609）",
+                onKeyup: withKeys(search, ["enter"])
+              }, null, 544), [
+                [vModelText, author.value]
+              ]),
+              withDirectives(createBaseVNode("input", {
+                "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => from.value = $event),
+                class: "cp-input",
+                style: { "width": "150px" },
+                type: "date",
+                title: "起始日期",
+                onChange: search
+              }, null, 544), [
+                [vModelText, from.value]
+              ]),
+              _cache[13] || (_cache[13] = createBaseVNode("span", {
+                class: "muted",
+                style: { "font-size": "12px" }
+              }, "至", -1)),
+              withDirectives(createBaseVNode("input", {
+                "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => to.value = $event),
+                class: "cp-input",
+                style: { "width": "150px" },
+                type: "date",
+                title: "结束日期",
+                onChange: search
+              }, null, 544), [
+                [vModelText, to.value]
+              ]),
               createBaseVNode("button", {
                 class: "btn primary sm",
                 onClick: search
               }, "搜索"),
               createBaseVNode("button", {
                 class: "btn sm",
-                onClick: _cache[3] || (_cache[3] = ($event) => {
+                onClick: _cache[6] || (_cache[6] = ($event) => {
                   q.value = "";
                   type.value = "";
                   status.value = "";
+                  author.value = "";
+                  from.value = "";
+                  to.value = "";
                   search();
                 })
               }, "重置")
             ]),
             error.value ? (openBlock(), createElementBlock("div", _hoisted_8, [
-              _cache[10] || (_cache[10] = createBaseVNode("b", null, "加载失败", -1)),
+              _cache[14] || (_cache[14] = createBaseVNode("b", null, "加载失败", -1)),
               createBaseVNode("span", _hoisted_9, toDisplayString(error.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
@@ -468,7 +510,7 @@ const _sfc_main = {
               }, "重试")
             ])) : loading.value ? (openBlock(), createElementBlock("div", _hoisted_10, "加载中…")) : (openBlock(), createElementBlock("div", _hoisted_11, [
               createBaseVNode("table", null, [
-                _cache[12] || (_cache[12] = createBaseVNode("thead", null, [
+                _cache[16] || (_cache[16] = createBaseVNode("thead", null, [
                   createBaseVNode("tr", null, [
                     createBaseVNode("th", { style: { "width": "64px" } }, "ID"),
                     createBaseVNode("th", null, "标题"),
@@ -481,7 +523,7 @@ const _sfc_main = {
                   ])
                 ], -1)),
                 createBaseVNode("tbody", null, [
-                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_12, [..._cache[11] || (_cache[11] = [
+                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_12, [..._cache[15] || (_cache[15] = [
                     createBaseVNode("td", {
                       colspan: "8",
                       class: "muted",
@@ -538,13 +580,13 @@ const _sfc_main = {
               createBaseVNode("button", {
                 class: "btn sm",
                 disabled: page.value <= 1,
-                onClick: _cache[4] || (_cache[4] = ($event) => go(page.value - 1))
+                onClick: _cache[7] || (_cache[7] = ($event) => go(page.value - 1))
               }, "上一页", 8, _hoisted_23),
               createBaseVNode("span", _hoisted_24, toDisplayString(page.value) + " / " + toDisplayString(pages.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
                 disabled: page.value >= pages.value,
-                onClick: _cache[5] || (_cache[5] = ($event) => go(page.value + 1))
+                onClick: _cache[8] || (_cache[8] = ($event) => go(page.value + 1))
               }, "下一页", 8, _hoisted_25)
             ])
           ])
@@ -553,7 +595,7 @@ const _sfc_main = {
           key: 0,
           "post-id": drawer.value.id,
           "focus-comment-id": drawer.value.focusCommentId,
-          onClose: _cache[6] || (_cache[6] = ($event) => drawer.value = null),
+          onClose: _cache[9] || (_cache[9] = ($event) => drawer.value = null),
           onChanged
         }, null, 8, ["post-id", "focus-comment-id"])) : createCommentVNode("", true),
         pop.value ? (openBlock(), createBlock(UserProfilePop, {
@@ -561,14 +603,14 @@ const _sfc_main = {
           "user-id": pop.value.id,
           x: pop.value.x,
           y: pop.value.y,
-          onClose: _cache[7] || (_cache[7] = ($event) => pop.value = null),
+          onClose: _cache[10] || (_cache[10] = ($event) => pop.value = null),
           onChanged: load
         }, null, 8, ["user-id", "x", "y"])) : createCommentVNode("", true)
       ]);
     };
   }
 };
-const ContentPostsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-0eb02f2e"]]);
+const ContentPostsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-6a145208"]]);
 export {
   ContentPostsView as default
 };

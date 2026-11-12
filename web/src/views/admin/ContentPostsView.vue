@@ -20,6 +20,9 @@ const STATUSES = [['', '全部状态'], ['1', '正常'], ['2', '已屏蔽']];
 const q = ref('');
 const type = ref('');
 const status = ref('');
+const author = ref('');
+const from = ref('');
+const to = ref('');
 const page = ref(1);
 const size = 20;
 const total = ref(0);
@@ -59,6 +62,9 @@ async function load() {
       q: q.value.trim() || undefined,
       type: type.value || undefined,
       status: status.value || undefined,
+      authorId: author.value.trim() || undefined,
+      from: from.value || undefined,
+      to: to.value || undefined,
       page: page.value,
       size
     });
@@ -118,8 +124,13 @@ function onChanged() {
           <select v-model="status" class="cp-input" style="width: 120px" @change="search">
             <option v-for="s in STATUSES" :key="s[0]" :value="s[0]">{{ s[1] }}</option>
           </select>
+          <input v-model="author" class="cp-input" style="min-width: 150px" placeholder="作者 ID（如 ao279609）"
+                 @keyup.enter="search" />
+          <input v-model="from" class="cp-input" style="width: 150px" type="date" title="起始日期" @change="search" />
+          <span class="muted" style="font-size: 12px">至</span>
+          <input v-model="to" class="cp-input" style="width: 150px" type="date" title="结束日期" @change="search" />
           <button class="btn primary sm" @click="search">搜索</button>
-          <button class="btn sm" @click="q = ''; type = ''; status = ''; search()">重置</button>
+          <button class="btn sm" @click="q = ''; type = ''; status = ''; author = ''; from = ''; to = ''; search()">重置</button>
         </div>
 
         <div v-if="error" class="adm-error">

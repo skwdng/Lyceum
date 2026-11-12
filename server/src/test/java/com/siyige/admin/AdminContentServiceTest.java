@@ -33,8 +33,9 @@ class AdminContentServiceTest {
     private final BanService bans = mock(BanService.class);
     private final AuditLog audit = mock(AuditLog.class);
     private final NotificationService notifications = mock(NotificationService.class);
+    private final AdminReportRepo reports = mock(AdminReportRepo.class);
     private final AdminContentService service =
-            new AdminContentService(repo, community, bans, audit, notifications);
+            new AdminContentService(repo, community, bans, audit, notifications, reports);
 
     private static Map<String, Object> content(String author, int status) {
         Map<String, Object> m = new LinkedHashMap<>();
@@ -58,6 +59,18 @@ class AdminContentServiceTest {
         // MANUAL 审计：report_id=0、target_owner=作者
         verify(audit).recordManual(eq(1L), eq("admin"), eq("DELETE"), eq("COMMENT"), eq(7L), eq("u1"),
                 anyString(), eq("127.0.0.1"));
+    }
+
+    @Test
+    void 屏蔽时把这目标下的PENDING举报一次性结案() {
+        when(repo.findContent("POST", 7)).thenReturn(content("u1", 1));
+        when(community.softDeletePost(7)).thenReturn(1);
+        when(reports.resolveTarget("POST", 7L, "ACCEPTED", "DELETE", 1L)).thenReturn(2);
+
+        service.hide("post", 7, 1L, "admin", "ip", "广告");
+
+        // 与举报处置 DELETE 分支同款副作用：不留"待处理"的旧举报（否则处理记录里永远挂着一条点了没用的）
+        verify(reports).resolveTarget("POST", 7L, "ACCEPTED", "DELETE", 1L);
     }
 
     @Test

@@ -59,6 +59,10 @@ public class AuditLogService {
         m.put("targetId", targetId);
         m.put("detail", row.get("detail"));
         m.put("ip", row.get("ip"));
+        // 来源：REPORT（从举报处理来）/ MANUAL（内容管理台直接处置）。
+        // 老数据没有这一列（ddl 默认值是 REPORT），null 一律按 REPORT 显示。
+        m.put("source", row.get("source") == null ? "REPORT" : row.get("source"));
+        m.put("targetOwner", row.get("target_owner"));
         m.put("createdAt", millis(row.get("created_at")));
         m.put("undoAt", millis(row.get("undo_at")));
         m.put("undone", row.get("undo_at") != null);

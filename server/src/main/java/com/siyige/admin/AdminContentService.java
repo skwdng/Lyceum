@@ -42,14 +42,17 @@ public class AdminContentService {
     private final BanService bans;
     private final AuditLog audit;
     private final NotificationService notifications;
+    /** 屏蔽时要把它名下的 PENDING 举报一次性结案（设计方案 §4 的副作用，与举报处置 DELETE 分支同款） */
+    private final AdminReportRepo reports;
 
     public AdminContentService(AdminContentRepo repo, CommunityRepo community, BanService bans,
-                               AuditLog audit, NotificationService notifications) {
+                               AuditLog audit, NotificationService notifications, AdminReportRepo reports) {
         this.repo = repo;
         this.community = community;
         this.bans = bans;
         this.audit = audit;
         this.notifications = notifications;
+        this.reports = reports;
     }
 
     // ==================== 帖子 ====================
@@ -157,6 +160,11 @@ public class AdminContentService {
         String author = str(row.get("author_id"));
         // 与举报处置 DELETE 分支一致：作者会收到「被管理员删除 + 理由」
         notifications.onContentDeleted(t, id, author, note);
+
+        // 与举报处置一致：这个目标下所有 PENDING 举报一次性结案（否则处理记录里会一直挂着待处理，
+        // 点进去再处理一次会发现内容已经没了）。action 记 DELETE，与软删动作同义。
+        int closed = reports.resolveTarget(t, id, "ACCEPTED", "DELETE", adminId);
+        if (closed > 0) log.info("内容管理屏蔽顺带结案 {} 条举报 target={}#{}", closed, t, id);
 
         audit.recordManual(adminId, adminName, "DELETE", t, id, author,
                 "从内容管理屏蔽" + ("POST".equals(t) ? "帖子 #" : "评论 #") + id

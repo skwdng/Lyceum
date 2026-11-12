@@ -60,6 +60,7 @@ async function restoreAudit(id) {
             <th style="width: 90px">操作人</th>
             <th style="width: 140px">动作</th>
             <th style="width: 110px">对象</th>
+            <th style="width: 80px">来源</th>
             <th>详情</th>
             <th style="width: 100px">状态</th>
             <th style="width: 90px"></th>
@@ -74,7 +75,11 @@ async function restoreAudit(id) {
               <div v-if="r.verdict" class="muted" style="font-size: 11.5px">{{ actionName(r.verdict) }}</div>
             </td>
             <td style="white-space: nowrap">
-              {{ r.targetType ? (r.targetType === 'POST' ? '帖子' : '评论') + ' #' + r.targetId : '-' }}
+              <template v-if="r.targetType === 'USER'">用户 {{ r.targetOwner || '' }}</template>
+              <template v-else>{{ r.targetType ? (r.targetType === 'POST' ? '帖子' : '评论') + ' #' + r.targetId : '-' }}</template>
+            </td>
+            <td style="white-space: nowrap">
+              <span class="tag" :class="r.source === 'MANUAL' ? 'blue' : ''">{{ r.source === 'MANUAL' ? '内容管理' : '举报' }}</span>
             </td>
             <td>{{ r.detail || '' }}</td>
             <td>

@@ -36,6 +36,7 @@ const stamp = Date.now().toString().slice(-6);
 const acc = 'sc' + stamp;
 await call('POST', '/api/auth/register', { account: acc, password: 'abc12345' });
 const user = (await call('POST', '/api/auth/login', { account: acc, password: 'abc12345' })).body.token;
+const uid = (await call('GET', '/api/auth/me', undefined, user)).body.id;
 const post = await call('POST', '/api/community/posts',
   { type: 'HELP', title: `自检帖 ${stamp}`, body: '这是内容管理自检用的帖子正文，长度需要超过门槛才算合规。' }, user);
 const postId = post.body.postId;
@@ -189,7 +190,64 @@ await check('A5 评论管理：跨帖搜索 + 点「查看所在帖子」定位�
   return `hash=${await ev('location.hash')} · 高亮 #c-${replyId}`;
 });
 
-await check('A6 全程零 JS 异常', async () => {
+await check('A6 帖子管理：按作者筛选只出该作者的帖子', async () => {
+  await openAdmin('admin/content/posts');
+  await waitFor(`!!document.querySelector('[data-panel="content-posts"] .cp-input')`, '筛选栏');
+  await ev(`(()=>{const inputs=[...document.querySelectorAll('[data-panel="content-posts"] .cp-input')];
+    const i=inputs.find(x=>x.placeholder && x.placeholder.includes('作者'));
+    i.value=${JSON.stringify(uid)}; i.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
+  await ev(`[...document.querySelectorAll('[data-panel="content-posts"] .btn')].find(b=>b.textContent.trim()==='搜索').click(); true`);
+  await sleep(1200);
+  const authors = await ev(`[...document.querySelectorAll('[data-panel="content-posts"] tbody tr')]
+      .map(tr=>tr.querySelectorAll('td')[3].innerText.trim())`);
+  if (!authors.length) throw new Error('按作者筛选后没有任何行');
+  const wrong = authors.filter((a) => a !== uid);
+  if (wrong.length) throw new Error('混进了别的作者：' + JSON.stringify(wrong));
+  return `${authors.length} 行，全部是 ${uid}`;
+});
+
+await check('A7 举报处置老路径不变：REPORT 来源仍然结案并留痕', async () => {
+  // 举报得由**别人**发起（自己不能举报自己），所以现注册一个举报人
+  const repAcc = 'sr' + stamp;
+  await call('POST', '/api/auth/register', { account: repAcc, password: 'abc12345' });
+  const reporter = (await call('POST', '/api/auth/login', { account: repAcc, password: 'abc12345' })).body.token;
+  const victim = await call('POST', '/api/community/reports',
+    { targetType: 'POST', targetId: postId, reason: 'SPAM', detail: '自检举报' }, reporter);
+  if (victim.status >= 300) throw new Error('举报创建失败 HTTP ' + victim.status + ' ' + JSON.stringify(victim.body));
+
+  const queue = await call('GET', '/api/admin/reports?status=PENDING&page=1&size=20', undefined, ADMIN);
+  const group = (queue.body.items || []).find((g) => Number(g.targetId) === Number(postId) && g.targetType === 'POST');
+  if (!group) throw new Error('管理端 PENDING 队列里没有这条举报');
+
+  const done = await call('POST', `/api/admin/reports/${group.firstReportId}/resolve`,
+    { action: 'DELETE', note: '自检老路径' }, ADMIN);
+  if (done.status !== 204 && done.status !== 200) throw new Error('处置失败 HTTP ' + done.status + ' ' + JSON.stringify(done.body));
+
+  const after = await call('GET', '/api/admin/reports?status=ACCEPTED&page=1&size=50', undefined, ADMIN);
+  const accepted = (after.body.items || []).some((g) => g.targetId === postId);
+  if (!accepted) throw new Error('举报没有变成 ACCEPTED（老路径被改坏了）');
+
+  const audits = await call('GET', '/api/admin/audit?page=1&size=20', undefined, ADMIN);
+  const row = (audits.body.items || []).find((a) => a.reportId > 0 && a.targetId === postId);
+  if (!row) throw new Error('处理记录里没有 REPORT 来源的行（reportId>0）');
+  return `report#${row.reportId} · verdict=${row.verdict} · 举报 ACCEPTED`;
+});
+
+await check('A8 处理记录页分得出「内容管理」与「举报」两种来源', async () => {
+  await openAdmin('admin/audit');
+  await waitFor(`document.querySelectorAll('[data-panel="audit"] table tbody tr').length > 0`, '处理记录行', 20000);
+  const st = await ev(`(()=>{const p=document.querySelector('[data-panel="audit"]');
+    const tags=[...p.querySelectorAll('tbody .tag')].map(t=>t.textContent.trim());
+    return {head:[...p.querySelectorAll('th')].map(x=>x.textContent.trim()),
+            manual: tags.filter(t=>t==='内容管理').length,
+            report: tags.filter(t=>t==='举报').length};})()`);
+  if (!st.head.includes('来源')) throw new Error('表头没有「来源」列：' + JSON.stringify(st.head));
+  if (!st.manual) throw new Error('没有一条「内容管理」来源的记录（MANUAL 没体现）');
+  if (!st.report) throw new Error('没有一条「举报」来源的记录（REPORT 没体现）');
+  return `来源列：内容管理 ${st.manual} 条 / 举报 ${st.report} 条`;
+});
+
+await check('A9 全程零 JS 异常', async () => {
   if (errs.length) throw new Error(errs.slice(0, 2).join(' | '));
   return '无异常';
 });
