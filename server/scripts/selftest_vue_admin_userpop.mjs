@@ -178,7 +178,76 @@ await check('B4 第二处入口：帖子管理页点作者名，弹出同一个�
   return head;
 });
 
-await check('B5 全程零 JS 异常', async () => {
+await check('B5 全站入口：评论管理 / 评论树 / 视频作者 / 处理记录对象 / 举报作者 都能点开浮窗', async () => {
+  // 先把缺的数据补齐：一条举报（举报人 + 作者）和一条视频
+  const repAcc = 'rp' + stamp;
+  await call('POST', '/api/auth/register', { account: repAcc, password: 'abc12345' });
+  const reporter = (await call('POST', '/api/auth/login', { account: repAcc, password: 'abc12345' })).body.token;
+  await call('POST', '/api/community/reports',
+    { targetType: 'POST', targetId: post.body.postId, reason: 'SPAM', detail: '自检' }, reporter);
+  await call('POST', '/api/video/videos',
+    { title: `浮窗自检视频 ${stamp}`, description: '自检', url: 'http://127.0.0.1:8080/media/demo.mp4', poster: '', topic: 'x', segment: 'OPEN' }, user);
+  // 处理记录里要有用户类行（封禁 → 解封，留两条）
+  await call('POST', `/api/admin/users/${uid}/status`, { status: 0, reason: '自检封禁' }, ADMIN);
+  await call('POST', `/api/admin/users/${uid}/status`, { status: 1, reason: '自检解封' }, ADMIN);
+
+  const opened = [];
+
+  // 1) 评论管理
+  await openAdmin('admin/content/comments');
+  await waitFor(`!!document.querySelector('[data-panel="content-comments"] tbody .cc-author')`, '评论作者链接', 20000);
+  await ev(`document.querySelector('[data-panel="content-comments"] tbody .cc-author').click(); true`);
+  await waitFor(`!!document.querySelector('.upop')`, '评论管理浮窗', 15000);
+  opened.push('评论管理');
+  await ev(`document.querySelector('.upop-x').click(); true`);
+  await sleep(300);
+
+  // 2) 帖子详情抽屉里的评论树作者
+  await openAdmin('admin/content/posts');
+  await waitFor(`document.querySelectorAll('[data-panel="content-posts"] tbody tr').length > 0`, '帖子列表', 20000);
+  await ev(`(()=>{const tr=[...document.querySelectorAll('[data-panel="content-posts"] tbody tr')]
+      .find(r=>r.innerText.includes(${JSON.stringify('浮窗自检帖 ' + stamp)}));
+    if(!tr) throw new Error('找不到自检帖'); tr.querySelectorAll('.cp-link')[0].click(); return true;})()`);
+  await waitFor(`!!document.querySelector('.modal .ct-author')`, '抽屉评论树', 20000);
+  await ev(`document.querySelector('.modal .ct-author').click(); true`);
+  await waitFor(`!!document.querySelector('.upop')`, '评论树浮窗', 15000);
+  opened.push('评论树');
+  await ev(`document.querySelector('.upop-x').click(); true`);
+  await sleep(200);
+  await ev(`(()=>{const b=[...document.querySelectorAll('.modal .foot .btn')].find(x=>x.textContent.trim()==='关闭'); if(b) b.click(); return true;})()`);
+  await sleep(400);
+
+  // 3) 视频复核作者
+  await openAdmin('admin/video-audit');
+  await waitFor(`document.querySelectorAll('[data-panel="video-audit"] tbody tr .va-link').length >= 2`, '视频行', 20000);
+  await ev(`(()=>{const tr=document.querySelector('[data-panel="video-audit"] tbody tr');
+    tr.querySelectorAll('.va-link')[1].click(); return true;})()`);
+  await waitFor(`!!document.querySelector('.upop')`, '视频作者浮窗', 15000);
+  opened.push('视频作者');
+  await ev(`document.querySelector('.upop-x').click(); true`);
+  await sleep(300);
+
+  // 4) 处理记录：对象列的用户 id
+  await openAdmin('admin/audit');
+  await waitFor(`!!document.querySelector('[data-panel="audit"] .au-link')`, '处理记录用户链接', 20000);
+  await ev(`document.querySelector('[data-panel="audit"] .au-link').click(); true`);
+  await waitFor(`!!document.querySelector('.upop')`, '处理记录浮窗', 15000);
+  opened.push('处理记录');
+  await ev(`document.querySelector('.upop-x').click(); true`);
+  await sleep(300);
+
+  // 5) 举报处理：作者
+  await openAdmin('admin/reports');
+  await waitFor(`!!document.querySelector('.rp-link')`, '举报作者链接', 20000);
+  await ev(`document.querySelector('.rp-link').click(); true`);
+  await waitFor(`!!document.querySelector('.upop')`, '举报作者浮窗', 15000);
+  opened.push('举报作者');
+  await ev(`document.querySelector('.upop-x').click(); true`);
+
+  return opened.join(' / ') + ' 五个入口全部弹出浮窗';
+});
+
+await check('B6 全程零 JS 异常', async () => {
   if (errs.length) throw new Error(errs.slice(0, 2).join(' | '));
   return '无异常';
 });

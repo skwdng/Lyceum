@@ -1,6 +1,7 @@
-import { _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, x as createTextVNode, t as toDisplayString, f as createCommentVNode, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, F as Fragment, e as renderList, r as ref, H as adminApi, s as toast, k as openBlock, u as unref, n as normalizeClass } from "./index-DeYGo5O-.js";
-import { u as useAdminStore } from "./admin-CpUIVmsd.js";
-import { e as errText, f as fmtTime, a as actionName } from "./helpers-1QlzAgox.js";
+import { _ as _export_sfc, m as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, t as toDisplayString, d as createCommentVNode, e as withDirectives, B as vModelText, C as withKeys, v as vModelSelect, F as Fragment, r as renderList, h as ref, l as adminApi, k as toast, o as openBlock, u as unref, n as normalizeClass } from "./index-DEeojRwW.js";
+import { u as useAdminStore } from "./admin-o3wTV2Mg.js";
+import { e as errText, f as fmtTime, a as actionName } from "./helpers-BYCbhqGK.js";
+import { u as userPop } from "./userPop-D7K1VMMP.js";
 const _hoisted_1 = { "data-panel": "audit" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -35,39 +36,40 @@ const _hoisted_14 = {
   style: { "font-size": "11.5px" }
 };
 const _hoisted_15 = { style: { "white-space": "nowrap" } };
-const _hoisted_16 = { style: { "white-space": "nowrap" } };
-const _hoisted_17 = {
+const _hoisted_16 = ["onClick"];
+const _hoisted_17 = { style: { "white-space": "nowrap" } };
+const _hoisted_18 = {
   key: 0,
   class: "muted",
   style: { "font-size": "12px" }
 };
-const _hoisted_18 = {
+const _hoisted_19 = {
   class: "muted",
   style: { "font-size": "11.5px" }
 };
-const _hoisted_19 = {
+const _hoisted_20 = {
   key: 2,
   class: "tag ok"
 };
-const _hoisted_20 = { style: { "text-align": "right" } };
-const _hoisted_21 = ["onClick"];
-const _hoisted_22 = {
-  key: 1,
-  class: "muted",
-  style: { "font-size": "12px" }
-};
+const _hoisted_21 = { style: { "text-align": "right" } };
+const _hoisted_22 = ["onClick"];
 const _hoisted_23 = {
   key: 1,
   class: "muted",
   style: { "font-size": "12px" }
 };
 const _hoisted_24 = {
+  key: 1,
+  class: "muted",
+  style: { "font-size": "12px" }
+};
+const _hoisted_25 = {
   key: 3,
   class: "pager"
 };
-const _hoisted_25 = { class: "muted" };
-const _hoisted_26 = ["disabled"];
+const _hoisted_26 = { class: "muted" };
 const _hoisted_27 = ["disabled"];
+const _hoisted_28 = ["disabled"];
 const _sfc_main = {
   __name: "AuditView",
   setup(__props) {
@@ -264,7 +266,7 @@ const _sfc_main = {
             }, "重置")
           ]),
           !audit.value ? (openBlock(), createElementBlock("div", _hoisted_9, "加载中…")) : !(audit.value.items || []).length ? (openBlock(), createElementBlock("div", _hoisted_10, " 没有符合条件的处理记录 ")) : (openBlock(), createElementBlock("table", _hoisted_11, [
-            _cache[14] || (_cache[14] = createBaseVNode("thead", null, [
+            _cache[15] || (_cache[15] = createBaseVNode("thead", null, [
               createBaseVNode("tr", null, [
                 createBaseVNode("th", { style: { "width": "130px" } }, "时间"),
                 createBaseVNode("th", { style: { "width": "90px" } }, "操作人"),
@@ -291,7 +293,11 @@ const _sfc_main = {
                   ]),
                   createBaseVNode("td", _hoisted_15, [
                     r.targetType === "USER" ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
-                      createTextVNode("用户 " + toDisplayString(r.targetOwner || ""), 1)
+                      _cache[13] || (_cache[13] = createTextVNode(" 用户 ", -1)),
+                      createBaseVNode("a", {
+                        class: "au-link",
+                        onClick: ($event) => unref(userPop).open(r.targetOwner, $event)
+                      }, toDisplayString(r.targetOwner || ""), 9, _hoisted_16)
                     ], 64)) : r.targetType === "TOPIC" ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
                       createTextVNode("辩题 " + toDisplayString(r.targetOwner || ""), 1)
                     ], 64)) : r.targetType === "VIDEO" ? (openBlock(), createElementBlock(Fragment, { key: 2 }, [
@@ -300,50 +306,50 @@ const _sfc_main = {
                       createTextVNode(toDisplayString(r.targetType ? (r.targetType === "POST" ? "帖子" : "评论") + " #" + r.targetId : "-"), 1)
                     ], 64))
                   ]),
-                  createBaseVNode("td", _hoisted_16, [
+                  createBaseVNode("td", _hoisted_17, [
                     createBaseVNode("span", {
                       class: normalizeClass(["tag", r.source === "MANUAL" ? "blue" : ""])
                     }, toDisplayString(r.source === "MANUAL" ? "管理台" : "举报"), 3)
                   ]),
                   createBaseVNode("td", null, toDisplayString(r.detail || ""), 1),
                   createBaseVNode("td", null, [
-                    r.action === "RESTORE" ? (openBlock(), createElementBlock("span", _hoisted_17, "—")) : r.undone ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
-                      _cache[13] || (_cache[13] = createBaseVNode("span", { class: "tag" }, "已撤销", -1)),
-                      createBaseVNode("div", _hoisted_18, toDisplayString(unref(fmtTime)(r.undoAt)), 1)
-                    ], 64)) : (openBlock(), createElementBlock("span", _hoisted_19, "生效中"))
+                    r.action === "RESTORE" ? (openBlock(), createElementBlock("span", _hoisted_18, "—")) : r.undone ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
+                      _cache[14] || (_cache[14] = createBaseVNode("span", { class: "tag" }, "已撤销", -1)),
+                      createBaseVNode("div", _hoisted_19, toDisplayString(unref(fmtTime)(r.undoAt)), 1)
+                    ], 64)) : (openBlock(), createElementBlock("span", _hoisted_20, "生效中"))
                   ]),
-                  createBaseVNode("td", _hoisted_20, [
+                  createBaseVNode("td", _hoisted_21, [
                     r.action !== "RESTORE" && !r.undone ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
                       r.canRestore ? (openBlock(), createElementBlock("button", {
                         key: 0,
                         class: "btn sm danger",
                         onClick: ($event) => restoreAudit(r.id)
-                      }, "恢复", 8, _hoisted_21)) : (openBlock(), createElementBlock("span", _hoisted_22, "不可恢复"))
-                    ], 64)) : r.action !== "RESTORE" ? (openBlock(), createElementBlock("span", _hoisted_23, "已撤销")) : createCommentVNode("", true)
+                      }, "恢复", 8, _hoisted_22)) : (openBlock(), createElementBlock("span", _hoisted_23, "不可恢复"))
+                    ], 64)) : r.action !== "RESTORE" ? (openBlock(), createElementBlock("span", _hoisted_24, "已撤销")) : createCommentVNode("", true)
                   ])
                 ]);
               }), 128))
             ])
           ])),
-          audit.value && audit.value.total > audit.value.size ? (openBlock(), createElementBlock("div", _hoisted_24, [
-            createBaseVNode("span", _hoisted_25, "共 " + toDisplayString(audit.value.total) + " 条 · 第 " + toDisplayString(audit.value.page) + " 页", 1),
+          audit.value && audit.value.total > audit.value.size ? (openBlock(), createElementBlock("div", _hoisted_25, [
+            createBaseVNode("span", _hoisted_26, "共 " + toDisplayString(audit.value.total) + " 条 · 第 " + toDisplayString(audit.value.page) + " 页", 1),
             createBaseVNode("button", {
               class: "btn sm",
               disabled: audit.value.page <= 1,
               onClick: _cache[8] || (_cache[8] = ($event) => loadAudit(audit.value.page - 1))
-            }, "上一页", 8, _hoisted_26),
+            }, "上一页", 8, _hoisted_27),
             createBaseVNode("button", {
               class: "btn sm",
               disabled: audit.value.page >= Math.ceil(audit.value.total / audit.value.size),
               onClick: _cache[9] || (_cache[9] = ($event) => loadAudit(audit.value.page + 1))
-            }, " 下一页 ", 8, _hoisted_27)
+            }, " 下一页 ", 8, _hoisted_28)
           ])) : createCommentVNode("", true)
         ])
       ]);
     };
   }
 };
-const AuditView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-ff011226"]]);
+const AuditView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-f0d30bbc"]]);
 export {
   AuditView as default
 };

@@ -1,7 +1,7 @@
-import { _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, x as createTextVNode, t as toDisplayString, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, F as Fragment, e as renderList, f as createCommentVNode, b as createBlock, r as ref, I as contentApi, h as computed, i as useRouter, k as openBlock, g as createVNode } from "./index-DeYGo5O-.js";
-import { e as errText } from "./helpers-1QlzAgox.js";
-import { M as ModerationBar } from "./ModerationBar-79fcgH6i.js";
-import { U as UserProfilePop } from "./UserProfilePop-axOBZqiB.js";
+import { _ as _export_sfc, J as onUnmounted, m as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, t as toDisplayString, e as withDirectives, B as vModelText, C as withKeys, v as vModelSelect, F as Fragment, r as renderList, d as createCommentVNode, i as contentApi, h as ref, j as computed, x as useRouter, o as openBlock, s as createVNode } from "./index-DEeojRwW.js";
+import { e as errText } from "./helpers-BYCbhqGK.js";
+import { M as ModerationBar } from "./ModerationBar-DEBHgqBa.js";
+import { u as userPop } from "./userPop-D7K1VMMP.js";
 const _hoisted_1 = { "data-panel": "content-comments" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -51,10 +51,8 @@ const _sfc_main = {
   __name: "ContentCommentsView",
   setup(__props) {
     const router = useRouter();
-    const pop = ref(null);
     function openPop(userId, ev) {
-      if (!userId) return;
-      pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+      userPop.open(userId, ev);
     }
     const STATUSES = [["", "全部状态"], ["1", "正常"], ["2", "已屏蔽"]];
     const q = ref("");
@@ -90,6 +88,8 @@ const _sfc_main = {
         loading.value = false;
       }
     }
+    const offPop = userPop.onChanged(load);
+    onUnmounted(offPop);
     onMounted(load);
     function search() {
       page.value = 1;
@@ -113,8 +113,8 @@ const _sfc_main = {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("div", _hoisted_2, [
           createBaseVNode("h2", null, [
-            _cache[9] || (_cache[9] = createTextVNode(" 评论管理 ", -1)),
-            _cache[10] || (_cache[10] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            _cache[8] || (_cache[8] = createTextVNode(" 评论管理 ", -1)),
+            _cache[9] || (_cache[9] = createBaseVNode("span", { class: "spacer" }, null, -1)),
             createBaseVNode("span", _hoisted_3, "共 " + toDisplayString(total.value) + " 条（含已屏蔽）", 1)
           ]),
           createBaseVNode("div", _hoisted_4, [
@@ -161,7 +161,7 @@ const _sfc_main = {
               }, null, 544), [
                 [vModelText, from.value]
               ]),
-              _cache[11] || (_cache[11] = createBaseVNode("span", {
+              _cache[10] || (_cache[10] = createBaseVNode("span", {
                 class: "muted",
                 style: { "font-size": "12px" }
               }, "至", -1)),
@@ -192,7 +192,7 @@ const _sfc_main = {
               }, "重置")
             ]),
             error.value ? (openBlock(), createElementBlock("div", _hoisted_7, [
-              _cache[12] || (_cache[12] = createBaseVNode("b", null, "加载失败", -1)),
+              _cache[11] || (_cache[11] = createBaseVNode("b", null, "加载失败", -1)),
               createBaseVNode("span", _hoisted_8, toDisplayString(error.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
@@ -200,7 +200,7 @@ const _sfc_main = {
               }, "重试")
             ])) : loading.value ? (openBlock(), createElementBlock("div", _hoisted_9, "加载中…")) : (openBlock(), createElementBlock("div", _hoisted_10, [
               createBaseVNode("table", null, [
-                _cache[14] || (_cache[14] = createBaseVNode("thead", null, [
+                _cache[13] || (_cache[13] = createBaseVNode("thead", null, [
                   createBaseVNode("tr", null, [
                     createBaseVNode("th", { style: { "width": "64px" } }, "ID"),
                     createBaseVNode("th", null, "内容"),
@@ -213,7 +213,7 @@ const _sfc_main = {
                   ])
                 ], -1)),
                 createBaseVNode("tbody", null, [
-                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_11, [..._cache[13] || (_cache[13] = [
+                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_11, [..._cache[12] || (_cache[12] = [
                     createBaseVNode("td", {
                       colspan: "8",
                       class: "muted",
@@ -280,20 +280,12 @@ const _sfc_main = {
               }, "下一页", 8, _hoisted_25)
             ])
           ])
-        ]),
-        pop.value ? (openBlock(), createBlock(UserProfilePop, {
-          key: 0,
-          "user-id": pop.value.id,
-          x: pop.value.x,
-          y: pop.value.y,
-          onClose: _cache[8] || (_cache[8] = ($event) => pop.value = null),
-          onChanged: load
-        }, null, 8, ["user-id", "x", "y"])) : createCommentVNode("", true)
+        ])
       ]);
     };
   }
 };
-const ContentCommentsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-23f3a705"]]);
+const ContentCommentsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-94904cfd"]]);
 export {
   ContentCommentsView as default
 };

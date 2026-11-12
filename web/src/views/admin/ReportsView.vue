@@ -9,11 +9,12 @@
  * · 详情弹窗打开时先清空 `note`；「处置」成功后清详情、toast、刷新列表**并且**刷 stats（徽标要跟着变）；
  * · 只有 BAN / DELETE_AND_BAN 才带 `banDays`（后端契约，前端不猜）。
  */
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { adminApi } from '../../api.js';
 import { useAdminStore } from '../../stores/admin.js';
 import { toast } from '../../utils/toast.js';
 import { actionName, errText, fmtTime, reasonName } from './helpers.js';
+import { userPop } from './userPop.js';
 
 const admin = useAdminStore();
 
@@ -23,6 +24,9 @@ const detail = ref(null);
 const note = ref('');
 const banDays = ref(7);
 
+/** 浮窗里禁言/封禁后，队列与徽标一起刷新 */
+const offPop = userPop.onChanged(() => loadReports(reports.value ? reports.value.page : 1));
+onUnmounted(offPop);
 onMounted(() => loadReports(1));
 
 async function loadReports(page = 1, status) {
@@ -102,7 +106,7 @@ async function resolveReport(action) {
             <td>
               <div style="font-weight: 600">{{ it.targetSummary || '（内容已删除）' }}</div>
               <div class="muted" style="font-size: 12px; margin-top: 2px">
-                {{ it.targetAuthor || '' }}{{ it.postId ? ' · 帖子 #' + it.postId : '' }}
+                <a v-if="it.targetAuthor" class="rp-link" @click="userPop.open(it.targetAuthor, $event)">{{ it.targetAuthor }}</a>{{ it.postId ? ' · 帖子 #' + it.postId : '' }}
                 <span v-if="!it.targetExists" class="tag">目标已删除</span>
               </div>
             </td>
@@ -143,7 +147,9 @@ async function resolveReport(action) {
           <div class="card" style="background: #f7f8fa; border: 1px solid #eff0f1; border-radius: 10px; padding: 12px 14px">
             <div style="font-weight: 600">{{ (detail.target && detail.target.summary) || detail.report.targetSummary || '（内容已删除）' }}</div>
             <div class="muted" style="font-size: 12px; margin-top: 4px">
-              作者 {{ (detail.target && detail.target.author) || '-' }}
+              作者 <a v-if="detail.target && detail.target.author" class="rp-link"
+                     @click="userPop.open(detail.target.author, $event)">{{ detail.target.author }}</a>
+              <template v-else>-</template>
             </div>
             <div v-if="detail.report.detail" style="margin-top: 8px; font-size: 12.5px">
               补充：{{ detail.report.detail }}
@@ -172,3 +178,9 @@ async function resolveReport(action) {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 作者 id 可点（看封禁历史） */
+.rp-link { color: #165DFF; cursor: pointer; }
+.rp-link:hover { text-decoration: underline; }
+</style>

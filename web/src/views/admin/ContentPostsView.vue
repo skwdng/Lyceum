@@ -5,14 +5,14 @@
  * <p>表格**包含已屏蔽的帖子**（status=2）—— 这是管理端和用户侧最重要的口径差别：
  * 用户侧看不到，管理端必须能看到才能解除。
  */
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { contentApi } from '../../api.js';
 import { toast } from '../../utils/toast.js';
 import { errText } from './helpers.js';
 import ModerationBar from './components/ModerationBar.vue';
 import PostDetailDrawer from './components/PostDetailDrawer.vue';
-import UserProfilePop from './components/UserProfilePop.vue';
+import { userPop } from './userPop.js';
 
 const TYPES = [['', '全部类型'], ['CHAT', '闲聊'], ['GUIDE', '攻略'], ['HELP', '求助']];
 const STATUSES = [['', '全部状态'], ['1', '正常'], ['2', '已屏蔽']];
@@ -38,11 +38,9 @@ const error = ref('');
 const drawer = ref(null);
 const route = useRoute();
 
-/** 用户违规浮窗（点作者名弹出，按点击坐标定位） */
-const pop = ref(null);
+/** 用户违规浮窗：全局单例（AdminLayout 里渲染），这里只管"点谁" */
 function openPop(userId, ev) {
-  if (!userId) return;
-  pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+  userPop.open(userId, ev);
 }
 
 function openFromQuery() {
@@ -78,6 +76,9 @@ async function load() {
   }
 }
 
+/** 浮窗里禁言/封禁后，列表状态跟着刷新 */
+const offPop = userPop.onChanged(load);
+onUnmounted(offPop);
 onMounted(load);
 
 function search() {
@@ -194,9 +195,6 @@ function onChanged() {
 
     <PostDetailDrawer v-if="drawer" :post-id="drawer.id" :focus-comment-id="drawer.focusCommentId"
                       @close="drawer = null" @changed="onChanged" />
-
-    <UserProfilePop v-if="pop" :user-id="pop.id" :x="pop.x" :y="pop.y"
-                    @close="pop = null" @changed="load" />
   </div>
 </template>
 

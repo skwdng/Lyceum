@@ -8,26 +8,27 @@
  * · 「全站封禁」必须先 `window.confirm`，文案一字不改；解封不需要确认。
  * · 每次动作成功后刷新 stats（徽标里的「禁言中用户」会变）。
  */
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { adminApi } from '../../api.js';
 import { useAdminStore } from '../../stores/admin.js';
 import { toast } from '../../utils/toast.js';
 import { errText, fmtTime } from './helpers.js';
-import UserProfilePop from './components/UserProfilePop.vue';
+import { userPop } from './userPop.js';
 
 const admin = useAdminStore();
 
-/** 用户违规浮窗：点用户名弹出（与内容管理两个页面共用同一个组件） */
-const pop = ref(null);
+/** 用户违规浮窗：全局单例（AdminLayout 渲染），这里只负责"点谁" */
 function openPop(userId, ev) {
-  if (!userId) return;
-  pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+  userPop.open(userId, ev);
 }
 
 const users = ref(null);
 const usersQ = ref('');
 const banDaysByUser = ref({});
 
+/** 浮窗里禁言/封禁后，列表与徽标一起刷新（徽标里的"禁言中用户"会变） */
+const offPop = userPop.onChanged(() => loadUsers(users.value ? users.value.page : 1));
+onUnmounted(offPop);
 onMounted(() => loadUsers(1));
 
 async function loadUsers(page = 1) {
@@ -133,8 +134,5 @@ async function setStatus(u, status) {
         </button>
       </div>
     </div>
-
-    <UserProfilePop v-if="pop" :user-id="pop.id" :x="pop.x" :y="pop.y"
-                    @close="pop = null" @changed="loadUsers(users ? users.page : 1)" />
   </div>
 </template>

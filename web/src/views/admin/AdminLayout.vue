@@ -15,6 +15,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ADMIN_MENU } from '../../adminMenu.js';
 import { useAdminStore } from '../../stores/admin.js';
+import UserProfilePop from './components/UserProfilePop.vue';
+import { userPop } from './userPop.js';
 import './admin.css';
 
 const route = useRoute();
@@ -152,5 +154,11 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+
+    <!-- 全局唯一的用户违规浮窗：任何页面点用户名都调 userPop.open(id, event)，
+         不用每个页面各自放一份（少一处就是少一个"点了没反应"的坑） -->
+    <UserProfilePop v-if="userPop.state.open" :user-id="userPop.state.userId"
+                    :x="userPop.state.x" :y="userPop.state.y"
+                    @close="userPop.close()" @changed="userPop.fireChanged()" />
   </div>
 </template>

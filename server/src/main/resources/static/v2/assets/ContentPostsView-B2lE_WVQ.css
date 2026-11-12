@@ -1,0 +1,54 @@
+
+.ct-item[data-v-74f6cf61] { border-top: 1px solid #F2F3F5; padding: 10px 0;
+}
+.ct-root[data-v-74f6cf61]:first-child { border-top: none;
+}
+.ct-reply[data-v-74f6cf61] { margin-left: 20px; padding-left: 12px; border-left: 2px solid #F2F3F5; border-top: none;
+}
+.ct-head[data-v-74f6cf61] { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.ct-author[data-v-74f6cf61] { font-size: 13px; font-weight: 600; color: #165DFF; cursor: pointer;
+}
+.ct-author[data-v-74f6cf61]:hover { text-decoration: underline;
+}
+.ct-time[data-v-74f6cf61] { font-size: 11.5px;
+}
+.ct-body[data-v-74f6cf61] { margin-top: 6px; font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+}
+.ct-body.dim[data-v-74f6cf61] { color: #A8ADB8; text-decoration: line-through;
+}
+
+.pd-title[data-v-5344fb2f] { font-size: 16px; font-weight: 700; margin-bottom: 8px;
+}
+.pd-meta[data-v-5344fb2f] { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: #4E5969;
+}
+.pd-stats[data-v-5344fb2f] { display: flex; gap: 14px; margin: 10px 0; font-size: 12.5px; color: #86909C;
+}
+.pd-body[data-v-5344fb2f] { background: #FAFBFC; border: 1px solid #EFF0F1; border-radius: 10px; padding: 12px 14px;
+  font-size: 13px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; margin-bottom: 12px;
+}
+.pd-actions[data-v-5344fb2f] { display: flex; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid #EFF0F1;
+}
+.pd-sub[data-v-5344fb2f] { font-size: 13px; font-weight: 600; margin: 14px 0 4px;
+}
+/* 点用户名看浮窗（与列表里一致的可点击样式） */
+.pd-meta .who[data-v-5344fb2f] { color: #165DFF; cursor: pointer;
+}
+.pd-meta .who[data-v-5344fb2f]:hover { text-decoration: underline;
+}
+[data-v-5344fb2f] .is-hl { background: #FFF7E8; transition: background .3s;
+}
+
+.cp-bar[data-v-51a60b3e] { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+}
+/* width:auto 是必需的：全局 `.adm-root input{width:100%}` 会让每个控件独占一行 */
+.cp-input[data-v-51a60b3e] { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 200px;
+}
+.cp-link[data-v-51a60b3e] { color: #165DFF; cursor: pointer;
+}
+.cp-link[data-v-51a60b3e]:hover { text-decoration: underline;
+}
+.cp-ops[data-v-51a60b3e] { display: inline-flex; gap: 6px; align-items: center;
+}
+.cp-page[data-v-51a60b3e] { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px;
+}

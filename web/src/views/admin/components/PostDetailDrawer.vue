@@ -9,6 +9,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { contentApi } from '../../../api.js';
 import { toast } from '../../../utils/toast.js';
 import { errText } from '../helpers.js';
+import { userPop } from '../userPop.js';
 import CommentTree from './CommentTree.vue';
 import ModerationBar from './ModerationBar.vue';
 
@@ -114,7 +115,7 @@ function fmt(ms) {
           <div class="pd-title">{{ detail.post.title }}</div>
           <div class="pd-meta">
             <span class="tag blue">{{ detail.post.type }}</span>
-            <span>作者：<b>{{ detail.author.name || detail.author.id }}</b>（{{ detail.author.id }}）</span>
+            <span>作者：<b class="who" @click="userPop.open(detail.author.id, $event)">{{ detail.author.name || detail.author.id }}</b>（{{ detail.author.id }}）</span>
             <span class="muted">{{ fmt(detail.post.createdAt) }}</span>
           </div>
           <div class="pd-stats">
@@ -159,5 +160,8 @@ function fmt(ms) {
   font-size: 13px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; margin-bottom: 12px; }
 .pd-actions { display: flex; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid #EFF0F1; }
 .pd-sub { font-size: 13px; font-weight: 600; margin: 14px 0 4px; }
+/* 点用户名看浮窗（与列表里一致的可点击样式） */
+.pd-meta .who { color: #165DFF; cursor: pointer; }
+.pd-meta .who:hover { text-decoration: underline; }
 :deep(.is-hl) { background: #FFF7E8; transition: background .3s; }
 </style>

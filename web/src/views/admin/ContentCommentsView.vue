@@ -6,20 +6,18 @@
  * 抽屉挂载后 `#c-{id}` 滚到视野中间并高亮 2 秒。不新开路由 —— 详情本来就是个抽屉，
  * 给它单独一条 `/admin/content/posts/:id` 只会让面包屑和"返回"逻辑变复杂。
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { contentApi } from '../../api.js';
 import { errText } from './helpers.js';
 import ModerationBar from './components/ModerationBar.vue';
-import UserProfilePop from './components/UserProfilePop.vue';
+import { userPop } from './userPop.js';
 
 const router = useRouter();
 
-/** 用户违规浮窗（点作者名弹出） */
-const pop = ref(null);
+/** 用户违规浮窗：全局单例（AdminLayout 渲染），这里只负责"点谁" */
 function openPop(userId, ev) {
-  if (!userId) return;
-  pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+  userPop.open(userId, ev);
 }
 
 const STATUSES = [['', '全部状态'], ['1', '正常'], ['2', '已屏蔽']];
@@ -60,6 +58,9 @@ async function load() {
   }
 }
 
+/** 浮窗里操作完，列表跟着刷新 */
+const offPop = userPop.onChanged(load);
+onUnmounted(offPop);
 onMounted(load);
 
 function search() {
@@ -167,9 +168,6 @@ function fmt(ms) {
         </div>
       </div>
     </div>
-
-    <UserProfilePop v-if="pop" :user-id="pop.id" :x="pop.x" :y="pop.y"
-                    @close="pop = null" @changed="load" />
   </div>
 </template>
 

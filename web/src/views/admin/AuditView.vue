@@ -15,6 +15,7 @@ import { adminApi } from '../../api.js';
 import { useAdminStore } from '../../stores/admin.js';
 import { toast } from '../../utils/toast.js';
 import { actionName, errText, fmtTime } from './helpers.js';
+import { userPop } from './userPop.js';
 
 const admin = useAdminStore();
 
@@ -170,7 +171,9 @@ async function restoreAudit(id) {
             <td style="white-space: nowrap">
               <!-- 对象：USER/TOPIC 的目标 id 不是数字（用户 id 是字符串、题目 id 是 t7 这种），
                    所以它们放在 target_owner 里，这里按类型分开渲染 -->
-              <template v-if="r.targetType === 'USER'">用户 {{ r.targetOwner || '' }}</template>
+              <template v-if="r.targetType === 'USER'">
+                用户 <a class="au-link" @click="userPop.open(r.targetOwner, $event)">{{ r.targetOwner || '' }}</a>
+              </template>
               <template v-else-if="r.targetType === 'TOPIC'">辩题 {{ r.targetOwner || '' }}</template>
               <template v-else-if="r.targetType === 'VIDEO'">视频 #{{ r.targetId }}</template>
               <template v-else>{{ r.targetType ? (r.targetType === 'POST' ? '帖子' : '评论') + ' #' + r.targetId : '-' }}</template>
@@ -214,4 +217,7 @@ async function restoreAudit(id) {
   padding: 12px 18px; border-bottom: 1px solid #EFF0F1; }
 .au-input { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px;
   font-size: 13px; min-width: 190px; background: #fff; }
+/* 对象列里的用户 id 也可以点（看这个人的封禁历史） */
+.au-link { color: #165DFF; cursor: pointer; }
+.au-link:hover { text-decoration: underline; }
 </style>

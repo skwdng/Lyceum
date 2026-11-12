@@ -1,7 +1,7 @@
-import { o as onMounted, c as createElementBlock, d as createBaseVNode, x as createTextVNode, p as withDirectives, v as vModelText, q as withKeys, F as Fragment, e as renderList, t as toDisplayString, f as createCommentVNode, b as createBlock, r as ref, H as adminApi, s as toast, k as openBlock, n as normalizeClass, u as unref, G as vModelSelect } from "./index-DeYGo5O-.js";
-import { u as useAdminStore } from "./admin-CpUIVmsd.js";
-import { e as errText, f as fmtTime } from "./helpers-1QlzAgox.js";
-import { U as UserProfilePop } from "./UserProfilePop-axOBZqiB.js";
+import { J as onUnmounted, m as onMounted, l as adminApi, k as toast, c as createElementBlock, a as createBaseVNode, b as createTextVNode, e as withDirectives, B as vModelText, C as withKeys, F as Fragment, r as renderList, t as toDisplayString, d as createCommentVNode, h as ref, o as openBlock, n as normalizeClass, u as unref, v as vModelSelect } from "./index-DEeojRwW.js";
+import { u as useAdminStore } from "./admin-o3wTV2Mg.js";
+import { e as errText, f as fmtTime } from "./helpers-BYCbhqGK.js";
+import { u as userPop } from "./userPop-D7K1VMMP.js";
 const _hoisted_1 = { "data-panel": "users" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -53,14 +53,14 @@ const _sfc_main = {
   __name: "UsersView",
   setup(__props) {
     const admin = useAdminStore();
-    const pop = ref(null);
     function openPop(userId, ev) {
-      if (!userId) return;
-      pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+      userPop.open(userId, ev);
     }
     const users = ref(null);
     const usersQ = ref("");
     const banDaysByUser = ref({});
+    const offPop = userPop.onChanged(() => loadUsers(users.value ? users.value.page : 1));
+    onUnmounted(offPop);
     onMounted(() => loadUsers(1));
     async function loadUsers(page = 1) {
       try {
@@ -102,8 +102,8 @@ const _sfc_main = {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("div", _hoisted_2, [
           createBaseVNode("h2", null, [
-            _cache[7] || (_cache[7] = createTextVNode(" 用户管理 ", -1)),
-            _cache[8] || (_cache[8] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            _cache[5] || (_cache[5] = createTextVNode(" 用户管理 ", -1)),
+            _cache[6] || (_cache[6] = createBaseVNode("span", { class: "spacer" }, null, -1)),
             withDirectives(createBaseVNode("input", {
               "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => usersQ.value = $event),
               placeholder: "搜账号或昵称",
@@ -118,7 +118,7 @@ const _sfc_main = {
             }, "搜索")
           ]),
           !users.value ? (openBlock(), createElementBlock("div", _hoisted_3, "加载中…")) : !(users.value.items || []).length ? (openBlock(), createElementBlock("div", _hoisted_4, " 没有匹配的用户 ")) : (openBlock(), createElementBlock("table", _hoisted_5, [
-            _cache[10] || (_cache[10] = createBaseVNode("thead", null, [
+            _cache[8] || (_cache[8] = createBaseVNode("thead", null, [
               createBaseVNode("tr", null, [
                 createBaseVNode("th", null, "用户"),
                 createBaseVNode("th", { style: { "width": "110px" } }, "全站"),
@@ -155,7 +155,7 @@ const _sfc_main = {
                     withDirectives(createBaseVNode("select", {
                       "onUpdate:modelValue": ($event) => banDaysByUser.value[u.id] = $event,
                       style: { "width": "82px", "display": "inline-block" }
-                    }, [..._cache[9] || (_cache[9] = [
+                    }, [..._cache[7] || (_cache[7] = [
                       createBaseVNode("option", { value: 1 }, "1 天", -1),
                       createBaseVNode("option", { value: 3 }, "3 天", -1),
                       createBaseVNode("option", { value: 7 }, "7 天", -1)
@@ -197,15 +197,7 @@ const _sfc_main = {
               onClick: _cache[4] || (_cache[4] = ($event) => loadUsers(users.value.page + 1))
             }, " 下一页 ", 8, _hoisted_21)
           ])) : createCommentVNode("", true)
-        ]),
-        pop.value ? (openBlock(), createBlock(UserProfilePop, {
-          key: 0,
-          "user-id": pop.value.id,
-          x: pop.value.x,
-          y: pop.value.y,
-          onClose: _cache[5] || (_cache[5] = ($event) => pop.value = null),
-          onChanged: _cache[6] || (_cache[6] = ($event) => loadUsers(users.value ? users.value.page : 1))
-        }, null, 8, ["user-id", "x", "y"])) : createCommentVNode("", true)
+        ])
       ]);
     };
   }

@@ -6,10 +6,11 @@
  * 而管理台手里只有管理员令牌；且那边要求"必须是管理员"（已收紧），从用户侧调一律 403。
  * 所以管理台走自己的 `/api/admin/video-audit/**`，数据层（VideoRepo）完全复用。
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { videoAuditApi } from '../../api.js';
 import { toast } from '../../utils/toast.js';
 import { errText } from './helpers.js';
+import { userPop } from './userPop.js';
 
 const STATUSES = [['REVIEW', '待复核'], ['PASSED', '已通过'], ['REJECTED', '已驳回'], ['ALL', '全部']];
 
@@ -60,6 +61,9 @@ async function load() {
   }
 }
 
+/** 浮窗里禁言/封禁后刷新队列（作者状态变了） */
+const offPop = userPop.onChanged(load);
+onUnmounted(offPop);
 onMounted(load);
 
 /** 切状态回到第 1 页（否则停在"待复核 3/3"这种不存在的页上） */
@@ -187,8 +191,8 @@ const ts = (v) => (typeof v === 'number' ? fmt(v) : (v ? String(v).slice(0, 16).
               </tr>
               <tr v-for="v in list" :key="v.id">
                 <td class="muted">{{ v.id }}</td>
-                <td>{{ v.title }}</td>
-                <td>{{ v.author || v.user_id }}</td>
+                <td><a class="va-link" @click="openLogs(v)">{{ v.title }}</a></td>
+                <td><a class="va-link" @click="userPop.open(v.user_id, $event)">{{ v.author || v.user_id }}</a></td>
                 <td>
                   <span class="tag" :class="v.audit_status === 'PASSED' ? 'ok' : (v.audit_status === 'REJECTED' ? 'red' : 'orange')">
                     {{ v.audit_status }}
@@ -278,6 +282,9 @@ const ts = (v) => (typeof v === 'number' ? fmt(v) : (v ? String(v).slice(0, 16).
 .va-input { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 200px; }
 .va-ops { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .va-reason { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 标题 = 看审核日志；作者名 = 看用户浮窗 */
+.va-link { color: #165DFF; cursor: pointer; }
+.va-link:hover { text-decoration: underline; }
 .va-page { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px; }
 .va-lb { display: block; font-size: 12.5px; color: #86909C; margin-bottom: 6px; }
 .va-ta { width: 100%; padding: 8px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; resize: vertical; }

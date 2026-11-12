@@ -9,6 +9,7 @@
  * 已屏蔽的评论在这里**照常显示**（带红色「已屏蔽」标记），否则没法解除。
  */
 import ModerationBar from './ModerationBar.vue';
+import { userPop } from '../userPop.js';
 
 defineProps({
   items: { type: Array, default: () => [] }
@@ -29,7 +30,7 @@ function fmtTime(ms) {
 
     <div v-for="root in items" :id="'c-' + root.id" :key="root.id" class="ct-item ct-root">
       <div class="ct-head">
-        <span class="ct-author">{{ root.authorName || root.authorId }}</span>
+        <span class="ct-author" @click="userPop.open(root.authorId, $event)">{{ root.authorName || root.authorId }}</span>
         <span class="tag">{{ root.floor }}</span>
         <span v-if="root.hidden" class="tag red">已屏蔽</span>
         <span class="muted ct-time">{{ fmtTime(root.createdAt) }}</span>
@@ -41,7 +42,7 @@ function fmtTime(ms) {
 
       <div v-for="r in root.replies" :id="'c-' + r.id" :key="r.id" class="ct-item ct-reply">
         <div class="ct-head">
-          <span class="ct-author">{{ r.authorName || r.authorId }}</span>
+          <span class="ct-author" @click="userPop.open(r.authorId, $event)">{{ r.authorName || r.authorId }}</span>
           <span class="tag">楼中楼</span>
           <span v-if="r.hidden" class="tag red">已屏蔽</span>
           <span class="muted ct-time">{{ fmtTime(r.createdAt) }}</span>
@@ -60,7 +61,8 @@ function fmtTime(ms) {
 .ct-root:first-child { border-top: none; }
 .ct-reply { margin-left: 20px; padding-left: 12px; border-left: 2px solid #F2F3F5; border-top: none; }
 .ct-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ct-author { font-size: 13px; font-weight: 600; }
+.ct-author { font-size: 13px; font-weight: 600; color: #165DFF; cursor: pointer; }
+.ct-author:hover { text-decoration: underline; }
 .ct-time { font-size: 11.5px; }
 .ct-body { margin-top: 6px; font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
 .ct-body.dim { color: #A8ADB8; text-decoration: line-through; }
