@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,15 +82,88 @@ public class AuditLogRepo {
     }
 
     public long count() {
-        Long n = jdbc.queryForObject("select count(*) from sy_audit_log", Long.class);
+        return count(null, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * 带筛选的计数。
+     *
+     * <p>参数语义（全部可空）：`q` 关键词（详情/管理员账号/内容作者，模糊）、
+     * `admin` 操作人（纯数字按 admin_id 精确，否则按 admin_name 模糊）、
+     * `action` / `verdict` / `targetType` / `source` 精确匹配（大写），
+     * `from` / `toExcl` 时间左闭右开。
+     */
+    public long count(String q, String admin, String action, String verdict, String targetType,
+                      String source, Timestamp from, Timestamp toExcl) {
+        StringBuilder sql = new StringBuilder("select count(*) from sy_audit_log");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, q, admin, action, verdict, targetType, source, from, toExcl);
+        Long n = jdbc.queryForObject(sql.toString(), Long.class, args.toArray());
         return n == null ? 0 : n;
     }
 
     /** 倒序分页（新的在前）。 */
     public List<Map<String, Object>> list(int page, int size) {
+        return list(null, null, null, null, null, null, null, null, page, size);
+    }
+
+    public List<Map<String, Object>> list(String q, String admin, String action, String verdict, String targetType,
+                                          String source, Timestamp from, Timestamp toExcl, int page, int size) {
         int offset = (Math.max(1, page) - 1) * size;
-        return jdbc.queryForList(
-                "select * from sy_audit_log order by created_at desc, id desc limit ? offset ?",
-                size, offset);
+        StringBuilder sql = new StringBuilder("select * from sy_audit_log");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, q, admin, action, verdict, targetType, source, from, toExcl);
+        sql.append(" order by created_at desc, id desc limit ? offset ?");
+        args.add(size);
+        args.add(offset);
+        return jdbc.queryForList(sql.toString(), args.toArray());
+    }
+
+    private void appendFilters(StringBuilder sql, List<Object> args, String q, String admin, String action,
+                               String verdict, String targetType, String source,
+                               Timestamp from, Timestamp toExcl) {
+        sql.append(" where 1 = 1");
+        if (from != null) {
+            sql.append(" and created_at >= ?");
+            args.add(from);
+        }
+        if (toExcl != null) {
+            sql.append(" and created_at < ?");
+            args.add(toExcl);
+        }
+        if (admin != null && !admin.isBlank()) {
+            String a = admin.trim();
+            if (a.matches("\\d+")) {
+                sql.append(" and admin_id = ?");
+                args.add(Long.parseLong(a));
+            } else {
+                sql.append(" and admin_name like ? escape '!'");
+                args.add("%" + a.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%");
+            }
+        }
+        if (action != null && !action.isBlank()) {
+            sql.append(" and action = ?");
+            args.add(action.trim().toUpperCase());
+        }
+        if (verdict != null && !verdict.isBlank()) {
+            sql.append(" and verdict = ?");
+            args.add(verdict.trim().toUpperCase());
+        }
+        if (targetType != null && !targetType.isBlank()) {
+            sql.append(" and target_type = ?");
+            args.add(targetType.trim().toUpperCase());
+        }
+        if (source != null && !source.isBlank()) {
+            sql.append(" and coalesce(source, 'REPORT') = ?");
+            args.add(source.trim().toUpperCase());
+        }
+        if (q != null && !q.isBlank()) {
+            String like = "%" + q.trim().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+            sql.append(" and (detail like ? escape '!' or admin_name like ? escape '!'"
+                    + " or target_owner like ? escape '!')");
+            args.add(like);
+            args.add(like);
+            args.add(like);
+        }
     }
 }

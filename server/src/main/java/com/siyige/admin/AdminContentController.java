@@ -20,7 +20,7 @@ import java.util.Map;
  *   GET  /api/admin/posts?q=&type=&status=&authorId=&from=&to=&page=&size=   帖子搜索（含已屏蔽）
  *   GET  /api/admin/posts/{id}                                              帖子详情（正文 + 统计 + 作者摘要）
  *   GET  /api/admin/posts/{id}/comments?page=&size=                         该帖评论树（含已屏蔽，按楼分页）
- *   GET  /api/admin/comments?q=&status=&authorId=&postId=&page=&size=        评论跨帖搜索
+ *   GET  /api/admin/comments?q=&status=&authorId=&postId=&from=&to=&page=&size=  评论跨帖搜索
  *   POST /api/admin/content/{type}/{id}/hide    {note?}                      屏蔽（type = post | comment）
  *   POST /api/admin/content/{type}/{id}/unhide                              解除屏蔽
  *   POST /api/admin/users/{id}/mute             {days,reason?}               禁言（带审计）
@@ -69,9 +69,11 @@ public class AdminContentController {
                                         @RequestParam(required = false) Integer status,
                                         @RequestParam(required = false) String authorId,
                                         @RequestParam(required = false) Long postId,
+                                        @RequestParam(required = false) String from,
+                                        @RequestParam(required = false) String to,
                                         @RequestParam(defaultValue = "1") int page,
                                         @RequestParam(defaultValue = "20") int size) {
-        return service.comments(q, status, authorId, postId, page, size);
+        return service.comments(q, status, authorId, postId, from, to, page, size);
     }
 
     @PostMapping("/content/{type}/{id}/hide")

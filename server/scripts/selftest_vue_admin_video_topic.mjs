@@ -258,7 +258,40 @@ await check('D4 管理页面：辩题审核页渲染 + 驳回理由必填', asyn
   return `弹窗出现 · 空理由被拒 400 · 表格 ${rows} 行`;
 });
 
-await check('D5 非管理员调管理端题库/视频复核被拒', async () => {
+await check('D5 视频/辩题页的筛选条能用（标题、作者、日期、题目 id）', async () => {
+  // 视频：标题搜索
+  await openAdmin('admin/video-audit');
+  await waitFor(`document.querySelectorAll('[data-panel="video-audit"] .va-input').length >= 4`, '视频筛选条');
+  // 先切到「全部」：这个视频在 C5 已经被通过，默认的「待复核」筛选下搜不到它
+  await ev(`(()=>{const b=[...document.querySelectorAll('[data-panel="video-audit"] .va-bar .btn')]
+      .find(x=>x.textContent.trim()==='全部'); b.click(); return true;})()`);
+  await sleep(1200);
+  await ev(`(()=>{const p=document.querySelector('[data-panel="video-audit"]');
+    const t=[...p.querySelectorAll('.va-bar .va-input')].find(x=>x.placeholder&&x.placeholder.includes('标题'));
+    t.value=${JSON.stringify('自检视频 ' + stamp)}; t.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
+  await ev(`[...document.querySelectorAll('[data-panel="video-audit"] .btn')].find(b=>b.textContent.trim()==='搜索').click(); true`);
+  await sleep(1400);
+  const vRows = await ev(`[...document.querySelectorAll('[data-panel="video-audit"] tbody tr')].map(r=>r.innerText)`);
+  if (!vRows.some((t) => t.includes('自检视频 ' + stamp))) throw new Error('视频按标题搜不到：' + vRows.length + ' 行');
+  const vDates = await ev(`document.querySelectorAll('[data-panel="video-audit"] .va-input[type="date"]').length`);
+  if (vDates !== 2) throw new Error('视频页日期控件不是 2 个：' + vDates);
+
+  // 辩题：题目 id 精确筛 + 日期控件存在
+  await openAdmin('admin/topics');
+  await waitFor(`document.querySelectorAll('[data-panel="topic-review"] .tr-input').length >= 5`, '辩题筛选条');
+  const tDates = await ev(`document.querySelectorAll('[data-panel="topic-review"] .tr-input[type="date"]').length`);
+  if (tDates !== 2) throw new Error('辩题页日期控件不是 2 个：' + tDates);
+  await ev(`(()=>{const p=document.querySelector('[data-panel="topic-review"]');
+    const i=[...p.querySelectorAll('.tr-input')].find(x=>x.placeholder&&x.placeholder.includes('题目 ID'));
+    i.value=${JSON.stringify(topicId)}; i.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
+  await ev(`[...document.querySelectorAll('[data-panel="topic-review"] .btn')].find(b=>b.textContent.trim()==='搜索').click(); true`);
+  await sleep(1400);
+  const tRows = await ev(`document.querySelectorAll('[data-panel="topic-review"] tbody tr').length`);
+  if (tRows !== 1) throw new Error('辩题按 id 筛应为 1 行，实际 ' + tRows);
+  return `视频标题筛 ${vRows.length} 行 · 辩题 id 筛 ${tRows} 行 · 两页各 2 个日期控件`;
+});
+
+await check('D6 非管理员调管理端题库/视频复核被拒', async () => {
   const t = await call('GET', '/api/admin/topics', undefined, user);
   const v = await call('GET', '/api/admin/video-audit/queue', undefined, user);
   if (![401, 403].includes(t.status)) throw new Error('topics HTTP ' + t.status);

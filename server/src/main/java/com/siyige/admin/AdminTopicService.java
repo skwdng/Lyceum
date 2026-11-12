@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,13 +38,19 @@ public class AdminTopicService {
         this.store = store;
     }
 
-    public Map<String, Object> topics(String modStatus, String source, String q, int page, int size) {
+    public Map<String, Object> topics(String modStatus, String source, String q, String id,
+                                      String from, String to, int page, int size) {
         int p = Math.max(1, page);
         int s = size <= 0 ? SIZE_DEFAULT : Math.min(size, SIZE_MAX);
-        long total = repo.count(modStatus, source, q);
+
+        Timestamp fromTs = startOfDay(from);
+        Timestamp toTs = startOfDay(to);
+        Timestamp toExcl = toTs == null ? null : Timestamp.valueOf(toTs.toLocalDateTime().plusDays(1));
+
+        long total = repo.count(modStatus, source, q, id, fromTs, toExcl);
         List<Map<String, Object>> rows = total == 0
                 ? List.of()
-                : repo.list(modStatus, source, q, (p - 1) * s, s);
+                : repo.list(modStatus, source, q, id, fromTs, toExcl, (p - 1) * s, s);
 
         List<Map<String, Object>> items = new ArrayList<>(rows.size());
         for (Map<String, Object> r : rows) items.add(view(r));
@@ -54,6 +61,16 @@ public class AdminTopicService {
         out.put("page", p);
         out.put("size", s);
         return out;
+    }
+
+    /** `yyyy-MM-dd` -> 当天 00:00；解析不了当没传（脏参数不该把页面搞崩）。 */
+    private static Timestamp startOfDay(String date) {
+        if (date == null || date.isBlank()) return null;
+        try {
+            return Timestamp.valueOf(java.time.LocalDate.parse(date.trim()) + " 00:00:00");
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** 通过：`mod_status = PASS`。 */

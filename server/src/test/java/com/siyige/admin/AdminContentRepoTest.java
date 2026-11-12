@@ -113,8 +113,9 @@ class AdminContentRepoTest {
         assertEquals(2, ((Number) replies.get(0).get("status")).intValue());
 
         // 跨帖搜索能带出帖子标题
-        assertEquals(1, repo.countComments("楼中楼", null, null, null));
-        assertEquals("普通帖", String.valueOf(repo.listComments("楼中楼", null, null, null, 0, 10).get(0).get("post_title")));
+        assertEquals(1, repo.countComments("楼中楼", null, null, null, null, null));
+        assertEquals("普通帖", String.valueOf(
+                repo.listComments("楼中楼", null, null, null, null, null, 0, 10).get(0).get("post_title")));
     }
 
     @Test

@@ -38,9 +38,13 @@ public class AdminVideoAuditController {
 
     @GetMapping("/queue")
     public Map<String, Object> queue(@RequestParam(required = false) String status,
+                                     @RequestParam(required = false) String q,
+                                     @RequestParam(required = false) String authorId,
+                                     @RequestParam(required = false) String from,
+                                     @RequestParam(required = false) String to,
                                      @RequestParam(defaultValue = "1") int page,
                                      @RequestParam(defaultValue = "20") int size) {
-        return service.queue(status, page, size);
+        return service.queue(status, q, authorId, from, to, page, size);
     }
 
     @GetMapping("/{id}/logs")

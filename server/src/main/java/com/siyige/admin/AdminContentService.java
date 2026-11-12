@@ -131,12 +131,15 @@ public class AdminContentService {
     // ==================== 评论（跨帖） ====================
 
     public Map<String, Object> comments(String q, Integer status, String authorId, Long postId,
-                                        int page, int size) {
+                                        String from, String to, int page, int size) {
         int[] pg = page(page, size);
-        long total = repo.countComments(q, status, authorId, postId);
+        Timestamp fromTs = startOfDay(from);
+        Timestamp toTs = startOfDay(to);
+        Timestamp toExcl = toTs == null ? null : Timestamp.valueOf(toTs.toLocalDateTime().plusDays(1));
+        long total = repo.countComments(q, status, authorId, postId, fromTs, toExcl);
         List<Map<String, Object>> rows = total == 0
                 ? List.of()
-                : repo.listComments(q, status, authorId, postId, pg[2], pg[1]);
+                : repo.listComments(q, status, authorId, postId, fromTs, toExcl, pg[2], pg[1]);
 
         List<Map<String, Object>> items = new ArrayList<>(rows.size());
         for (Map<String, Object> row : rows) items.add(commentView(row));

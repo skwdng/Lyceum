@@ -19,6 +19,9 @@ const SOURCES = [['', '全部来源'], ['official', '官方'], ['custom', '自�
 const modStatus = ref('ALL');
 const source = ref('');
 const q = ref('');
+const topicId = ref('');
+const from = ref('');
+const to = ref('');
 const page = ref(1);
 const size = 20;
 const total = ref(0);
@@ -39,6 +42,9 @@ async function load() {
       modStatus: modStatus.value,
       source: source.value || undefined,
       q: q.value.trim() || undefined,
+      id: topicId.value.trim() || undefined,
+      from: from.value || undefined,
+      to: to.value || undefined,
       page: page.value,
       size
     });
@@ -115,14 +121,23 @@ const tagClass = (s) => (s === 'PASS' ? 'ok' : (s === 'REJECT' ? 'red' : 'orange
       <div class="body">
         <div class="tr-bar">
           <input v-model="q" class="tr-input" placeholder="搜索题目标题…" @keyup.enter="search" />
+          <input v-model="topicId" class="tr-input" style="min-width: 130px" placeholder="题目 ID（精确）"
+                 @keyup.enter="search" />
           <select v-model="modStatus" class="tr-input" style="width: 150px" @change="search">
             <option v-for="s in STATUSES" :key="s[0]" :value="s[0]">{{ s[1] }}</option>
           </select>
-          <select v-model="source" class="tr-input" style="width: 130px" @change="search">
+          <select v-model="source" class="tr-input" style="width: 120px" @change="search">
             <option v-for="s in SOURCES" :key="s[0]" :value="s[0]">{{ s[1] }}</option>
           </select>
+          <input v-model="from" class="tr-input" style="width: 150px" type="date" title="审核起始日期" @change="search" />
+          <span class="muted" style="font-size: 12px">至</span>
+          <input v-model="to" class="tr-input" style="width: 150px" type="date" title="审核结束日期" @change="search" />
           <button class="btn primary sm" @click="search">搜索</button>
-          <button class="btn sm" @click="q = ''; modStatus = 'ALL'; source = ''; search()">重置</button>
+          <button class="btn sm"
+                  @click="q = ''; topicId = ''; modStatus = 'ALL'; source = ''; from = ''; to = ''; search()">重置</button>
+        </div>
+        <div class="muted" style="font-size: 11.5px; margin: -4px 0 12px">
+          日期筛的是「审核时间」；还没审核过的题没有审核时间，按日期筛不会出现
         </div>
 
         <div v-if="error" class="adm-error">
@@ -202,7 +217,8 @@ const tagClass = (s) => (s === 'PASS' ? 'ok' : (s === 'REJECT' ? 'red' : 'orange
 
 <style scoped>
 .tr-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.tr-input { padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 200px; }
+/* width:auto 是必需的：全局 `.adm-root input{width:100%}` 会让每个控件独占一行 */
+.tr-input { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 200px; }
 .tr-title { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tr-reason { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tr-ops { display: inline-flex; gap: 6px; align-items: center; }

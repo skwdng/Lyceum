@@ -2,6 +2,7 @@ package com.siyige.admin;
 
 import org.springframework.stereotype.Service;
 
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,21 +29,48 @@ public class AuditLogService {
         this.repo = repo;
     }
 
+    /** 无筛选的分页（兼容既有调用）。 */
     public Map<String, Object> page(int page, int size) {
+        return page(null, null, null, null, null, null, null, null, page, size);
+    }
+
+    /**
+     * 带筛选的分页。
+     *
+     * <p>六个筛选 + 一个时间范围都是可空的；`from` / `to` 传 `yyyy-MM-dd`，
+     * `to` 按"含当天"处理（+1 天后取 `<`），和内容管理、视频复核的口径一致。
+     */
+    public Map<String, Object> page(String q, String admin, String action, String verdict, String targetType,
+                                    String source, String from, String to, int page, int size) {
         int p = Math.max(1, page);
         int s = size < 1 ? 20 : Math.min(size, 100);
 
+        Timestamp fromTs = startOfDay(from);
+        Timestamp toTs = startOfDay(to);
+        Timestamp toExcl = toTs == null ? null : Timestamp.valueOf(toTs.toLocalDateTime().plusDays(1));
+
         List<Map<String, Object>> items = new ArrayList<>();
-        for (Map<String, Object> row : repo.list(p, s)) {
+        for (Map<String, Object> row : repo.list(q, admin, action, verdict, targetType, source,
+                fromTs, toExcl, p, s)) {
             items.add(view(row));
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("items", items);
-        out.put("total", repo.count());
+        out.put("total", repo.count(q, admin, action, verdict, targetType, source, fromTs, toExcl));
         out.put("page", p);
         out.put("size", s);
         return out;
+    }
+
+    /** `yyyy-MM-dd` -> 当天 00:00；解析不了当没传。 */
+    private static Timestamp startOfDay(String date) {
+        if (date == null || date.isBlank()) return null;
+        try {
+            return Timestamp.valueOf(java.time.LocalDate.parse(date.trim()) + " 00:00:00");
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** 行视图：只暴露前端需要的字段，且不含任何敏感信息。 */

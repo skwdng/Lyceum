@@ -274,6 +274,33 @@ await check('A9 长列表：1280x720 下页面可滚到底且分页栏可见（�
   }
 });
 
+await check('A9 评论管理：作者 ID + 日期筛选生效', async () => {
+  await openAdmin('admin/content/comments');
+  await waitFor(`document.querySelectorAll('[data-panel="content-comments"] .cc-input').length >= 4`, '评论筛选条');
+
+  // 作者筛选
+  await ev(`(()=>{const p=document.querySelector('[data-panel="content-comments"]');
+    const a=[...p.querySelectorAll('.cc-bar .cc-input')].find(x=>x.placeholder&&x.placeholder.includes('作者'));
+    a.value=${JSON.stringify(uid)}; a.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
+  await ev(`[...document.querySelectorAll('[data-panel="content-comments"] .btn')].find(b=>b.textContent.trim()==='搜索').click(); true`);
+  await sleep(1300);
+  const authors = await ev(`[...document.querySelectorAll('[data-panel="content-comments"] tbody tr')]
+      .map(tr=>tr.querySelectorAll('td')[3].innerText.trim()).filter(Boolean)`);
+  if (!authors.length) throw new Error('按作者筛选后没有数据');
+  if (authors.some((a) => a !== uid)) throw new Error('混进了别的作者：' + JSON.stringify(authors));
+
+  // 日期筛选：把「起始日期」设成明天 -> 必然 0 条
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  await ev(`(()=>{const p=document.querySelector('[data-panel="content-comments"]');
+    const d=[...p.querySelectorAll('.cc-bar input[type="date"]')][0];
+    d.value=${JSON.stringify(tomorrow)}; d.dispatchEvent(new Event('input',{bubbles:true}));
+    d.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
+  await sleep(1300);
+  const emptyText = await ev(`(document.querySelector('[data-panel="content-comments"]')||{innerText:''}).innerText.includes('没有符合条件')`);
+  if (!emptyText) throw new Error('起始日期设成明天之后仍显示数据（日期筛选没生效）');
+  return `作者筛选 ${authors.length} 行全为 ${uid} · 起始日期=明天 → 空态`;
+});
+
 await check('A10 全程零 JS 异常', async () => {
   if (errs.length) throw new Error(errs.slice(0, 2).join(' | '));
   return '无异常';

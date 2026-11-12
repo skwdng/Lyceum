@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,17 +30,19 @@ public class AdminVideoAuditService {
     private static final Logger log = LoggerFactory.getLogger(AdminVideoAuditService.class);
 
     private final VideoRepo repo;
+    /** 带筛选的队列查询（自查一条 SQL，口径与 VideoRepo.auditQueue 一致） */
+    private final AdminVideoAuditRepo repo2;
     private final MachineAuditService machine;
     private final boolean consoleEnabled;
 
-    /** 单页上限 / 默认页大小 / 仓储单次最多能取多少条（超过它就只能分页取，见 queue()） */
+    /** 单页上限 / 默认页大小 */
     static final int SIZE_MAX = 50;
     static final int SIZE_DEFAULT = 20;
-    private static final int SIZE_MAX_TOTAL = 100;
 
-    public AdminVideoAuditService(VideoRepo repo, MachineAuditService machine,
+    public AdminVideoAuditService(VideoRepo repo, AdminVideoAuditRepo repo2, MachineAuditService machine,
                                   @Value("${siyige.video.audit.console-enabled:false}") boolean consoleEnabled) {
         this.repo = repo;
+        this.repo2 = repo2;
         this.machine = machine;
         this.consoleEnabled = consoleEnabled;
     }
@@ -49,35 +53,31 @@ public class AdminVideoAuditService {
     }
 
     /**
-     * 队列 + 全局统计（带分页）。
+     * 队列 + 全局统计（带筛选 + 分页）。
      *
-     * <p>分页为什么是"多取再切片"：`VideoRepo.auditQueue(status, size)` 没有 offset 参数，
-     * 而 video 包本期不允许改（红线）。所以在管理端这层按 `page*size` 多取一点再自己切 ——
-     * 单页最多 100 条，够用且不动既有仓储。`total` 取自 `repo.stats()`（本来就是每个状态的计数），
-     * 这样分页栏能显示准确的页数。
+     * <p>查询走 {@link AdminVideoAuditRepo}（口径与 `VideoRepo.auditQueue` 一致，多了标题/作者/日期筛选）；
+     * `stats` 仍来自 `VideoRepo.stats()`，判定/恢复/日志也仍然走 `VideoRepo` —— video 包一个字没动。
      */
-    public Map<String, Object> queue(String status, int page, int size) {
+    public Map<String, Object> queue(String status, String q, String authorId, String from, String to,
+                                     int page, int size) {
         requireEnabled();
         String st = status == null || status.isBlank() ? "REVIEW" : status.trim().toUpperCase();
         int p = Math.max(1, page);
         int s = size <= 0 ? SIZE_DEFAULT : Math.min(size, SIZE_MAX);
 
-        Map<String, Object> stats = repo.stats();
-        long total = totalOf(stats, st);
-        long pages = Math.max(1, (total + s - 1) / s);
+        Timestamp fromTs = startOfDay(from);
+        Timestamp toTs = startOfDay(to);
+        Timestamp toExcl = toTs == null ? null : Timestamp.valueOf(toTs.toLocalDateTime().plusDays(1));
 
-        List<Map<String, Object>> list = List.of();
-        if (total > 0 && p <= pages) {
-            int fetch = (int) Math.min(SIZE_MAX_TOTAL, (long) p * s);   // 仓储一次最多给这么多
-            List<Map<String, Object>> all = repo.auditQueue(st, fetch);
-            int from = Math.min(all.size(), (p - 1) * s);
-            int to = Math.min(all.size(), from + s);
-            list = from >= to ? List.of() : all.subList(from, to);
-        }
+        long total = repo2.count(q, authorId, st, fromTs, toExcl);
+        long pages = Math.max(1, (total + s - 1) / s);
+        List<Map<String, Object>> list = total == 0 || p > pages
+                ? List.of()
+                : repo2.list(q, authorId, st, fromTs, toExcl, (p - 1) * s, s);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("list", list);
-        out.put("stats", stats);
+        out.put("stats", repo.stats());
         out.put("total", total);
         out.put("page", p);
         out.put("size", s);
@@ -85,20 +85,14 @@ public class AdminVideoAuditService {
         return out;
     }
 
-    /** 每个状态的总数：全部/通过/驳回能从 stats 拿到精确值，待复核 = pending。 */
-    private static long totalOf(Map<String, Object> stats, String status) {
-        long n = switch (status) {
-            case "ALL" -> num(stats.get("videos"));
-            case "PASSED" -> num(stats.get("passed"));
-            case "REJECTED" -> num(stats.get("rejected"));
-            case "REVIEW", "PENDING" -> num(stats.get("pending"));
-            default -> 0;
-        };
-        return Math.max(0, n);
-    }
-
-    private static long num(Object o) {
-        return o instanceof Number n ? n.longValue() : 0L;
+    /** `from` / `to` 传 `yyyy-MM-dd`；解析不了就当没传（不报错，免得一个脏参数把页面搞崩）。 */
+    private static Timestamp startOfDay(String date) {
+        if (date == null || date.isBlank()) return null;
+        try {
+            return Timestamp.valueOf(LocalDate.parse(date.trim()) + " 00:00:00");
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** 某个视频的完整审核日志 + 视频本身。 */

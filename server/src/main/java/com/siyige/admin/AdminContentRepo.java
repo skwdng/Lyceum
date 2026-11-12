@@ -103,7 +103,7 @@ public class AdminContentRepo {
     // ==================== 评论 ====================
 
     private void appendCommentFilters(StringBuilder sql, List<Object> args, String q, Integer status,
-                                      String authorId, Long postId) {
+                                      String authorId, Long postId, Timestamp from, Timestamp toExcl) {
         sql.append(" where 1 = 1");
         if (status != null) {
             sql.append(" and c.status = ?");
@@ -116,6 +116,15 @@ public class AdminContentRepo {
         if (authorId != null && !authorId.isBlank()) {
             sql.append(" and c.user_id = ?");
             args.add(authorId.trim());
+        }
+        // 时间范围用左闭右开（和帖子列表一致）：to 传的是"结束日期"，上层已 +1 天
+        if (from != null) {
+            sql.append(" and c.created_at >= ?");
+            args.add(from);
+        }
+        if (toExcl != null) {
+            sql.append(" and c.created_at < ?");
+            args.add(toExcl);
         }
         if (q != null && !q.isBlank()) {
             sql.append(" and c.body like ? escape '").append(ESC).append("'");
@@ -131,19 +140,20 @@ public class AdminContentRepo {
                     + "left join sy_user u on u.id = c.user_id "
                     + "left join sy_post p on p.id = c.post_id";
 
-    public long countComments(String q, Integer status, String authorId, Long postId) {
+    public long countComments(String q, Integer status, String authorId, Long postId,
+                              Timestamp from, Timestamp toExcl) {
         StringBuilder sql = new StringBuilder("select count(*) from sy_post_comment c");
         List<Object> args = new java.util.ArrayList<>();
-        appendCommentFilters(sql, args, q, status, authorId, postId);
+        appendCommentFilters(sql, args, q, status, authorId, postId, from, toExcl);
         Long n = jdbc.queryForObject(sql.toString(), Long.class, args.toArray());
         return n == null ? 0 : n;
     }
 
     public List<Map<String, Object>> listComments(String q, Integer status, String authorId, Long postId,
-                                                  int offset, int limit) {
+                                                  Timestamp from, Timestamp toExcl, int offset, int limit) {
         StringBuilder sql = new StringBuilder(COMMENT_SELECT);
         List<Object> args = new java.util.ArrayList<>();
-        appendCommentFilters(sql, args, q, status, authorId, postId);
+        appendCommentFilters(sql, args, q, status, authorId, postId, from, toExcl);
         sql.append(" order by c.created_at desc, c.id desc limit ? offset ?");
         args.add(limit);
         args.add(offset);

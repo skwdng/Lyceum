@@ -202,7 +202,8 @@ function onChanged() {
 
 <style scoped>
 .cp-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.cp-input { padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 200px; }
+/* width:auto 是必需的：全局 `.adm-root input{width:100%}` 会让每个控件独占一行 */
+.cp-input { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 200px; }
 .cp-link { color: #165DFF; cursor: pointer; }
 .cp-link:hover { text-decoration: underline; }
 .cp-ops { display: inline-flex; gap: 6px; align-items: center; }

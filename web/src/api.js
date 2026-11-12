@@ -341,7 +341,9 @@ export const adminApi = {
     adminRequest('/reports?status=' + (status || 'PENDING') + '&page=' + (page || 1) + '&size=' + size),
   report: (reportId) => adminRequest('/reports/' + reportId),
   resolve: (reportId, body) => adminRequest('/reports/' + reportId + '/resolve', { method: 'POST', body }),
-  audit: (page, size = 20) => adminRequest('/audit?page=' + (page || 1) + '&size=' + size),
+  audit: (page, size = 20) => adminRequest('/audit?' + toQuery({ page: page || 1, size })),
+  /** 处理记录带筛选（q/admin/action/verdict/targetType/source/from/to 全部可空） */
+  auditFiltered: (p) => adminRequest('/audit?' + toQuery({ ...p, page: p.page || 1, size: p.size || 20 })),
   restoreAudit: (id) => adminRequest('/audit/' + encodeURIComponent(id) + '/restore', { method: 'POST' }),
   users: (q, page, size = 20) =>
     adminRequest('/users?q=' + encodeURIComponent(q || '') + '&page=' + (page || 1) + '&size=' + size),
@@ -409,7 +411,7 @@ export const contentApi = {
  * 数据层与视频模块完全一致（同一个 VideoRepo），只是鉴权与操作人不同。
  */
 export const videoAuditApi = {
-  queue: (status, page = 1, size = 20) => adminRequest('/video-audit/queue?' + toQuery({ status, page, size })),
+  queue: (p) => adminRequest('/video-audit/queue?' + toQuery({ ...p, page: p.page || 1, size: p.size || 20 })),
   logs: (id) => adminRequest('/video-audit/' + id + '/logs'),
   decide: (id, decision, reason) =>
     adminRequest('/video-audit/' + id + '/decide', { method: 'POST', body: { decision, reason } }),

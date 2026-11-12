@@ -20,14 +20,49 @@ const admin = useAdminStore();
 
 const audit = ref(null);
 
+/**
+ * 筛选条件。全部空 = 不过滤（与改造前行为一致）。
+ * `q` 关键词（详情/操作人/内容作者）、`adm` 操作人（纯数字按 id）、
+ * `action` / `verdict` / `targetType` / `source` 精确匹配，`from` / `to` 为 `yyyy-MM-dd`（含当天）。
+ */
+const f = ref({ q: '', adm: '', action: '', verdict: '', targetType: '', source: '', from: '', to: '' });
+
+const ACTIONS = [['', '全部动作'], ['REPORT_RESOLVE', '举报处置'], ['RESTORE', '撤销处理']];
+const VERDICTS = [['', '全部结果'], ['IGNORE', '忽略'], ['DELETE', '删除内容'], ['BAN', '禁言'], ['DELETE_AND_BAN', '删除+禁言']];
+const TARGETS = [['', '全部对象'], ['POST', '帖子'], ['COMMENT', '评论'], ['USER', '用户']];
+const SOURCES = [['', '全部来源'], ['REPORT', '举报'], ['MANUAL', '内容管理']];
+
 onMounted(() => loadAudit(1));
+
+function filters() {
+  const v = f.value;
+  return {
+    q: v.q.trim() || undefined,
+    admin: v.adm.trim() || undefined,
+    action: v.action || undefined,
+    verdict: v.verdict || undefined,
+    targetType: v.targetType || undefined,
+    source: v.source || undefined,
+    from: v.from || undefined,
+    to: v.to || undefined
+  };
+}
 
 async function loadAudit(page = 1) {
   try {
-    audit.value = await adminApi.audit(page, 20);
+    audit.value = await adminApi.auditFiltered({ ...filters(), page, size: 20 });
   } catch (e) {
     toast(errText(e));
   }
+}
+
+function search() {
+  loadAudit(1);
+}
+
+function resetFilters() {
+  f.value = { q: '', adm: '', action: '', verdict: '', targetType: '', source: '', from: '', to: '' };
+  loadAudit(1);
 }
 
 async function restoreAudit(id) {
@@ -48,10 +83,38 @@ async function restoreAudit(id) {
 <template>
   <div data-panel="audit">
     <div class="panel">
-      <h2>处理记录<span class="spacer"></span></h2>
+      <h2>
+        处理记录
+        <span class="spacer"></span>
+        <span v-if="audit" class="muted" style="font-weight: 400; font-size: 12px">共 {{ audit.total }} 条</span>
+      </h2>
+
+      <div class="au-bar">
+        <input v-model="f.q" class="au-input" placeholder="关键词（详情/操作人/作者）" @keyup.enter="search" />
+        <input v-model="f.adm" class="au-input" style="min-width: 130px" placeholder="操作人（id 或账号）"
+               @keyup.enter="search" />
+        <select v-model="f.action" class="au-input" style="width: 120px" @change="search">
+          <option v-for="o in ACTIONS" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+        </select>
+        <select v-model="f.verdict" class="au-input" style="width: 130px" @change="search">
+          <option v-for="o in VERDICTS" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+        </select>
+        <select v-model="f.targetType" class="au-input" style="width: 110px" @change="search">
+          <option v-for="o in TARGETS" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+        </select>
+        <select v-model="f.source" class="au-input" style="width: 120px" @change="search">
+          <option v-for="o in SOURCES" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+        </select>
+        <input v-model="f.from" class="au-input" style="width: 150px" type="date" title="起始日期" @change="search" />
+        <span class="muted" style="font-size: 12px">至</span>
+        <input v-model="f.to" class="au-input" style="width: 150px" type="date" title="结束日期" @change="search" />
+        <button class="btn primary sm" @click="search">搜索</button>
+        <button class="btn sm" @click="resetFilters">重置</button>
+      </div>
+
       <div v-if="!audit" class="muted" style="padding: 20px">加载中…</div>
       <div v-else-if="!(audit.items || []).length" class="muted" style="padding: 28px; text-align: center">
-        还没有处理记录
+        没有符合条件的处理记录
       </div>
       <table v-else>
         <thead>
@@ -110,3 +173,11 @@ async function restoreAudit(id) {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 筛选条：一行放不下会自动换行（1480 以下基本会换两行，别硬挤） */
+.au-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 12px 18px; border-bottom: 1px solid #EFF0F1; }
+.au-input { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px;
+  font-size: 13px; min-width: 190px; background: #fff; }
+</style>

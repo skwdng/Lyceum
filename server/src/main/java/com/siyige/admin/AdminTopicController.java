@@ -38,9 +38,12 @@ public class AdminTopicController {
     public Map<String, Object> list(@RequestParam(required = false) String modStatus,
                                     @RequestParam(required = false) String source,
                                     @RequestParam(required = false) String q,
+                                    @RequestParam(required = false) String id,
+                                    @RequestParam(required = false) String from,
+                                    @RequestParam(required = false) String to,
                                     @RequestParam(defaultValue = "1") int page,
                                     @RequestParam(defaultValue = "20") int size) {
-        return service.topics(modStatus, source, q, page, size);
+        return service.topics(modStatus, source, q, id, from, to, page, size);
     }
 
     @PostMapping("/{id}/approve")

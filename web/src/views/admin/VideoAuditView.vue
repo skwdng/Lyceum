@@ -14,6 +14,10 @@ import { errText } from './helpers.js';
 const STATUSES = [['REVIEW', '待复核'], ['PASSED', '已通过'], ['REJECTED', '已驳回'], ['ALL', '全部']];
 
 const status = ref('REVIEW');
+const q = ref('');
+const author = ref('');
+const from = ref('');
+const to = ref('');
 const page = ref(1);
 const size = 20;
 const list = ref([]);
@@ -35,7 +39,15 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await videoAuditApi.queue(status.value, page.value, size);
+    const res = await videoAuditApi.queue({
+      status: status.value,
+      q: q.value.trim() || undefined,
+      authorId: author.value.trim() || undefined,
+      from: from.value || undefined,
+      to: to.value || undefined,
+      page: page.value,
+      size
+    });
     list.value = res.list || [];
     stats.value = res.stats || null;
     total.value = res.total || 0;
@@ -53,6 +65,12 @@ onMounted(load);
 /** 切状态回到第 1 页（否则停在"待复核 3/3"这种不存在的页上） */
 function switchStatus(s) {
   status.value = s;
+  page.value = 1;
+  load();
+}
+
+/** 改筛选条件后回到第 1 页再查 */
+function search() {
   page.value = 1;
   load();
 }
@@ -131,6 +149,17 @@ const ts = (v) => (typeof v === 'number' ? fmt(v) : (v ? String(v).slice(0, 16).
           <span class="spacer"></span>
           <span class="muted" style="font-size: 12px">共 {{ total }} 条</span>
           <button class="btn sm" :disabled="loading" @click="load">刷新</button>
+        </div>
+
+        <div class="va-bar">
+          <input v-model="q" class="va-input" placeholder="搜索标题或简介…" @keyup.enter="search" />
+          <input v-model="author" class="va-input" style="min-width: 150px" placeholder="作者 ID"
+                 @keyup.enter="search" />
+          <input v-model="from" class="va-input" style="width: 150px" type="date" title="发布起始日期" @change="search" />
+          <span class="muted" style="font-size: 12px">至</span>
+          <input v-model="to" class="va-input" style="width: 150px" type="date" title="发布结束日期" @change="search" />
+          <button class="btn primary sm" @click="search">搜索</button>
+          <button class="btn sm" @click="q = ''; author = ''; from = ''; to = ''; search()">重置</button>
         </div>
 
         <div v-if="error" class="adm-error">
@@ -245,6 +274,8 @@ const ts = (v) => (typeof v === 'number' ? fmt(v) : (v ? String(v).slice(0, 16).
 
 <style scoped>
 .va-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+/* width:auto 是必需的：全局 `.adm-root input{width:100%}` 会让每个控件独占一行 */
+.va-input { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 200px; }
 .va-ops { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .va-reason { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .va-page { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px; }
