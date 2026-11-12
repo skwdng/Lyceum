@@ -1,6 +1,7 @@
 package com.siyige.admin;
 
 import com.siyige.auth.AuthException;
+import com.siyige.community.CommentService;
 import com.siyige.community.CommunityRepo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,14 +49,17 @@ public class AdminReportService {
     private final AuditLog audit;
     /** 删内容要给作者发通知（决策 5）。 */
     private final com.siyige.community.NotificationService notifications;
+    /** 删评论后重算帖子评论数（复用社区既有实现）。 */
+    private final CommentService comments;
 
     public AdminReportService(AdminReportRepo repo, CommunityRepo community, BanService bans, AuditLog audit,
-                              com.siyige.community.NotificationService notifications) {
+                              com.siyige.community.NotificationService notifications, CommentService comments) {
         this.repo = repo;
         this.community = community;
         this.bans = bans;
         this.audit = audit;
         this.notifications = notifications;
+        this.comments = comments;
     }
 
     // ==================== 队列 ====================
@@ -166,8 +170,14 @@ public class AdminReportService {
         // 1) 删除内容
         if (delete) {
             if (stillActive) {
-                if ("POST".equals(targetType)) community.softDeletePost(targetId);
-                else community.softDeleteComment(targetId);
+                if ("POST".equals(targetType)) {
+                    community.softDeletePost(targetId);
+                } else {
+                    community.softDeleteComment(targetId);
+                    // 评论被删后要重算帖子评论数（软删只改 status，不碰 comment_count）——
+                    // 与内容管理屏蔽评论同款处理，否则举报处置删评论后帖子上的评论数会虚高
+                    if (raw.get("post_id") != null) comments.refreshPostStats(num(raw.get("post_id")));
+                }
                 log.info("管理员删除内容 target={}#{} by={}", targetType, targetId, adminId);
                 // 通知：内容作者会收到「被管理员删除 + 理由」（决策 5；作者自己删自己的不发）
                 notifications.onContentDeleted(targetType, targetId, author, note);

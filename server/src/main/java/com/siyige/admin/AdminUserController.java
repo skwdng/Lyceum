@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.auth.ClientIp;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -52,11 +54,21 @@ public class AdminUserController {
         return ResponseEntity.noContent().build();
     }
 
+    /** 批量处置：action = mute | ban | unban（统一一个理由，逐条写处理记录）。 */
+    @PostMapping("/batch")
+    public Map<String, Object> batch(@RequestBody(required = false) AdminDtos.BatchUserRequest req,
+                                     HttpServletRequest http) {
+        return service.batch(req == null ? null : req.action(), req == null ? null : req.ids(),
+                req == null ? null : req.days(), req == null ? null : req.reason(),
+                AdminContext.requireId(), AdminContext.account(), ClientIp.of(http));
+    }
+
     @PostMapping("/{id}/status")
     public ResponseEntity<Void> status(@PathVariable String id,
-                                       @RequestBody(required = false) AdminDtos.SetStatusRequest req) {
+                                       @RequestBody(required = false) AdminDtos.SetStatusRequest req,
+                                       HttpServletRequest http) {
         service.setStatus(id, req == null ? null : req.status(), req == null ? null : req.reason(),
-                AdminContext.requireId());
+                AdminContext.requireId(), AdminContext.account(), ClientIp.of(http));
         return ResponseEntity.noContent().build();
     }
 }

@@ -68,7 +68,8 @@ class AuditRestoreTest {
         banRepo = new BanRepo(jdbc);
         banService = new BanService(banRepo, notify);
         restoreService = new RestoreService(auditRepo, audit, reportRepo, community);
-        reportService = new AdminReportService(reportRepo, community, banService, audit, notify);
+        reportService = new AdminReportService(reportRepo, community, banService, audit, notify,
+                org.mockito.Mockito.mock(com.siyige.community.CommentService.class));
 
         user("u1", "reporter1");
         user("u2", "authorA");

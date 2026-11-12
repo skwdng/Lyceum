@@ -48,9 +48,13 @@ public class AdminErrors {
         int colon = msg.indexOf(':');
         String code = colon > 0 ? msg.substring(0, colon).trim() : "INVALID_PARAM";
         HttpStatus status = switch (code) {
-            case "REPORT_NOT_FOUND", "USER_NOT_FOUND", "AUDIT_NOT_FOUND" -> HttpStatus.NOT_FOUND;
-            // 恢复类冲突一律 409：ALREADY_RESTORED 表示已经撤销过，NOT_RESTORABLE 表示没东西可恢复
-            case "ALREADY_REPORTED", "ALREADY_RESTORED", "NOT_RESTORABLE" -> HttpStatus.CONFLICT;
+            case "REPORT_NOT_FOUND", "USER_NOT_FOUND", "AUDIT_NOT_FOUND",
+                 "POST_NOT_FOUND", "COMMENT_NOT_FOUND", "TOPIC_NOT_FOUND",
+                 "VIDEO_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            // 恢复类冲突一律 409：ALREADY_RESTORED 表示已经撤销过，NOT_RESTORABLE 表示没东西可恢复；
+            // 内容管理的 ALREADY_HIDDEN / NOT_HIDDEN 同理（重复点两次不该是 500）
+            case "ALREADY_REPORTED", "ALREADY_RESTORED", "NOT_RESTORABLE",
+                 "ALREADY_HIDDEN", "NOT_HIDDEN" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_REQUEST;
         };
         return body(code, msg, status);

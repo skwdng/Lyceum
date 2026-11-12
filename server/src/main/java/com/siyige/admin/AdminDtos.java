@@ -41,6 +41,25 @@ public final class AdminDtos {
     public record SetStatusRequest(Integer status, String reason) { }
 
     /**
+     * 内容管理：屏蔽入参。
+     *
+     * <p>{@code note} 会写进审计描述、也会推给内容作者（"被管理员删除 + 理由"），可空。
+     */
+    public record HideRequest(String note) { }
+
+    /** 视频复核：人工判定入参。decision = PASS | REJECT。 */
+    public record VideoDecideRequest(String decision, String reason) { }
+
+    /** 辩题审核：驳回 / 下架的理由（驳回必填）。 */
+    public record TopicReasonRequest(String reason) { }
+
+    /** 内容批量处置：action = hide | unhide，type = post | comment，ids 最多 200 条。 */
+    public record BatchContentRequest(String type, String action, java.util.List<Long> ids, String note) { }
+
+    /** 用户批量处置：action = mute | ban | unban，reason 统一填。 */
+    public record BatchUserRequest(String action, java.util.List<String> ids, Integer days, String reason) { }
+
+    /**
      * 举报处理入参。
      *
      * <p>{@code action} 取 {@code IGNORE} / {@code DELETE} / {@code BAN} / {@code DELETE_AND_BAN}；
