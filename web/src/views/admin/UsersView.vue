@@ -13,8 +13,16 @@ import { adminApi } from '../../api.js';
 import { useAdminStore } from '../../stores/admin.js';
 import { toast } from '../../utils/toast.js';
 import { errText, fmtTime } from './helpers.js';
+import UserProfilePop from './components/UserProfilePop.vue';
 
 const admin = useAdminStore();
+
+/** 用户违规浮窗：点用户名弹出（与内容管理两个页面共用同一个组件） */
+const pop = ref(null);
+function openPop(userId, ev) {
+  if (!userId) return;
+  pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+}
 
 const users = ref(null);
 const usersQ = ref('');
@@ -89,7 +97,7 @@ async function setStatus(u, status) {
         <tbody>
           <tr v-for="u in users.items" :key="u.id">
             <td>
-              <div style="font-weight: 600">{{ u.name || u.account }}</div>
+              <div class="u-link" style="font-weight: 600" @click="openPop(u.id, $event)">{{ u.name || u.account }}</div>
               <div class="muted" style="font-size: 12px">{{ u.account }}</div>
             </td>
             <td>
@@ -125,5 +133,8 @@ async function setStatus(u, status) {
         </button>
       </div>
     </div>
+
+    <UserProfilePop v-if="pop" :user-id="pop.id" :x="pop.x" :y="pop.y"
+                    @close="pop = null" @changed="loadUsers(users ? users.page : 1)" />
   </div>
 </template>

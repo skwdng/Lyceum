@@ -98,4 +98,10 @@ public class AdminContentController {
                 AdminContext.requireId(), AdminContext.account(), ClientIp.of(http));
         return ResponseEntity.noContent().build();
     }
+
+    /** 用户违规浮窗：基本信息 + 统计 + 违规历史（禁言记录 / 被屏蔽的内容）。 */
+    @GetMapping("/users/{id}/profile")
+    public Map<String, Object> profile(@PathVariable String id) {
+        return service.userProfile(id);
+    }
 }

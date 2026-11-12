@@ -1,6 +1,7 @@
-import { _ as _export_sfc, k as openBlock, c as createElementBlock, f as createCommentVNode, F as Fragment, e as renderList, d as createBaseVNode, t as toDisplayString, g as createVNode, n as normalizeClass, w as watch, x as createTextVNode, D as withModifiers, r as ref, I as contentApi, s as toast, h as computed, E as nextTick, o as onMounted, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, b as createBlock, j as useRoute } from "./index-6I4EyHAL.js";
-import { e as errText } from "./helpers-Btfzg9b7.js";
-import { M as ModerationBar } from "./ModerationBar-BclrnWUZ.js";
+import { _ as _export_sfc, k as openBlock, c as createElementBlock, f as createCommentVNode, F as Fragment, e as renderList, d as createBaseVNode, t as toDisplayString, g as createVNode, n as normalizeClass, w as watch, x as createTextVNode, D as withModifiers, r as ref, I as contentApi, s as toast, h as computed, E as nextTick, o as onMounted, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, b as createBlock, j as useRoute } from "./index-B1yuYSaQ.js";
+import { e as errText } from "./helpers-QSB0v9jR.js";
+import { M as ModerationBar } from "./ModerationBar-B-XHMd6f.js";
+import { U as UserProfilePop } from "./UserProfilePop-uz-U2Ofd.js";
 const _hoisted_1$2 = { class: "ct" };
 const _hoisted_2$2 = {
   key: 0,
@@ -342,6 +343,11 @@ const _sfc_main = {
     const error = ref("");
     const drawer = ref(null);
     const route = useRoute();
+    const pop = ref(null);
+    function openPop(userId, ev) {
+      if (!userId) return;
+      pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+    }
     function openFromQuery() {
       const postId = route.query.post;
       if (!postId) return;
@@ -395,8 +401,8 @@ const _sfc_main = {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("div", _hoisted_2, [
           createBaseVNode("h2", null, [
-            _cache[7] || (_cache[7] = createTextVNode(" 帖子管理 ", -1)),
-            _cache[8] || (_cache[8] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            _cache[8] || (_cache[8] = createTextVNode(" 帖子管理 ", -1)),
+            _cache[9] || (_cache[9] = createBaseVNode("span", { class: "spacer" }, null, -1)),
             createBaseVNode("span", _hoisted_3, "共 " + toDisplayString(total.value) + " 条（含已屏蔽）", 1)
           ]),
           createBaseVNode("div", _hoisted_4, [
@@ -454,7 +460,7 @@ const _sfc_main = {
               }, "重置")
             ]),
             error.value ? (openBlock(), createElementBlock("div", _hoisted_8, [
-              _cache[9] || (_cache[9] = createBaseVNode("b", null, "加载失败", -1)),
+              _cache[10] || (_cache[10] = createBaseVNode("b", null, "加载失败", -1)),
               createBaseVNode("span", _hoisted_9, toDisplayString(error.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
@@ -462,7 +468,7 @@ const _sfc_main = {
               }, "重试")
             ])) : loading.value ? (openBlock(), createElementBlock("div", _hoisted_10, "加载中…")) : (openBlock(), createElementBlock("div", _hoisted_11, [
               createBaseVNode("table", null, [
-                _cache[11] || (_cache[11] = createBaseVNode("thead", null, [
+                _cache[12] || (_cache[12] = createBaseVNode("thead", null, [
                   createBaseVNode("tr", null, [
                     createBaseVNode("th", { style: { "width": "64px" } }, "ID"),
                     createBaseVNode("th", null, "标题"),
@@ -475,7 +481,7 @@ const _sfc_main = {
                   ])
                 ], -1)),
                 createBaseVNode("tbody", null, [
-                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_12, [..._cache[10] || (_cache[10] = [
+                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_12, [..._cache[11] || (_cache[11] = [
                     createBaseVNode("td", {
                       colspan: "8",
                       class: "muted",
@@ -499,7 +505,7 @@ const _sfc_main = {
                       createBaseVNode("td", null, [
                         createBaseVNode("span", {
                           class: "cp-link",
-                          onClick: ($event) => openDrawer(p.id)
+                          onClick: ($event) => openPop(p.authorId, $event)
                         }, toDisplayString(p.authorName || p.authorId), 9, _hoisted_16)
                       ]),
                       createBaseVNode("td", null, [
@@ -549,12 +555,20 @@ const _sfc_main = {
           "focus-comment-id": drawer.value.focusCommentId,
           onClose: _cache[6] || (_cache[6] = ($event) => drawer.value = null),
           onChanged
-        }, null, 8, ["post-id", "focus-comment-id"])) : createCommentVNode("", true)
+        }, null, 8, ["post-id", "focus-comment-id"])) : createCommentVNode("", true),
+        pop.value ? (openBlock(), createBlock(UserProfilePop, {
+          key: 1,
+          "user-id": pop.value.id,
+          x: pop.value.x,
+          y: pop.value.y,
+          onClose: _cache[7] || (_cache[7] = ($event) => pop.value = null),
+          onChanged: load
+        }, null, 8, ["user-id", "x", "y"])) : createCommentVNode("", true)
       ]);
     };
   }
 };
-const ContentPostsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-b880f943"]]);
+const ContentPostsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-0eb02f2e"]]);
 export {
   ContentPostsView as default
 };

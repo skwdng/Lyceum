@@ -396,5 +396,7 @@ export const contentApi = {
   hide: (type, id, note) => adminRequest('/content/' + type + '/' + id + '/hide', { method: 'POST', body: { note } }),
   unhide: (type, id) => adminRequest('/content/' + type + '/' + id + '/unhide', { method: 'POST' }),
   /** 禁言 1/3/7 天（BanService 内部校验），带 MANUAL 审计 */
-  mute: (id, days, reason) => adminRequest('/users/' + encodeURIComponent(id) + '/mute', { method: 'POST', body: { days, reason } })
+  mute: (id, days, reason) => adminRequest('/users/' + encodeURIComponent(id) + '/mute', { method: 'POST', body: { days, reason } }),
+  /** 用户违规浮窗：基本信息 + 统计 + 违规历史 */
+  profile: (id) => adminRequest('/users/' + encodeURIComponent(id) + '/profile')
 };

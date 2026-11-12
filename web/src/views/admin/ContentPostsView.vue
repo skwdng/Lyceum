@@ -12,6 +12,7 @@ import { toast } from '../../utils/toast.js';
 import { errText } from './helpers.js';
 import ModerationBar from './components/ModerationBar.vue';
 import PostDetailDrawer from './components/PostDetailDrawer.vue';
+import UserProfilePop from './components/UserProfilePop.vue';
 
 const TYPES = [['', '全部类型'], ['CHAT', '闲聊'], ['GUIDE', '攻略'], ['HELP', '求助']];
 const STATUSES = [['', '全部状态'], ['1', '正常'], ['2', '已屏蔽']];
@@ -33,6 +34,13 @@ const error = ref('');
  */
 const drawer = ref(null);
 const route = useRoute();
+
+/** 用户违规浮窗（点作者名弹出，按点击坐标定位） */
+const pop = ref(null);
+function openPop(userId, ev) {
+  if (!userId) return;
+  pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+}
 
 function openFromQuery() {
   const postId = route.query.post;
@@ -145,7 +153,7 @@ function onChanged() {
                 </td>
                 <td><span class="tag blue">{{ p.type }}</span></td>
                 <td>
-                  <span class="cp-link" @click="openDrawer(p.id)">{{ p.authorName || p.authorId }}</span>
+                  <span class="cp-link" @click="openPop(p.authorId, $event)">{{ p.authorName || p.authorId }}</span>
                 </td>
                 <td>
                   <span v-if="p.hidden" class="tag red">已屏蔽</span>
@@ -175,6 +183,9 @@ function onChanged() {
 
     <PostDetailDrawer v-if="drawer" :post-id="drawer.id" :focus-comment-id="drawer.focusCommentId"
                       @close="drawer = null" @changed="onChanged" />
+
+    <UserProfilePop v-if="pop" :user-id="pop.id" :x="pop.x" :y="pop.y"
+                    @close="pop = null" @changed="load" />
   </div>
 </template>
 

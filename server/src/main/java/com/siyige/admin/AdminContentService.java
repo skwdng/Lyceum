@@ -200,7 +200,94 @@ public class AdminContentService {
         return until;
     }
 
+    // ==================== 用户违规浮窗（批次 4） ====================
+
+    /**
+     * 用户浮窗内容：基本信息 + 统计 + 违规历史。
+     *
+     * <p>违规历史来自两处，语义不同所以分开给：
+     * <ul>
+     *   <li>`banHistory` —— `sy_community_ban` 里的禁言记录（有期限、会到期）；</li>
+     *   <li>`hiddenContent` —— `sy_audit_log` 里 `target_owner = 该用户` 的 DELETE 类处置
+     *       （undo_at 非空表示已恢复）。</li>
+     * </ul>
+     */
+    public Map<String, Object> userProfile(String userId) {
+        Map<String, Object> u = repo.userBrief(userId);
+        if (u == null) throw new IllegalArgumentException("USER_NOT_FOUND: 用户不存在");
+
+        Map<String, Object> user = new LinkedHashMap<>();
+        user.put("id", str(u.get("id")));
+        user.put("name", str(u.get("name")));
+        user.put("status", (int) num(u.get("status")));
+        user.put("disabled", num(u.get("status")) == 0);        // 0 = 全站封禁
+        user.put("isBot", num(u.get("is_bot")) == 1);
+        user.put("createdAt", millis(u.get("created_at")));
+
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("posts", repo.countUserPosts(userId, null));
+        stats.put("hiddenPosts", repo.countUserPosts(userId, 2));
+        stats.put("comments", repo.countUserComments(userId, null));
+        stats.put("hiddenComments", repo.countUserComments(userId, 2));
+        stats.put("matches", repo.countUserMatches(userId));
+        stats.put("walletCents", repo.walletCents(userId));
+
+        Map<String, Object> moderation = new LinkedHashMap<>();
+        moderation.put("muted", repo.isMuted(userId));
+        moderation.put("banned", num(u.get("status")) == 0);
+        moderation.put("banHistory", banViews(repo.banHistory(userId, 10)));
+        moderation.put("hiddenContent", hiddenViews(repo.hiddenContent(userId, 20)));
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("user", user);
+        out.put("stats", stats);
+        out.put("moderation", moderation);
+        return out;
+    }
+
     // ==================== 视图与工具 ====================
+
+    /**
+     * 禁言记录 -> 驼峰视图。
+     *
+     * <p>为什么不能直接把 `queryForList` 的 map 丢给前端：H2 返回的列名是**大写**
+     * （`CREATED_AT` / `BANNED_BY`），Jackson 会原样下发成大写键，前端 `b.createdAt` 全是 undefined。
+     * 既有的其它管理接口都是先映射再下发，这里保持一致。
+     */
+    private static List<Map<String, Object>> banViews(List<Map<String, Object>> rows) {
+        List<Map<String, Object>> out = new ArrayList<>(rows.size());
+        long now = System.currentTimeMillis();
+        for (Map<String, Object> r : rows) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("reason", str(r.get("reason")));
+            m.put("operator", str(r.get("operator")));
+            Long until = millis(r.get("until"));
+            m.put("createdAt", millis(r.get("created_at")));
+            m.put("untilAt", until);
+            m.put("active", until != null && until > now);
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** 被处置的内容 -> 驼峰视图（`undone` 非空表示已恢复）。 */
+    private static List<Map<String, Object>> hiddenViews(List<Map<String, Object>> rows) {
+        List<Map<String, Object>> out = new ArrayList<>(rows.size());
+        for (Map<String, Object> r : rows) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("auditId", num(r.get("id")));
+            m.put("type", str(r.get("target_type")));
+            m.put("targetId", r.get("target_id") == null ? null : num(r.get("target_id")));
+            m.put("detail", str(r.get("detail")));
+            m.put("source", str(r.get("source")));
+            m.put("adminName", str(r.get("admin_name")));
+            m.put("createdAt", millis(r.get("created_at")));
+            m.put("undone", r.get("undo_at") != null);
+            out.add(m);
+        }
+        return out;
+    }
+
 
     private static Map<String, Object> postView(Map<String, Object> row) {
         Map<String, Object> m = new LinkedHashMap<>();

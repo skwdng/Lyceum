@@ -11,8 +11,16 @@ import { useRouter } from 'vue-router';
 import { contentApi } from '../../api.js';
 import { errText } from './helpers.js';
 import ModerationBar from './components/ModerationBar.vue';
+import UserProfilePop from './components/UserProfilePop.vue';
 
 const router = useRouter();
+
+/** 用户违规浮窗（点作者名弹出） */
+const pop = ref(null);
+function openPop(userId, ev) {
+  if (!userId) return;
+  pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+}
 
 const STATUSES = [['', '全部状态'], ['1', '正常'], ['2', '已屏蔽']];
 const q = ref('');
@@ -118,7 +126,9 @@ function fmt(ms) {
                 <td class="muted">{{ c.id }}</td>
                 <td class="cc-body">{{ c.body }}</td>
                 <td><span class="tag">{{ c.floor }}</span></td>
-                <td>{{ c.authorName || c.authorId }}</td>
+                <td>
+                  <a class="cc-link" @click="openPop(c.authorId, $event)">{{ c.authorName || c.authorId }}</a>
+                </td>
                 <td>
                   <a class="cc-link" @click="jumpToPost(c)">#{{ c.postId }} {{ c.postTitle }}</a>
                 </td>
@@ -146,6 +156,9 @@ function fmt(ms) {
         </div>
       </div>
     </div>
+
+    <UserProfilePop v-if="pop" :user-id="pop.id" :x="pop.x" :y="pop.y"
+                    @close="pop = null" @changed="load" />
   </div>
 </template>
 

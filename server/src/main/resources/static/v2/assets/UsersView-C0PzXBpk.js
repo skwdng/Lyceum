@@ -1,6 +1,7 @@
-import { o as onMounted, c as createElementBlock, d as createBaseVNode, x as createTextVNode, p as withDirectives, v as vModelText, q as withKeys, F as Fragment, e as renderList, t as toDisplayString, f as createCommentVNode, r as ref, H as adminApi, s as toast, k as openBlock, n as normalizeClass, u as unref, G as vModelSelect } from "./index-6I4EyHAL.js";
-import { u as useAdminStore } from "./admin-B75i7aJK.js";
-import { e as errText, f as fmtTime } from "./helpers-Btfzg9b7.js";
+import { o as onMounted, c as createElementBlock, d as createBaseVNode, x as createTextVNode, p as withDirectives, v as vModelText, q as withKeys, F as Fragment, e as renderList, t as toDisplayString, f as createCommentVNode, b as createBlock, r as ref, H as adminApi, s as toast, k as openBlock, n as normalizeClass, u as unref, G as vModelSelect } from "./index-B1yuYSaQ.js";
+import { u as useAdminStore } from "./admin-BGWxyXbx.js";
+import { e as errText, f as fmtTime } from "./helpers-QSB0v9jR.js";
+import { U as UserProfilePop } from "./UserProfilePop-uz-U2Ofd.js";
 const _hoisted_1 = { "data-panel": "users" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -14,7 +15,7 @@ const _hoisted_4 = {
   style: { "padding": "28px", "text-align": "center" }
 };
 const _hoisted_5 = { key: 2 };
-const _hoisted_6 = { style: { "font-weight": "600" } };
+const _hoisted_6 = ["onClick"];
 const _hoisted_7 = {
   class: "muted",
   style: { "font-size": "12px" }
@@ -52,6 +53,11 @@ const _sfc_main = {
   __name: "UsersView",
   setup(__props) {
     const admin = useAdminStore();
+    const pop = ref(null);
+    function openPop(userId, ev) {
+      if (!userId) return;
+      pop.value = { id: userId, x: ev.clientX, y: ev.clientY };
+    }
     const users = ref(null);
     const usersQ = ref("");
     const banDaysByUser = ref({});
@@ -96,8 +102,8 @@ const _sfc_main = {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("div", _hoisted_2, [
           createBaseVNode("h2", null, [
-            _cache[5] || (_cache[5] = createTextVNode(" 用户管理 ", -1)),
-            _cache[6] || (_cache[6] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            _cache[7] || (_cache[7] = createTextVNode(" 用户管理 ", -1)),
+            _cache[8] || (_cache[8] = createBaseVNode("span", { class: "spacer" }, null, -1)),
             withDirectives(createBaseVNode("input", {
               "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => usersQ.value = $event),
               placeholder: "搜账号或昵称",
@@ -112,7 +118,7 @@ const _sfc_main = {
             }, "搜索")
           ]),
           !users.value ? (openBlock(), createElementBlock("div", _hoisted_3, "加载中…")) : !(users.value.items || []).length ? (openBlock(), createElementBlock("div", _hoisted_4, " 没有匹配的用户 ")) : (openBlock(), createElementBlock("table", _hoisted_5, [
-            _cache[8] || (_cache[8] = createBaseVNode("thead", null, [
+            _cache[10] || (_cache[10] = createBaseVNode("thead", null, [
               createBaseVNode("tr", null, [
                 createBaseVNode("th", null, "用户"),
                 createBaseVNode("th", { style: { "width": "110px" } }, "全站"),
@@ -127,7 +133,11 @@ const _sfc_main = {
                   key: u.id
                 }, [
                   createBaseVNode("td", null, [
-                    createBaseVNode("div", _hoisted_6, toDisplayString(u.name || u.account), 1),
+                    createBaseVNode("div", {
+                      class: "u-link",
+                      style: { "font-weight": "600" },
+                      onClick: ($event) => openPop(u.id, $event)
+                    }, toDisplayString(u.name || u.account), 9, _hoisted_6),
                     createBaseVNode("div", _hoisted_7, toDisplayString(u.account), 1)
                   ]),
                   createBaseVNode("td", null, [
@@ -145,7 +155,7 @@ const _sfc_main = {
                     withDirectives(createBaseVNode("select", {
                       "onUpdate:modelValue": ($event) => banDaysByUser.value[u.id] = $event,
                       style: { "width": "82px", "display": "inline-block" }
-                    }, [..._cache[7] || (_cache[7] = [
+                    }, [..._cache[9] || (_cache[9] = [
                       createBaseVNode("option", { value: 1 }, "1 天", -1),
                       createBaseVNode("option", { value: 3 }, "3 天", -1),
                       createBaseVNode("option", { value: 7 }, "7 天", -1)
@@ -187,7 +197,15 @@ const _sfc_main = {
               onClick: _cache[4] || (_cache[4] = ($event) => loadUsers(users.value.page + 1))
             }, " 下一页 ", 8, _hoisted_21)
           ])) : createCommentVNode("", true)
-        ])
+        ]),
+        pop.value ? (openBlock(), createBlock(UserProfilePop, {
+          key: 0,
+          "user-id": pop.value.id,
+          x: pop.value.x,
+          y: pop.value.y,
+          onClose: _cache[5] || (_cache[5] = ($event) => pop.value = null),
+          onChanged: _cache[6] || (_cache[6] = ($event) => loadUsers(users.value ? users.value.page : 1))
+        }, null, 8, ["user-id", "x", "y"])) : createCommentVNode("", true)
       ]);
     };
   }

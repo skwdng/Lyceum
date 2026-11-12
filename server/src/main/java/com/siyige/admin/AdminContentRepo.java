@@ -198,4 +198,60 @@ public class AdminContentRepo {
                 "select id, name, status, created_at, is_bot from sy_user where id = ?", userId);
         return rows.isEmpty() ? null : rows.get(0);
     }
+
+    // ==================== 用户违规浮窗（批次 4） ====================
+
+    public long countUserPosts(String userId, Integer status) {
+        Long n = status == null
+                ? jdbc.queryForObject("select count(*) from sy_post where author_id = ?", Long.class, userId)
+                : jdbc.queryForObject("select count(*) from sy_post where author_id = ? and status = ?",
+                Long.class, userId, status);
+        return n == null ? 0 : n;
+    }
+
+    public long countUserComments(String userId, Integer status) {
+        Long n = status == null
+                ? jdbc.queryForObject("select count(*) from sy_post_comment where user_id = ?", Long.class, userId)
+                : jdbc.queryForObject("select count(*) from sy_post_comment where user_id = ? and status = ?",
+                Long.class, userId, status);
+        return n == null ? 0 : n;
+    }
+
+    public long countUserMatches(String userId) {
+        Long n = jdbc.queryForObject("select count(*) from sy_match where user_id = ?", Long.class, userId);
+        return n == null ? 0 : n;
+    }
+
+    public long walletCents(String userId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "select balance_cents from sy_wallet where user_id = ?", userId);
+        return rows.isEmpty() ? 0 : ((Number) rows.get(0).get("balance_cents")).longValue();
+    }
+
+    /** 生效中的社区禁言（`until > now`）。 */
+    public boolean isMuted(String userId) {
+        Long n = jdbc.queryForObject(
+                "select count(*) from sy_community_ban where user_id = ? and until > ?",
+                Long.class, userId, new Timestamp(System.currentTimeMillis()));
+        return n != null && n > 0;
+    }
+
+    /** 禁言历史（新的在前）。 */
+    public List<Map<String, Object>> banHistory(String userId, int limit) {
+        return jdbc.queryForList(
+                "select b.reason, b.banned_by, b.until, b.created_at, a.account as operator "
+                        + "from sy_community_ban b left join sy_admin a on a.id = b.banned_by "
+                        + "where b.user_id = ? order by b.created_at desc, b.until desc limit ?",
+                userId, limit);
+    }
+
+    /** 被屏蔽的内容（来自处理记录里与该作者相关的 DELETE 类处置）。 */
+    public List<Map<String, Object>> hiddenContent(String userId, int limit) {
+        return jdbc.queryForList(
+                "select id, target_type, target_id, detail, source, admin_name, created_at, undo_at "
+                        + "from sy_audit_log "
+                        + "where target_owner = ? and verdict in ('DELETE', 'DELETE_AND_BAN') "
+                        + "order by created_at desc, id desc limit ?",
+                userId, limit);
+    }
 }
