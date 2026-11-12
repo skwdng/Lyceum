@@ -94,7 +94,9 @@ public class RestoreService {
         }
 
         // 3) 举报状态 ACCEPTED -> REOPENED（终态，不回队列）
-        int reopened = reportRepo.reopenReport(reportId);
+        //    仅当这条记录来自举报处理。管理员从内容管理直接处置（source=MANUAL）时
+        //    report_id = 0，没有关联举报可改，跳过这一步；其余逻辑与老路径完全一致。
+        int reopened = reportId > 0 ? reportRepo.reopenReport(reportId) : 0;
 
         // 4) 另记一条 RESTORE 审计（失败也不影响已经完成的事实）
         audit.recordRestore(reportId, adminId, adminName, targetType, targetId,

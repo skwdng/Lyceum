@@ -21,6 +21,18 @@ public class AuditLogRepo {
     public static final String ACTION_RESOLVE = "REPORT_RESOLVE";
     public static final String ACTION_RESTORE = "RESTORE";
 
+    /** 来源：举报处理（默认）/ 管理员从内容管理直接处置。 */
+    public static final String SOURCE_REPORT = "REPORT";
+    public static final String SOURCE_MANUAL = "MANUAL";
+
+    /**
+     * 管理员主动处置时的 `report_id`。
+     *
+     * <p>列是 `not null`，而"从内容管理直接屏蔽"没有举报来源，所以约定用 0 表示"非举报来源"。
+     * {@link RestoreService} 见到 `report_id <= 0` 会跳过"把关联举报改回 REOPENED"那一步。
+     */
+    public static final long MANUAL_REPORT_ID = 0L;
+
     private final JdbcTemplate jdbc;
 
     public AuditLogRepo(JdbcTemplate jdbc) {
@@ -30,9 +42,23 @@ public class AuditLogRepo {
     /** 写一条处理记录。调用方（{@link AuditLog}）负责吞掉异常，不让审计影响主流程。 */
     public void insert(long reportId, long adminId, String adminName, String action, String verdict,
                        String targetType, Long targetId, String detail, String ip) {
+        insert(reportId, adminId, adminName, action, verdict, targetType, targetId, detail, ip,
+                SOURCE_REPORT, null);
+    }
+
+    /**
+     * 写一条处理记录（带来源与内容作者）。
+     *
+     * @param source       {@link #SOURCE_REPORT} / {@link #SOURCE_MANUAL}
+     * @param targetOwner  内容作者的用户 id（用户浮窗按人查违规历史用）；禁言这类"目标是用户"的记录也填它
+     */
+    public void insert(long reportId, long adminId, String adminName, String action, String verdict,
+                       String targetType, Long targetId, String detail, String ip,
+                       String source, String targetOwner) {
         jdbc.update("insert into sy_audit_log(report_id, admin_id, admin_name, action, verdict, " +
-                        "target_type, target_id, detail, ip) values(?,?,?,?,?,?,?,?,?)",
-                reportId, adminId, adminName, action, verdict, targetType, targetId, detail, ip);
+                        "target_type, target_id, detail, ip, source, target_owner) values(?,?,?,?,?,?,?,?,?,?,?)",
+                reportId, adminId, adminName, action, verdict, targetType, targetId, detail, ip,
+                source == null ? SOURCE_REPORT : source, targetOwner);
     }
 
     /** 标记已撤销（哪一次处理在什么时候被谁撤销）。 */

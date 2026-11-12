@@ -70,3 +70,19 @@ create index if not exists ix_ban_user on sy_community_ban(user_id, until);
 -- 种子管理员：admin / admin123（Argon2id）
 merge into sy_admin(account, password_hash, status) key(account)
 values ('admin', '$argon2id$v=19$m=19456,t=2,p=1$YBWShW1aHjyBEfjlYxdpYQ$zeEY/pL7f1hqrexbIVH+mS26BRHe2DdcMrQMuULjvQ4', 1);
+
+-- ============================================================================
+-- 内容管理台（feature-admin-content）
+--
+-- 注：`sy_audit_log` 的两列（source / target_owner）放在 **schema-security.sql** 里追加 ——
+-- 那张表本身是在 schema-security.sql 创建的，而本文件在它之前执行（见 application.yml
+-- 的 schema-locations 顺序），ALTER 写在前面会直接报"表不存在"。
+-- ============================================================================
+
+-- 评论列表的筛选/排序。帖子侧已有 ix_post_new(status, created_at) 覆盖，无需重复建。
+create index if not exists ix_comment_status on sy_post_comment(status, created_at);
+create index if not exists ix_comment_author on sy_post_comment(user_id, created_at);
+
+-- 注：设计稿里还提了 create index ix_ban_user on sy_community_ban(user_id, created_at)，
+-- 但同名索引已存在于 (user_id, until)（见上面第 68 行），`if not exists` 会静默跳过，
+-- 建了也不会生效，所以这里不重复声明。

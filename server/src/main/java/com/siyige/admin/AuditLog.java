@@ -41,6 +41,38 @@ public class AuditLog {
                 targetType, targetId, detail, ip);
     }
 
+    /**
+     * 记一条「管理员从内容管理直接处置」（没有举报来源）。
+     *
+     * <p>`report_id = 0`（{@link AuditLogRepo#MANUAL_REPORT_ID}）、`source = MANUAL`，
+     * `target_owner` 记内容作者 —— 这样处理记录页能统一看到，用户浮窗也能按人查违规历史。
+     *
+     * @param targetOwner 内容作者的用户 id；目标本身就是用户（禁言/封禁）时也填它
+     */
+    public void recordManual(long adminId, String adminName, String verdict, String targetType,
+                             Long targetId, String targetOwner, String detail, String ip) {
+        writeManual(AuditLogRepo.ACTION_RESOLVE, verdict, adminId, adminName, targetType, targetId,
+                targetOwner, detail, ip);
+    }
+
+    /** 记一条「管理员解除屏蔽」（直接处置的 undo）。 */
+    public void recordManualRestore(long adminId, String adminName, String targetType, Long targetId,
+                                    String targetOwner, String detail, String ip) {
+        writeManual(AuditLogRepo.ACTION_RESTORE, null, adminId, adminName, targetType, targetId,
+                targetOwner, detail, ip);
+    }
+
+    private void writeManual(String action, String verdict, long adminId, String adminName,
+                             String targetType, Long targetId, String targetOwner, String detail, String ip) {
+        try {
+            repo.insert(AuditLogRepo.MANUAL_REPORT_ID, adminId, adminName, action, verdict,
+                    targetType, targetId, truncate(detail, 500), ip,
+                    AuditLogRepo.SOURCE_MANUAL, targetOwner);
+        } catch (RuntimeException e) {
+            log.warn("写处理记录失败（不影响主流程） action={} adminId={}：{}", action, adminId, e.toString());
+        }
+    }
+
     private void write(long reportId, long adminId, String adminName, String action, String verdict,
                        String targetType, Long targetId, String detail, String ip) {
         try {
