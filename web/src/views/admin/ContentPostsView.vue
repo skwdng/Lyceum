@@ -5,7 +5,8 @@
  * <p>表格**包含已屏蔽的帖子**（status=2）—— 这是管理端和用户侧最重要的口径差别：
  * 用户侧看不到，管理端必须能看到才能解除。
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import { contentApi } from '../../api.js';
 import { toast } from '../../utils/toast.js';
 import { errText } from './helpers.js';
@@ -25,8 +26,20 @@ const items = ref([]);
 const loading = ref(true);
 const error = ref('');
 
-/** 抽屉：{ id, focusCommentId }；从评论管理跳过来时会带 focusCommentId */
+/**
+ * 抽屉：{ id, focusCommentId }。
+ * 从评论管理点「查看所在帖子」跳过来时，URL 上带 `?post=..&comment=..`，
+ * 这里读 query 直接把抽屉打开并定位那一层。
+ */
 const drawer = ref(null);
+const route = useRoute();
+
+function openFromQuery() {
+  const postId = route.query.post;
+  if (!postId) return;
+  drawer.value = { id: Number(postId), focusCommentId: route.query.comment || null };
+}
+watch(() => route.query, openFromQuery, { immediate: true });
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)));
 
