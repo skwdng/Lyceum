@@ -34,15 +34,65 @@ class AdminContentServiceTest {
     private final AuditLog audit = mock(AuditLog.class);
     private final NotificationService notifications = mock(NotificationService.class);
     private final AdminReportRepo reports = mock(AdminReportRepo.class);
+    /** 评论数重算走真实实现太绕（要 H2），这里只断言"被调用了" */
+    private final com.siyige.community.CommentService comments =
+            mock(com.siyige.community.CommentService.class);
     private final AdminContentService service =
-            new AdminContentService(repo, community, bans, audit, notifications, reports);
+            new AdminContentService(repo, community, bans, audit, notifications, reports, comments);
 
     private static Map<String, Object> content(String author, int status) {
+        return content(author, status, null);
+    }
+
+    private static Map<String, Object> content(String author, int status, Long postId) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", 7L);
         m.put("author_id", author);
         m.put("status", status);
+        if (postId != null) m.put("post_id", postId);
         return m;
+    }
+
+    @Test
+    void 屏蔽评论后要重算所属帖子的评论数() {
+        when(repo.findContent("COMMENT", 7)).thenReturn(content("u1", 1, 55L));
+        when(community.softDeleteComment(7)).thenReturn(1);
+
+        service.hide("comment", 7, 1L, "admin", "ip", null);
+
+        // 软删只改 status，不碰 comment_count —— 不重算的话帖子上的评论数会虚高（用户反馈过的 bug）
+        verify(comments).refreshPostStats(55L);
+    }
+
+    @Test
+    void 屏蔽帖子不需要重算评论数() {
+        when(repo.findContent("POST", 7)).thenReturn(content("u1", 1, 55L));
+        when(community.softDeletePost(7)).thenReturn(1);
+
+        service.hide("post", 7, 1L, "admin", "ip", null);
+
+        verify(comments, never()).refreshPostStats(anyLong());
+    }
+
+    @Test
+    void 解除屏蔽评论后也要重算评论数() {
+        when(repo.findContent("COMMENT", 7)).thenReturn(content("u1", 2, 55L));
+        when(community.restoreComment(7)).thenReturn(1);
+
+        service.unhide("comment", 7, 1L, "admin", "ip");
+
+        verify(comments).refreshPostStats(55L);
+    }
+
+    @Test
+    void 解除屏蔽帖子后顺带重算该帖评论数() {
+        when(repo.findContent("POST", 7)).thenReturn(content("u1", 2, 55L));
+        when(community.restorePost(7)).thenReturn(1);
+
+        service.unhide("post", 7, 1L, "admin", "ip");
+
+        // 帖子隐藏期间评论有增删时，恢复这一刻补算
+        verify(comments).refreshPostStats(7L);
     }
 
     @Test

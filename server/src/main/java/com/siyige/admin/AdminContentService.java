@@ -1,5 +1,6 @@
 package com.siyige.admin;
 
+import com.siyige.community.CommentService;
 import com.siyige.community.CommunityRepo;
 import com.siyige.community.NotificationService;
 import org.slf4j.Logger;
@@ -44,15 +45,19 @@ public class AdminContentService {
     private final NotificationService notifications;
     /** 屏蔽时要把它名下的 PENDING 举报一次性结案（设计方案 §4 的副作用，与举报处置 DELETE 分支同款） */
     private final AdminReportRepo reports;
+    /** 屏蔽/解除评论后要重算帖子的 comment_count（复用社区的既有重算实现，不自造公式） */
+    private final CommentService comments;
 
     public AdminContentService(AdminContentRepo repo, CommunityRepo community, BanService bans,
-                               AuditLog audit, NotificationService notifications, AdminReportRepo reports) {
+                               AuditLog audit, NotificationService notifications, AdminReportRepo reports,
+                               CommentService comments) {
         this.repo = repo;
         this.community = community;
         this.bans = bans;
         this.audit = audit;
         this.notifications = notifications;
         this.reports = reports;
+        this.comments = comments;
     }
 
     // ==================== 帖子 ====================
@@ -164,6 +169,10 @@ public class AdminContentService {
         // 与举报处置 DELETE 分支一致：作者会收到「被管理员删除 + 理由」
         notifications.onContentDeleted(t, id, author, note);
 
+        // 评论被屏蔽后要重算帖子的「评论数」——软删只改 status，不碰 sy_post.comment_count
+        // （2026-11-12 用户反馈：屏蔽评论后帖子上的评论数不变）。复用社区的同一套重算。
+        refreshIfComment(t, row);
+
         // 与举报处置一致：这个目标下所有 PENDING 举报一次性结案（否则处理记录里会一直挂着待处理，
         // 点进去再处理一次会发现内容已经没了）。action 记 DELETE，与软删动作同义。
         int closed = reports.resolveTarget(t, id, "ACCEPTED", "DELETE", adminId);
@@ -187,9 +196,34 @@ public class AdminContentService {
         int n = "POST".equals(t) ? community.restorePost(id) : community.restoreComment(id);
         if (n == 0) throw new IllegalArgumentException("NOT_HIDDEN: 内容当前是可正常访问状态");
 
+        refreshIfComment(t, row);       // 解除屏蔽后评论数要加回去
+
+        // 解除屏蔽帖子时也重算一次评论数：帖子被屏蔽期间它下面的评论若有增删，
+        // 重算会因为 `lockPost` 只认 status=1 而跳过，恢复的那一刻补算最稳妥。
+        if ("POST".equals(t)) {
+            try {
+                comments.refreshPostStats(id);
+            } catch (RuntimeException e) {
+                log.warn("恢复帖子后重算评论数失败 post={}：{}", id, e.toString());
+            }
+        }
+
         audit.recordManualRestore(adminId, adminName, t, id, str(row.get("author_id")),
                 "解除屏蔽" + ("POST".equals(t) ? "帖子 #" : "评论 #") + id, ip);
         log.info("内容管理解除屏蔽 target={}#{} by={}", t, id, adminId);
+    }
+
+    /** 目标是评论时，重算它所属帖子的评论数（帖子本身不需要）。 */
+    private void refreshIfComment(String targetType, Map<String, Object> row) {
+        if (!"COMMENT".equals(targetType) || row == null) return;
+        Object postId = row.get("post_id");
+        if (postId == null) return;
+        try {
+            comments.refreshPostStats(num(postId));
+        } catch (RuntimeException e) {
+            // 计数重算失败不该让"已经生效的屏蔽"回滚；下次该帖有评论变化时会再算一次
+            log.warn("重算帖子评论数失败 post={}：{}", postId, e.toString());
+        }
     }
 
     /**

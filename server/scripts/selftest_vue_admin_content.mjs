@@ -306,7 +306,39 @@ await check('A10 评论管理：作者 ID + 日期筛选生效', async () => {
   return `作者筛选 ${authors.length} 行全为 ${uid} · 起始日期=明天 → 空态`;
 });
 
-await check('A11 全程零 JS 异常', async () => {
+await check('A12 屏蔽评论后帖子的评论数同步减少（用户反馈的问题）', async () => {
+  // 用一条**全新的帖子**测，避免受前面各步处置状态的影响
+  const t2 = `评论数自检 ${stamp}`;
+  const p = await call('POST', '/api/community/posts', { type: 'CHAT', title: t2, body: '验证屏蔽评论后评论数减少。' }, user);
+  const pid2 = p.body.postId;
+  const c1 = await call('POST', `/api/community/posts/${pid2}/comments`, { body: '一楼' }, user);
+  const root2 = c1.body.commentId;
+  const c2 = await call('POST', `/api/community/posts/${pid2}/comments`,
+    { body: '一楼回复', replyObjectType: 'COMMENT', replyObjectCommentId: root2 }, user);
+  const reply2 = c2.body.commentId;
+  if (!reply2) throw new Error('楼中楼创建失败，无法验证');
+
+  const stat = async () => (await call('GET', `/api/admin/posts/${pid2}`, undefined, ADMIN)).body.stats.comments;
+  const before = await stat();
+  if (before !== 2) throw new Error('新帖初始评论数应为 2，实际 ' + before);
+
+  await call('POST', `/api/admin/content/comment/${reply2}/hide`, {}, ADMIN);
+  const afterHide = await stat();
+  if (afterHide !== 1) throw new Error(`屏蔽后评论数应为 1，实际 ${afterHide}`);
+
+  await call('POST', `/api/admin/content/comment/${reply2}/unhide`, {}, ADMIN);
+  const afterUnhide = await stat();
+  if (afterUnhide !== 2) throw new Error(`解除屏蔽后评论数应回到 2，实际 ${afterUnhide}`);
+
+  // 用户侧读的是同一列，必须一致
+  const u = await call('GET', `/api/community/posts/${pid2}`, undefined, user);
+  const raw = u.body.post ? u.body.post : u.body;
+  const shown = raw.commentCount != null ? raw.commentCount : raw.comment_count;
+  if (shown !== 2) throw new Error(`用户侧评论数应为 2，实际 ${shown}`);
+  return `2 → 屏蔽 ${afterHide} → 恢复 ${afterUnhide}（用户侧 ${shown}）`;
+});
+
+await check('A13 全程零 JS 异常', async () => {
   if (errs.length) throw new Error(errs.slice(0, 2).join(' | '));
   return '无异常';
 });

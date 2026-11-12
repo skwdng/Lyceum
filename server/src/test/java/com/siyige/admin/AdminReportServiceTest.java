@@ -56,7 +56,8 @@ class AdminReportServiceTest {
         banService = new BanService(banRepo, notify);
         reportRepo = new AdminReportRepo(jdbc);
         audit = new AuditLog(new AuditLogRepo(jdbc));
-        service = new AdminReportService(reportRepo, community, banService, audit, notify);
+        service = new AdminReportService(reportRepo, community, banService, audit, notify,
+                org.mockito.Mockito.mock(com.siyige.community.CommentService.class));
         userRepo = new AdminUserRepo(jdbc);
         userService = new AdminUserService(userRepo, banRepo, banService, notify, audit);
         stats = new AdminStatsService(reportRepo, userService);
