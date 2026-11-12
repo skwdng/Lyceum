@@ -24,6 +24,10 @@ export const ADMIN_MENU = [
     group: '运营',
     items: [
       { to: '/admin/reports', label: '举报处理', icon: '⚑', badge: 'pendingReports' },
+      { to: '/admin/content/posts', label: '帖子管理', icon: '▤' },
+      { to: '/admin/content/comments', label: '评论管理', icon: '☷' },
+      { to: '/admin/video-audit', label: '视频复核', icon: '▷' },
+      { to: '/admin/topics', label: '辩题审核', icon: '❓' },
       { to: '/admin/users', label: '用户管理', icon: '☰' },
       { to: '/admin/audit', label: '处理记录', icon: '⟲' }
     ]

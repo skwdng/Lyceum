@@ -1,3 +1,87 @@
+
+.upop-mask[data-v-b08f55b0] { position: fixed; inset: 0; z-index: 120; background: transparent;
+}
+.upop[data-v-b08f55b0] { position: fixed; background: #fff; border: 1px solid #E5E6EB; border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(20,25,40,.16); display: flex; flex-direction: column;
+  max-height: 78vh; overflow: hidden;
+}
+.upop-head[data-v-b08f55b0] { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #EFF0F1; flex: 0 0 auto;
+}
+.upop-x[data-v-b08f55b0] { margin-left: 6px; border: none; background: none; font-size: 18px; line-height: 1; color: #86909C; cursor: pointer;
+}
+/* body 自己滚（head/foot 固定），这样底部按钮永远在视口内 */
+.upop-body[data-v-b08f55b0] { padding: 12px 14px; overflow: auto; flex: 1 1 auto; min-height: 0;
+}
+.upop-foot[data-v-b08f55b0] { flex: 0 0 auto;
+}
+.upop-pager[data-v-b08f55b0] { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 8px; font-size: 12px;
+}
+.upop-x[data-v-b08f55b0] { margin-left: 6px; border: none; background: none; font-size: 18px; line-height: 1; color: #86909C; cursor: pointer;
+}
+.upop-body[data-v-b08f55b0] { padding: 12px 14px; overflow: auto;
+}
+.upop-row[data-v-b08f55b0] { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12.5px;
+}
+.upop-stats[data-v-b08f55b0] { display: flex; gap: 12px; flex-wrap: wrap; margin: 10px 0; font-size: 12.5px; color: #4E5969;
+}
+.upop-stats i[data-v-b08f55b0] { font-style: normal; color: #F53F3F;
+}
+.upop-sub[data-v-b08f55b0] { font-size: 12.5px; font-weight: 600; margin: 12px 0 6px;
+}
+.upop-empty[data-v-b08f55b0] { font-size: 12px;
+}
+.upop-item[data-v-b08f55b0] { display: flex; gap: 8px; align-items: center; font-size: 12px; padding: 4px 0; border-top: 1px dashed #F2F3F5;
+}
+.upop-jump[data-v-b08f55b0] { color: #165DFF; cursor: pointer; white-space: nowrap;
+}
+.upop-jump[data-v-b08f55b0]:hover { text-decoration: underline;
+}
+.upop-reason[data-v-b08f55b0] { color: #86909C; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px;
+}
+.upop-foot[data-v-b08f55b0] { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid #EFF0F1;
+}
+.upop-sel[data-v-b08f55b0] { padding: 4px 6px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 12px;
+}
+
+.ct-item[data-v-74f6cf61] { border-top: 1px solid #F2F3F5; padding: 10px 0;
+}
+.ct-root[data-v-74f6cf61]:first-child { border-top: none;
+}
+.ct-reply[data-v-74f6cf61] { margin-left: 20px; padding-left: 12px; border-left: 2px solid #F2F3F5; border-top: none;
+}
+.ct-head[data-v-74f6cf61] { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.ct-author[data-v-74f6cf61] { font-size: 13px; font-weight: 600; color: #165DFF; cursor: pointer;
+}
+.ct-author[data-v-74f6cf61]:hover { text-decoration: underline;
+}
+.ct-time[data-v-74f6cf61] { font-size: 11.5px;
+}
+.ct-body[data-v-74f6cf61] { margin-top: 6px; font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+}
+.ct-body.dim[data-v-74f6cf61] { color: #A8ADB8; text-decoration: line-through;
+}
+
+.pd-title[data-v-5344fb2f] { font-size: 16px; font-weight: 700; margin-bottom: 8px;
+}
+.pd-meta[data-v-5344fb2f] { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: #4E5969;
+}
+.pd-stats[data-v-5344fb2f] { display: flex; gap: 14px; margin: 10px 0; font-size: 12.5px; color: #86909C;
+}
+.pd-body[data-v-5344fb2f] { background: #FAFBFC; border: 1px solid #EFF0F1; border-radius: 10px; padding: 12px 14px;
+  font-size: 13px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; margin-bottom: 12px;
+}
+.pd-actions[data-v-5344fb2f] { display: flex; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid #EFF0F1;
+}
+.pd-sub[data-v-5344fb2f] { font-size: 13px; font-weight: 600; margin: 14px 0 4px;
+}
+/* 点用户名看浮窗（与列表里一致的可点击样式） */
+.pd-meta .who[data-v-5344fb2f] { color: #165DFF; cursor: pointer;
+}
+.pd-meta .who[data-v-5344fb2f]:hover { text-decoration: underline;
+}
+[data-v-5344fb2f] .is-hl { background: #FFF7E8; transition: background .3s;
+}
 /*
  * 管理台样式（P0 骨架）。
  *
@@ -32,6 +116,8 @@
 
 .adm-root label{display:block;font-size:12.5px;color:#4E5969;margin:14px 0 6px}
 .adm-root input,.adm-root select,.adm-root textarea{width:100%;border:1px solid #E5E6EB;border-radius:9px;padding:10px 12px;font:inherit;background:#FCFCFD;outline:none}
+/* 表格里的复选框：上面那条 width:100% 会把它拉成整行宽，这里必须复位 */
+.adm-root input.row-check{width:16px;height:16px;min-width:16px;padding:0;margin:0;border-radius:4px;background:#fff}
 .adm-root input:focus,.adm-root textarea:focus,.adm-root select:focus{border-color:#165DFF;box-shadow:0 0 0 3px rgba(22,93,255,.10)}
 
 /* ==================== 按钮 ==================== */
@@ -47,8 +133,17 @@
 
 /* ==================== 布局：侧栏 + 顶栏（本批新增） ==================== */
 
-/* 固定外壳：整页不再随内容变长，只有内容区自己滚（矮屏下侧栏/顶栏不动，滚动条属于内容区） */
-.adm-root .adm-layout{display:flex;height:100vh;overflow:hidden}
+/*
+ * 滚动策略：**整页滚动**（document 滚动），不再让内容区自己滚。
+ *
+ * 为什么改：之前是 `height:100vh + overflow:hidden` 外壳 + 内容区 `overflow-y:auto`。
+ * 内容区滚动条在很多场景下看不见（缩放 125%/150%、窗口较矮、被嵌在预览框里时尤其明显），
+ * 于是页面底部（包括分页栏）看着像被截断、又找不到滑条。改成整页滚动后，
+ * 浏览器自己的滚动条一定在，任何缩放下都能滚到分页栏。
+ *
+ * 侧栏仍是 sticky（桌面）/ fixed（窄屏抽屉），位置不受影响。
+ */
+.adm-root .adm-layout{display:flex;min-height:100vh;align-items:flex-start}
 
 .adm-root .adm-side{width:208px;flex:0 0 208px;background:#fff;border-right:1px solid #E5E6EB;
   display:flex;flex-direction:column;padding:14px 10px;position:sticky;top:0;height:100vh;
@@ -77,8 +172,8 @@
 .adm-root .adm-layout.collapsed .adm-nav a .badge{position:absolute;top:4px;right:8px;
   width:8px;height:8px;padding:0;border-radius:50%;font-size:0;overflow:hidden}
 
-.adm-root .adm-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;
-  overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+/* 内容列：不再自己滚（整页滚），只负责撑开高度 */
+.adm-root .adm-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .adm-root .adm-top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #E5E6EB;
   height:56px;display:flex;align-items:center;gap:12px;padding:0 20px}
 .adm-root .adm-title{font-size:15px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -109,7 +204,16 @@
 .adm-root .card .k{font-size:12.5px;color:#86909C}
 .adm-root .card .v{font-size:26px;font-weight:700;margin-top:4px}
 
-.adm-root .panel{background:#fff;border-radius:12px;border:1px solid #EFF0F1;overflow:hidden;width:auto}
+/*
+ * 面板。**必须显式清掉主站 `.panel` 的三个属性**：style.css 里有一条全局 `.panel`
+ * （主站弹窗用的：width:min(760px,100%) / max-height:88vh / overflow:auto / box-shadow），
+ * 类名和管理台撞车。我们给它加了 `.adm-root` 前缀提高优先级来覆盖，但**只覆盖了写在规则里的那些**，
+ * 于是 max-height:88vh 一直偷偷生效 + 这里的 overflow:hidden 把溢出部分直接裁掉：
+ * 表现就是"内容显示不全、还没有滑条"（2026-11-12 用户反馈，处理记录/辩题审核都能复现）。
+ * 所以 max-height:none 和 box-shadow:none 是**修 bug 必需**，不是可有可无的装饰。
+ */
+.adm-root .panel{background:#fff;border-radius:12px;border:1px solid #EFF0F1;overflow:hidden;
+  width:auto;max-height:none;box-shadow:none}
 .adm-root .panel h2{margin:0;padding:14px 18px;font-size:14px;border-bottom:1px solid #EFF0F1;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .adm-root .panel .body{padding:16px 18px}
 .adm-root .panel .foot{padding:14px 18px;border-top:1px solid #EFF0F1;display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
@@ -129,7 +233,12 @@
 .adm-root .panel > .body.scroll thead th{position:sticky;top:0;z-index:1;background:#FAFBFC}
 
 /* 表格只保留横向滚动（窄屏时列不会被挤没），不再限制高度 */
-.adm-root .tbl-x{overflow-x:auto}
+/* 表格只保留横向滚动（窄屏时列不会被挤没）；滚动条给个能看见的细条，
+   否则宽表格"右边还有内容"这件事完全没提示 */
+.adm-root .tbl-x{overflow-x:auto;scrollbar-width:thin;scrollbar-color:#C9CDD4 #F7F8FA}
+.adm-root .tbl-x::-webkit-scrollbar{height:10px}
+.adm-root .tbl-x::-webkit-scrollbar-thumb{background:#C9CDD4;border-radius:6px}
+.adm-root .tbl-x::-webkit-scrollbar-track{background:#F7F8FA;border-radius:6px}
 
 /* ==================== 加载 / 错误态（P5） ==================== */
 

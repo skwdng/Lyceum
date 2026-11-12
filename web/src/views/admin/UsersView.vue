@@ -8,21 +8,40 @@
  * · 「全站封禁」必须先 `window.confirm`，文案一字不改；解封不需要确认。
  * · 每次动作成功后刷新 stats（徽标里的「禁言中用户」会变）。
  */
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { adminApi } from '../../api.js';
 import { useAdminStore } from '../../stores/admin.js';
 import { toast } from '../../utils/toast.js';
 import { errText, fmtTime } from './helpers.js';
+import { userPop } from './userPop.js';
+import BatchActions from './components/BatchActions.vue';
 
 const admin = useAdminStore();
+
+/** 用户违规浮窗：全局单例（AdminLayout 渲染），这里只负责"点谁" */
+function openPop(userId, ev) {
+  userPop.open(userId, ev);
+}
 
 const users = ref(null);
 const usersQ = ref('');
 const banDaysByUser = ref({});
 
+/** 多选（批量禁言/封禁/解封用） */
+const selected = ref([]);
+const allChecked = computed(() =>
+  !!users.value && (users.value.items || []).length > 0 && selected.value.length === users.value.items.length);
+function toggleAll(e) {
+  selected.value = e.target.checked ? (users.value.items || []).map((u) => u.id) : [];
+}
+
+/** 浮窗里禁言/封禁后，列表与徽标一起刷新（徽标里的"禁言中用户"会变） */
+const offPop = userPop.onChanged(() => loadUsers(users.value ? users.value.page : 1));
+onUnmounted(offPop);
 onMounted(() => loadUsers(1));
 
 async function loadUsers(page = 1) {
+  selected.value = [];
   try {
     users.value = await adminApi.users(usersQ.value, page, 20);
   } catch (e) {
@@ -72,6 +91,14 @@ async function setStatus(u, status) {
         <input v-model="usersQ" placeholder="搜账号或昵称" style="width: 200px" @keydown.enter="loadUsers(1)">
         <button class="btn sm primary" @click="loadUsers(1)">搜索</button>
       </h2>
+
+      <!-- 多选后出现：批量禁言(1/3/7) / 批量封禁 / 批量解封（统一填一次理由） -->
+      <div style="padding: 0 18px">
+        <div v-if="selected.length" style="height: 8px"></div>
+        <BatchActions kind="user" :ids="selected" @clear="selected = []"
+                      @done="loadUsers(users ? users.page : 1)" />
+      </div>
+
       <div v-if="!users" class="muted" style="padding: 20px">加载中…</div>
       <div v-else-if="!(users.items || []).length" class="muted" style="padding: 28px; text-align: center">
         没有匹配的用户
@@ -79,6 +106,10 @@ async function setStatus(u, status) {
       <table v-else>
         <thead>
           <tr>
+            <th style="width: 36px">
+              <input class="row-check" type="checkbox" :checked="allChecked" title="全选本页"
+                     @change="toggleAll($event)" />
+            </th>
             <th>用户</th>
             <th style="width: 110px">全站</th>
             <th style="width: 190px">社区禁言</th>
@@ -88,8 +119,9 @@ async function setStatus(u, status) {
         </thead>
         <tbody>
           <tr v-for="u in users.items" :key="u.id">
+            <td><input class="row-check" type="checkbox" :value="u.id" v-model="selected" /></td>
             <td>
-              <div style="font-weight: 600">{{ u.name || u.account }}</div>
+              <div class="u-link" style="font-weight: 600" @click="openPop(u.id, $event)">{{ u.name || u.account }}</div>
               <div class="muted" style="font-size: 12px">{{ u.account }}</div>
             </td>
             <td>

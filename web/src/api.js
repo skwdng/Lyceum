@@ -341,7 +341,9 @@ export const adminApi = {
     adminRequest('/reports?status=' + (status || 'PENDING') + '&page=' + (page || 1) + '&size=' + size),
   report: (reportId) => adminRequest('/reports/' + reportId),
   resolve: (reportId, body) => adminRequest('/reports/' + reportId + '/resolve', { method: 'POST', body }),
-  audit: (page, size = 20) => adminRequest('/audit?page=' + (page || 1) + '&size=' + size),
+  audit: (page, size = 20) => adminRequest('/audit?' + toQuery({ page: page || 1, size })),
+  /** 处理记录带筛选（q/admin/action/verdict/targetType/source/from/to 全部可空） */
+  auditFiltered: (p) => adminRequest('/audit?' + toQuery({ ...p, page: p.page || 1, size: p.size || 20 })),
   restoreAudit: (id) => adminRequest('/audit/' + encodeURIComponent(id) + '/restore', { method: 'POST' }),
   users: (q, page, size = 20) =>
     adminRequest('/users?q=' + encodeURIComponent(q || '') + '&page=' + (page || 1) + '&size=' + size),
@@ -377,4 +379,63 @@ export const analyticsApi = {
   quality: (range) => adminRequest('/analytics/quality?' + toQuery({ range })),
   /** 导出走二进制下载，用 exportFile.js 里的 downloadExport（要带令牌，不能直接 window.open） */
   exportPath: (params) => '/api/admin/analytics/export?' + toQuery(params)
+};
+
+// ==================== 内容管理台（帖子 / 评论 / 处置） ====================
+
+/**
+ * 内容管理接口。**管理端能看到 status=2（已屏蔽）的内容**，与用户侧口径不同。
+ *
+ * `p` 传对象（q / type / status / authorId / from / to / page / size），空值自动不拼。
+ */
+export const contentApi = {
+  posts: (p) => adminRequest('/posts?' + toQuery(p)),
+  post: (id) => adminRequest('/posts/' + id),
+  postComments: (id, page, size) =>
+    adminRequest('/posts/' + id + '/comments?' + toQuery({ page, size })),
+  comments: (p) => adminRequest('/comments?' + toQuery(p)),
+  /** type = 'post' | 'comment' */
+  hide: (type, id, note) => adminRequest('/content/' + type + '/' + id + '/hide', { method: 'POST', body: { note } }),
+  unhide: (type, id) => adminRequest('/content/' + type + '/' + id + '/unhide', { method: 'POST' }),
+  /** 禁言 1/3/7 天（BanService 内部校验），带 MANUAL 审计 */
+  mute: (id, days, reason) => adminRequest('/users/' + encodeURIComponent(id) + '/mute', { method: 'POST', body: { days, reason } }),
+  /** 用户违规浮窗：基本信息 + 统计 + 违规历史 */
+  profile: (id) => adminRequest('/users/' + encodeURIComponent(id) + '/profile'),
+  /** 批量处置用户：action = mute | ban | unban（统一一个理由，逐条写处理记录） */
+  batchUsers: ({ action, ids, days, reason }) =>
+    adminRequest('/users/batch', { method: 'POST', body: { action, ids, days, reason } }),
+  /** 批量处置内容：type = post | comment，action = hide | unhide */
+  batchContent: (type, action, ids, note) =>
+    adminRequest('/content/batch', { method: 'POST', body: { type, action, ids, note } })
+};
+
+// ==================== 视频复核台（管理端） ====================
+
+/**
+ * 视频复核走**管理端**接口 `/api/admin/video-audit/**`：
+ * 视频模块那 4 个接口挂在 `/api/video/*`、只认用户令牌，而且已收紧为"必须管理员"（从用户侧调 403）。
+ * 数据层与视频模块完全一致（同一个 VideoRepo），只是鉴权与操作人不同。
+ */
+export const videoAuditApi = {
+  queue: (p) => adminRequest('/video-audit/queue?' + toQuery({ ...p, page: p.page || 1, size: p.size || 20 })),
+  logs: (id) => adminRequest('/video-audit/' + id + '/logs'),
+  decide: (id, decision, reason) =>
+    adminRequest('/video-audit/' + id + '/decide', { method: 'POST', body: { decision, reason } }),
+  restore: (id) => adminRequest('/video-audit/' + id + '/restore', { method: 'POST' }),
+  rules: () => adminRequest('/video-audit/rules')
+};
+
+// ==================== 辩题审核（管理端） ====================
+
+/**
+ * 辩题审核。管理端列表**含被驳回/下架的题**（前台题库会过滤掉 REJECT，
+ * 那是 `Store.topics()` 的口径，两边各用各的 SQL）。
+ */
+export const topicAdminApi = {
+  list: (p) => adminRequest('/topics?' + toQuery(p)),
+  approve: (id) => adminRequest('/topics/' + encodeURIComponent(id) + '/approve', { method: 'POST' }),
+  reject: (id, reason) =>
+    adminRequest('/topics/' + encodeURIComponent(id) + '/reject', { method: 'POST', body: { reason } }),
+  offline: (id, reason) =>
+    adminRequest('/topics/' + encodeURIComponent(id) + '/offline', { method: 'POST', body: { reason } })
 };

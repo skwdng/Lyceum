@@ -15,6 +15,10 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ADMIN_MENU } from '../../adminMenu.js';
 import { useAdminStore } from '../../stores/admin.js';
+import UserProfilePop from './components/UserProfilePop.vue';
+import PostDetailDrawer from './components/PostDetailDrawer.vue';
+import { userPop } from './userPop.js';
+import { postDrawer } from './postDrawer.js';
 import './admin.css';
 
 const route = useRoute();
@@ -33,12 +37,16 @@ const isGuest = computed(() => route.meta.guest === true);
 const title = computed(() => (route.meta && route.meta.title) || '管理台');
 
 /**
- * 内容区是独立滚动容器（整页高度固定 100vh），所以切页时必须手动把滚动位置归零 ——
- * 否则从"报表分析"（很长）切到"概览"会停在半空中，看起来像页面空白。
+ * 切页时把滚动位置归零。
+ *
+ * 现在整页滚动（document），所以主要归零 window；`mainEl` 仍是保守兜底 ——
+ * 万一将来又有人把内容区改回独立滚动容器，这一行能继续生效。
+ * 不归零的后果：从"处理记录"（很长）切到"概览"会停在半空中，看着像页面空白。
  */
 const mainEl = ref(null);
 watch(() => route.fullPath, () => {
   if (mainEl.value) mainEl.value.scrollTop = 0;
+  if (typeof window !== 'undefined') window.scrollTo(0, 0);
 });
 
 /** 折叠只在宽屏生效；窄屏永远是抽屉（宽度由 CSS 固定 208px） */
@@ -148,5 +156,18 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </div>
+
+    <!-- 全局唯一的用户违规浮窗：任何页面点用户名都调 userPop.open(id, event)，
+         不用每个页面各自放一份（少一处就是少一个"点了没反应"的坑） -->
+    <UserProfilePop v-if="userPop.state.open" :user-id="userPop.state.userId"
+                    :x="userPop.state.x" :y="userPop.state.y"
+                    @close="userPop.close()" @changed="userPop.fireChanged()" />
+
+    <!-- 全局唯一的帖子详情抽屉：任何显示帖子标题/评论内容的地方点一下都调
+         postDrawer.open(postId, commentId)，传 commentId 会自动滚到那一层并高亮 -->
+    <PostDetailDrawer v-if="postDrawer.state.open" :key="postDrawer.state.seq"
+                      :post-id="postDrawer.state.postId"
+                      :focus-comment-id="postDrawer.state.commentId"
+                      @close="postDrawer.close()" @changed="postDrawer.fireChanged()" />
   </div>
 </template>

@@ -1,0 +1,23 @@
+
+/* 复选框：全局 `.adm-root input{width:100%}` 会把它拉成整行宽，必须显式复位 */
+.row-check[data-v-6f6dc90f] { width: 16px; height: 16px; min-width: 16px; margin: 0;
+}
+.cc-bar[data-v-6f6dc90f] { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+}
+/* width:auto 是必需的：全局 `.adm-root input{width:100%}` 会让每个控件独占一行 */
+.cc-input[data-v-6f6dc90f] { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 220px;
+}
+.cc-link[data-v-6f6dc90f] { color: #165DFF; cursor: pointer;
+}
+.cc-link[data-v-6f6dc90f]:hover { text-decoration: underline;
+}
+.cc-author[data-v-6f6dc90f] { color: #165DFF; cursor: pointer;
+}
+.cc-author[data-v-6f6dc90f]:hover { text-decoration: underline;
+}
+.cc-body[data-v-6f6dc90f] { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cc-ops[data-v-6f6dc90f] { display: inline-flex; gap: 6px; align-items: center;
+}
+.cc-page[data-v-6f6dc90f] { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px;
+}

@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-BMJCFGrS.js","./admin-CcN_mQ7Z.js","./helpers-BBYN1Bwv.js","./AdminLayout-loW22plv.css","./AdminLogin-KdTuasfJ.js","./DashboardView-DSLZ69Fj.js","./LineChart-DAEbm74B.js","./LineChart-DIduibKn.css","./DashboardView-mb_5vD9g.css","./AnalyticsView-C9po-14w.js","./AnalyticsView-9nATRJMM.css","./ReportsView-aJcmNHpm.js","./UsersView-C1t9QOT9.js","./AuditView-BebQ_akf.js","./SettingsView-B6gYFD59.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-5z4a15Ii.js","./admin-CDxRU6i7.js","./helpers-DLaWG9RE.js","./postDrawer-Jg7zAU0z.js","./userPop-2FP-pwix.js","./ModerationBar-CCUlPmus.js","./ModerationBar-BRGjagrt.css","./AdminLayout-D_K5Wm6x.css","./AdminLogin-rXB3RtS2.js","./DashboardView-C8Dsrc6G.js","./LineChart-mhXES8FJ.js","./LineChart-mMQnDcD4.css","./DashboardView-C8pX9Oep.css","./AnalyticsView-DLM-JttK.js","./AnalyticsView-BIzlUv8N.css","./ReportsView-BHYi5R3K.js","./ReportsView-CzwXvr_z.css","./UsersView-BxqKOkrT.js","./BatchActions-CCCvSZ2Z.js","./BatchActions-BqjXcE2x.css","./ContentPostsView-5RB7Z_--.js","./ContentPostsView-DMyV4z6b.css","./ContentCommentsView-CTCp0f_N.js","./ContentCommentsView-C89bjsk9.css","./VideoAuditView-BQzpBZB5.js","./VideoAuditView-Bgm0adiV.css","./TopicReviewView-5vGfL4Tm.js","./TopicReviewView-B85Zvq1H.css","./AuditView-CgNtB99x.js","./AuditView-CJyvFAzv.css","./SettingsView-Dz4jbRwN.js"])))=>i.map(i=>d[i]);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -6903,6 +6903,61 @@ const vModelText = {
     el.value = newValue;
   }
 };
+const vModelCheckbox = {
+  // #4096 array checkboxes need to be deep traversed
+  deep: true,
+  created(el, _, vnode) {
+    el[assignKey] = getModelAssigner(vnode);
+    addEventListener(el, "change", () => {
+      const modelValue = el._modelValue;
+      const elementValue = getValue(el);
+      const checked = el.checked;
+      const assign2 = el[assignKey];
+      if (isArray$1(modelValue)) {
+        const index = looseIndexOf(modelValue, elementValue);
+        const found = index !== -1;
+        if (checked && !found) {
+          assign2(modelValue.concat(elementValue));
+        } else if (!checked && found) {
+          const filtered = [...modelValue];
+          filtered.splice(index, 1);
+          assign2(filtered);
+        }
+      } else if (isSet(modelValue)) {
+        const cloned = new Set(modelValue);
+        if (checked) {
+          cloned.add(elementValue);
+        } else {
+          cloned.delete(elementValue);
+        }
+        assign2(cloned);
+      } else {
+        assign2(getCheckboxValue(el, checked));
+      }
+    });
+  },
+  // set initial checked on mount to wait for true-value/false-value
+  mounted: setChecked,
+  beforeUpdate(el, binding, vnode) {
+    el[assignKey] = getModelAssigner(vnode);
+    setChecked(el, binding, vnode);
+  }
+};
+function setChecked(el, { value, oldValue }, vnode) {
+  el._modelValue = value;
+  let checked;
+  if (isArray$1(value)) {
+    checked = looseIndexOf(value, vnode.props.value) > -1;
+  } else if (isSet(value)) {
+    checked = value.has(vnode.props.value);
+  } else {
+    if (value === oldValue) return;
+    checked = looseEqual(value, getCheckboxValue(el, true));
+  }
+  if (el.checked !== checked) {
+    el.checked = checked;
+  }
+}
 const vModelSelect = {
   // <select multiple> value need to be deep traversed
   deep: true,
@@ -6990,6 +7045,10 @@ function setSelected(el, value, number = false) {
 }
 function getValue(el) {
   return "_value" in el ? el._value : el.value;
+}
+function getCheckboxValue(el, checked) {
+  const key = checked ? "_trueValue" : "_falseValue";
+  return key in el ? el[key] : checked;
 }
 const systemModifiers = ["ctrl", "shift", "alt", "meta"];
 const modifierGuards = {
@@ -9243,7 +9302,9 @@ const adminApi = {
   reports: (status, page, size2 = 20) => adminRequest("/reports?status=" + (status || "PENDING") + "&page=" + (page || 1) + "&size=" + size2),
   report: (reportId) => adminRequest("/reports/" + reportId),
   resolve: (reportId, body) => adminRequest("/reports/" + reportId + "/resolve", { method: "POST", body }),
-  audit: (page, size2 = 20) => adminRequest("/audit?page=" + (page || 1) + "&size=" + size2),
+  audit: (page, size2 = 20) => adminRequest("/audit?" + toQuery({ page: page || 1, size: size2 })),
+  /** 处理记录带筛选（q/admin/action/verdict/targetType/source/from/to 全部可空） */
+  auditFiltered: (p2) => adminRequest("/audit?" + toQuery({ ...p2, page: p2.page || 1, size: p2.size || 20 })),
   restoreAudit: (id) => adminRequest("/audit/" + encodeURIComponent(id) + "/restore", { method: "POST" }),
   users: (q, page, size2 = 20) => adminRequest("/users?q=" + encodeURIComponent(q || "") + "&page=" + (page || 1) + "&size=" + size2),
   ban: (id, days, reason) => adminRequest("/users/" + encodeURIComponent(id) + "/ban", { method: "POST", body: { days, reason } }),
@@ -9263,6 +9324,36 @@ const analyticsApi = {
   /** 导出走二进制下载，用 exportFile.js 里的 downloadExport（要带令牌，不能直接 window.open） */
   exportPath: (params) => "/api/admin/analytics/export?" + toQuery(params)
 };
+const contentApi = {
+  posts: (p2) => adminRequest("/posts?" + toQuery(p2)),
+  post: (id) => adminRequest("/posts/" + id),
+  postComments: (id, page, size2) => adminRequest("/posts/" + id + "/comments?" + toQuery({ page, size: size2 })),
+  comments: (p2) => adminRequest("/comments?" + toQuery(p2)),
+  /** type = 'post' | 'comment' */
+  hide: (type, id, note) => adminRequest("/content/" + type + "/" + id + "/hide", { method: "POST", body: { note } }),
+  unhide: (type, id) => adminRequest("/content/" + type + "/" + id + "/unhide", { method: "POST" }),
+  /** 禁言 1/3/7 天（BanService 内部校验），带 MANUAL 审计 */
+  mute: (id, days, reason) => adminRequest("/users/" + encodeURIComponent(id) + "/mute", { method: "POST", body: { days, reason } }),
+  /** 用户违规浮窗：基本信息 + 统计 + 违规历史 */
+  profile: (id) => adminRequest("/users/" + encodeURIComponent(id) + "/profile"),
+  /** 批量处置用户：action = mute | ban | unban（统一一个理由，逐条写处理记录） */
+  batchUsers: ({ action, ids, days, reason }) => adminRequest("/users/batch", { method: "POST", body: { action, ids, days, reason } }),
+  /** 批量处置内容：type = post | comment，action = hide | unhide */
+  batchContent: (type, action, ids, note) => adminRequest("/content/batch", { method: "POST", body: { type, action, ids, note } })
+};
+const videoAuditApi = {
+  queue: (p2) => adminRequest("/video-audit/queue?" + toQuery({ ...p2, page: p2.page || 1, size: p2.size || 20 })),
+  logs: (id) => adminRequest("/video-audit/" + id + "/logs"),
+  decide: (id, decision, reason) => adminRequest("/video-audit/" + id + "/decide", { method: "POST", body: { decision, reason } }),
+  restore: (id) => adminRequest("/video-audit/" + id + "/restore", { method: "POST" }),
+  rules: () => adminRequest("/video-audit/rules")
+};
+const topicAdminApi = {
+  list: (p2) => adminRequest("/topics?" + toQuery(p2)),
+  approve: (id) => adminRequest("/topics/" + encodeURIComponent(id) + "/approve", { method: "POST" }),
+  reject: (id, reason) => adminRequest("/topics/" + encodeURIComponent(id) + "/reject", { method: "POST", body: { reason } }),
+  offline: (id, reason) => adminRequest("/topics/" + encodeURIComponent(id) + "/offline", { method: "POST", body: { reason } })
+};
 const api = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   ADMIN_TOKEN_KEY,
@@ -9276,6 +9367,7 @@ const api = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty(
   baseApi,
   chatApi,
   communityApi,
+  contentApi,
   debateApi,
   getAdminToken,
   getToken,
@@ -9286,7 +9378,9 @@ const api = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty(
   setAdminToken,
   setToken,
   socialApi,
+  topicAdminApi,
   videoApi,
+  videoAuditApi,
   walletApi
 }, Symbol.toStringTag, { value: "Module" }));
 const NOTIFY_POLL_MS = 45e3;
@@ -17645,21 +17739,25 @@ const routes = [
   {
     path: "/admin",
     meta: { bare: true },
-    component: () => __vitePreload(() => import("./AdminLayout-BMJCFGrS.js"), true ? __vite__mapDeps([0,1,2,3]) : void 0, import.meta.url),
+    component: () => __vitePreload(() => import("./AdminLayout-5z4a15Ii.js"), true ? __vite__mapDeps([0,1,2,3,4,5,6,7]) : void 0, import.meta.url),
     children: [
       { path: "", redirect: "/admin/dashboard" },
-      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-KdTuasfJ.js"), true ? __vite__mapDeps([4,1,2]) : void 0, import.meta.url), meta: { guest: true } },
-      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-DSLZ69Fj.js"), true ? __vite__mapDeps([5,6,7,2,8]) : void 0, import.meta.url), meta: { title: "概览" } },
-      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-C9po-14w.js"), true ? __vite__mapDeps([9,6,7,2,10]) : void 0, import.meta.url), meta: { title: "报表分析" } },
+      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-rXB3RtS2.js"), true ? __vite__mapDeps([8,1,2]) : void 0, import.meta.url), meta: { guest: true } },
+      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-C8Dsrc6G.js"), true ? __vite__mapDeps([9,10,11,2,12]) : void 0, import.meta.url), meta: { title: "概览" } },
+      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-DLM-JttK.js"), true ? __vite__mapDeps([13,10,11,2,14]) : void 0, import.meta.url), meta: { title: "报表分析" } },
       {
         path: "reports",
         name: "admin-reports",
-        component: () => __vitePreload(() => import("./ReportsView-aJcmNHpm.js"), true ? __vite__mapDeps([11,1,2]) : void 0, import.meta.url),
+        component: () => __vitePreload(() => import("./ReportsView-BHYi5R3K.js"), true ? __vite__mapDeps([15,1,2,4,3,16]) : void 0, import.meta.url),
         meta: { title: "举报处理", badge: "pendingReports" }
       },
-      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-C1t9QOT9.js"), true ? __vite__mapDeps([12,1,2]) : void 0, import.meta.url), meta: { title: "用户管理" } },
-      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-BebQ_akf.js"), true ? __vite__mapDeps([13,1,2]) : void 0, import.meta.url), meta: { title: "处理记录" } },
-      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-B6gYFD59.js"), true ? __vite__mapDeps([14,1,2]) : void 0, import.meta.url), meta: { title: "设置" } }
+      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-BxqKOkrT.js"), true ? __vite__mapDeps([17,1,2,4,18,19]) : void 0, import.meta.url), meta: { title: "用户管理" } },
+      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-5RB7Z_--.js"), true ? __vite__mapDeps([20,2,5,6,18,19,4,3,21]) : void 0, import.meta.url), meta: { title: "帖子管理" } },
+      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-CTCp0f_N.js"), true ? __vite__mapDeps([22,2,5,6,18,19,4,3,23]) : void 0, import.meta.url), meta: { title: "评论管理" } },
+      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-BQzpBZB5.js"), true ? __vite__mapDeps([24,2,4,25]) : void 0, import.meta.url), meta: { title: "视频复核" } },
+      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-5vGfL4Tm.js"), true ? __vite__mapDeps([26,2,27]) : void 0, import.meta.url), meta: { title: "辩题审核" } },
+      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-CgNtB99x.js"), true ? __vite__mapDeps([28,1,2,4,3,29]) : void 0, import.meta.url), meta: { title: "处理记录" } },
+      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-Dz4jbRwN.js"), true ? __vite__mapDeps([30,1,2]) : void 0, import.meta.url), meta: { title: "设置" } }
     ]
   },
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）
@@ -17690,41 +17788,47 @@ app.use(createPinia());
 app.use(router);
 app.mount("#app");
 export {
-  API_BASE as A,
-  ApiError as B,
-  normalizeStyle as C,
-  withModifiers as D,
-  nextTick as E,
+  withCtx as A,
+  resolveComponent as B,
+  vModelText as C,
+  withKeys as D,
+  analyticsApi as E,
   Fragment as F,
-  vModelSelect as G,
-  adminApi as H,
-  defineStore as I,
-  setAdminToken as J,
+  getAdminToken as G,
+  API_BASE as H,
+  ApiError as I,
+  onUnmounted as J,
+  vModelCheckbox as K,
+  videoAuditApi as L,
+  topicAdminApi as M,
+  reactive as N,
+  defineStore as O,
+  setAdminToken as P,
   _export_sfc as _,
-  onBeforeUnmount as a,
-  createBlock as b,
+  openBlock as a,
+  createBaseVNode as b,
   createElementBlock as c,
-  createBaseVNode as d,
-  renderList as e,
-  createCommentVNode as f,
-  createVNode as g,
-  computed as h,
-  useRouter as i,
-  useRoute as j,
-  openBlock as k,
-  withCtx as l,
-  resolveComponent as m,
+  createTextVNode as d,
+  createCommentVNode as e,
+  withDirectives as f,
+  normalizeStyle as g,
+  withModifiers as h,
+  ref as i,
+  contentApi as j,
+  nextTick as k,
+  toast as l,
+  computed as m,
   normalizeClass as n,
   onMounted as o,
-  withDirectives as p,
-  withKeys as q,
-  ref as r,
-  toast as s,
+  adminApi as p,
+  createVNode as q,
+  renderList as r,
+  onBeforeUnmount as s,
   toDisplayString as t,
   unref as u,
-  vModelText as v,
+  vModelSelect as v,
   watch as w,
-  createTextVNode as x,
-  analyticsApi as y,
-  getAdminToken as z
+  createBlock as x,
+  useRouter as y,
+  useRoute as z
 };
