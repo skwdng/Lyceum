@@ -290,7 +290,12 @@ await check('B3-A3 令牌进入 → 侧栏 5 项 + 当前项高亮 + 徽标=待�
       badge: badge?badge.textContent.trim():'',
       hash: location.hash}})()`);
 
-  if (st.menus.length !== 6) throw new Error('侧栏菜单项应为 6 个（概览/报表分析/举报处理/用户管理/处理记录/设置），实际 ' + st.menus.length + '：' + JSON.stringify(st.menus));
+  // 内容管理台（批次 A/B/C/D）接入后菜单从 6 项变 10 项：
+  // 概览 / 报表分析 / 举报处理 / 帖子管理 / 评论管理 / 视频复核 / 辩题审核 / 用户管理 / 处理记录 / 设置
+  if (st.menus.length !== 10) throw new Error('侧栏菜单项应为 10 个（概览/报表分析/举报处理/帖子管理/评论管理/视频复核/辩题审核/用户管理/处理记录/设置），实际 ' + st.menus.length + '：' + JSON.stringify(st.menus));
+  for (const need of ['帖子管理', '评论管理', '视频复核', '辩题审核']) {
+    if (!st.menus.some((m) => m.includes(need))) throw new Error('侧栏缺少「' + need + '」：' + JSON.stringify(st.menus));
+  }
   if (st.groups.length !== 3) throw new Error('菜单分组应为 3 组（总览/运营/系统），实际：' + JSON.stringify(st.groups));
   if (!st.on.includes('概览')) throw new Error('当前项没高亮成「概览」：' + JSON.stringify(st.on));
   if (String(st.title).trim() !== '概览') throw new Error('顶栏标题不对：' + st.title);
