@@ -378,3 +378,23 @@ export const analyticsApi = {
   /** 导出走二进制下载，用 exportFile.js 里的 downloadExport（要带令牌，不能直接 window.open） */
   exportPath: (params) => '/api/admin/analytics/export?' + toQuery(params)
 };
+
+// ==================== 内容管理台（帖子 / 评论 / 处置） ====================
+
+/**
+ * 内容管理接口。**管理端能看到 status=2（已屏蔽）的内容**，与用户侧口径不同。
+ *
+ * `p` 传对象（q / type / status / authorId / from / to / page / size），空值自动不拼。
+ */
+export const contentApi = {
+  posts: (p) => adminRequest('/posts?' + toQuery(p)),
+  post: (id) => adminRequest('/posts/' + id),
+  postComments: (id, page, size) =>
+    adminRequest('/posts/' + id + '/comments?' + toQuery({ page, size })),
+  comments: (p) => adminRequest('/comments?' + toQuery(p)),
+  /** type = 'post' | 'comment' */
+  hide: (type, id, note) => adminRequest('/content/' + type + '/' + id + '/hide', { method: 'POST', body: { note } }),
+  unhide: (type, id) => adminRequest('/content/' + type + '/' + id + '/unhide', { method: 'POST' }),
+  /** 禁言 1/3/7 天（BanService 内部校验），带 MANUAL 审计 */
+  mute: (id, days, reason) => adminRequest('/users/' + encodeURIComponent(id) + '/mute', { method: 'POST', body: { days, reason } })
+};

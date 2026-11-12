@@ -1,6 +1,6 @@
-import { _ as _export_sfc, k as openBlock, c as createElementBlock, t as toDisplayString, f as createCommentVNode, d as createBaseVNode, r as ref, h as computed, o as onMounted, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, y as analyticsApi, s as toast, n as normalizeClass, b as createBlock } from "./index--pCBImaI.js";
-import { u as useWidth, e as emptyTextOf, P as PALETTE, t as toSeries, L as LineChart, D as DonutChart, B as BarChart } from "./LineChart-DAEbm74B.js";
-import { e as errText } from "./helpers-BBYN1Bwv.js";
+import { _ as _export_sfc, k as openBlock, c as createElementBlock, t as toDisplayString, f as createCommentVNode, d as createBaseVNode, r as ref, h as computed, o as onMounted, F as Fragment, e as renderList, x as createTextVNode, g as createVNode, y as analyticsApi, s as toast, n as normalizeClass, b as createBlock } from "./index-ChFdrz62.js";
+import { u as useWidth, e as emptyTextOf, P as PALETTE, t as toSeries, L as LineChart, D as DonutChart, B as BarChart } from "./LineChart-D2ZnXerL.js";
+import { e as errText } from "./helpers-DCxFPt1z.js";
 const _hoisted_1$1 = {
   key: 0,
   class: "ch-spark-empty"
@@ -93,7 +93,7 @@ const _sfc_main$1 = {
     };
   }
 };
-const Sparkline = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-04d55f18"]]);
+const Sparkline = /* @__PURE__ */ _export_sfc(_sfc_main$1, [["__scopeId", "data-v-4b08db2f"]]);
 const _hoisted_1 = { "data-panel": "dashboard" };
 const _hoisted_2 = { class: "adm-toolbar" };
 const _hoisted_3 = { class: "adm-chips" };
@@ -351,7 +351,7 @@ const _sfc_main = {
     };
   }
 };
-const DashboardView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-815b4000"]]);
+const DashboardView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-8e8b87c8"]]);
 export {
   DashboardView as default
 };

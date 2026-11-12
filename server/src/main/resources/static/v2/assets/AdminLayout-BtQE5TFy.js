@@ -1,6 +1,6 @@
-import { r as ref, w as watch, o as onMounted, a as onBeforeUnmount, c as createElementBlock, b as createBlock, n as normalizeClass, d as createBaseVNode, F as Fragment, e as renderList, u as unref, f as createCommentVNode, t as toDisplayString, g as createVNode, h as computed, i as useRouter, j as useRoute, k as openBlock, l as withCtx, m as resolveComponent } from "./index--pCBImaI.js";
-import { u as useAdminStore } from "./admin-CcN_mQ7Z.js";
-import "./helpers-BBYN1Bwv.js";
+import { r as ref, w as watch, o as onMounted, a as onBeforeUnmount, c as createElementBlock, b as createBlock, n as normalizeClass, d as createBaseVNode, F as Fragment, e as renderList, u as unref, f as createCommentVNode, t as toDisplayString, g as createVNode, h as computed, i as useRouter, j as useRoute, k as openBlock, l as withCtx, m as resolveComponent } from "./index-ChFdrz62.js";
+import { u as useAdminStore } from "./admin-C4uGsGzt.js";
+import "./helpers-DCxFPt1z.js";
 const ADMIN_MENU = [
   {
     group: "总览",
@@ -13,6 +13,8 @@ const ADMIN_MENU = [
     group: "运营",
     items: [
       { to: "/admin/reports", label: "举报处理", icon: "⚑", badge: "pendingReports" },
+      { to: "/admin/content/posts", label: "帖子管理", icon: "▤" },
+      { to: "/admin/content/comments", label: "评论管理", icon: "☷" },
       { to: "/admin/users", label: "用户管理", icon: "☰" },
       { to: "/admin/audit", label: "处理记录", icon: "⟲" }
     ]

@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-BMJCFGrS.js","./admin-CcN_mQ7Z.js","./helpers-BBYN1Bwv.js","./AdminLayout-loW22plv.css","./AdminLogin-KdTuasfJ.js","./DashboardView-DSLZ69Fj.js","./LineChart-DAEbm74B.js","./LineChart-DIduibKn.css","./DashboardView-mb_5vD9g.css","./AnalyticsView-C9po-14w.js","./AnalyticsView-9nATRJMM.css","./ReportsView-aJcmNHpm.js","./UsersView-C1t9QOT9.js","./AuditView-BebQ_akf.js","./SettingsView-B6gYFD59.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-BtQE5TFy.js","./admin-C4uGsGzt.js","./helpers-DCxFPt1z.js","./AdminLayout-C-I5M5SO.css","./AdminLogin-huWyMbpZ.js","./DashboardView-9lyT0t2P.js","./LineChart-D2ZnXerL.js","./LineChart-mMQnDcD4.css","./DashboardView-C8pX9Oep.css","./AnalyticsView-D9BhO6SQ.js","./AnalyticsView-BIzlUv8N.css","./ReportsView-D_ldt4fz.js","./UsersView-BDpX06kw.js","./ContentPostsView-BeMt84SU.js","./ContentPostsView-VbyQgRHw.css","./AuditView-D5Sh4Ny5.js","./SettingsView-Bhet6qFW.js"])))=>i.map(i=>d[i]);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -9263,6 +9263,17 @@ const analyticsApi = {
   /** 导出走二进制下载，用 exportFile.js 里的 downloadExport（要带令牌，不能直接 window.open） */
   exportPath: (params) => "/api/admin/analytics/export?" + toQuery(params)
 };
+const contentApi = {
+  posts: (p2) => adminRequest("/posts?" + toQuery(p2)),
+  post: (id) => adminRequest("/posts/" + id),
+  postComments: (id, page, size2) => adminRequest("/posts/" + id + "/comments?" + toQuery({ page, size: size2 })),
+  comments: (p2) => adminRequest("/comments?" + toQuery(p2)),
+  /** type = 'post' | 'comment' */
+  hide: (type, id, note) => adminRequest("/content/" + type + "/" + id + "/hide", { method: "POST", body: { note } }),
+  unhide: (type, id) => adminRequest("/content/" + type + "/" + id + "/unhide", { method: "POST" }),
+  /** 禁言 1/3/7 天（BanService 内部校验），带 MANUAL 审计 */
+  mute: (id, days, reason) => adminRequest("/users/" + encodeURIComponent(id) + "/mute", { method: "POST", body: { days, reason } })
+};
 const api = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   ADMIN_TOKEN_KEY,
@@ -9276,6 +9287,7 @@ const api = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty(
   baseApi,
   chatApi,
   communityApi,
+  contentApi,
   debateApi,
   getAdminToken,
   getToken,
@@ -17645,21 +17657,22 @@ const routes = [
   {
     path: "/admin",
     meta: { bare: true },
-    component: () => __vitePreload(() => import("./AdminLayout-BMJCFGrS.js"), true ? __vite__mapDeps([0,1,2,3]) : void 0, import.meta.url),
+    component: () => __vitePreload(() => import("./AdminLayout-BtQE5TFy.js"), true ? __vite__mapDeps([0,1,2,3]) : void 0, import.meta.url),
     children: [
       { path: "", redirect: "/admin/dashboard" },
-      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-KdTuasfJ.js"), true ? __vite__mapDeps([4,1,2]) : void 0, import.meta.url), meta: { guest: true } },
-      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-DSLZ69Fj.js"), true ? __vite__mapDeps([5,6,7,2,8]) : void 0, import.meta.url), meta: { title: "概览" } },
-      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-C9po-14w.js"), true ? __vite__mapDeps([9,6,7,2,10]) : void 0, import.meta.url), meta: { title: "报表分析" } },
+      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-huWyMbpZ.js"), true ? __vite__mapDeps([4,1,2]) : void 0, import.meta.url), meta: { guest: true } },
+      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-9lyT0t2P.js"), true ? __vite__mapDeps([5,6,7,2,8]) : void 0, import.meta.url), meta: { title: "概览" } },
+      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-D9BhO6SQ.js"), true ? __vite__mapDeps([9,6,7,2,10]) : void 0, import.meta.url), meta: { title: "报表分析" } },
       {
         path: "reports",
         name: "admin-reports",
-        component: () => __vitePreload(() => import("./ReportsView-aJcmNHpm.js"), true ? __vite__mapDeps([11,1,2]) : void 0, import.meta.url),
+        component: () => __vitePreload(() => import("./ReportsView-D_ldt4fz.js"), true ? __vite__mapDeps([11,1,2]) : void 0, import.meta.url),
         meta: { title: "举报处理", badge: "pendingReports" }
       },
-      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-C1t9QOT9.js"), true ? __vite__mapDeps([12,1,2]) : void 0, import.meta.url), meta: { title: "用户管理" } },
-      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-BebQ_akf.js"), true ? __vite__mapDeps([13,1,2]) : void 0, import.meta.url), meta: { title: "处理记录" } },
-      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-B6gYFD59.js"), true ? __vite__mapDeps([14,1,2]) : void 0, import.meta.url), meta: { title: "设置" } }
+      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-BDpX06kw.js"), true ? __vite__mapDeps([12,1,2]) : void 0, import.meta.url), meta: { title: "用户管理" } },
+      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-BeMt84SU.js"), true ? __vite__mapDeps([13,2,14]) : void 0, import.meta.url), meta: { title: "帖子管理" } },
+      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-D5Sh4Ny5.js"), true ? __vite__mapDeps([15,1,2]) : void 0, import.meta.url), meta: { title: "处理记录" } },
+      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-Bhet6qFW.js"), true ? __vite__mapDeps([16,1,2]) : void 0, import.meta.url), meta: { title: "设置" } }
     ]
   },
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）
@@ -17698,8 +17711,9 @@ export {
   Fragment as F,
   vModelSelect as G,
   adminApi as H,
-  defineStore as I,
-  setAdminToken as J,
+  contentApi as I,
+  defineStore as J,
+  setAdminToken as K,
   _export_sfc as _,
   onBeforeUnmount as a,
   createBlock as b,

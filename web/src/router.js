@@ -85,6 +85,7 @@ const routes = [
         meta: { title: '举报处理', badge: 'pendingReports' }
       },
       { path: 'users', name: 'admin-users', component: () => import('./views/admin/UsersView.vue'), meta: { title: '用户管理' } },
+      { path: 'content/posts', name: 'admin-content-posts', component: () => import('./views/admin/ContentPostsView.vue'), meta: { title: '帖子管理' } },
       { path: 'audit', name: 'admin-audit', component: () => import('./views/admin/AuditView.vue'), meta: { title: '处理记录' } },
       { path: 'settings', name: 'admin-settings', component: () => import('./views/admin/SettingsView.vue'), meta: { title: '设置' } }
     ]
