@@ -1,7 +1,8 @@
-import { _ as _export_sfc, m as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, t as toDisplayString, d as createCommentVNode, e as withDirectives, B as vModelText, C as withKeys, v as vModelSelect, F as Fragment, r as renderList, h as ref, l as adminApi, k as toast, o as openBlock, u as unref, n as normalizeClass } from "./index-DEeojRwW.js";
-import { u as useAdminStore } from "./admin-o3wTV2Mg.js";
-import { e as errText, f as fmtTime, a as actionName } from "./helpers-BYCbhqGK.js";
-import { u as userPop } from "./userPop-D7K1VMMP.js";
+import { _ as _export_sfc, q as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, t as toDisplayString, d as createCommentVNode, e as withDirectives, C as vModelText, D as withKeys, v as vModelSelect, F as Fragment, r as renderList, h as ref, l as adminApi, j as toast, o as openBlock, u as unref, n as normalizeClass } from "./index-DDPgDnZA.js";
+import { u as useAdminStore } from "./admin-CTkfOVY_.js";
+import { e as errText, f as fmtTime, a as actionName } from "./helpers-BK_Uoi_O.js";
+import { u as userPop } from "./userPop-ByVsXC9s.js";
+import { p as postDrawer } from "./postDrawer-C7Hff4yU.js";
 const _hoisted_1 = { "data-panel": "audit" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -37,39 +38,41 @@ const _hoisted_14 = {
 };
 const _hoisted_15 = { style: { "white-space": "nowrap" } };
 const _hoisted_16 = ["onClick"];
-const _hoisted_17 = { style: { "white-space": "nowrap" } };
-const _hoisted_18 = {
+const _hoisted_17 = ["onClick"];
+const _hoisted_18 = ["onClick"];
+const _hoisted_19 = { style: { "white-space": "nowrap" } };
+const _hoisted_20 = {
   key: 0,
   class: "muted",
   style: { "font-size": "12px" }
 };
-const _hoisted_19 = {
+const _hoisted_21 = {
   class: "muted",
   style: { "font-size": "11.5px" }
 };
-const _hoisted_20 = {
+const _hoisted_22 = {
   key: 2,
   class: "tag ok"
 };
-const _hoisted_21 = { style: { "text-align": "right" } };
-const _hoisted_22 = ["onClick"];
-const _hoisted_23 = {
-  key: 1,
-  class: "muted",
-  style: { "font-size": "12px" }
-};
-const _hoisted_24 = {
-  key: 1,
-  class: "muted",
-  style: { "font-size": "12px" }
-};
+const _hoisted_23 = { style: { "text-align": "right" } };
+const _hoisted_24 = ["onClick"];
 const _hoisted_25 = {
+  key: 1,
+  class: "muted",
+  style: { "font-size": "12px" }
+};
+const _hoisted_26 = {
+  key: 1,
+  class: "muted",
+  style: { "font-size": "12px" }
+};
+const _hoisted_27 = {
   key: 3,
   class: "pager"
 };
-const _hoisted_26 = { class: "muted" };
-const _hoisted_27 = ["disabled"];
-const _hoisted_28 = ["disabled"];
+const _hoisted_28 = { class: "muted" };
+const _hoisted_29 = ["disabled"];
+const _hoisted_30 = ["disabled"];
 const _sfc_main = {
   __name: "AuditView",
   setup(__props) {
@@ -118,6 +121,13 @@ const _sfc_main = {
       if (r.action === "REPORT_RESOLVE") return r.source === "MANUAL" ? "内容处置" : "举报处置";
       if (r.action === "RESTORE") return r.source === "MANUAL" ? "解除屏蔽" : "撤销处理";
       return actionName(r.action);
+    }
+    function openTarget(r) {
+      if (r.targetType === "POST") return postDrawer.open(r.postId || r.targetId, null);
+      if (r.targetType === "COMMENT") {
+        if (!r.postId) return toast("这条评论所属的帖子已经不在了");
+        return postDrawer.open(r.postId, r.targetId);
+      }
     }
     async function loadAudit(page = 1) {
       try {
@@ -302,54 +312,62 @@ const _sfc_main = {
                       createTextVNode("辩题 " + toDisplayString(r.targetOwner || ""), 1)
                     ], 64)) : r.targetType === "VIDEO" ? (openBlock(), createElementBlock(Fragment, { key: 2 }, [
                       createTextVNode("视频 #" + toDisplayString(r.targetId), 1)
-                    ], 64)) : (openBlock(), createElementBlock(Fragment, { key: 3 }, [
-                      createTextVNode(toDisplayString(r.targetType ? (r.targetType === "POST" ? "帖子" : "评论") + " #" + r.targetId : "-"), 1)
+                    ], 64)) : r.targetType === "POST" ? (openBlock(), createElementBlock("a", {
+                      key: 3,
+                      class: "au-link",
+                      onClick: ($event) => openTarget(r)
+                    }, "帖子 #" + toDisplayString(r.targetId), 9, _hoisted_17)) : r.targetType === "COMMENT" ? (openBlock(), createElementBlock("a", {
+                      key: 4,
+                      class: "au-link",
+                      onClick: ($event) => openTarget(r)
+                    }, "评论 #" + toDisplayString(r.targetId), 9, _hoisted_18)) : (openBlock(), createElementBlock(Fragment, { key: 5 }, [
+                      createTextVNode("-")
                     ], 64))
                   ]),
-                  createBaseVNode("td", _hoisted_17, [
+                  createBaseVNode("td", _hoisted_19, [
                     createBaseVNode("span", {
                       class: normalizeClass(["tag", r.source === "MANUAL" ? "blue" : ""])
                     }, toDisplayString(r.source === "MANUAL" ? "管理台" : "举报"), 3)
                   ]),
                   createBaseVNode("td", null, toDisplayString(r.detail || ""), 1),
                   createBaseVNode("td", null, [
-                    r.action === "RESTORE" ? (openBlock(), createElementBlock("span", _hoisted_18, "—")) : r.undone ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
+                    r.action === "RESTORE" ? (openBlock(), createElementBlock("span", _hoisted_20, "—")) : r.undone ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
                       _cache[14] || (_cache[14] = createBaseVNode("span", { class: "tag" }, "已撤销", -1)),
-                      createBaseVNode("div", _hoisted_19, toDisplayString(unref(fmtTime)(r.undoAt)), 1)
-                    ], 64)) : (openBlock(), createElementBlock("span", _hoisted_20, "生效中"))
+                      createBaseVNode("div", _hoisted_21, toDisplayString(unref(fmtTime)(r.undoAt)), 1)
+                    ], 64)) : (openBlock(), createElementBlock("span", _hoisted_22, "生效中"))
                   ]),
-                  createBaseVNode("td", _hoisted_21, [
+                  createBaseVNode("td", _hoisted_23, [
                     r.action !== "RESTORE" && !r.undone ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
                       r.canRestore ? (openBlock(), createElementBlock("button", {
                         key: 0,
                         class: "btn sm danger",
                         onClick: ($event) => restoreAudit(r.id)
-                      }, "恢复", 8, _hoisted_22)) : (openBlock(), createElementBlock("span", _hoisted_23, "不可恢复"))
-                    ], 64)) : r.action !== "RESTORE" ? (openBlock(), createElementBlock("span", _hoisted_24, "已撤销")) : createCommentVNode("", true)
+                      }, "恢复", 8, _hoisted_24)) : (openBlock(), createElementBlock("span", _hoisted_25, "不可恢复"))
+                    ], 64)) : r.action !== "RESTORE" ? (openBlock(), createElementBlock("span", _hoisted_26, "已撤销")) : createCommentVNode("", true)
                   ])
                 ]);
               }), 128))
             ])
           ])),
-          audit.value && audit.value.total > audit.value.size ? (openBlock(), createElementBlock("div", _hoisted_25, [
-            createBaseVNode("span", _hoisted_26, "共 " + toDisplayString(audit.value.total) + " 条 · 第 " + toDisplayString(audit.value.page) + " 页", 1),
+          audit.value && audit.value.total > audit.value.size ? (openBlock(), createElementBlock("div", _hoisted_27, [
+            createBaseVNode("span", _hoisted_28, "共 " + toDisplayString(audit.value.total) + " 条 · 第 " + toDisplayString(audit.value.page) + " 页", 1),
             createBaseVNode("button", {
               class: "btn sm",
               disabled: audit.value.page <= 1,
               onClick: _cache[8] || (_cache[8] = ($event) => loadAudit(audit.value.page - 1))
-            }, "上一页", 8, _hoisted_27),
+            }, "上一页", 8, _hoisted_29),
             createBaseVNode("button", {
               class: "btn sm",
               disabled: audit.value.page >= Math.ceil(audit.value.total / audit.value.size),
               onClick: _cache[9] || (_cache[9] = ($event) => loadAudit(audit.value.page + 1))
-            }, " 下一页 ", 8, _hoisted_28)
+            }, " 下一页 ", 8, _hoisted_30)
           ])) : createCommentVNode("", true)
         ])
       ]);
     };
   }
 };
-const AuditView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-f0d30bbc"]]);
+const AuditView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-af31f67b"]]);
 export {
   AuditView as default
 };

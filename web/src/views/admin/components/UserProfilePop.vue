@@ -11,6 +11,7 @@ import { computed, ref, watch } from 'vue';
 import { adminApi, contentApi } from '../../../api.js';
 import { toast } from '../../../utils/toast.js';
 import { errText } from '../helpers.js';
+import { postDrawer } from '../postDrawer.js';
 
 const props = defineProps({
   userId: { type: String, required: true },
@@ -76,6 +77,17 @@ function fmt(ms) {
 }
 
 const yuan = (cents) => '¥' + (Number(cents || 0) / 100).toFixed(2);
+
+/**
+ * 从"被处置的内容"跳到帖子详情：先关浮窗（浮窗层级更高，不关会挡着抽屉），再开抽屉。
+ * 评论会自动定位并高亮那一层；帖子只开抽屉。
+ */
+function jump(h) {
+  if (!h || !h.postId) return toast('这条记录找不到所属帖子（内容可能已被彻底删除）');
+  const commentId = h.type === 'COMMENT' ? h.targetId : null;
+  emit('close');
+  postDrawer.open(h.postId, commentId);
+}
 </script>
 
 <template>
@@ -124,7 +136,8 @@ const yuan = (cents) => '¥' + (Number(cents || 0) / 100).toFixed(2);
           <div v-if="!data.moderation.hiddenContent.length" class="muted upop-empty">没有处置记录</div>
           <div v-for="h in data.moderation.hiddenContent" :key="h.auditId" class="upop-item">
             <span class="tag" :class="h.undone ? 'ok' : 'red'">{{ h.undone ? '已恢复' : '已屏蔽' }}</span>
-            <span>{{ h.type }} #{{ h.targetId }}</span>
+            <!-- 点这条 → 关掉浮窗、打开帖子详情抽屉；是评论的话自动定位到那一层 -->
+            <a class="upop-jump" @click="jump(h)">{{ h.type === 'POST' ? '帖子' : '评论' }} #{{ h.targetId }}</a>
             <span class="muted">{{ fmt(h.createdAt) }}</span>
             <span class="upop-reason" :title="h.detail">{{ h.detail }}</span>
           </div>
@@ -160,6 +173,8 @@ const yuan = (cents) => '¥' + (Number(cents || 0) / 100).toFixed(2);
 .upop-sub { font-size: 12.5px; font-weight: 600; margin: 12px 0 6px; }
 .upop-empty { font-size: 12px; }
 .upop-item { display: flex; gap: 8px; align-items: center; font-size: 12px; padding: 4px 0; border-top: 1px dashed #F2F3F5; }
+.upop-jump { color: #165DFF; cursor: pointer; white-space: nowrap; }
+.upop-jump:hover { text-decoration: underline; }
 .upop-reason { color: #86909C; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px; }
 .upop-foot { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid #EFF0F1; }
 .upop-sel { padding: 4px 6px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 12px; }

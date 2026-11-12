@@ -11,8 +11,8 @@ import { contentApi } from '../../api.js';
 import { toast } from '../../utils/toast.js';
 import { errText } from './helpers.js';
 import ModerationBar from './components/ModerationBar.vue';
-import PostDetailDrawer from './components/PostDetailDrawer.vue';
 import { userPop } from './userPop.js';
+import { postDrawer } from './postDrawer.js';
 
 const TYPES = [['', '全部类型'], ['CHAT', '闲聊'], ['GUIDE', '攻略'], ['HELP', '求助']];
 const STATUSES = [['', '全部状态'], ['1', '正常'], ['2', '已屏蔽']];
@@ -31,11 +31,11 @@ const loading = ref(true);
 const error = ref('');
 
 /**
- * 抽屉：{ id, focusCommentId }。
- * 从评论管理点「查看所在帖子」跳过来时，URL 上带 `?post=..&comment=..`，
- * 这里读 query 直接把抽屉打开并定位那一层。
+ * 详情抽屉是**全局单例**（AdminLayout 里渲染），这里只负责触发 `postDrawer.open(postId, commentId)`。
+ *
+ * <p>仍然支持深链：URL 上带 `?post=..&comment=..` 时直接打开抽屉并定位那一层
+ * （外部链接、刷新都能用；页面内部点击不再走路由跳转）。
  */
-const drawer = ref(null);
 const route = useRoute();
 
 /** 用户违规浮窗：全局单例（AdminLayout 里渲染），这里只管"点谁" */
@@ -43,10 +43,15 @@ function openPop(userId, ev) {
   userPop.open(userId, ev);
 }
 
+/** 点标题/详情按钮 → 打开帖子详情抽屉 */
+function openDrawer(id, commentId = null) {
+  postDrawer.open(id, commentId);
+}
+
 function openFromQuery() {
   const postId = route.query.post;
   if (!postId) return;
-  drawer.value = { id: Number(postId), focusCommentId: route.query.comment || null };
+  postDrawer.open(Number(postId), route.query.comment || null);
 }
 watch(() => route.query, openFromQuery, { immediate: true });
 
@@ -76,9 +81,10 @@ async function load() {
   }
 }
 
-/** 浮窗里禁言/封禁后，列表状态跟着刷新 */
+/** 浮窗/抽屉里做了什么 → 列表状态跟着刷新 */
 const offPop = userPop.onChanged(load);
-onUnmounted(offPop);
+const offDrawer = postDrawer.onChanged(load);
+onUnmounted(() => { offPop(); offDrawer(); });
 onMounted(load);
 
 function search() {
@@ -90,10 +96,6 @@ function go(p) {
   if (p < 1 || p > pages.value) return;
   page.value = p;
   load();
-}
-
-function openDrawer(id, focusCommentId = null) {
-  drawer.value = { id, focusCommentId };
 }
 
 function fmt(ms) {
@@ -192,9 +194,6 @@ function onChanged() {
         </div>
       </div>
     </div>
-
-    <PostDetailDrawer v-if="drawer" :post-id="drawer.id" :focus-comment-id="drawer.focusCommentId"
-                      @close="drawer = null" @changed="onChanged" />
   </div>
 </template>
 

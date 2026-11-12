@@ -289,6 +289,7 @@ public class AdminContentService {
             m.put("auditId", num(r.get("id")));
             m.put("type", str(r.get("target_type")));
             m.put("targetId", r.get("target_id") == null ? null : num(r.get("target_id")));
+            m.put("postId", r.get("post_id") == null ? null : num(r.get("post_id")));
             m.put("detail", str(r.get("detail")));
             m.put("source", str(r.get("source")));
             m.put("adminName", str(r.get("admin_name")));

@@ -16,7 +16,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { ADMIN_MENU } from '../../adminMenu.js';
 import { useAdminStore } from '../../stores/admin.js';
 import UserProfilePop from './components/UserProfilePop.vue';
+import PostDetailDrawer from './components/PostDetailDrawer.vue';
 import { userPop } from './userPop.js';
+import { postDrawer } from './postDrawer.js';
 import './admin.css';
 
 const route = useRoute();
@@ -160,5 +162,12 @@ onBeforeUnmount(() => {
     <UserProfilePop v-if="userPop.state.open" :user-id="userPop.state.userId"
                     :x="userPop.state.x" :y="userPop.state.y"
                     @close="userPop.close()" @changed="userPop.fireChanged()" />
+
+    <!-- 全局唯一的帖子详情抽屉：任何显示帖子标题/评论内容的地方点一下都调
+         postDrawer.open(postId, commentId)，传 commentId 会自动滚到那一层并高亮 -->
+    <PostDetailDrawer v-if="postDrawer.state.open" :key="postDrawer.state.seq"
+                      :post-id="postDrawer.state.postId"
+                      :focus-comment-id="postDrawer.state.commentId"
+                      @close="postDrawer.close()" @changed="postDrawer.fireChanged()" />
   </div>
 </template>

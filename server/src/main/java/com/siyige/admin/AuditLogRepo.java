@@ -134,7 +134,15 @@ public class AuditLogRepo {
     public List<Map<String, Object>> list(String q, String admin, String action, String verdict, String targetType,
                                           String source, Timestamp from, Timestamp toExcl, int page, int size) {
         int offset = (Math.max(1, page) - 1) * size;
-        StringBuilder sql = new StringBuilder("select * from sy_audit_log");
+        // post_id：前端点「对象」要能直接打开帖子详情抽屉并定位评论。
+        // 用标量子查询而不是 join —— join 会让 created_at / id 这些列名有歧义，
+        // 而 appendFilters 里的条件是共享的（count 也在用同一个方法）。
+        StringBuilder sql = new StringBuilder(
+                "select a.*, case when a.target_type = 'POST' then a.target_id "
+                        + "            when a.target_type = 'COMMENT' then "
+                        + "                 (select c.post_id from sy_post_comment c where c.id = a.target_id) "
+                        + "       end as post_id "
+                        + "from sy_audit_log a");
         List<Object> args = new ArrayList<>();
         appendFilters(sql, args, q, admin, action, verdict, targetType, source, from, toExcl);
         sql.append(" order by created_at desc, id desc limit ? offset ?");

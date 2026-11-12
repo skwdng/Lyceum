@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-CRMsKTWb.js","./admin-o3wTV2Mg.js","./helpers-BYCbhqGK.js","./userPop-D7K1VMMP.js","./AdminLayout-BrVw-Byo.css","./AdminLogin-BKKMOjv4.js","./DashboardView-Cb5vZEZI.js","./LineChart-Bh8eu0PB.js","./LineChart-mMQnDcD4.css","./DashboardView-C8pX9Oep.css","./AnalyticsView-CbWTULia.js","./AnalyticsView-BIzlUv8N.css","./ReportsView-CSPMLtO7.js","./ReportsView-DeexxeF6.css","./UsersView-D__K_cTw.js","./ContentPostsView-D91BeWhb.js","./ModerationBar-DEBHgqBa.js","./ModerationBar-BRGjagrt.css","./ContentPostsView-B2lE_WVQ.css","./ContentCommentsView-HcL_cchV.js","./ContentCommentsView-Ds3azlfi.css","./VideoAuditView-KOpi6Nik.js","./VideoAuditView-Bgm0adiV.css","./TopicReviewView-DWKPcQrd.js","./TopicReviewView-B85Zvq1H.css","./AuditView-DiDiAGdB.js","./AuditView-DBY5gP1u.css","./SettingsView-DGMtDaiR.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-Byt16XHl.js","./admin-CTkfOVY_.js","./helpers-BK_Uoi_O.js","./postDrawer-C7Hff4yU.js","./userPop-ByVsXC9s.js","./ModerationBar-Ca3b3ny2.js","./ModerationBar-BRGjagrt.css","./AdminLayout-BrNBxmCa.css","./AdminLogin-Cf3UggTC.js","./DashboardView-CM8GWX6i.js","./LineChart-DxyyeG8f.js","./LineChart-mMQnDcD4.css","./DashboardView-C8pX9Oep.css","./AnalyticsView-DV6yqhNu.js","./AnalyticsView-BIzlUv8N.css","./ReportsView-VHRrOIbE.js","./ReportsView-CzwXvr_z.css","./UsersView-D7gTysBf.js","./ContentPostsView-BGxjHE4A.js","./ContentPostsView-BEttnbrJ.css","./ContentCommentsView-BtpaK5Hs.js","./ContentCommentsView-CoFvn_xJ.css","./VideoAuditView-DVgC2OO2.js","./VideoAuditView-Bgm0adiV.css","./TopicReviewView-4lyFdFOV.js","./TopicReviewView-B85Zvq1H.css","./AuditView-BA_MyF1y.js","./AuditView-CJyvFAzv.css","./SettingsView-BpIA5nf0.js"])))=>i.map(i=>d[i]);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -17676,25 +17676,25 @@ const routes = [
   {
     path: "/admin",
     meta: { bare: true },
-    component: () => __vitePreload(() => import("./AdminLayout-CRMsKTWb.js"), true ? __vite__mapDeps([0,1,2,3,4]) : void 0, import.meta.url),
+    component: () => __vitePreload(() => import("./AdminLayout-Byt16XHl.js"), true ? __vite__mapDeps([0,1,2,3,4,5,6,7]) : void 0, import.meta.url),
     children: [
       { path: "", redirect: "/admin/dashboard" },
-      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-BKKMOjv4.js"), true ? __vite__mapDeps([5,1,2]) : void 0, import.meta.url), meta: { guest: true } },
-      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-Cb5vZEZI.js"), true ? __vite__mapDeps([6,7,8,2,9]) : void 0, import.meta.url), meta: { title: "概览" } },
-      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-CbWTULia.js"), true ? __vite__mapDeps([10,7,8,2,11]) : void 0, import.meta.url), meta: { title: "报表分析" } },
+      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-Cf3UggTC.js"), true ? __vite__mapDeps([8,1,2]) : void 0, import.meta.url), meta: { guest: true } },
+      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-CM8GWX6i.js"), true ? __vite__mapDeps([9,10,11,2,12]) : void 0, import.meta.url), meta: { title: "概览" } },
+      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-DV6yqhNu.js"), true ? __vite__mapDeps([13,10,11,2,14]) : void 0, import.meta.url), meta: { title: "报表分析" } },
       {
         path: "reports",
         name: "admin-reports",
-        component: () => __vitePreload(() => import("./ReportsView-CSPMLtO7.js"), true ? __vite__mapDeps([12,1,2,3,13]) : void 0, import.meta.url),
+        component: () => __vitePreload(() => import("./ReportsView-VHRrOIbE.js"), true ? __vite__mapDeps([15,1,2,4,3,16]) : void 0, import.meta.url),
         meta: { title: "举报处理", badge: "pendingReports" }
       },
-      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-D__K_cTw.js"), true ? __vite__mapDeps([14,1,2,3]) : void 0, import.meta.url), meta: { title: "用户管理" } },
-      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-D91BeWhb.js"), true ? __vite__mapDeps([15,2,16,17,3,18]) : void 0, import.meta.url), meta: { title: "帖子管理" } },
-      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-HcL_cchV.js"), true ? __vite__mapDeps([19,2,16,17,3,20]) : void 0, import.meta.url), meta: { title: "评论管理" } },
-      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-KOpi6Nik.js"), true ? __vite__mapDeps([21,2,3,22]) : void 0, import.meta.url), meta: { title: "视频复核" } },
-      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-DWKPcQrd.js"), true ? __vite__mapDeps([23,2,24]) : void 0, import.meta.url), meta: { title: "辩题审核" } },
-      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-DiDiAGdB.js"), true ? __vite__mapDeps([25,1,2,3,26]) : void 0, import.meta.url), meta: { title: "处理记录" } },
-      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-DGMtDaiR.js"), true ? __vite__mapDeps([27,1,2]) : void 0, import.meta.url), meta: { title: "设置" } }
+      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-D7gTysBf.js"), true ? __vite__mapDeps([17,1,2,4]) : void 0, import.meta.url), meta: { title: "用户管理" } },
+      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-BGxjHE4A.js"), true ? __vite__mapDeps([18,2,5,6,4,3,19]) : void 0, import.meta.url), meta: { title: "帖子管理" } },
+      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-BtpaK5Hs.js"), true ? __vite__mapDeps([20,2,5,6,4,3,21]) : void 0, import.meta.url), meta: { title: "评论管理" } },
+      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-DVgC2OO2.js"), true ? __vite__mapDeps([22,2,4,23]) : void 0, import.meta.url), meta: { title: "视频复核" } },
+      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-4lyFdFOV.js"), true ? __vite__mapDeps([24,2,25]) : void 0, import.meta.url), meta: { title: "辩题审核" } },
+      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-BA_MyF1y.js"), true ? __vite__mapDeps([26,1,2,4,3,27]) : void 0, import.meta.url), meta: { title: "处理记录" } },
+      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-BpIA5nf0.js"), true ? __vite__mapDeps([28,1,2]) : void 0, import.meta.url), meta: { title: "设置" } }
     ]
   },
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）
@@ -17725,15 +17725,15 @@ app.use(createPinia());
 app.use(router);
 app.mount("#app");
 export {
-  resolveComponent as A,
-  vModelText as B,
-  withKeys as C,
-  analyticsApi as D,
-  getAdminToken as E,
+  withCtx as A,
+  resolveComponent as B,
+  vModelText as C,
+  withKeys as D,
+  analyticsApi as E,
   Fragment as F,
-  API_BASE as G,
-  ApiError as H,
-  nextTick as I,
+  getAdminToken as G,
+  API_BASE as H,
+  ApiError as I,
   onUnmounted as J,
   videoAuditApi as K,
   topicAdminApi as L,
@@ -17750,21 +17750,21 @@ export {
   withModifiers as g,
   ref as h,
   contentApi as i,
-  computed as j,
-  toast as k,
+  toast as j,
+  computed as k,
   adminApi as l,
-  onMounted as m,
+  createVNode as m,
   normalizeClass as n,
   openBlock as o,
-  onBeforeUnmount as p,
-  createBlock as q,
+  nextTick as p,
+  onMounted as q,
   renderList as r,
-  createVNode as s,
+  onBeforeUnmount as s,
   toDisplayString as t,
   unref as u,
   vModelSelect as v,
   watch as w,
-  useRouter as x,
-  useRoute as y,
-  withCtx as z
+  createBlock as x,
+  useRouter as y,
+  useRoute as z
 };

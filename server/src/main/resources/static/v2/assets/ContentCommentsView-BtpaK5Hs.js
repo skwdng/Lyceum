@@ -1,7 +1,8 @@
-import { _ as _export_sfc, J as onUnmounted, m as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, t as toDisplayString, e as withDirectives, B as vModelText, C as withKeys, v as vModelSelect, F as Fragment, r as renderList, d as createCommentVNode, i as contentApi, h as ref, j as computed, x as useRouter, o as openBlock, s as createVNode } from "./index-DEeojRwW.js";
-import { e as errText } from "./helpers-BYCbhqGK.js";
-import { M as ModerationBar } from "./ModerationBar-DEBHgqBa.js";
-import { u as userPop } from "./userPop-D7K1VMMP.js";
+import { _ as _export_sfc, J as onUnmounted, q as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, t as toDisplayString, e as withDirectives, C as vModelText, D as withKeys, v as vModelSelect, F as Fragment, r as renderList, d as createCommentVNode, i as contentApi, h as ref, k as computed, o as openBlock, m as createVNode } from "./index-DDPgDnZA.js";
+import { e as errText } from "./helpers-BK_Uoi_O.js";
+import { M as ModerationBar } from "./ModerationBar-Ca3b3ny2.js";
+import { u as userPop } from "./userPop-ByVsXC9s.js";
+import { p as postDrawer } from "./postDrawer-C7Hff4yU.js";
 const _hoisted_1 = { "data-panel": "content-comments" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -28,31 +29,34 @@ const _hoisted_10 = {
 const _hoisted_11 = { key: 0 };
 const _hoisted_12 = { class: "muted" };
 const _hoisted_13 = { class: "cc-body" };
-const _hoisted_14 = { class: "tag" };
-const _hoisted_15 = ["onClick"];
+const _hoisted_14 = ["onClick"];
+const _hoisted_15 = { class: "tag" };
 const _hoisted_16 = ["onClick"];
-const _hoisted_17 = {
+const _hoisted_17 = ["onClick"];
+const _hoisted_18 = {
   key: 0,
   class: "tag red"
 };
-const _hoisted_18 = {
+const _hoisted_19 = {
   key: 1,
   class: "tag ok"
 };
-const _hoisted_19 = { class: "muted" };
-const _hoisted_20 = { class: "cc-ops" };
-const _hoisted_21 = ["onClick"];
-const _hoisted_22 = { class: "cc-page" };
-const _hoisted_23 = ["disabled"];
-const _hoisted_24 = { class: "muted" };
-const _hoisted_25 = ["disabled"];
+const _hoisted_20 = { class: "muted" };
+const _hoisted_21 = { class: "cc-ops" };
+const _hoisted_22 = ["onClick"];
+const _hoisted_23 = { class: "cc-page" };
+const _hoisted_24 = ["disabled"];
+const _hoisted_25 = { class: "muted" };
+const _hoisted_26 = ["disabled"];
 const size = 20;
 const _sfc_main = {
   __name: "ContentCommentsView",
   setup(__props) {
-    const router = useRouter();
     function openPop(userId, ev) {
       userPop.open(userId, ev);
+    }
+    function openCommentPost(c, focus = true) {
+      postDrawer.open(c.postId, focus ? c.id : null);
     }
     const STATUSES = [["", "全部状态"], ["1", "正常"], ["2", "已屏蔽"]];
     const q = ref("");
@@ -89,7 +93,11 @@ const _sfc_main = {
       }
     }
     const offPop = userPop.onChanged(load);
-    onUnmounted(offPop);
+    const offDrawer = postDrawer.onChanged(load);
+    onUnmounted(() => {
+      offPop();
+      offDrawer();
+    });
     onMounted(load);
     function search() {
       page.value = 1;
@@ -99,9 +107,6 @@ const _sfc_main = {
       if (p < 1 || p > pages.value) return;
       page.value = p;
       load();
-    }
-    function jumpToPost(c) {
-      router.push({ path: "/admin/content/posts", query: { post: c.postId, comment: c.id } });
     }
     function fmt(ms) {
       if (!ms) return "";
@@ -225,32 +230,37 @@ const _sfc_main = {
                       key: c.id
                     }, [
                       createBaseVNode("td", _hoisted_12, toDisplayString(c.id), 1),
-                      createBaseVNode("td", _hoisted_13, toDisplayString(c.body), 1),
+                      createBaseVNode("td", _hoisted_13, [
+                        createBaseVNode("a", {
+                          class: "cc-link",
+                          onClick: ($event) => openCommentPost(c)
+                        }, toDisplayString(c.body), 9, _hoisted_14)
+                      ]),
                       createBaseVNode("td", null, [
-                        createBaseVNode("span", _hoisted_14, toDisplayString(c.floor), 1)
+                        createBaseVNode("span", _hoisted_15, toDisplayString(c.floor), 1)
                       ]),
                       createBaseVNode("td", null, [
                         createBaseVNode("a", {
                           class: "cc-author",
                           onClick: ($event) => openPop(c.authorId, $event)
-                        }, toDisplayString(c.authorName || c.authorId), 9, _hoisted_15)
+                        }, toDisplayString(c.authorName || c.authorId), 9, _hoisted_16)
                       ]),
                       createBaseVNode("td", null, [
                         createBaseVNode("a", {
                           class: "cc-link",
-                          onClick: ($event) => jumpToPost(c)
-                        }, "#" + toDisplayString(c.postId) + " " + toDisplayString(c.postTitle), 9, _hoisted_16)
+                          onClick: ($event) => openCommentPost(c, false)
+                        }, "#" + toDisplayString(c.postId) + " " + toDisplayString(c.postTitle), 9, _hoisted_17)
                       ]),
                       createBaseVNode("td", null, [
-                        c.hidden ? (openBlock(), createElementBlock("span", _hoisted_17, "已屏蔽")) : (openBlock(), createElementBlock("span", _hoisted_18, "正常"))
+                        c.hidden ? (openBlock(), createElementBlock("span", _hoisted_18, "已屏蔽")) : (openBlock(), createElementBlock("span", _hoisted_19, "正常"))
                       ]),
-                      createBaseVNode("td", _hoisted_19, toDisplayString(fmt(c.createdAt)), 1),
+                      createBaseVNode("td", _hoisted_20, toDisplayString(fmt(c.createdAt)), 1),
                       createBaseVNode("td", null, [
-                        createBaseVNode("span", _hoisted_20, [
+                        createBaseVNode("span", _hoisted_21, [
                           createBaseVNode("button", {
                             class: "btn sm",
-                            onClick: ($event) => jumpToPost(c)
-                          }, "查看所在帖子", 8, _hoisted_21),
+                            onClick: ($event) => openCommentPost(c)
+                          }, "详情", 8, _hoisted_22),
                           createVNode(ModerationBar, {
                             type: "comment",
                             id: c.id,
@@ -266,18 +276,18 @@ const _sfc_main = {
                 ])
               ])
             ])),
-            createBaseVNode("div", _hoisted_22, [
+            createBaseVNode("div", _hoisted_23, [
               createBaseVNode("button", {
                 class: "btn sm",
                 disabled: page.value <= 1,
                 onClick: _cache[6] || (_cache[6] = ($event) => go(page.value - 1))
-              }, "上一页", 8, _hoisted_23),
-              createBaseVNode("span", _hoisted_24, toDisplayString(page.value) + " / " + toDisplayString(pages.value), 1),
+              }, "上一页", 8, _hoisted_24),
+              createBaseVNode("span", _hoisted_25, toDisplayString(page.value) + " / " + toDisplayString(pages.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
                 disabled: page.value >= pages.value,
                 onClick: _cache[7] || (_cache[7] = ($event) => go(page.value + 1))
-              }, "下一页", 8, _hoisted_25)
+              }, "下一页", 8, _hoisted_26)
             ])
           ])
         ])
@@ -285,7 +295,7 @@ const _sfc_main = {
     };
   }
 };
-const ContentCommentsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-94904cfd"]]);
+const ContentCommentsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-abf18a85"]]);
 export {
   ContentCommentsView as default
 };

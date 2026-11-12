@@ -16,6 +16,7 @@ import { useAdminStore } from '../../stores/admin.js';
 import { toast } from '../../utils/toast.js';
 import { actionName, errText, fmtTime } from './helpers.js';
 import { userPop } from './userPop.js';
+import { postDrawer } from './postDrawer.js';
 
 const admin = useAdminStore();
 
@@ -75,6 +76,15 @@ function actionLabel(r) {
   if (r.action === 'REPORT_RESOLVE') return r.source === 'MANUAL' ? '内容处置' : '举报处置';
   if (r.action === 'RESTORE') return r.source === 'MANUAL' ? '解除屏蔽' : '撤销处理';
   return actionName(r.action);
+}
+
+/** 点「对象」里的帖子/评论 → 打开帖子详情抽屉（评论自动定位） */
+function openTarget(r) {
+  if (r.targetType === 'POST') return postDrawer.open(r.postId || r.targetId, null);
+  if (r.targetType === 'COMMENT') {
+    if (!r.postId) return toast('这条评论所属的帖子已经不在了');
+    return postDrawer.open(r.postId, r.targetId);
+  }
 }
 
 async function loadAudit(page = 1) {
@@ -176,7 +186,13 @@ async function restoreAudit(id) {
               </template>
               <template v-else-if="r.targetType === 'TOPIC'">辩题 {{ r.targetOwner || '' }}</template>
               <template v-else-if="r.targetType === 'VIDEO'">视频 #{{ r.targetId }}</template>
-              <template v-else>{{ r.targetType ? (r.targetType === 'POST' ? '帖子' : '评论') + ' #' + r.targetId : '-' }}</template>
+              <template v-else-if="r.targetType === 'POST'">
+                <a class="au-link" @click="openTarget(r)">帖子 #{{ r.targetId }}</a>
+              </template>
+              <template v-else-if="r.targetType === 'COMMENT'">
+                <a class="au-link" @click="openTarget(r)">评论 #{{ r.targetId }}</a>
+              </template>
+              <template v-else>-</template>
             </td>
             <td style="white-space: nowrap">
               <span class="tag" :class="r.source === 'MANUAL' ? 'blue' : ''">{{ r.source === 'MANUAL' ? '管理台' : '举报' }}</span>

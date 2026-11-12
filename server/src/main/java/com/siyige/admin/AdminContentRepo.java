@@ -257,11 +257,17 @@ public class AdminContentRepo {
 
     /** 被屏蔽的内容（来自处理记录里与该作者相关的 DELETE 类处置）。 */
     public List<Map<String, Object>> hiddenContent(String userId, int limit) {
+        // post_id：前端点这条记录要能直接打开「帖子详情抽屉」并定位到那条评论，
+        // 而审计表里只存了 target_type + target_id，所以在这条 SQL 里把所属帖子算出来。
         return jdbc.queryForList(
-                "select id, target_type, target_id, detail, source, admin_name, created_at, undo_at "
-                        + "from sy_audit_log "
-                        + "where target_owner = ? and verdict in ('DELETE', 'DELETE_AND_BAN') "
-                        + "order by created_at desc, id desc limit ?",
+                "select a.id, a.target_type, a.target_id, a.detail, a.source, a.admin_name, "
+                        + "       a.created_at, a.undo_at, "
+                        + "       case when a.target_type = 'POST' then a.target_id "
+                        + "            when a.target_type = 'COMMENT' then c.post_id end as post_id "
+                        + "from sy_audit_log a "
+                        + "left join sy_post_comment c on a.target_type = 'COMMENT' and c.id = a.target_id "
+                        + "where a.target_owner = ? and a.verdict in ('DELETE', 'DELETE_AND_BAN') "
+                        + "order by a.created_at desc, a.id desc limit ?",
                 userId, limit);
     }
 }

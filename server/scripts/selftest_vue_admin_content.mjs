@@ -172,7 +172,7 @@ await check('A4 处理记录里出现 MANUAL 行，一键恢复后内容回来',
   return `audit#${manual.id} → 已恢复`;
 });
 
-await check('A5 评论管理：跨帖搜索 + 点「查看所在帖子」定位并高亮', async () => {
+await check('A5 评论管理：跨帖搜索 + 点评论内容原地打开详情并定位高亮', async () => {
   await openAdmin('admin/content/comments');
   await waitFor(`!!document.querySelector('[data-panel="content-comments"] .cc-input')`, '评论筛选栏');
   await ev(`(()=>{const i=document.querySelector('[data-panel="content-comments"] .cc-input');
@@ -183,11 +183,16 @@ await check('A5 评论管理：跨帖搜索 + 点「查看所在帖子」定位�
     const l = links.find((a) => a.textContent.trim().startsWith('#')); return l ? l.textContent.trim() : 'none';})()`);
   if (!post.includes('#' + postId)) throw new Error('所在帖子列不对：' + post);
 
-  await ev(`document.querySelector('[data-panel="content-comments"] .cc-ops .btn').click(); true`);
-  await waitFor(`location.hash.includes('post=${postId}')`, '跳转到帖子管理', 15000);
-  await waitFor(`!!document.querySelector('.modal .pd-title')`, '跳转后抽屉打开', 15000);
+  const hash0 = await ev('location.hash');
+  // 点评论内容 -> 原地打开帖子详情抽屉（抽屉是全局单例），并定位到那一层
+  await ev(`(()=>{const a=[...document.querySelectorAll('[data-panel="content-comments"] tbody .cc-link')]
+      .find(x=>x.textContent.includes('自检楼中楼 ${stamp}'));
+    if(!a) throw new Error('找不到目标评论'); a.click(); return true;})()`);
+  await waitFor(`!!document.querySelector('.modal .pd-title')`, '抽屉打开', 15000);
   await waitFor(`!!document.querySelector('#c-${replyId}.is-hl')`, '目标楼层高亮', 15000);
-  return `hash=${await ev('location.hash')} · 高亮 #c-${replyId}`;
+  if ((await ev('location.hash')) !== hash0) throw new Error('不该跳页（应原地开抽屉）');
+  await ev(`(()=>{const b=[...document.querySelectorAll('.modal .foot .btn')].find(x=>x.textContent.trim()==='关闭'); if(b) b.click(); return true;})()`);
+  return `原地开抽屉 · 高亮 #c-${replyId} · 路由未变`;
 });
 
 await check('A6 帖子管理：按作者筛选只出该作者的帖子', async () => {
@@ -274,7 +279,7 @@ await check('A9 长列表：1280x720 下页面可滚到底且分页栏可见（�
   }
 });
 
-await check('A9 评论管理：作者 ID + 日期筛选生效', async () => {
+await check('A10 评论管理：作者 ID + 日期筛选生效', async () => {
   await openAdmin('admin/content/comments');
   await waitFor(`document.querySelectorAll('[data-panel="content-comments"] .cc-input').length >= 4`, '评论筛选条');
 
@@ -301,7 +306,7 @@ await check('A9 评论管理：作者 ID + 日期筛选生效', async () => {
   return `作者筛选 ${authors.length} 行全为 ${uid} · 起始日期=明天 → 空态`;
 });
 
-await check('A10 全程零 JS 异常', async () => {
+await check('A11 全程零 JS 异常', async () => {
   if (errs.length) throw new Error(errs.slice(0, 2).join(' | '));
   return '无异常';
 });

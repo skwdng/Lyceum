@@ -7,17 +7,20 @@
  * 给它单独一条 `/admin/content/posts/:id` 只会让面包屑和"返回"逻辑变复杂。
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import { contentApi } from '../../api.js';
 import { errText } from './helpers.js';
 import ModerationBar from './components/ModerationBar.vue';
 import { userPop } from './userPop.js';
-
-const router = useRouter();
+import { postDrawer } from './postDrawer.js';
 
 /** 用户违规浮窗：全局单例（AdminLayout 渲染），这里只负责"点谁" */
 function openPop(userId, ev) {
   userPop.open(userId, ev);
+}
+
+/** 点评论内容 → 打开帖子详情抽屉并**定位到这一层**；点所在帖子 → 只开抽屉 */
+function openCommentPost(c, focus = true) {
+  postDrawer.open(c.postId, focus ? c.id : null);
 }
 
 const STATUSES = [['', '全部状态'], ['1', '正常'], ['2', '已屏蔽']];
@@ -58,9 +61,10 @@ async function load() {
   }
 }
 
-/** 浮窗里操作完，列表跟着刷新 */
+/** 浮窗/抽屉里操作完 → 列表刷新 */
 const offPop = userPop.onChanged(load);
-onUnmounted(offPop);
+const offDrawer = postDrawer.onChanged(load);
+onUnmounted(() => { offPop(); offDrawer(); });
 onMounted(load);
 
 function search() {
@@ -72,11 +76,6 @@ function go(p) {
   if (p < 1 || p > pages.value) return;
   page.value = p;
   load();
-}
-
-/** 跳到帖子管理并定位这一层（楼中楼也能定位） */
-function jumpToPost(c) {
-  router.push({ path: '/admin/content/posts', query: { post: c.postId, comment: c.id } });
 }
 
 function fmt(ms) {
@@ -136,13 +135,13 @@ function fmt(ms) {
               </tr>
               <tr v-for="c in items" :key="c.id">
                 <td class="muted">{{ c.id }}</td>
-                <td class="cc-body">{{ c.body }}</td>
+                <td class="cc-body"><a class="cc-link" @click="openCommentPost(c)">{{ c.body }}</a></td>
                 <td><span class="tag">{{ c.floor }}</span></td>
                 <td>
                   <a class="cc-author" @click="openPop(c.authorId, $event)">{{ c.authorName || c.authorId }}</a>
                 </td>
                 <td>
-                  <a class="cc-link" @click="jumpToPost(c)">#{{ c.postId }} {{ c.postTitle }}</a>
+                  <a class="cc-link" @click="openCommentPost(c, false)">#{{ c.postId }} {{ c.postTitle }}</a>
                 </td>
                 <td>
                   <span v-if="c.hidden" class="tag red">已屏蔽</span>
@@ -151,7 +150,7 @@ function fmt(ms) {
                 <td class="muted">{{ fmt(c.createdAt) }}</td>
                 <td>
                   <span class="cc-ops">
-                    <button class="btn sm" @click="jumpToPost(c)">查看所在帖子</button>
+                    <button class="btn sm" @click="openCommentPost(c)">详情</button>
                     <ModerationBar type="comment" :id="c.id" :author-id="c.authorId"
                                    :hidden="c.hidden" :show-user-actions="false" @changed="load" />
                   </span>

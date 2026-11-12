@@ -1,7 +1,8 @@
-import { _ as _export_sfc, J as onUnmounted, m as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, F as Fragment, r as renderList, t as toDisplayString, d as createCommentVNode, g as withModifiers, u as unref, e as withDirectives, B as vModelText, v as vModelSelect, h as ref, l as adminApi, k as toast, o as openBlock, n as normalizeClass } from "./index-DEeojRwW.js";
-import { u as useAdminStore } from "./admin-o3wTV2Mg.js";
-import { r as reasonName, e as errText, a as actionName, f as fmtTime } from "./helpers-BYCbhqGK.js";
-import { u as userPop } from "./userPop-D7K1VMMP.js";
+import { _ as _export_sfc, J as onUnmounted, q as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, F as Fragment, r as renderList, t as toDisplayString, d as createCommentVNode, g as withModifiers, u as unref, e as withDirectives, C as vModelText, v as vModelSelect, h as ref, l as adminApi, j as toast, o as openBlock, n as normalizeClass } from "./index-DDPgDnZA.js";
+import { u as useAdminStore } from "./admin-CTkfOVY_.js";
+import { r as reasonName, e as errText, a as actionName, f as fmtTime } from "./helpers-BK_Uoi_O.js";
+import { u as userPop } from "./userPop-ByVsXC9s.js";
+import { p as postDrawer } from "./postDrawer-C7Hff4yU.js";
 const _hoisted_1 = { "data-panel": "reports" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = ["onClick"];
@@ -17,52 +18,53 @@ const _hoisted_5 = {
 };
 const _hoisted_6 = { key: 2 };
 const _hoisted_7 = { style: { "font-weight": "600" } };
-const _hoisted_8 = {
+const _hoisted_8 = ["onClick"];
+const _hoisted_9 = {
   class: "muted",
   style: { "font-size": "12px", "margin-top": "2px" }
 };
-const _hoisted_9 = ["onClick"];
-const _hoisted_10 = {
+const _hoisted_10 = ["onClick"];
+const _hoisted_11 = {
   key: 1,
   class: "tag"
 };
-const _hoisted_11 = {
+const _hoisted_12 = {
   key: 0,
   class: "tag red"
 };
-const _hoisted_12 = { class: "muted" };
-const _hoisted_13 = ["onClick"];
-const _hoisted_14 = {
+const _hoisted_13 = { class: "muted" };
+const _hoisted_14 = ["onClick"];
+const _hoisted_15 = {
   key: 3,
   class: "pager"
 };
-const _hoisted_15 = { class: "muted" };
-const _hoisted_16 = ["disabled"];
+const _hoisted_16 = { class: "muted" };
 const _hoisted_17 = ["disabled"];
-const _hoisted_18 = {
+const _hoisted_18 = ["disabled"];
+const _hoisted_19 = {
   class: "modal",
   style: { "width": "620px" }
 };
-const _hoisted_19 = { class: "body" };
-const _hoisted_20 = {
+const _hoisted_20 = { class: "body" };
+const _hoisted_21 = {
   key: 0,
   class: "muted",
   style: { "font-size": "12.5px", "margin-bottom": "10px" }
 };
-const _hoisted_21 = {
+const _hoisted_22 = {
   class: "card",
   style: { "background": "#f7f8fa", "border": "1px solid #eff0f1", "border-radius": "10px", "padding": "12px 14px" }
 };
-const _hoisted_22 = { style: { "font-weight": "600" } };
-const _hoisted_23 = {
+const _hoisted_23 = { style: { "font-weight": "600" } };
+const _hoisted_24 = {
   class: "muted",
   style: { "font-size": "12px", "margin-top": "4px" }
 };
-const _hoisted_24 = {
+const _hoisted_25 = {
   key: 0,
   style: { "margin-top": "8px", "font-size": "12.5px" }
 };
-const _hoisted_25 = { class: "foot" };
+const _hoisted_26 = { class: "foot" };
 const _sfc_main = {
   __name: "ReportsView",
   setup(__props) {
@@ -72,6 +74,14 @@ const _sfc_main = {
     const detail = ref(null);
     const note = ref("");
     const banDays = ref(7);
+    function openTargetOf(it) {
+      const t = it || {};
+      const isComment = t.targetType === "COMMENT";
+      const postId = isComment ? t.postId : t.postId || t.targetId;
+      if (!postId) return toast("找不到这条内容所属的帖子（可能已被彻底删除）");
+      if (!t.targetExists && t.targetExists !== void 0) ;
+      postDrawer.open(postId, isComment ? t.targetId : null);
+    }
     const offPop = userPop.onChanged(() => loadReports(reports.value ? reports.value.page : 1));
     onUnmounted(offPop);
     onMounted(() => loadReports(1));
@@ -110,12 +120,12 @@ const _sfc_main = {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("div", _hoisted_2, [
           createBaseVNode("h2", null, [
-            _cache[11] || (_cache[11] = createTextVNode(" 举报队列 ", -1)),
-            _cache[12] || (_cache[12] = createBaseVNode("span", {
+            _cache[12] || (_cache[12] = createTextVNode(" 举报队列 ", -1)),
+            _cache[13] || (_cache[13] = createBaseVNode("span", {
               class: "muted",
               style: { "font-weight": "400" }
             }, "按目标聚合 · 举报人数多的在前", -1)),
-            _cache[13] || (_cache[13] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            _cache[14] || (_cache[14] = createBaseVNode("span", { class: "spacer" }, null, -1)),
             (openBlock(), createElementBlock(Fragment, null, renderList([["PENDING", "待处理"], ["RESOLVED", "已处理"], ["REJECTED", "已驳回"]], (q) => {
               return createBaseVNode("button", {
                 key: q[0],
@@ -125,7 +135,7 @@ const _sfc_main = {
             }), 64))
           ]),
           !reports.value ? (openBlock(), createElementBlock("div", _hoisted_4, "加载中…")) : !(reports.value.items || []).length ? (openBlock(), createElementBlock("div", _hoisted_5, " 没有待处理的举报 🎉 ")) : (openBlock(), createElementBlock("table", _hoisted_6, [
-            _cache[14] || (_cache[14] = createBaseVNode("thead", null, [
+            _cache[15] || (_cache[15] = createBaseVNode("thead", null, [
               createBaseVNode("tr", null, [
                 createBaseVNode("th", { style: { "width": "72px" } }, "类型"),
                 createBaseVNode("th", null, "被举报内容"),
@@ -146,20 +156,25 @@ const _sfc_main = {
                     }, toDisplayString(it.targetType === "POST" ? "帖子" : "评论"), 3)
                   ]),
                   createBaseVNode("td", null, [
-                    createBaseVNode("div", _hoisted_7, toDisplayString(it.targetSummary || "（内容已删除）"), 1),
-                    createBaseVNode("div", _hoisted_8, [
+                    createBaseVNode("div", _hoisted_7, [
+                      createBaseVNode("a", {
+                        class: "rp-title",
+                        onClick: ($event) => openTargetOf(it)
+                      }, toDisplayString(it.targetSummary || "（内容已删除）"), 9, _hoisted_8)
+                    ]),
+                    createBaseVNode("div", _hoisted_9, [
                       it.targetAuthor ? (openBlock(), createElementBlock("a", {
                         key: 0,
                         class: "rp-link",
                         onClick: ($event) => unref(userPop).open(it.targetAuthor, $event)
-                      }, toDisplayString(it.targetAuthor), 9, _hoisted_9)) : createCommentVNode("", true),
+                      }, toDisplayString(it.targetAuthor), 9, _hoisted_10)) : createCommentVNode("", true),
                       createTextVNode(toDisplayString(it.postId ? " · 帖子 #" + it.postId : "") + " ", 1),
-                      !it.targetExists ? (openBlock(), createElementBlock("span", _hoisted_10, "目标已删除")) : createCommentVNode("", true)
+                      !it.targetExists ? (openBlock(), createElementBlock("span", _hoisted_11, "目标已删除")) : createCommentVNode("", true)
                     ])
                   ]),
                   createBaseVNode("td", null, [
                     createTextVNode(toDisplayString(it.reporterCount) + " 人 ", 1),
-                    it.multiReport ? (openBlock(), createElementBlock("span", _hoisted_11, "多人举报")) : createCommentVNode("", true)
+                    it.multiReport ? (openBlock(), createElementBlock("span", _hoisted_12, "多人举报")) : createCommentVNode("", true)
                   ]),
                   createBaseVNode("td", null, [
                     (openBlock(true), createElementBlock(Fragment, null, renderList(it.reasons || [], (r) => {
@@ -169,67 +184,72 @@ const _sfc_main = {
                       }, toDisplayString(unref(reasonName)(r)), 1);
                     }), 128))
                   ]),
-                  createBaseVNode("td", _hoisted_12, toDisplayString(unref(fmtTime)(it.lastAt)), 1),
+                  createBaseVNode("td", _hoisted_13, toDisplayString(unref(fmtTime)(it.lastAt)), 1),
                   createBaseVNode("td", null, [
                     createBaseVNode("button", {
                       class: "btn sm primary",
                       onClick: ($event) => openDetail(it.firstReportId)
-                    }, "处理", 8, _hoisted_13)
+                    }, "处理", 8, _hoisted_14)
                   ])
                 ]);
               }), 128))
             ])
           ])),
-          reports.value && reports.value.total > reports.value.size ? (openBlock(), createElementBlock("div", _hoisted_14, [
-            createBaseVNode("span", _hoisted_15, "共 " + toDisplayString(reports.value.total) + " 条 · 第 " + toDisplayString(reports.value.page) + " 页", 1),
+          reports.value && reports.value.total > reports.value.size ? (openBlock(), createElementBlock("div", _hoisted_15, [
+            createBaseVNode("span", _hoisted_16, "共 " + toDisplayString(reports.value.total) + " 条 · 第 " + toDisplayString(reports.value.page) + " 页", 1),
             createBaseVNode("button", {
               class: "btn sm",
               disabled: reports.value.page <= 1,
               onClick: _cache[0] || (_cache[0] = ($event) => loadReports(reports.value.page - 1))
-            }, "上一页", 8, _hoisted_16),
+            }, "上一页", 8, _hoisted_17),
             createBaseVNode("button", {
               class: "btn sm",
               disabled: reports.value.page >= Math.ceil(reports.value.total / reports.value.size),
               onClick: _cache[1] || (_cache[1] = ($event) => loadReports(reports.value.page + 1))
-            }, " 下一页 ", 8, _hoisted_17)
+            }, " 下一页 ", 8, _hoisted_18)
           ])) : createCommentVNode("", true)
         ]),
         detail.value ? (openBlock(), createElementBlock("div", {
           key: 0,
           class: "mask",
-          onClick: _cache[10] || (_cache[10] = withModifiers(($event) => detail.value = null, ["self"]))
+          onClick: _cache[11] || (_cache[11] = withModifiers(($event) => detail.value = null, ["self"]))
         }, [
-          createBaseVNode("div", _hoisted_18, [
-            _cache[19] || (_cache[19] = createBaseVNode("h3", null, "处理举报", -1)),
-            createBaseVNode("div", _hoisted_19, [
-              detail.value.report ? (openBlock(), createElementBlock("div", _hoisted_20, toDisplayString(detail.value.report.targetType === "POST" ? "帖子" : "评论") + " · 举报人 " + toDisplayString(detail.value.report.reporterName || detail.value.report.reporterId) + " · " + toDisplayString(unref(reasonName)(detail.value.report.reason)), 1)) : createCommentVNode("", true),
-              createBaseVNode("div", _hoisted_21, [
-                createBaseVNode("div", _hoisted_22, toDisplayString(detail.value.target && detail.value.target.summary || detail.value.report.targetSummary || "（内容已删除）"), 1),
+          createBaseVNode("div", _hoisted_19, [
+            _cache[20] || (_cache[20] = createBaseVNode("h3", null, "处理举报", -1)),
+            createBaseVNode("div", _hoisted_20, [
+              detail.value.report ? (openBlock(), createElementBlock("div", _hoisted_21, toDisplayString(detail.value.report.targetType === "POST" ? "帖子" : "评论") + " · 举报人 " + toDisplayString(detail.value.report.reporterName || detail.value.report.reporterId) + " · " + toDisplayString(unref(reasonName)(detail.value.report.reason)), 1)) : createCommentVNode("", true),
+              createBaseVNode("div", _hoisted_22, [
                 createBaseVNode("div", _hoisted_23, [
-                  _cache[15] || (_cache[15] = createTextVNode(" 作者 ", -1)),
+                  createBaseVNode("a", {
+                    class: "rp-title",
+                    onClick: _cache[2] || (_cache[2] = ($event) => openTargetOf(detail.value.report))
+                  }, toDisplayString(detail.value.target && detail.value.target.summary || detail.value.report.targetSummary || "（内容已删除）"), 1)
+                ]),
+                createBaseVNode("div", _hoisted_24, [
+                  _cache[16] || (_cache[16] = createTextVNode(" 作者 ", -1)),
                   detail.value.target && detail.value.target.author ? (openBlock(), createElementBlock("a", {
                     key: 0,
                     class: "rp-link",
-                    onClick: _cache[2] || (_cache[2] = ($event) => unref(userPop).open(detail.value.target.author, $event))
+                    onClick: _cache[3] || (_cache[3] = ($event) => unref(userPop).open(detail.value.target.author, $event))
                   }, toDisplayString(detail.value.target.author), 1)) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
                     createTextVNode("-")
                   ], 64))
                 ]),
-                detail.value.report.detail ? (openBlock(), createElementBlock("div", _hoisted_24, " 补充：" + toDisplayString(detail.value.report.detail), 1)) : createCommentVNode("", true)
+                detail.value.report.detail ? (openBlock(), createElementBlock("div", _hoisted_25, " 补充：" + toDisplayString(detail.value.report.detail), 1)) : createCommentVNode("", true)
               ]),
-              _cache[17] || (_cache[17] = createBaseVNode("label", { style: { "margin-top": "12px", "display": "block" } }, "处理备注（可选）", -1)),
+              _cache[18] || (_cache[18] = createBaseVNode("label", { style: { "margin-top": "12px", "display": "block" } }, "处理备注（可选）", -1)),
               withDirectives(createBaseVNode("input", {
-                "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => note.value = $event),
+                "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => note.value = $event),
                 placeholder: "写明依据，会记进审计",
                 style: { "width": "100%" }
               }, null, 512), [
                 [vModelText, note.value]
               ]),
-              _cache[18] || (_cache[18] = createBaseVNode("label", { style: { "margin-top": "12px", "display": "block" } }, "禁言天数（选择「禁言」时生效）", -1)),
+              _cache[19] || (_cache[19] = createBaseVNode("label", { style: { "margin-top": "12px", "display": "block" } }, "禁言天数（选择「禁言」时生效）", -1)),
               withDirectives(createBaseVNode("select", {
-                "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => banDays.value = $event),
+                "onUpdate:modelValue": _cache[5] || (_cache[5] = ($event) => banDays.value = $event),
                 style: { "width": "140px" }
-              }, [..._cache[16] || (_cache[16] = [
+              }, [..._cache[17] || (_cache[17] = [
                 createBaseVNode("option", { value: 1 }, "1 天", -1),
                 createBaseVNode("option", { value: 3 }, "3 天", -1),
                 createBaseVNode("option", { value: 7 }, "7 天", -1),
@@ -238,26 +258,26 @@ const _sfc_main = {
                 [vModelSelect, banDays.value]
               ])
             ]),
-            createBaseVNode("div", _hoisted_25, [
+            createBaseVNode("div", _hoisted_26, [
               createBaseVNode("button", {
                 class: "btn",
-                onClick: _cache[5] || (_cache[5] = ($event) => detail.value = null)
+                onClick: _cache[6] || (_cache[6] = ($event) => detail.value = null)
               }, "取消"),
               createBaseVNode("button", {
                 class: "btn",
-                onClick: _cache[6] || (_cache[6] = ($event) => resolveReport("IGNORE"))
+                onClick: _cache[7] || (_cache[7] = ($event) => resolveReport("IGNORE"))
               }, "忽略"),
               createBaseVNode("button", {
                 class: "btn warn",
-                onClick: _cache[7] || (_cache[7] = ($event) => resolveReport("BAN"))
+                onClick: _cache[8] || (_cache[8] = ($event) => resolveReport("BAN"))
               }, "禁言"),
               createBaseVNode("button", {
                 class: "btn danger",
-                onClick: _cache[8] || (_cache[8] = ($event) => resolveReport("DELETE"))
+                onClick: _cache[9] || (_cache[9] = ($event) => resolveReport("DELETE"))
               }, "删除内容"),
               createBaseVNode("button", {
                 class: "btn danger",
-                onClick: _cache[9] || (_cache[9] = ($event) => resolveReport("DELETE_AND_BAN"))
+                onClick: _cache[10] || (_cache[10] = ($event) => resolveReport("DELETE_AND_BAN"))
               }, "删除并禁言")
             ])
           ])
@@ -266,7 +286,7 @@ const _sfc_main = {
     };
   }
 };
-const ReportsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-240f4ed3"]]);
+const ReportsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-f19155b6"]]);
 export {
   ReportsView as default
 };

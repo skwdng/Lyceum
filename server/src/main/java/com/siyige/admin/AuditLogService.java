@@ -85,6 +85,8 @@ public class AuditLogService {
         m.put("targetType", row.get("target_type"));
         Long targetId = row.get("target_id") == null ? null : ((Number) row.get("target_id")).longValue();
         m.put("targetId", targetId);
+        // 所属帖子 id：点「对象」时前端直接打开帖子详情抽屉（评论还要定位到那一层）
+        m.put("postId", row.get("post_id") == null ? null : ((Number) row.get("post_id")).longValue());
         m.put("detail", row.get("detail"));
         m.put("ip", row.get("ip"));
         // 来源：REPORT（从举报处理来）/ MANUAL（内容管理台直接处置）。

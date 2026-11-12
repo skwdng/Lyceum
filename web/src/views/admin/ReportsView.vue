@@ -15,6 +15,7 @@ import { useAdminStore } from '../../stores/admin.js';
 import { toast } from '../../utils/toast.js';
 import { actionName, errText, fmtTime, reasonName } from './helpers.js';
 import { userPop } from './userPop.js';
+import { postDrawer } from './postDrawer.js';
 
 const admin = useAdminStore();
 
@@ -25,6 +26,22 @@ const note = ref('');
 const banDays = ref(7);
 
 /** 浮窗里禁言/封禁后，队列与徽标一起刷新 */
+/**
+ * 点「目标摘要」→ 打开帖子详情抽屉（评论自动定位）。
+ *
+ * <p>入参既可以是列表里的分组（`targetType/targetId/postId`），
+ * 也可以是详情弹窗里的 report（同一套字段）。
+ */
+function openTargetOf(it) {
+  const t = it || {};
+  const isComment = t.targetType === 'COMMENT';
+  const postId = isComment ? t.postId : (t.postId || t.targetId);
+  if (!postId) return toast('找不到这条内容所属的帖子（可能已被彻底删除）');
+  if (!t.targetExists && t.targetExists !== undefined) {
+    // 目标已删除时也允许打开抽屉：管理端要能看到"这帖子里还剩下什么"
+  }
+  postDrawer.open(postId, isComment ? t.targetId : null);
+}
 const offPop = userPop.onChanged(() => loadReports(reports.value ? reports.value.page : 1));
 onUnmounted(offPop);
 onMounted(() => loadReports(1));
@@ -104,7 +121,9 @@ async function resolveReport(action) {
               </span>
             </td>
             <td>
-              <div style="font-weight: 600">{{ it.targetSummary || '（内容已删除）' }}</div>
+              <div style="font-weight: 600">
+                <a class="rp-title" @click="openTargetOf(it)">{{ it.targetSummary || '（内容已删除）' }}</a>
+              </div>
               <div class="muted" style="font-size: 12px; margin-top: 2px">
                 <a v-if="it.targetAuthor" class="rp-link" @click="userPop.open(it.targetAuthor, $event)">{{ it.targetAuthor }}</a>{{ it.postId ? ' · 帖子 #' + it.postId : '' }}
                 <span v-if="!it.targetExists" class="tag">目标已删除</span>
@@ -145,7 +164,9 @@ async function resolveReport(action) {
             · {{ reasonName(detail.report.reason) }}
           </div>
           <div class="card" style="background: #f7f8fa; border: 1px solid #eff0f1; border-radius: 10px; padding: 12px 14px">
-            <div style="font-weight: 600">{{ (detail.target && detail.target.summary) || detail.report.targetSummary || '（内容已删除）' }}</div>
+            <div style="font-weight: 600">
+              <a class="rp-title" @click="openTargetOf(detail.report)">{{ (detail.target && detail.target.summary) || detail.report.targetSummary || '（内容已删除）' }}</a>
+            </div>
             <div class="muted" style="font-size: 12px; margin-top: 4px">
               作者 <a v-if="detail.target && detail.target.author" class="rp-link"
                      @click="userPop.open(detail.target.author, $event)">{{ detail.target.author }}</a>
@@ -183,4 +204,7 @@ async function resolveReport(action) {
 /* 作者 id 可点（看封禁历史） */
 .rp-link { color: #165DFF; cursor: pointer; }
 .rp-link:hover { text-decoration: underline; }
+/* 目标摘要可点（看帖子详情，评论自动定位） */
+.rp-title { color: inherit; cursor: pointer; }
+.rp-title:hover { color: #165DFF; text-decoration: underline; }
 </style>
