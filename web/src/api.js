@@ -400,3 +400,19 @@ export const contentApi = {
   /** 用户违规浮窗：基本信息 + 统计 + 违规历史 */
   profile: (id) => adminRequest('/users/' + encodeURIComponent(id) + '/profile')
 };
+
+// ==================== 视频复核台（管理端） ====================
+
+/**
+ * 视频复核走**管理端**接口 `/api/admin/video-audit/**`：
+ * 视频模块那 4 个接口挂在 `/api/video/*`、只认用户令牌，而且已收紧为"必须管理员"（从用户侧调 403）。
+ * 数据层与视频模块完全一致（同一个 VideoRepo），只是鉴权与操作人不同。
+ */
+export const videoAuditApi = {
+  queue: (status, size = 30) => adminRequest('/video-audit/queue?' + toQuery({ status, size })),
+  logs: (id) => adminRequest('/video-audit/' + id + '/logs'),
+  decide: (id, decision, reason) =>
+    adminRequest('/video-audit/' + id + '/decide', { method: 'POST', body: { decision, reason } }),
+  restore: (id) => adminRequest('/video-audit/' + id + '/restore', { method: 'POST' }),
+  rules: () => adminRequest('/video-audit/rules')
+};

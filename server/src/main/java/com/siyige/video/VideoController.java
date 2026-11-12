@@ -36,10 +36,26 @@ public class VideoController {
         this.consoleEnabled = consoleEnabled;
     }
 
-    /** 审核台未开放时统一挡掉，避免绕过前端直接调接口。 */
+    /**
+     * 审核台的身份校验。
+     *
+     * <p>**这一处是本批唯一改动了既有逻辑的地方**（内容管理台接入视频复核）。
+     *
+     * <p>原来的实现只判断 `consoleEnabled` 开关 —— 开关一打开，**任何已登录用户**都能调这 4 个接口
+     * 给自己/别人的视频过审。现在必须先有管理员身份。
+     *
+     * <p>顺序刻意是「先校验身份、再看开关」：开关关着时非管理员也应该是 403 而不是 500，
+     * 否则"非管理员能不能调"会被开关状态掩盖（验收要求非管理员一律 403）。
+     *
+     * <p>注：`/api/video/*` 只挂了用户侧的 {@code JwtAuthFilter}，不走 {@code AdminAuthFilter}，
+     * 所以这里 `AdminContext` 必然为空 —— 这 4 个接口实际上没人能调通。这正是想要的：
+     * 审核台已搬到管理台（{@code /api/admin/video-audit/**}，走管理员令牌）。
+     */
     private void requireConsole() {
-        if (!consoleEnabled)
-            throw new IllegalStateException("人工审核台暂未开放（等待管理端接入）");
+        com.siyige.admin.AdminContext.requireId();       // 非管理员 -> 403 NOT_ADMIN
+        if (!consoleEnabled) {
+            throw new IllegalStateException("人工审核台未开放（已在管理台「视频复核」中提供）");
+        }
     }
 
     private static String uid() {

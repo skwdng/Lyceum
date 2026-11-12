@@ -47,6 +47,9 @@ public final class AdminDtos {
      */
     public record HideRequest(String note) { }
 
+    /** 视频复核：人工判定入参。decision = PASS | REJECT。 */
+    public record VideoDecideRequest(String decision, String reason) { }
+
     /**
      * 举报处理入参。
      *
