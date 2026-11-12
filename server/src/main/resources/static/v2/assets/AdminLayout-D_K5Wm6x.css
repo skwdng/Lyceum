@@ -1,36 +1,46 @@
 
-.upop-mask[data-v-3622a066] { position: fixed; inset: 0; z-index: 120; background: transparent;
+.upop-mask[data-v-b08f55b0] { position: fixed; inset: 0; z-index: 120; background: transparent;
 }
-.upop[data-v-3622a066] { position: fixed; background: #fff; border: 1px solid #E5E6EB; border-radius: 12px;
-  box-shadow: 0 8px 28px rgba(20,25,40,.16); display: flex; flex-direction: column; max-height: 78vh;
+.upop[data-v-b08f55b0] { position: fixed; background: #fff; border: 1px solid #E5E6EB; border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(20,25,40,.16); display: flex; flex-direction: column;
+  max-height: 78vh; overflow: hidden;
 }
-.upop-head[data-v-3622a066] { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #EFF0F1;
+.upop-head[data-v-b08f55b0] { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #EFF0F1; flex: 0 0 auto;
 }
-.upop-x[data-v-3622a066] { margin-left: 6px; border: none; background: none; font-size: 18px; line-height: 1; color: #86909C; cursor: pointer;
+.upop-x[data-v-b08f55b0] { margin-left: 6px; border: none; background: none; font-size: 18px; line-height: 1; color: #86909C; cursor: pointer;
 }
-.upop-body[data-v-3622a066] { padding: 12px 14px; overflow: auto;
+/* body 自己滚（head/foot 固定），这样底部按钮永远在视口内 */
+.upop-body[data-v-b08f55b0] { padding: 12px 14px; overflow: auto; flex: 1 1 auto; min-height: 0;
 }
-.upop-row[data-v-3622a066] { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12.5px;
+.upop-foot[data-v-b08f55b0] { flex: 0 0 auto;
 }
-.upop-stats[data-v-3622a066] { display: flex; gap: 12px; flex-wrap: wrap; margin: 10px 0; font-size: 12.5px; color: #4E5969;
+.upop-pager[data-v-b08f55b0] { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 8px; font-size: 12px;
 }
-.upop-stats i[data-v-3622a066] { font-style: normal; color: #F53F3F;
+.upop-x[data-v-b08f55b0] { margin-left: 6px; border: none; background: none; font-size: 18px; line-height: 1; color: #86909C; cursor: pointer;
 }
-.upop-sub[data-v-3622a066] { font-size: 12.5px; font-weight: 600; margin: 12px 0 6px;
+.upop-body[data-v-b08f55b0] { padding: 12px 14px; overflow: auto;
 }
-.upop-empty[data-v-3622a066] { font-size: 12px;
+.upop-row[data-v-b08f55b0] { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12.5px;
 }
-.upop-item[data-v-3622a066] { display: flex; gap: 8px; align-items: center; font-size: 12px; padding: 4px 0; border-top: 1px dashed #F2F3F5;
+.upop-stats[data-v-b08f55b0] { display: flex; gap: 12px; flex-wrap: wrap; margin: 10px 0; font-size: 12.5px; color: #4E5969;
 }
-.upop-jump[data-v-3622a066] { color: #165DFF; cursor: pointer; white-space: nowrap;
+.upop-stats i[data-v-b08f55b0] { font-style: normal; color: #F53F3F;
 }
-.upop-jump[data-v-3622a066]:hover { text-decoration: underline;
+.upop-sub[data-v-b08f55b0] { font-size: 12.5px; font-weight: 600; margin: 12px 0 6px;
 }
-.upop-reason[data-v-3622a066] { color: #86909C; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px;
+.upop-empty[data-v-b08f55b0] { font-size: 12px;
 }
-.upop-foot[data-v-3622a066] { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid #EFF0F1;
+.upop-item[data-v-b08f55b0] { display: flex; gap: 8px; align-items: center; font-size: 12px; padding: 4px 0; border-top: 1px dashed #F2F3F5;
 }
-.upop-sel[data-v-3622a066] { padding: 4px 6px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 12px;
+.upop-jump[data-v-b08f55b0] { color: #165DFF; cursor: pointer; white-space: nowrap;
+}
+.upop-jump[data-v-b08f55b0]:hover { text-decoration: underline;
+}
+.upop-reason[data-v-b08f55b0] { color: #86909C; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px;
+}
+.upop-foot[data-v-b08f55b0] { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid #EFF0F1;
+}
+.upop-sel[data-v-b08f55b0] { padding: 4px 6px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 12px;
 }
 
 .ct-item[data-v-74f6cf61] { border-top: 1px solid #F2F3F5; padding: 10px 0;
@@ -106,6 +116,8 @@
 
 .adm-root label{display:block;font-size:12.5px;color:#4E5969;margin:14px 0 6px}
 .adm-root input,.adm-root select,.adm-root textarea{width:100%;border:1px solid #E5E6EB;border-radius:9px;padding:10px 12px;font:inherit;background:#FCFCFD;outline:none}
+/* 表格里的复选框：上面那条 width:100% 会把它拉成整行宽，这里必须复位 */
+.adm-root input.row-check{width:16px;height:16px;min-width:16px;padding:0;margin:0;border-radius:4px;background:#fff}
 .adm-root input:focus,.adm-root textarea:focus,.adm-root select:focus{border-color:#165DFF;box-shadow:0 0 0 3px rgba(22,93,255,.10)}
 
 /* ==================== 按钮 ==================== */

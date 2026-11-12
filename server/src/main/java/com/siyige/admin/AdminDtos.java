@@ -53,6 +53,12 @@ public final class AdminDtos {
     /** 辩题审核：驳回 / 下架的理由（驳回必填）。 */
     public record TopicReasonRequest(String reason) { }
 
+    /** 内容批量处置：action = hide | unhide，type = post | comment，ids 最多 200 条。 */
+    public record BatchContentRequest(String type, String action, java.util.List<Long> ids, String note) { }
+
+    /** 用户批量处置：action = mute | ban | unban，reason 统一填。 */
+    public record BatchUserRequest(String action, java.util.List<String> ids, Integer days, String reason) { }
+
     /**
      * 举报处理入参。
      *

@@ -76,6 +76,15 @@ public class AdminContentController {
         return service.comments(q, status, authorId, postId, from, to, page, size);
     }
 
+    /** 批量屏蔽 / 解除屏蔽：`action` = hide | unhide，`type` = post | comment（统一一个理由）。 */
+    @PostMapping("/content/batch")
+    public Map<String, Object> batch(@RequestBody AdminDtos.BatchContentRequest req, HttpServletRequest http) {
+        boolean hide = !"unhide".equalsIgnoreCase(req == null ? null : req.action());
+        return service.batch(hide, req == null ? null : req.type(), req == null ? null : req.ids(),
+                AdminContext.requireId(), AdminContext.account(), ClientIp.of(http),
+                req == null ? null : req.note());
+    }
+
     @PostMapping("/content/{type}/{id}/hide")
     public ResponseEntity<Void> hide(@PathVariable String type, @PathVariable long id,
                                      @RequestBody(required = false) AdminDtos.HideRequest req,

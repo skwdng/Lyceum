@@ -75,6 +75,27 @@ class AdminContentServiceTest {
     }
 
     @Test
+    void 批量屏蔽_个别失败不影响其它条() {
+        when(repo.findContent("COMMENT", 1L)).thenReturn(content("u1", 1, 55L));
+        when(repo.findContent("COMMENT", 2L)).thenReturn(content("u1", 2, 55L));   // 已屏蔽 → 应失败
+        when(repo.findContent("COMMENT", 3L)).thenReturn(content("u1", 1, 55L));
+        when(community.softDeleteComment(anyLong())).thenReturn(1);
+
+        java.util.Map<String, Object> res = service.batch(true, "comment",
+                java.util.List.of(1L, 2L, 3L), 1L, "admin", "ip", "批量刷屏");
+
+        org.junit.jupiter.api.Assertions.assertEquals(2, res.get("done"));
+        org.junit.jupiter.api.Assertions.assertEquals(1, ((java.util.List<?>) res.get("failed")).size());
+        org.junit.jupiter.api.Assertions.assertEquals(3, res.get("total"));
+    }
+
+    @Test
+    void 批量处置_空选择直接报错() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> service.batch(true, "comment", java.util.List.of(), 1L, "admin", "ip", null));
+    }
+
+    @Test
     void 解除屏蔽评论后也要重算评论数() {
         when(repo.findContent("COMMENT", 7)).thenReturn(content("u1", 2, 55L));
         when(community.restoreComment(7)).thenReturn(1);

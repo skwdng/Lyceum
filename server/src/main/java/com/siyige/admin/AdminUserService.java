@@ -145,6 +145,62 @@ public class AdminUserService {
                         + (why.isEmpty() ? "" : "，理由：" + why), ip);
     }
 
+    /**
+     * 批量处置用户：action = mute（社区禁言 days 天）| ban（全站封禁）| unban（解除全站封禁）。
+     *
+     * <p>逐条走单条实现（禁言走 BanService、封禁走 {@link #setStatus}），**每条都写处理记录**；
+     * 单条失败不影响其它条，返回 {done, failed[]} 给前端提示。
+     */
+    public Map<String, Object> batch(String action, java.util.List<String> ids, Integer days, String reason,
+                                     long adminId, String adminName, String ip) {
+        if (ids == null || ids.isEmpty()) {
+            throw new IllegalArgumentException("INVALID_PARAM: 请先选择用户");
+        }
+        if (ids.size() > 200) {
+            throw new IllegalArgumentException("INVALID_PARAM: 一次最多处理 200 个用户");
+        }
+        String act = action == null ? "" : action.trim().toLowerCase();
+        if (!act.equals("mute") && !act.equals("ban") && !act.equals("unban")) {
+            throw new IllegalArgumentException("INVALID_PARAM: action 只能是 mute / ban / unban");
+        }
+
+        int done = 0;
+        List<Map<String, Object>> failed = new ArrayList<>();
+        for (String id : ids) {
+            if (id == null || id.isBlank()) continue;
+            try {
+                switch (act) {
+                    case "mute" -> muteWithAudit(id, days, reason, adminId, adminName, ip);
+                    case "ban" -> setStatus(id, 0, reason, adminId, adminName, ip);
+                    default -> setStatus(id, 1, reason, adminId, adminName, ip);
+                }
+                done++;
+            } catch (RuntimeException e) {
+                Map<String, Object> f = new LinkedHashMap<>();
+                f.put("id", id);
+                f.put("reason", e.getMessage() == null ? e.toString() : e.getMessage());
+                failed.add(f);
+            }
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("done", done);
+        out.put("failed", failed);
+        out.put("total", ids.size());
+        return out;
+    }
+
+    /** 批量里的禁言：与内容管理/浮窗的单条禁言写同样一条 MANUAL 审计。 */
+    private void muteWithAudit(String userId, Integer days, String reason, long adminId, String adminName, String ip) {
+        requireUser(userId);
+        int d = days == null ? 3 : days;
+        java.sql.Timestamp until = bans.ban(userId, d, reason, adminId);   // 内部校验 1/3/7 与原因长度
+        audit.record(adminId, adminName, AuditLogRepo.ACTION_RESOLVE, "BAN",
+                AuditLogRepo.TARGET_USER, null, userId,
+                "批量禁言 " + d + " 天（至 " + until.toLocalDateTime().toLocalDate() + "）"
+                        + (reason == null || reason.isBlank() ? "" : "，理由：" + reason.trim()), ip);
+    }
+
     // ==================== 统计辅助 ====================
 
     public long bannedUserCount() {

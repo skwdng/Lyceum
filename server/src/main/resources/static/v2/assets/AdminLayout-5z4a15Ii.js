@@ -1,9 +1,9 @@
-import { _ as _export_sfc, w as watch, o as openBlock, c as createElementBlock, a as createBaseVNode, t as toDisplayString, F as Fragment, b as createTextVNode, d as createCommentVNode, r as renderList, n as normalizeClass, e as withDirectives, v as vModelSelect, f as normalizeStyle, g as withModifiers, h as ref, i as contentApi, j as toast, k as computed, l as adminApi, u as unref, m as createVNode, p as nextTick, q as onMounted, s as onBeforeUnmount, x as createBlock, y as useRouter, z as useRoute, A as withCtx, B as resolveComponent } from "./index-DDPgDnZA.js";
-import { u as useAdminStore } from "./admin-CTkfOVY_.js";
-import { e as errText } from "./helpers-BK_Uoi_O.js";
-import { p as postDrawer } from "./postDrawer-C7Hff4yU.js";
-import { u as userPop } from "./userPop-ByVsXC9s.js";
-import { M as ModerationBar } from "./ModerationBar-Ca3b3ny2.js";
+import { _ as _export_sfc, w as watch, o as onMounted, a as openBlock, c as createElementBlock, b as createBaseVNode, t as toDisplayString, F as Fragment, d as createTextVNode, e as createCommentVNode, r as renderList, n as normalizeClass, f as withDirectives, v as vModelSelect, g as normalizeStyle, h as withModifiers, i as ref, j as contentApi, k as nextTick, l as toast, m as computed, p as adminApi, u as unref, q as createVNode, s as onBeforeUnmount, x as createBlock, y as useRouter, z as useRoute, A as withCtx, B as resolveComponent } from "./index-BBvYsYtx.js";
+import { u as useAdminStore } from "./admin-CDxRU6i7.js";
+import { e as errText } from "./helpers-DLaWG9RE.js";
+import { p as postDrawer } from "./postDrawer-Jg7zAU0z.js";
+import { u as userPop } from "./userPop-2FP-pwix.js";
+import { M as ModerationBar } from "./ModerationBar-CCUlPmus.js";
 const ADMIN_MENU = [
   {
     group: "总览",
@@ -66,24 +66,38 @@ const _hoisted_14$1 = {
 };
 const _hoisted_15$1 = { class: "muted" };
 const _hoisted_16$1 = ["title"];
-const _hoisted_17$1 = {
+const _hoisted_17$1 = { class: "upop-sub" };
+const _hoisted_18 = {
+  key: 0,
+  class: "muted",
+  style: { "font-weight": "400", "font-size": "11px" }
+};
+const _hoisted_19 = {
   key: 1,
   class: "muted upop-empty"
 };
-const _hoisted_18 = ["onClick"];
-const _hoisted_19 = { class: "muted" };
-const _hoisted_20 = ["title"];
-const _hoisted_21 = { class: "upop-foot" };
-const _hoisted_22 = ["disabled"];
-const _hoisted_23 = ["disabled"];
+const _hoisted_20 = ["onClick"];
+const _hoisted_21 = { class: "muted" };
+const _hoisted_22 = ["title"];
+const _hoisted_23 = {
+  key: 2,
+  class: "upop-pager"
+};
 const _hoisted_24 = ["disabled"];
-const _hoisted_25 = {
+const _hoisted_25 = { class: "muted" };
+const _hoisted_26 = ["disabled"];
+const _hoisted_27 = { class: "upop-foot" };
+const _hoisted_28 = ["disabled"];
+const _hoisted_29 = ["disabled"];
+const _hoisted_30 = ["disabled"];
+const _hoisted_31 = {
   key: 0,
   class: "muted",
   style: { "font-size": "11.5px" }
 };
 const W = 460;
-const H = 420;
+const H_FALLBACK = 420;
+const HIDDEN_PAGE_SIZE = 6;
 const _sfc_main$3 = {
   __name: "UserProfilePop",
   props: {
@@ -101,23 +115,49 @@ const _sfc_main$3 = {
     const error = ref("");
     const busy = ref("");
     const muteDays = ref(3);
+    const hiddenPage = ref(1);
+    const popEl = ref(null);
+    const measuredH = ref(H_FALLBACK);
     const pos = computed(() => {
+      const h = Math.min(measuredH.value, Math.max(240, window.innerHeight - 24));
       const left = Math.min(Math.max(12, props.x), Math.max(12, window.innerWidth - W - 12));
-      const top = Math.min(Math.max(12, props.y), Math.max(12, window.innerHeight - H - 12));
-      return { left: left + "px", top: top + "px", width: W + "px" };
+      const top = Math.min(Math.max(12, props.y), Math.max(12, window.innerHeight - h - 12));
+      return { left: left + "px", top: top + "px", width: W + "px", maxHeight: window.innerHeight - 24 + "px" };
     });
+    function measure() {
+      if (popEl.value) measuredH.value = popEl.value.offsetHeight || H_FALLBACK;
+    }
+    const hiddenPageItems = computed(() => {
+      const all = data.value && data.value.moderation && data.value.moderation.hiddenContent || [];
+      const start = (hiddenPage.value - 1) * HIDDEN_PAGE_SIZE;
+      return all.slice(start, start + HIDDEN_PAGE_SIZE);
+    });
+    const hiddenPages = computed(() => {
+      const all = data.value && data.value.moderation && data.value.moderation.hiddenContent || [];
+      return Math.max(1, Math.ceil(all.length / HIDDEN_PAGE_SIZE));
+    });
+    function goHidden(p) {
+      if (p < 1 || p > hiddenPages.value) return;
+      hiddenPage.value = p;
+      nextTick(measure);
+    }
     async function load() {
       loading.value = true;
       error.value = "";
       try {
         data.value = await contentApi.profile(props.userId);
+        hiddenPage.value = 1;
       } catch (e) {
         error.value = errText(e) || "加载失败";
       } finally {
         loading.value = false;
+        nextTick(measure);
       }
     }
     watch(() => props.userId, load, { immediate: true });
+    onMounted(() => nextTick(measure));
+    watch(measuredH, () => {
+    });
     async function act(key, fn, msg) {
       if (busy.value) return;
       busy.value = key;
@@ -151,16 +191,18 @@ const _sfc_main$3 = {
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("div", {
         class: "upop-mask",
-        onClick: _cache[2] || (_cache[2] = withModifiers(($event) => emit("close"), ["self"]))
+        onClick: _cache[4] || (_cache[4] = withModifiers(($event) => emit("close"), ["self"]))
       }, [
         createBaseVNode("div", {
+          ref_key: "popEl",
+          ref: popEl,
           class: "upop",
           style: normalizeStyle(pos.value)
         }, [
           createBaseVNode("div", _hoisted_1$3, [
             createBaseVNode("b", null, toDisplayString(__props.userId), 1),
             data.value && data.value.user.disabled ? (openBlock(), createElementBlock("span", _hoisted_2$3, "已封禁")) : data.value && data.value.moderation.muted ? (openBlock(), createElementBlock("span", _hoisted_3$3, "禁言中")) : (openBlock(), createElementBlock("span", _hoisted_4$3, "正常")),
-            _cache[3] || (_cache[3] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            _cache[5] || (_cache[5] = createBaseVNode("span", { class: "spacer" }, null, -1)),
             createBaseVNode("button", {
               class: "upop-x",
               onClick: _cache[0] || (_cache[0] = ($event) => emit("close"))
@@ -168,7 +210,7 @@ const _sfc_main$3 = {
           ]),
           createBaseVNode("div", _hoisted_5$3, [
             loading.value ? (openBlock(), createElementBlock("div", _hoisted_6$3, "加载中…")) : error.value ? (openBlock(), createElementBlock("div", _hoisted_7$3, [
-              _cache[4] || (_cache[4] = createBaseVNode("b", null, "加载失败", -1)),
+              _cache[6] || (_cache[6] = createBaseVNode("b", null, "加载失败", -1)),
               createBaseVNode("span", _hoisted_8$3, toDisplayString(error.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
@@ -177,7 +219,7 @@ const _sfc_main$3 = {
             ])) : data.value ? (openBlock(), createElementBlock(Fragment, { key: 2 }, [
               createBaseVNode("div", _hoisted_9$3, [
                 createBaseVNode("span", null, [
-                  _cache[5] || (_cache[5] = createTextVNode("昵称：", -1)),
+                  _cache[7] || (_cache[7] = createTextVNode("昵称：", -1)),
                   createBaseVNode("b", null, toDisplayString(data.value.user.name || "(未命名)"), 1)
                 ]),
                 createBaseVNode("span", _hoisted_10$3, "注册于 " + toDisplayString(fmt(data.value.user.createdAt)), 1)
@@ -194,7 +236,7 @@ const _sfc_main$3 = {
                 createBaseVNode("span", null, "对局 " + toDisplayString(data.value.stats.matches), 1),
                 createBaseVNode("span", null, "余额 " + toDisplayString(yuan(data.value.stats.walletCents)), 1)
               ]),
-              _cache[6] || (_cache[6] = createBaseVNode("div", { class: "upop-sub" }, "禁言记录", -1)),
+              _cache[9] || (_cache[9] = createBaseVNode("div", { class: "upop-sub" }, "禁言记录", -1)),
               !data.value.moderation.banHistory.length ? (openBlock(), createElementBlock("div", _hoisted_14$1, "没有禁言记录")) : createCommentVNode("", true),
               (openBlock(true), createElementBlock(Fragment, null, renderList(data.value.moderation.banHistory, (b, i) => {
                 return openBlock(), createElementBlock("div", {
@@ -213,9 +255,12 @@ const _sfc_main$3 = {
                   }, toDisplayString(b.reason || "（无理由）"), 9, _hoisted_16$1)
                 ]);
               }), 128)),
-              _cache[7] || (_cache[7] = createBaseVNode("div", { class: "upop-sub" }, "被处置的内容", -1)),
-              !data.value.moderation.hiddenContent.length ? (openBlock(), createElementBlock("div", _hoisted_17$1, "没有处置记录")) : createCommentVNode("", true),
-              (openBlock(true), createElementBlock(Fragment, null, renderList(data.value.moderation.hiddenContent, (h) => {
+              createBaseVNode("div", _hoisted_17$1, [
+                _cache[8] || (_cache[8] = createTextVNode(" 被处置的内容 ", -1)),
+                data.value.moderation.hiddenContent.length ? (openBlock(), createElementBlock("span", _hoisted_18, " · 共 " + toDisplayString(data.value.moderation.hiddenContent.length) + " 条 ", 1)) : createCommentVNode("", true)
+              ]),
+              !data.value.moderation.hiddenContent.length ? (openBlock(), createElementBlock("div", _hoisted_19, "没有处置记录")) : createCommentVNode("", true),
+              (openBlock(true), createElementBlock(Fragment, null, renderList(hiddenPageItems.value, (h) => {
                 return openBlock(), createElementBlock("div", {
                   key: h.auditId,
                   class: "upop-item"
@@ -226,21 +271,34 @@ const _sfc_main$3 = {
                   createBaseVNode("a", {
                     class: "upop-jump",
                     onClick: ($event) => jump(h)
-                  }, toDisplayString(h.type === "POST" ? "帖子" : "评论") + " #" + toDisplayString(h.targetId), 9, _hoisted_18),
-                  createBaseVNode("span", _hoisted_19, toDisplayString(fmt(h.createdAt)), 1),
+                  }, toDisplayString(h.type === "POST" ? "帖子" : "评论") + " #" + toDisplayString(h.targetId), 9, _hoisted_20),
+                  createBaseVNode("span", _hoisted_21, toDisplayString(fmt(h.createdAt)), 1),
                   createBaseVNode("span", {
                     class: "upop-reason",
                     title: h.detail
-                  }, toDisplayString(h.detail), 9, _hoisted_20)
+                  }, toDisplayString(h.detail), 9, _hoisted_22)
                 ]);
-              }), 128))
+              }), 128)),
+              hiddenPages.value > 1 ? (openBlock(), createElementBlock("div", _hoisted_23, [
+                createBaseVNode("button", {
+                  class: "btn sm",
+                  disabled: hiddenPage.value <= 1,
+                  onClick: _cache[1] || (_cache[1] = ($event) => goHidden(hiddenPage.value - 1))
+                }, "上一页", 8, _hoisted_24),
+                createBaseVNode("span", _hoisted_25, toDisplayString(hiddenPage.value) + " / " + toDisplayString(hiddenPages.value), 1),
+                createBaseVNode("button", {
+                  class: "btn sm",
+                  disabled: hiddenPage.value >= hiddenPages.value,
+                  onClick: _cache[2] || (_cache[2] = ($event) => goHidden(hiddenPage.value + 1))
+                }, "下一页", 8, _hoisted_26)
+              ])) : createCommentVNode("", true)
             ], 64)) : createCommentVNode("", true)
           ]),
-          createBaseVNode("div", _hoisted_21, [
+          createBaseVNode("div", _hoisted_27, [
             withDirectives(createBaseVNode("select", {
-              "onUpdate:modelValue": _cache[1] || (_cache[1] = ($event) => muteDays.value = $event),
+              "onUpdate:modelValue": _cache[3] || (_cache[3] = ($event) => muteDays.value = $event),
               class: "upop-sel"
-            }, [..._cache[8] || (_cache[8] = [
+            }, [..._cache[10] || (_cache[10] = [
               createBaseVNode("option", { value: 1 }, "1 天", -1),
               createBaseVNode("option", { value: 3 }, "3 天", -1),
               createBaseVNode("option", { value: 7 }, "7 天", -1)
@@ -256,26 +314,26 @@ const _sfc_main$3 = {
               class: "btn sm",
               disabled: !!busy.value,
               onClick: mute
-            }, "禁言", 8, _hoisted_22),
+            }, "禁言", 8, _hoisted_28),
             createBaseVNode("button", {
               class: "btn sm danger",
               disabled: !!busy.value,
               onClick: ban
-            }, "封禁", 8, _hoisted_23),
+            }, "封禁", 8, _hoisted_29),
             createBaseVNode("button", {
               class: "btn sm",
               disabled: !!busy.value,
               onClick: unban
-            }, "解封", 8, _hoisted_24),
-            _cache[9] || (_cache[9] = createBaseVNode("span", { class: "spacer" }, null, -1)),
-            busy.value ? (openBlock(), createElementBlock("span", _hoisted_25, "处理中…")) : createCommentVNode("", true)
+            }, "解封", 8, _hoisted_30),
+            _cache[11] || (_cache[11] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            busy.value ? (openBlock(), createElementBlock("span", _hoisted_31, "处理中…")) : createCommentVNode("", true)
           ])
         ], 4)
       ]);
     };
   }
 };
-const UserProfilePop = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["__scopeId", "data-v-3622a066"]]);
+const UserProfilePop = /* @__PURE__ */ _export_sfc(_sfc_main$3, [["__scopeId", "data-v-b08f55b0"]]);
 const _hoisted_1$2 = { class: "ct" };
 const _hoisted_2$2 = {
   key: 0,

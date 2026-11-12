@@ -1,8 +1,9 @@
-import { _ as _export_sfc, J as onUnmounted, q as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, t as toDisplayString, e as withDirectives, C as vModelText, D as withKeys, v as vModelSelect, F as Fragment, r as renderList, d as createCommentVNode, i as contentApi, h as ref, k as computed, o as openBlock, m as createVNode } from "./index-DDPgDnZA.js";
-import { e as errText } from "./helpers-BK_Uoi_O.js";
-import { M as ModerationBar } from "./ModerationBar-Ca3b3ny2.js";
-import { u as userPop } from "./userPop-ByVsXC9s.js";
-import { p as postDrawer } from "./postDrawer-C7Hff4yU.js";
+import { _ as _export_sfc, J as onUnmounted, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, C as vModelText, D as withKeys, v as vModelSelect, F as Fragment, r as renderList, q as createVNode, e as createCommentVNode, j as contentApi, i as ref, m as computed, a as openBlock, K as vModelCheckbox } from "./index-BBvYsYtx.js";
+import { e as errText } from "./helpers-DLaWG9RE.js";
+import { M as ModerationBar } from "./ModerationBar-CCUlPmus.js";
+import { B as BatchActions } from "./BatchActions-CCCvSZ2Z.js";
+import { u as userPop } from "./userPop-2FP-pwix.js";
+import { p as postDrawer } from "./postDrawer-Jg7zAU0z.js";
 const _hoisted_1 = { "data-panel": "content-comments" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -26,28 +27,31 @@ const _hoisted_10 = {
   key: 2,
   class: "tbl-x"
 };
-const _hoisted_11 = { key: 0 };
-const _hoisted_12 = { class: "muted" };
-const _hoisted_13 = { class: "cc-body" };
-const _hoisted_14 = ["onClick"];
-const _hoisted_15 = { class: "tag" };
-const _hoisted_16 = ["onClick"];
+const _hoisted_11 = { style: { "width": "36px" } };
+const _hoisted_12 = ["checked"];
+const _hoisted_13 = { key: 0 };
+const _hoisted_14 = ["value"];
+const _hoisted_15 = { class: "muted" };
+const _hoisted_16 = { class: "cc-body" };
 const _hoisted_17 = ["onClick"];
-const _hoisted_18 = {
+const _hoisted_18 = { class: "tag" };
+const _hoisted_19 = ["onClick"];
+const _hoisted_20 = ["onClick"];
+const _hoisted_21 = {
   key: 0,
   class: "tag red"
 };
-const _hoisted_19 = {
+const _hoisted_22 = {
   key: 1,
   class: "tag ok"
 };
-const _hoisted_20 = { class: "muted" };
-const _hoisted_21 = { class: "cc-ops" };
-const _hoisted_22 = ["onClick"];
-const _hoisted_23 = { class: "cc-page" };
-const _hoisted_24 = ["disabled"];
-const _hoisted_25 = { class: "muted" };
-const _hoisted_26 = ["disabled"];
+const _hoisted_23 = { class: "muted" };
+const _hoisted_24 = { class: "cc-ops" };
+const _hoisted_25 = ["onClick"];
+const _hoisted_26 = { class: "cc-page" };
+const _hoisted_27 = ["disabled"];
+const _hoisted_28 = { class: "muted" };
+const _hoisted_29 = ["disabled"];
 const size = 20;
 const _sfc_main = {
   __name: "ContentCommentsView",
@@ -70,9 +74,15 @@ const _sfc_main = {
     const loading = ref(true);
     const error = ref("");
     const pages = computed(() => Math.max(1, Math.ceil(total.value / size)));
+    const selected = ref([]);
+    const allChecked = computed(() => items.value.length > 0 && selected.value.length === items.value.length);
+    function toggleAll(e) {
+      selected.value = e.target.checked ? items.value.map((c) => c.id) : [];
+    }
     async function load() {
       loading.value = true;
       error.value = "";
+      selected.value = [];
       try {
         const res = await contentApi.comments({
           q: q.value.trim() || void 0,
@@ -118,8 +128,8 @@ const _sfc_main = {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("div", _hoisted_2, [
           createBaseVNode("h2", null, [
-            _cache[8] || (_cache[8] = createTextVNode(" 评论管理 ", -1)),
-            _cache[9] || (_cache[9] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            _cache[11] || (_cache[11] = createTextVNode(" 评论管理 ", -1)),
+            _cache[12] || (_cache[12] = createBaseVNode("span", { class: "spacer" }, null, -1)),
             createBaseVNode("span", _hoisted_3, "共 " + toDisplayString(total.value) + " 条（含已屏蔽）", 1)
           ]),
           createBaseVNode("div", _hoisted_4, [
@@ -166,7 +176,7 @@ const _sfc_main = {
               }, null, 544), [
                 [vModelText, from.value]
               ]),
-              _cache[10] || (_cache[10] = createBaseVNode("span", {
+              _cache[13] || (_cache[13] = createBaseVNode("span", {
                 class: "muted",
                 style: { "font-size": "12px" }
               }, "至", -1)),
@@ -196,8 +206,14 @@ const _sfc_main = {
                 })
               }, "重置")
             ]),
+            createVNode(BatchActions, {
+              kind: "comment",
+              ids: selected.value,
+              onClear: _cache[6] || (_cache[6] = ($event) => selected.value = []),
+              onDone: load
+            }, null, 8, ["ids"]),
             error.value ? (openBlock(), createElementBlock("div", _hoisted_7, [
-              _cache[11] || (_cache[11] = createBaseVNode("b", null, "加载失败", -1)),
+              _cache[14] || (_cache[14] = createBaseVNode("b", null, "加载失败", -1)),
               createBaseVNode("span", _hoisted_8, toDisplayString(error.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
@@ -205,22 +221,31 @@ const _sfc_main = {
               }, "重试")
             ])) : loading.value ? (openBlock(), createElementBlock("div", _hoisted_9, "加载中…")) : (openBlock(), createElementBlock("div", _hoisted_10, [
               createBaseVNode("table", null, [
-                _cache[13] || (_cache[13] = createBaseVNode("thead", null, [
+                createBaseVNode("thead", null, [
                   createBaseVNode("tr", null, [
-                    createBaseVNode("th", { style: { "width": "64px" } }, "ID"),
-                    createBaseVNode("th", null, "内容"),
-                    createBaseVNode("th", { style: { "width": "74px" } }, "层级"),
-                    createBaseVNode("th", { style: { "width": "130px" } }, "作者"),
-                    createBaseVNode("th", { style: { "width": "200px" } }, "所在帖子"),
-                    createBaseVNode("th", { style: { "width": "76px" } }, "状态"),
-                    createBaseVNode("th", { style: { "width": "128px" } }, "时间"),
-                    createBaseVNode("th", { style: { "width": "250px" } }, "操作")
+                    createBaseVNode("th", _hoisted_11, [
+                      createBaseVNode("input", {
+                        class: "row-check",
+                        type: "checkbox",
+                        checked: allChecked.value,
+                        title: "全选本页",
+                        onChange: _cache[7] || (_cache[7] = ($event) => toggleAll($event))
+                      }, null, 40, _hoisted_12)
+                    ]),
+                    _cache[15] || (_cache[15] = createBaseVNode("th", { style: { "width": "64px" } }, "ID", -1)),
+                    _cache[16] || (_cache[16] = createBaseVNode("th", null, "内容", -1)),
+                    _cache[17] || (_cache[17] = createBaseVNode("th", { style: { "width": "74px" } }, "层级", -1)),
+                    _cache[18] || (_cache[18] = createBaseVNode("th", { style: { "width": "130px" } }, "作者", -1)),
+                    _cache[19] || (_cache[19] = createBaseVNode("th", { style: { "width": "200px" } }, "所在帖子", -1)),
+                    _cache[20] || (_cache[20] = createBaseVNode("th", { style: { "width": "76px" } }, "状态", -1)),
+                    _cache[21] || (_cache[21] = createBaseVNode("th", { style: { "width": "128px" } }, "时间", -1)),
+                    _cache[22] || (_cache[22] = createBaseVNode("th", { style: { "width": "250px" } }, "操作", -1))
                   ])
-                ], -1)),
+                ]),
                 createBaseVNode("tbody", null, [
-                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_11, [..._cache[12] || (_cache[12] = [
+                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_13, [..._cache[23] || (_cache[23] = [
                     createBaseVNode("td", {
-                      colspan: "8",
+                      colspan: "9",
                       class: "muted",
                       style: { "padding": "22px", "text-align": "center" }
                     }, "没有符合条件的评论", -1)
@@ -229,38 +254,48 @@ const _sfc_main = {
                     return openBlock(), createElementBlock("tr", {
                       key: c.id
                     }, [
-                      createBaseVNode("td", _hoisted_12, toDisplayString(c.id), 1),
-                      createBaseVNode("td", _hoisted_13, [
+                      createBaseVNode("td", null, [
+                        withDirectives(createBaseVNode("input", {
+                          class: "row-check",
+                          type: "checkbox",
+                          value: c.id,
+                          "onUpdate:modelValue": _cache[8] || (_cache[8] = ($event) => selected.value = $event)
+                        }, null, 8, _hoisted_14), [
+                          [vModelCheckbox, selected.value]
+                        ])
+                      ]),
+                      createBaseVNode("td", _hoisted_15, toDisplayString(c.id), 1),
+                      createBaseVNode("td", _hoisted_16, [
                         createBaseVNode("a", {
                           class: "cc-link",
                           onClick: ($event) => openCommentPost(c)
-                        }, toDisplayString(c.body), 9, _hoisted_14)
+                        }, toDisplayString(c.body), 9, _hoisted_17)
                       ]),
                       createBaseVNode("td", null, [
-                        createBaseVNode("span", _hoisted_15, toDisplayString(c.floor), 1)
+                        createBaseVNode("span", _hoisted_18, toDisplayString(c.floor), 1)
                       ]),
                       createBaseVNode("td", null, [
                         createBaseVNode("a", {
                           class: "cc-author",
                           onClick: ($event) => openPop(c.authorId, $event)
-                        }, toDisplayString(c.authorName || c.authorId), 9, _hoisted_16)
+                        }, toDisplayString(c.authorName || c.authorId), 9, _hoisted_19)
                       ]),
                       createBaseVNode("td", null, [
                         createBaseVNode("a", {
                           class: "cc-link",
                           onClick: ($event) => openCommentPost(c, false)
-                        }, "#" + toDisplayString(c.postId) + " " + toDisplayString(c.postTitle), 9, _hoisted_17)
+                        }, "#" + toDisplayString(c.postId) + " " + toDisplayString(c.postTitle), 9, _hoisted_20)
                       ]),
                       createBaseVNode("td", null, [
-                        c.hidden ? (openBlock(), createElementBlock("span", _hoisted_18, "已屏蔽")) : (openBlock(), createElementBlock("span", _hoisted_19, "正常"))
+                        c.hidden ? (openBlock(), createElementBlock("span", _hoisted_21, "已屏蔽")) : (openBlock(), createElementBlock("span", _hoisted_22, "正常"))
                       ]),
-                      createBaseVNode("td", _hoisted_20, toDisplayString(fmt(c.createdAt)), 1),
+                      createBaseVNode("td", _hoisted_23, toDisplayString(fmt(c.createdAt)), 1),
                       createBaseVNode("td", null, [
-                        createBaseVNode("span", _hoisted_21, [
+                        createBaseVNode("span", _hoisted_24, [
                           createBaseVNode("button", {
                             class: "btn sm",
                             onClick: ($event) => openCommentPost(c)
-                          }, "详情", 8, _hoisted_22),
+                          }, "详情", 8, _hoisted_25),
                           createVNode(ModerationBar, {
                             type: "comment",
                             id: c.id,
@@ -276,18 +311,18 @@ const _sfc_main = {
                 ])
               ])
             ])),
-            createBaseVNode("div", _hoisted_23, [
+            createBaseVNode("div", _hoisted_26, [
               createBaseVNode("button", {
                 class: "btn sm",
                 disabled: page.value <= 1,
-                onClick: _cache[6] || (_cache[6] = ($event) => go(page.value - 1))
-              }, "上一页", 8, _hoisted_24),
-              createBaseVNode("span", _hoisted_25, toDisplayString(page.value) + " / " + toDisplayString(pages.value), 1),
+                onClick: _cache[9] || (_cache[9] = ($event) => go(page.value - 1))
+              }, "上一页", 8, _hoisted_27),
+              createBaseVNode("span", _hoisted_28, toDisplayString(page.value) + " / " + toDisplayString(pages.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
                 disabled: page.value >= pages.value,
-                onClick: _cache[7] || (_cache[7] = ($event) => go(page.value + 1))
-              }, "下一页", 8, _hoisted_26)
+                onClick: _cache[10] || (_cache[10] = ($event) => go(page.value + 1))
+              }, "下一页", 8, _hoisted_29)
             ])
           ])
         ])
@@ -295,7 +330,7 @@ const _sfc_main = {
     };
   }
 };
-const ContentCommentsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-abf18a85"]]);
+const ContentCommentsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-6f6dc90f"]]);
 export {
   ContentCommentsView as default
 };

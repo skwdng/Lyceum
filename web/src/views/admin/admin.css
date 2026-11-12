@@ -32,6 +32,8 @@
 
 .adm-root label{display:block;font-size:12.5px;color:#4E5969;margin:14px 0 6px}
 .adm-root input,.adm-root select,.adm-root textarea{width:100%;border:1px solid #E5E6EB;border-radius:9px;padding:10px 12px;font:inherit;background:#FCFCFD;outline:none}
+/* 表格里的复选框：上面那条 width:100% 会把它拉成整行宽，这里必须复位 */
+.adm-root input.row-check{width:16px;height:16px;min-width:16px;padding:0;margin:0;border-radius:4px;background:#fff}
 .adm-root input:focus,.adm-root textarea:focus,.adm-root select:focus{border-color:#165DFF;box-shadow:0 0 0 3px rgba(22,93,255,.10)}
 
 /* ==================== 按钮 ==================== */

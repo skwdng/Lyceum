@@ -11,6 +11,7 @@ import { contentApi } from '../../api.js';
 import { toast } from '../../utils/toast.js';
 import { errText } from './helpers.js';
 import ModerationBar from './components/ModerationBar.vue';
+import BatchActions from './components/BatchActions.vue';
 import { userPop } from './userPop.js';
 import { postDrawer } from './postDrawer.js';
 
@@ -57,9 +58,17 @@ watch(() => route.query, openFromQuery, { immediate: true });
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)));
 
+/** 多选（批量处置用）。翻页/重新搜索时清空，避免"选中了看不见的行" */
+const selected = ref([]);
+const allChecked = computed(() => items.value.length > 0 && selected.value.length === items.value.length);
+function toggleAll(e) {
+  selected.value = e.target.checked ? items.value.map((p) => p.id) : [];
+}
+
 async function load() {
   loading.value = true;
   error.value = '';
+  selected.value = [];        // 换页/换筛选后清空选择
   try {
     const res = await contentApi.posts({
       q: q.value.trim() || undefined,
@@ -136,6 +145,9 @@ function onChanged() {
           <button class="btn sm" @click="q = ''; type = ''; status = ''; author = ''; from = ''; to = ''; search()">重置</button>
         </div>
 
+        <!-- 多选后出现：批量屏蔽 / 解除屏蔽（统一填一次理由） -->
+        <BatchActions kind="post" :ids="selected" @clear="selected = []" @done="load" />
+
         <div v-if="error" class="adm-error">
           <b>加载失败</b><span class="msg">{{ error }}</span>
           <button class="btn sm" @click="load">重试</button>
@@ -146,6 +158,10 @@ function onChanged() {
           <table>
             <thead>
               <tr>
+                <th style="width: 36px">
+                  <input class="row-check" type="checkbox" :checked="allChecked" title="全选本页"
+                         @change="toggleAll($event)" />
+                </th>
                 <th style="width: 64px">ID</th>
                 <th>标题</th>
                 <th style="width: 76px">类型</th>
@@ -158,16 +174,17 @@ function onChanged() {
             </thead>
             <tbody>
               <tr v-if="!items.length">
-                <td colspan="8" class="muted" style="padding: 22px; text-align: center">没有符合条件的帖子</td>
+                <td colspan="9" class="muted" style="padding: 22px; text-align: center">没有符合条件的帖子</td>
               </tr>
               <tr v-for="p in items" :key="p.id">
+                <td><input class="row-check" type="checkbox" :value="p.id" v-model="selected" /></td>
                 <td class="muted">{{ p.id }}</td>
                 <td>
                   <a class="cp-link" @click="openDrawer(p.id)">{{ p.title }}</a>
                 </td>
                 <td><span class="tag blue">{{ p.type }}</span></td>
                 <td>
-                  <span class="cp-link" @click="openPop(p.authorId, $event)">{{ p.authorName || p.authorId }}</span>
+                  <span class="cp-link cp-author" @click="openPop(p.authorId, $event)">{{ p.authorName || p.authorId }}</span>
                 </td>
                 <td>
                   <span v-if="p.hidden" class="tag red">已屏蔽</span>
@@ -198,6 +215,8 @@ function onChanged() {
 </template>
 
 <style scoped>
+/* 复选框：全局 `.adm-root input{width:100%}` 会把它拉成整行宽，必须显式复位 */
+.row-check { width: 16px; height: 16px; min-width: 16px; margin: 0; }
 .cp-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 /* width:auto 是必需的：全局 `.adm-root input{width:100%}` 会让每个控件独占一行 */
 .cp-input { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 200px; }

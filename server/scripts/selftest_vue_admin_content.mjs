@@ -204,7 +204,7 @@ await check('A6 帖子管理：按作者筛选只出该作者的帖子', async (
   await ev(`[...document.querySelectorAll('[data-panel="content-posts"] .btn')].find(b=>b.textContent.trim()==='搜索').click(); true`);
   await sleep(1200);
   const authors = await ev(`[...document.querySelectorAll('[data-panel="content-posts"] tbody tr')]
-      .map(tr=>tr.querySelectorAll('td')[3].innerText.trim())`);
+      .map(tr=>{const a=tr.querySelector('.cp-author'); return a? a.innerText.trim() : '';})`);
   if (!authors.length) throw new Error('按作者筛选后没有任何行');
   const wrong = authors.filter((a) => a !== uid);
   if (wrong.length) throw new Error('混进了别的作者：' + JSON.stringify(wrong));
@@ -290,7 +290,7 @@ await check('A10 评论管理：作者 ID + 日期筛选生效', async () => {
   await ev(`[...document.querySelectorAll('[data-panel="content-comments"] .btn')].find(b=>b.textContent.trim()==='搜索').click(); true`);
   await sleep(1300);
   const authors = await ev(`[...document.querySelectorAll('[data-panel="content-comments"] tbody tr')]
-      .map(tr=>tr.querySelectorAll('td')[3].innerText.trim()).filter(Boolean)`);
+      .map(tr=>{const a=tr.querySelector('.cc-author'); return a? a.innerText.trim() : '';}).filter(Boolean)`);
   if (!authors.length) throw new Error('按作者筛选后没有数据');
   if (authors.some((a) => a !== uid)) throw new Error('混进了别的作者：' + JSON.stringify(authors));
 

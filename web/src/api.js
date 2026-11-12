@@ -400,7 +400,13 @@ export const contentApi = {
   /** 禁言 1/3/7 天（BanService 内部校验），带 MANUAL 审计 */
   mute: (id, days, reason) => adminRequest('/users/' + encodeURIComponent(id) + '/mute', { method: 'POST', body: { days, reason } }),
   /** 用户违规浮窗：基本信息 + 统计 + 违规历史 */
-  profile: (id) => adminRequest('/users/' + encodeURIComponent(id) + '/profile')
+  profile: (id) => adminRequest('/users/' + encodeURIComponent(id) + '/profile'),
+  /** 批量处置用户：action = mute | ban | unban（统一一个理由，逐条写处理记录） */
+  batchUsers: ({ action, ids, days, reason }) =>
+    adminRequest('/users/batch', { method: 'POST', body: { action, ids, days, reason } }),
+  /** 批量处置内容：type = post | comment，action = hide | unhide */
+  batchContent: (type, action, ids, note) =>
+    adminRequest('/content/batch', { method: 'POST', body: { type, action, ids, note } })
 };
 
 // ==================== 视频复核台（管理端） ====================

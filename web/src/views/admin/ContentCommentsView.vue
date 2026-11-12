@@ -10,6 +10,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { contentApi } from '../../api.js';
 import { errText } from './helpers.js';
 import ModerationBar from './components/ModerationBar.vue';
+import BatchActions from './components/BatchActions.vue';
 import { userPop } from './userPop.js';
 import { postDrawer } from './postDrawer.js';
 
@@ -38,9 +39,17 @@ const error = ref('');
 
 const pages = computed(() => Math.max(1, Math.ceil(total.value / size)));
 
+/** 多选（批量处置用）：换页/换筛选时清空 */
+const selected = ref([]);
+const allChecked = computed(() => items.value.length > 0 && selected.value.length === items.value.length);
+function toggleAll(e) {
+  selected.value = e.target.checked ? items.value.map((c) => c.id) : [];
+}
+
 async function load() {
   loading.value = true;
   error.value = '';
+  selected.value = [];
   try {
     const res = await contentApi.comments({
       q: q.value.trim() || undefined,
@@ -109,6 +118,9 @@ function fmt(ms) {
           <button class="btn sm" @click="q = ''; status = ''; author = ''; from = ''; to = ''; search()">重置</button>
         </div>
 
+        <!-- 多选后出现：批量屏蔽 / 解除屏蔽（统一填一次理由） -->
+        <BatchActions kind="comment" :ids="selected" @clear="selected = []" @done="load" />
+
         <div v-if="error" class="adm-error">
           <b>加载失败</b><span class="msg">{{ error }}</span>
           <button class="btn sm" @click="load">重试</button>
@@ -119,6 +131,10 @@ function fmt(ms) {
           <table>
             <thead>
               <tr>
+                <th style="width: 36px">
+                  <input class="row-check" type="checkbox" :checked="allChecked" title="全选本页"
+                         @change="toggleAll($event)" />
+                </th>
                 <th style="width: 64px">ID</th>
                 <th>内容</th>
                 <th style="width: 74px">层级</th>
@@ -131,9 +147,10 @@ function fmt(ms) {
             </thead>
             <tbody>
               <tr v-if="!items.length">
-                <td colspan="8" class="muted" style="padding: 22px; text-align: center">没有符合条件的评论</td>
+                <td colspan="9" class="muted" style="padding: 22px; text-align: center">没有符合条件的评论</td>
               </tr>
               <tr v-for="c in items" :key="c.id">
+                <td><input class="row-check" type="checkbox" :value="c.id" v-model="selected" /></td>
                 <td class="muted">{{ c.id }}</td>
                 <td class="cc-body"><a class="cc-link" @click="openCommentPost(c)">{{ c.body }}</a></td>
                 <td><span class="tag">{{ c.floor }}</span></td>
@@ -171,6 +188,8 @@ function fmt(ms) {
 </template>
 
 <style scoped>
+/* 复选框：全局 `.adm-root input{width:100%}` 会把它拉成整行宽，必须显式复位 */
+.row-check { width: 16px; height: 16px; min-width: 16px; margin: 0; }
 .cc-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 /* width:auto 是必需的：全局 `.adm-root input{width:100%}` 会让每个控件独占一行 */
 .cc-input { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 220px; }

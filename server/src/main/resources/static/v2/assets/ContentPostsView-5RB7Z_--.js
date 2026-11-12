@@ -1,8 +1,9 @@
-import { _ as _export_sfc, w as watch, J as onUnmounted, q as onMounted, c as createElementBlock, a as createBaseVNode, b as createTextVNode, t as toDisplayString, e as withDirectives, C as vModelText, D as withKeys, v as vModelSelect, F as Fragment, r as renderList, d as createCommentVNode, i as contentApi, h as ref, k as computed, z as useRoute, o as openBlock, m as createVNode } from "./index-DDPgDnZA.js";
-import { e as errText } from "./helpers-BK_Uoi_O.js";
-import { M as ModerationBar } from "./ModerationBar-Ca3b3ny2.js";
-import { u as userPop } from "./userPop-ByVsXC9s.js";
-import { p as postDrawer } from "./postDrawer-C7Hff4yU.js";
+import { _ as _export_sfc, w as watch, J as onUnmounted, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, C as vModelText, D as withKeys, v as vModelSelect, F as Fragment, r as renderList, q as createVNode, e as createCommentVNode, j as contentApi, i as ref, m as computed, z as useRoute, a as openBlock, K as vModelCheckbox } from "./index-BBvYsYtx.js";
+import { e as errText } from "./helpers-DLaWG9RE.js";
+import { M as ModerationBar } from "./ModerationBar-CCUlPmus.js";
+import { B as BatchActions } from "./BatchActions-CCCvSZ2Z.js";
+import { u as userPop } from "./userPop-2FP-pwix.js";
+import { p as postDrawer } from "./postDrawer-Jg7zAU0z.js";
 const _hoisted_1 = { "data-panel": "content-posts" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -27,26 +28,29 @@ const _hoisted_11 = {
   key: 2,
   class: "tbl-x"
 };
-const _hoisted_12 = { key: 0 };
-const _hoisted_13 = { class: "muted" };
-const _hoisted_14 = ["onClick"];
-const _hoisted_15 = { class: "tag blue" };
-const _hoisted_16 = ["onClick"];
-const _hoisted_17 = {
+const _hoisted_12 = { style: { "width": "36px" } };
+const _hoisted_13 = ["checked"];
+const _hoisted_14 = { key: 0 };
+const _hoisted_15 = ["value"];
+const _hoisted_16 = { class: "muted" };
+const _hoisted_17 = ["onClick"];
+const _hoisted_18 = { class: "tag blue" };
+const _hoisted_19 = ["onClick"];
+const _hoisted_20 = {
   key: 0,
   class: "tag red"
 };
-const _hoisted_18 = {
+const _hoisted_21 = {
   key: 1,
   class: "tag ok"
 };
-const _hoisted_19 = { class: "muted" };
-const _hoisted_20 = { class: "cp-ops" };
-const _hoisted_21 = ["onClick"];
-const _hoisted_22 = { class: "cp-page" };
-const _hoisted_23 = ["disabled"];
-const _hoisted_24 = { class: "muted" };
-const _hoisted_25 = ["disabled"];
+const _hoisted_22 = { class: "muted" };
+const _hoisted_23 = { class: "cp-ops" };
+const _hoisted_24 = ["onClick"];
+const _hoisted_25 = { class: "cp-page" };
+const _hoisted_26 = ["disabled"];
+const _hoisted_27 = { class: "muted" };
+const _hoisted_28 = ["disabled"];
 const size = 20;
 const _sfc_main = {
   __name: "ContentPostsView",
@@ -78,9 +82,15 @@ const _sfc_main = {
     }
     watch(() => route.query, openFromQuery, { immediate: true });
     const pages = computed(() => Math.max(1, Math.ceil(total.value / size)));
+    const selected = ref([]);
+    const allChecked = computed(() => items.value.length > 0 && selected.value.length === items.value.length);
+    function toggleAll(e) {
+      selected.value = e.target.checked ? items.value.map((p) => p.id) : [];
+    }
     async function load() {
       loading.value = true;
       error.value = "";
+      selected.value = [];
       try {
         const res = await contentApi.posts({
           q: q.value.trim() || void 0,
@@ -130,8 +140,8 @@ const _sfc_main = {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("div", _hoisted_2, [
           createBaseVNode("h2", null, [
-            _cache[9] || (_cache[9] = createTextVNode(" 帖子管理 ", -1)),
-            _cache[10] || (_cache[10] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+            _cache[12] || (_cache[12] = createTextVNode(" 帖子管理 ", -1)),
+            _cache[13] || (_cache[13] = createBaseVNode("span", { class: "spacer" }, null, -1)),
             createBaseVNode("span", _hoisted_3, "共 " + toDisplayString(total.value) + " 条（含已屏蔽）", 1)
           ]),
           createBaseVNode("div", _hoisted_4, [
@@ -193,7 +203,7 @@ const _sfc_main = {
               }, null, 544), [
                 [vModelText, from.value]
               ]),
-              _cache[11] || (_cache[11] = createBaseVNode("span", {
+              _cache[14] || (_cache[14] = createBaseVNode("span", {
                 class: "muted",
                 style: { "font-size": "12px" }
               }, "至", -1)),
@@ -224,8 +234,14 @@ const _sfc_main = {
                 })
               }, "重置")
             ]),
+            createVNode(BatchActions, {
+              kind: "post",
+              ids: selected.value,
+              onClear: _cache[7] || (_cache[7] = ($event) => selected.value = []),
+              onDone: load
+            }, null, 8, ["ids"]),
             error.value ? (openBlock(), createElementBlock("div", _hoisted_8, [
-              _cache[12] || (_cache[12] = createBaseVNode("b", null, "加载失败", -1)),
+              _cache[15] || (_cache[15] = createBaseVNode("b", null, "加载失败", -1)),
               createBaseVNode("span", _hoisted_9, toDisplayString(error.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
@@ -233,22 +249,31 @@ const _sfc_main = {
               }, "重试")
             ])) : loading.value ? (openBlock(), createElementBlock("div", _hoisted_10, "加载中…")) : (openBlock(), createElementBlock("div", _hoisted_11, [
               createBaseVNode("table", null, [
-                _cache[14] || (_cache[14] = createBaseVNode("thead", null, [
+                createBaseVNode("thead", null, [
                   createBaseVNode("tr", null, [
-                    createBaseVNode("th", { style: { "width": "64px" } }, "ID"),
-                    createBaseVNode("th", null, "标题"),
-                    createBaseVNode("th", { style: { "width": "76px" } }, "类型"),
-                    createBaseVNode("th", { style: { "width": "130px" } }, "作者"),
-                    createBaseVNode("th", { style: { "width": "76px" } }, "状态"),
-                    createBaseVNode("th", { style: { "width": "80px" } }, "评论"),
-                    createBaseVNode("th", { style: { "width": "128px" } }, "发布时间"),
-                    createBaseVNode("th", { style: { "width": "300px" } }, "操作")
+                    createBaseVNode("th", _hoisted_12, [
+                      createBaseVNode("input", {
+                        class: "row-check",
+                        type: "checkbox",
+                        checked: allChecked.value,
+                        title: "全选本页",
+                        onChange: _cache[8] || (_cache[8] = ($event) => toggleAll($event))
+                      }, null, 40, _hoisted_13)
+                    ]),
+                    _cache[16] || (_cache[16] = createBaseVNode("th", { style: { "width": "64px" } }, "ID", -1)),
+                    _cache[17] || (_cache[17] = createBaseVNode("th", null, "标题", -1)),
+                    _cache[18] || (_cache[18] = createBaseVNode("th", { style: { "width": "76px" } }, "类型", -1)),
+                    _cache[19] || (_cache[19] = createBaseVNode("th", { style: { "width": "130px" } }, "作者", -1)),
+                    _cache[20] || (_cache[20] = createBaseVNode("th", { style: { "width": "76px" } }, "状态", -1)),
+                    _cache[21] || (_cache[21] = createBaseVNode("th", { style: { "width": "80px" } }, "评论", -1)),
+                    _cache[22] || (_cache[22] = createBaseVNode("th", { style: { "width": "128px" } }, "发布时间", -1)),
+                    _cache[23] || (_cache[23] = createBaseVNode("th", { style: { "width": "300px" } }, "操作", -1))
                   ])
-                ], -1)),
+                ]),
                 createBaseVNode("tbody", null, [
-                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_12, [..._cache[13] || (_cache[13] = [
+                  !items.value.length ? (openBlock(), createElementBlock("tr", _hoisted_14, [..._cache[24] || (_cache[24] = [
                     createBaseVNode("td", {
-                      colspan: "8",
+                      colspan: "9",
                       class: "muted",
                       style: { "padding": "22px", "text-align": "center" }
                     }, "没有符合条件的帖子", -1)
@@ -257,33 +282,43 @@ const _sfc_main = {
                     return openBlock(), createElementBlock("tr", {
                       key: p.id
                     }, [
-                      createBaseVNode("td", _hoisted_13, toDisplayString(p.id), 1),
+                      createBaseVNode("td", null, [
+                        withDirectives(createBaseVNode("input", {
+                          class: "row-check",
+                          type: "checkbox",
+                          value: p.id,
+                          "onUpdate:modelValue": _cache[9] || (_cache[9] = ($event) => selected.value = $event)
+                        }, null, 8, _hoisted_15), [
+                          [vModelCheckbox, selected.value]
+                        ])
+                      ]),
+                      createBaseVNode("td", _hoisted_16, toDisplayString(p.id), 1),
                       createBaseVNode("td", null, [
                         createBaseVNode("a", {
                           class: "cp-link",
                           onClick: ($event) => openDrawer(p.id)
-                        }, toDisplayString(p.title), 9, _hoisted_14)
+                        }, toDisplayString(p.title), 9, _hoisted_17)
                       ]),
                       createBaseVNode("td", null, [
-                        createBaseVNode("span", _hoisted_15, toDisplayString(p.type), 1)
+                        createBaseVNode("span", _hoisted_18, toDisplayString(p.type), 1)
                       ]),
                       createBaseVNode("td", null, [
                         createBaseVNode("span", {
-                          class: "cp-link",
+                          class: "cp-link cp-author",
                           onClick: ($event) => openPop(p.authorId, $event)
-                        }, toDisplayString(p.authorName || p.authorId), 9, _hoisted_16)
+                        }, toDisplayString(p.authorName || p.authorId), 9, _hoisted_19)
                       ]),
                       createBaseVNode("td", null, [
-                        p.hidden ? (openBlock(), createElementBlock("span", _hoisted_17, "已屏蔽")) : (openBlock(), createElementBlock("span", _hoisted_18, "正常"))
+                        p.hidden ? (openBlock(), createElementBlock("span", _hoisted_20, "已屏蔽")) : (openBlock(), createElementBlock("span", _hoisted_21, "正常"))
                       ]),
                       createBaseVNode("td", null, toDisplayString(p.comments), 1),
-                      createBaseVNode("td", _hoisted_19, toDisplayString(fmt(p.createdAt)), 1),
+                      createBaseVNode("td", _hoisted_22, toDisplayString(fmt(p.createdAt)), 1),
                       createBaseVNode("td", null, [
-                        createBaseVNode("span", _hoisted_20, [
+                        createBaseVNode("span", _hoisted_23, [
                           createBaseVNode("button", {
                             class: "btn sm",
                             onClick: ($event) => openDrawer(p.id)
-                          }, "详情", 8, _hoisted_21),
+                          }, "详情", 8, _hoisted_24),
                           createVNode(ModerationBar, {
                             type: "post",
                             id: p.id,
@@ -299,18 +334,18 @@ const _sfc_main = {
                 ])
               ])
             ])),
-            createBaseVNode("div", _hoisted_22, [
+            createBaseVNode("div", _hoisted_25, [
               createBaseVNode("button", {
                 class: "btn sm",
                 disabled: page.value <= 1,
-                onClick: _cache[7] || (_cache[7] = ($event) => go(page.value - 1))
-              }, "上一页", 8, _hoisted_23),
-              createBaseVNode("span", _hoisted_24, toDisplayString(page.value) + " / " + toDisplayString(pages.value), 1),
+                onClick: _cache[10] || (_cache[10] = ($event) => go(page.value - 1))
+              }, "上一页", 8, _hoisted_26),
+              createBaseVNode("span", _hoisted_27, toDisplayString(page.value) + " / " + toDisplayString(pages.value), 1),
               createBaseVNode("button", {
                 class: "btn sm",
                 disabled: page.value >= pages.value,
-                onClick: _cache[8] || (_cache[8] = ($event) => go(page.value + 1))
-              }, "下一页", 8, _hoisted_25)
+                onClick: _cache[11] || (_cache[11] = ($event) => go(page.value + 1))
+              }, "下一页", 8, _hoisted_28)
             ])
           ])
         ])
@@ -318,7 +353,7 @@ const _sfc_main = {
     };
   }
 };
-const ContentPostsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-9da95abe"]]);
+const ContentPostsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-b2093b02"]]);
 export {
   ContentPostsView as default
 };

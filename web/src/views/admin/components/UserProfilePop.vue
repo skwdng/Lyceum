@@ -7,7 +7,7 @@
  *
  * <p>三处入口共用这一个组件：帖子管理 / 评论管理 / 用户管理。
  */
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { adminApi, contentApi } from '../../../api.js';
 import { toast } from '../../../utils/toast.js';
 import { errText } from '../helpers.js';
@@ -22,33 +22,73 @@ const props = defineProps({
 const emit = defineEmits(['close', 'changed']);
 
 const W = 460;
-const H = 420;
+/** 兜底高度（真实高度渲染后量，见 measuredH） */
+const H_FALLBACK = 420;
 
 const data = ref(null);
 const loading = ref(true);
 const error = ref('');
 const busy = ref('');
 const muteDays = ref(3);
+/** 「被处置的内容」分页（6 条/页，够看清又不用滚很久） */
+const hiddenPage = ref(1);
+const HIDDEN_PAGE_SIZE = 6;
 
+const popEl = ref(null);
+const measuredH = ref(H_FALLBACK);
+
+/**
+ * 定位：夹在视口内，并且用**真实量到的高度**算底部边界。
+ *
+ * 之前用固定 420 兜底：内容一多（命中几十条处置记录）实际高度会超过 420，
+ * 于是浮窗底部（含"禁言/封禁/解封"按钮）跑到视口外、被任务栏或窗口边缘遮住 ——
+ * 2026-11-12 用户截图反馈的问题。
+ */
 const pos = computed(() => {
+  const h = Math.min(measuredH.value, Math.max(240, window.innerHeight - 24));
   const left = Math.min(Math.max(12, props.x), Math.max(12, window.innerWidth - W - 12));
-  const top = Math.min(Math.max(12, props.y), Math.max(12, window.innerHeight - H - 12));
-  return { left: left + 'px', top: top + 'px', width: W + 'px' };
+  const top = Math.min(Math.max(12, props.y), Math.max(12, window.innerHeight - h - 12));
+  return { left: left + 'px', top: top + 'px', width: W + 'px', maxHeight: (window.innerHeight - 24) + 'px' };
 });
+
+function measure() {
+  if (popEl.value) measuredH.value = popEl.value.offsetHeight || H_FALLBACK;
+}
+
+/** 「被处置的内容」当前页（客户端分页：profile 一次最多回 100 条） */
+const hiddenPageItems = computed(() => {
+  const all = (data.value && data.value.moderation && data.value.moderation.hiddenContent) || [];
+  const start = (hiddenPage.value - 1) * HIDDEN_PAGE_SIZE;
+  return all.slice(start, start + HIDDEN_PAGE_SIZE);
+});
+const hiddenPages = computed(() => {
+  const all = (data.value && data.value.moderation && data.value.moderation.hiddenContent) || [];
+  return Math.max(1, Math.ceil(all.length / HIDDEN_PAGE_SIZE));
+});
+
+function goHidden(p) {
+  if (p < 1 || p > hiddenPages.value) return;
+  hiddenPage.value = p;
+  nextTick(measure);
+}
 
 async function load() {
   loading.value = true;
   error.value = '';
   try {
     data.value = await contentApi.profile(props.userId);
+    hiddenPage.value = 1;
   } catch (e) {
     error.value = errText(e) || '加载失败';
   } finally {
     loading.value = false;
+    nextTick(measure);
   }
 }
 
 watch(() => props.userId, load, { immediate: true });
+onMounted(() => nextTick(measure));
+watch(measuredH, () => {});
 
 async function act(key, fn, msg) {
   if (busy.value) return;
@@ -92,7 +132,7 @@ function jump(h) {
 
 <template>
   <div class="upop-mask" @click.self="emit('close')">
-    <div class="upop" :style="pos">
+    <div ref="popEl" class="upop" :style="pos">
       <div class="upop-head">
         <b>{{ userId }}</b>
         <span v-if="data && data.user.disabled" class="tag red">已封禁</span>
@@ -132,14 +172,24 @@ function jump(h) {
             <span class="upop-reason" :title="b.reason">{{ b.reason || '（无理由）' }}</span>
           </div>
 
-          <div class="upop-sub">被处置的内容</div>
+          <div class="upop-sub">
+            被处置的内容
+            <span v-if="data.moderation.hiddenContent.length" class="muted" style="font-weight: 400; font-size: 11px">
+              · 共 {{ data.moderation.hiddenContent.length }} 条
+            </span>
+          </div>
           <div v-if="!data.moderation.hiddenContent.length" class="muted upop-empty">没有处置记录</div>
-          <div v-for="h in data.moderation.hiddenContent" :key="h.auditId" class="upop-item">
+          <div v-for="h in hiddenPageItems" :key="h.auditId" class="upop-item">
             <span class="tag" :class="h.undone ? 'ok' : 'red'">{{ h.undone ? '已恢复' : '已屏蔽' }}</span>
             <!-- 点这条 → 关掉浮窗、打开帖子详情抽屉；是评论的话自动定位到那一层 -->
             <a class="upop-jump" @click="jump(h)">{{ h.type === 'POST' ? '帖子' : '评论' }} #{{ h.targetId }}</a>
             <span class="muted">{{ fmt(h.createdAt) }}</span>
             <span class="upop-reason" :title="h.detail">{{ h.detail }}</span>
+          </div>
+          <div v-if="hiddenPages > 1" class="upop-pager">
+            <button class="btn sm" :disabled="hiddenPage <= 1" @click="goHidden(hiddenPage - 1)">上一页</button>
+            <span class="muted">{{ hiddenPage }} / {{ hiddenPages }}</span>
+            <button class="btn sm" :disabled="hiddenPage >= hiddenPages" @click="goHidden(hiddenPage + 1)">下一页</button>
           </div>
         </template>
       </div>
@@ -163,8 +213,14 @@ function jump(h) {
 <style scoped>
 .upop-mask { position: fixed; inset: 0; z-index: 120; background: transparent; }
 .upop { position: fixed; background: #fff; border: 1px solid #E5E6EB; border-radius: 12px;
-  box-shadow: 0 8px 28px rgba(20,25,40,.16); display: flex; flex-direction: column; max-height: 78vh; }
-.upop-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #EFF0F1; }
+  box-shadow: 0 8px 28px rgba(20,25,40,.16); display: flex; flex-direction: column;
+  max-height: 78vh; overflow: hidden; }
+.upop-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #EFF0F1; flex: 0 0 auto; }
+.upop-x { margin-left: 6px; border: none; background: none; font-size: 18px; line-height: 1; color: #86909C; cursor: pointer; }
+/* body 自己滚（head/foot 固定），这样底部按钮永远在视口内 */
+.upop-body { padding: 12px 14px; overflow: auto; flex: 1 1 auto; min-height: 0; }
+.upop-foot { flex: 0 0 auto; }
+.upop-pager { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 8px; font-size: 12px; }
 .upop-x { margin-left: 6px; border: none; background: none; font-size: 18px; line-height: 1; color: #86909C; cursor: pointer; }
 .upop-body { padding: 12px 14px; overflow: auto; }
 .upop-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12.5px; }

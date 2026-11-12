@@ -213,8 +213,47 @@ public class AdminContentService {
         log.info("内容管理解除屏蔽 target={}#{} by={}", t, id, adminId);
     }
 
-    /** 目标是评论时，重算它所属帖子的评论数（帖子本身不需要）。 */
-    private void refreshIfComment(String targetType, Map<String, Object> row) {
+    /**
+     * 批量屏蔽 / 解除屏蔽（列表页多选 + 统一理由）。
+     *
+     * <p>语义是"尽量做完"：逐条调用单条处置（复用同一套软删/审计/评论数重算），
+     * 某条失败（已屏蔽、已被删）不影响其它条，最后返回 {done, failed[]}。
+     * 前端据此提示"成功 N 条，失败 M 条（原因）"。
+     *
+     * <p>上限 200 条：一次点太多说明是误操作，也避免一个请求里塞几千次 SQL。
+     */
+    public Map<String, Object> batch(boolean hide, String type, java.util.List<Long> ids,
+                                     long adminId, String adminName, String ip, String note) {
+        if (ids == null || ids.isEmpty()) {
+            throw new IllegalArgumentException("INVALID_PARAM: 请先选择内容");
+        }
+        if (ids.size() > 200) {
+            throw new IllegalArgumentException("INVALID_PARAM: 一次最多处理 200 条");
+        }
+        int done = 0;
+        List<Map<String, Object>> failed = new ArrayList<>();
+        for (Long id : ids) {
+            if (id == null) continue;
+            try {
+                if (hide) hide(type, id, adminId, adminName, ip, note);
+                else unhide(type, id, adminId, adminName, ip);
+                done++;
+            } catch (RuntimeException e) {
+                Map<String, Object> f = new LinkedHashMap<>();
+                f.put("id", id);
+                f.put("reason", e.getMessage() == null ? e.toString() : e.getMessage());
+                failed.add(f);
+            }
+        }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("done", done);
+        out.put("failed", failed);
+        out.put("total", ids.size());
+        return out;
+    }
+
+    /** 目标是评论时，重算它所属帖子的评论数（帖子本身不需要）。 */    private void refreshIfComment(String targetType, Map<String, Object> row) {
         if (!"COMMENT".equals(targetType) || row == null) return;
         Object postId = row.get("post_id");
         if (postId == null) return;
@@ -281,7 +320,7 @@ public class AdminContentService {
         moderation.put("muted", repo.isMuted(userId));
         moderation.put("banned", num(u.get("status")) == 0);
         moderation.put("banHistory", banViews(repo.banHistory(userId, 10)));
-        moderation.put("hiddenContent", hiddenViews(repo.hiddenContent(userId, 20)));
+        moderation.put("hiddenContent", hiddenViews(repo.hiddenContent(userId, 100)));
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("user", user);
