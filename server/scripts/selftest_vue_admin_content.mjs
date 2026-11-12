@@ -1,0 +1,200 @@
+// 内容管理台自检：帖子搜索 / 详情 / 评论树 / 屏蔽 / 恢复 / 评论定位
+//
+// 用法：node server/scripts/selftest_vue_admin_content.mjs [cdpPort] [baseUrl]
+//
+// 说明：管理台的 `sy_admin_jwt` 用开发密钥现签（与 selftest_vue_batch3b.mjs 的 adminToken() 同款），
+// 后端仍然校验签名与 typ=ADMIN，不存在绕过。
+import crypto from 'crypto';
+
+const PORT = process.argv[2] || '9456';
+const BASE = (process.argv[3] || 'http://localhost:8080').replace(/\/$/, '');
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const DEV_SECRET = 'siyige-dev-only-jwt-secret-do-not-use-in-production-0123456789';
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+function adminToken(sub = 1, acc = 'admin') {
+  const now = Math.floor(Date.now() / 1000);
+  const h = b64({ alg: 'HS256', typ: 'JWT' });
+  const p = b64({ sub: String(sub), acc, typ: 'ADMIN', role: 'ADMIN', jti: crypto.randomUUID(), iat: now, exp: now + 7200 });
+  const sig = crypto.createHmac('sha256', DEV_SECRET).update(h + '.' + p).digest('base64url');
+  return h + '.' + p + '.' + sig;
+}
+
+// ---------- 接口辅助（造数 + 断言） ----------
+const call = async (method, path, body, token) => {
+  const headers = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (token) headers.Authorization = 'Bearer ' + token;
+  const r = await fetch(BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const txt = await r.text();
+  let j = null;
+  try { j = txt ? JSON.parse(txt) : null; } catch (e) { j = { raw: txt.slice(0, 120) }; }
+  return { status: r.status, body: j };
+};
+
+const stamp = Date.now().toString().slice(-6);
+const acc = 'sc' + stamp;
+await call('POST', '/api/auth/register', { account: acc, password: 'abc12345' });
+const user = (await call('POST', '/api/auth/login', { account: acc, password: 'abc12345' })).body.token;
+const post = await call('POST', '/api/community/posts',
+  { type: 'HELP', title: `自检帖 ${stamp}`, body: '这是内容管理自检用的帖子正文，长度需要超过门槛才算合规。' }, user);
+const postId = post.body.postId;
+const c1 = await call('POST', `/api/community/posts/${postId}/comments`, { body: `自检楼 ${stamp}` }, user);
+const rootId = c1.body.commentId;
+const c2 = await call('POST', `/api/community/posts/${postId}/comments`,
+  { body: `自检楼中楼 ${stamp}`, replyObjectType: 'COMMENT', replyObjectCommentId: rootId }, user);
+const replyId = c2.body.commentId;
+
+// ---------- CDP ----------
+async function getWs() {
+  for (let i = 0; i < 60; i++) {
+    try {
+      const l = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json();
+      const p = l.find((t) => t.type === 'page' && t.webSocketDebuggerUrl);
+      if (p) return p.webSocketDebuggerUrl;
+    } catch {}
+    await sleep(250);
+  }
+  throw new Error('no target on ' + PORT);
+}
+const ws = new WebSocket(await getWs());
+await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
+let id = 0;
+const pend = new Map();
+const errs = [];
+ws.onmessage = (e) => {
+  const m = JSON.parse(e.data);
+  if (m.id && pend.has(m.id)) {
+    const { resolve, reject } = pend.get(m.id);
+    pend.delete(m.id);
+    m.error ? reject(new Error(JSON.stringify(m.error))) : resolve(m.result);
+    return;
+  }
+  if (m.method === 'Runtime.exceptionThrown') {
+    errs.push(m.params.exceptionDetails?.exception?.description || m.params.exceptionDetails?.text);
+  }
+};
+const send = (method, params = {}) => new Promise((resolve, reject) => {
+  const i = ++id;
+  pend.set(i, { resolve, reject });
+  ws.send(JSON.stringify({ id: i, method, params }));
+});
+const ev = async (expr) => {
+  const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
+  if (r.exceptionDetails) throw new Error('eval:' + JSON.stringify(r.exceptionDetails).slice(0, 200));
+  return r.result.value;
+};
+const waitFor = async (expr, label, ms = 20000) => {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    if (await ev(expr)) return true;
+    await sleep(150);
+  }
+  throw new Error('timeout:' + label);
+};
+const out = [];
+const check = async (n, f) => {
+  try {
+    const v = await f();
+    out.push('PASS  ' + n + (v ? '  [' + v + ']' : ''));
+  } catch (e) {
+    out.push('FAIL  ' + n + '  -> ' + e.message);
+  }
+};
+
+await send('Runtime.enable');
+await send('Page.enable');
+await send('Network.enable');
+await send('Network.setCacheDisabled', { cacheDisabled: true });
+await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
+
+const ADMIN = adminToken();
+
+/** 清 localStorage → 注入管理员令牌 → 进入指定页面 → 等应用挂载完成 */
+async function openAdmin(hash) {
+  await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#/admin/login' });
+  await sleep(1200);
+  await ev('localStorage.clear(); sessionStorage.clear(); true');
+  await ev(`localStorage.setItem('sy_admin_jwt', ${JSON.stringify(ADMIN)});
+            localStorage.setItem('sy_admin_collapsed','0'); true`);
+  await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#' + hash });
+  await sleep(2000);
+  await waitFor(`!!document.querySelector('.adm-nav')`, '管理台挂载', 20000);
+}
+
+// 自检里要处理"屏蔽理由"输入：ModerationBar 用的是 window.prompt，无头浏览器会直接返回 null，
+// 这里把它替换成固定值，让流程能走完（真实使用里是人工输入）。
+const PATCH_PROMPT = `window.prompt = () => '自检理由'; window.confirm = () => true; true`;
+
+await check('A1 帖子管理：关键词搜索命中刚发的帖子', async () => {
+  await openAdmin('admin/content/posts');
+  await waitFor(`!!document.querySelector('[data-panel="content-posts"] .cp-input')`, '筛选栏');
+  await ev(`(()=>{const i=document.querySelector('[data-panel="content-posts"] .cp-input');
+    i.value='自检帖 ${stamp}'; i.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
+  await ev(`[...document.querySelectorAll('[data-panel="content-posts"] .btn')].find(b=>b.textContent.trim()==='搜索').click(); true`);
+  await waitFor(`document.querySelectorAll('[data-panel="content-posts"] tbody tr').length >= 1`, '搜索结果');
+  const title = await ev(`document.querySelector('[data-panel="content-posts"] .cp-link').textContent.trim()`);
+  if (!title.includes('自检帖 ' + stamp)) throw new Error('搜到的不是目标帖：' + title);
+  return title;
+});
+
+await check('A2 详情抽屉：正文 + 评论树（楼 + 楼中楼）', async () => {
+  await ev(`document.querySelector('[data-panel="content-posts"] .cp-link').click(); true`);
+  await waitFor(`!!document.querySelector('.modal .pd-title')`, '抽屉打开');
+  await waitFor(`document.querySelectorAll('.modal .ct-item').length >= 2`, '评论树渲染');
+  const st = await ev(`(()=>{const m=document.querySelector('.modal');return {
+    title: m.querySelector('.pd-title').textContent.trim(),
+    roots: m.querySelectorAll('.ct-root').length,
+    replies: m.querySelectorAll('.ct-reply').length,
+    hasBody: m.querySelector('.pd-body').textContent.includes('内容管理自检')};})()`);
+  if (st.roots !== 1 || st.replies !== 1) throw new Error('层级不对：' + JSON.stringify(st));
+  return `楼 ${st.roots} / 楼中楼 ${st.replies}`;
+});
+
+await check('A3 抽屉内屏蔽评论 → 显示「已屏蔽」', async () => {
+  await ev(PATCH_PROMPT);
+  await ev(`(()=>{const root=document.querySelector('.modal .ct-root');
+    [...root.querySelectorAll('.btn')].find(b=>b.textContent.trim()==='屏蔽').click(); return true;})()`);
+  await waitFor(`document.querySelector('.modal .ct-root').innerText.includes('已屏蔽')`, '已屏蔽标记', 15000);
+  return 'ct-root 出现「已屏蔽」';
+});
+
+await check('A4 处理记录里出现 MANUAL 行，一键恢复后内容回来', async () => {
+  const audits = await call('GET', '/api/admin/audit?page=1&size=20', undefined, ADMIN);
+  const manual = (audits.body.items || []).find((a) => a.reportId === 0 && a.targetId === rootId);
+  if (!manual) throw new Error('没找到 MANUAL 审计行');
+  const restored = await call('POST', `/api/admin/audit/${manual.id}/restore`, {}, ADMIN);
+  if (restored.status !== 204) throw new Error('恢复失败 HTTP ' + restored.status);
+  const tree = await call('GET', `/api/admin/posts/${postId}/comments`, undefined, ADMIN);
+  const root = (tree.body.items || []).find((c) => c.id === rootId);
+  if (!root || root.hidden) throw new Error('恢复后仍处于屏蔽状态');
+  return `audit#${manual.id} → 已恢复`;
+});
+
+await check('A5 评论管理：跨帖搜索 + 点「查看所在帖子」定位并高亮', async () => {
+  await openAdmin('admin/content/comments');
+  await waitFor(`!!document.querySelector('[data-panel="content-comments"] .cc-input')`, '评论筛选栏');
+  await ev(`(()=>{const i=document.querySelector('[data-panel="content-comments"] .cc-input');
+    i.value='自检楼中楼 ${stamp}'; i.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
+  await ev(`[...document.querySelectorAll('[data-panel="content-comments"] .btn')].find(b=>b.textContent.trim()==='搜索').click(); true`);
+  await waitFor(`document.querySelectorAll('[data-panel="content-comments"] tbody tr').length >= 1`, '评论搜索结果');
+  const post = await ev(`(()=>{const links=[...document.querySelectorAll('[data-panel="content-comments"] tbody .cc-link')];
+    const l = links.find((a) => a.textContent.trim().startsWith('#')); return l ? l.textContent.trim() : 'none';})()`);
+  if (!post.includes('#' + postId)) throw new Error('所在帖子列不对：' + post);
+
+  await ev(`document.querySelector('[data-panel="content-comments"] .cc-ops .btn').click(); true`);
+  await waitFor(`location.hash.includes('post=${postId}')`, '跳转到帖子管理', 15000);
+  await waitFor(`!!document.querySelector('.modal .pd-title')`, '跳转后抽屉打开', 15000);
+  await waitFor(`!!document.querySelector('#c-${replyId}.is-hl')`, '目标楼层高亮', 15000);
+  return `hash=${await ev('location.hash')} · 高亮 #c-${replyId}`;
+});
+
+await check('A6 全程零 JS 异常', async () => {
+  if (errs.length) throw new Error(errs.slice(0, 2).join(' | '));
+  return '无异常';
+});
+
+console.log(out.join('\n'));
+console.log('\n汇总：' + out.filter((l) => l.startsWith('PASS')).length + '/' + out.length + ' 通过');
+ws.close();
+process.exit(out.some((l) => l.startsWith('FAIL')) ? 1 : 0);

@@ -1,7 +1,7 @@
-import { _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, x as createTextVNode, t as toDisplayString, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, F as Fragment, e as renderList, f as createCommentVNode, b as createBlock, r as ref, I as contentApi, h as computed, i as useRouter, k as openBlock, g as createVNode } from "./index-CxdOnLWl.js";
-import { e as errText } from "./helpers-CAoXNPN6.js";
-import { M as ModerationBar } from "./ModerationBar-D7SQWoL_.js";
-import { U as UserProfilePop } from "./UserProfilePop-DsCkC9fU.js";
+import { _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, x as createTextVNode, t as toDisplayString, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, F as Fragment, e as renderList, f as createCommentVNode, b as createBlock, r as ref, I as contentApi, h as computed, i as useRouter, k as openBlock, g as createVNode } from "./index-CcwKJfyj.js";
+import { e as errText } from "./helpers-DxF3KBWn.js";
+import { M as ModerationBar } from "./ModerationBar-BE0Emj4u.js";
+import { U as UserProfilePop } from "./UserProfilePop-BrlOJXkf.js";
 const _hoisted_1 = { "data-panel": "content-comments" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -189,7 +189,7 @@ const _sfc_main = {
                       ]),
                       createBaseVNode("td", null, [
                         createBaseVNode("a", {
-                          class: "cc-link",
+                          class: "cc-author",
                           onClick: ($event) => openPop(c.authorId, $event)
                         }, toDisplayString(c.authorName || c.authorId), 9, _hoisted_15)
                       ]),
@@ -251,7 +251,7 @@ const _sfc_main = {
     };
   }
 };
-const ContentCommentsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-841ed8d4"]]);
+const ContentCommentsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-c05ec365"]]);
 export {
   ContentCommentsView as default
 };

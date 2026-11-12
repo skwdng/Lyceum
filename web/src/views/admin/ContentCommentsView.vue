@@ -127,7 +127,7 @@ function fmt(ms) {
                 <td class="cc-body">{{ c.body }}</td>
                 <td><span class="tag">{{ c.floor }}</span></td>
                 <td>
-                  <a class="cc-link" @click="openPop(c.authorId, $event)">{{ c.authorName || c.authorId }}</a>
+                  <a class="cc-author" @click="openPop(c.authorId, $event)">{{ c.authorName || c.authorId }}</a>
                 </td>
                 <td>
                   <a class="cc-link" @click="jumpToPost(c)">#{{ c.postId }} {{ c.postTitle }}</a>
@@ -167,6 +167,8 @@ function fmt(ms) {
 .cc-input { padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; min-width: 220px; }
 .cc-link { color: #165DFF; cursor: pointer; }
 .cc-link:hover { text-decoration: underline; }
+.cc-author { color: #165DFF; cursor: pointer; }
+.cc-author:hover { text-decoration: underline; }
 .cc-body { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cc-ops { display: inline-flex; gap: 6px; align-items: center; }
 .cc-page { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px; }
