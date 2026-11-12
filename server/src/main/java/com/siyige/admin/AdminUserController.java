@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.auth.ClientIp;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -54,9 +56,10 @@ public class AdminUserController {
 
     @PostMapping("/{id}/status")
     public ResponseEntity<Void> status(@PathVariable String id,
-                                       @RequestBody(required = false) AdminDtos.SetStatusRequest req) {
+                                       @RequestBody(required = false) AdminDtos.SetStatusRequest req,
+                                       HttpServletRequest http) {
         service.setStatus(id, req == null ? null : req.status(), req == null ? null : req.reason(),
-                AdminContext.requireId());
+                AdminContext.requireId(), AdminContext.account(), ClientIp.of(http));
         return ResponseEntity.noContent().build();
     }
 }

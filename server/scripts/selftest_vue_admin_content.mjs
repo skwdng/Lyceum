@@ -239,12 +239,12 @@ await check('A8 处理记录页分得出「内容管理」与「举报」两种�
   const st = await ev(`(()=>{const p=document.querySelector('[data-panel="audit"]');
     const tags=[...p.querySelectorAll('tbody .tag')].map(t=>t.textContent.trim());
     return {head:[...p.querySelectorAll('th')].map(x=>x.textContent.trim()),
-            manual: tags.filter(t=>t==='内容管理').length,
+            manual: tags.filter(t=>t==='管理台').length,
             report: tags.filter(t=>t==='举报').length};})()`);
   if (!st.head.includes('来源')) throw new Error('表头没有「来源」列：' + JSON.stringify(st.head));
-  if (!st.manual) throw new Error('没有一条「内容管理」来源的记录（MANUAL 没体现）');
+  if (!st.manual) throw new Error('没有一条「管理台」来源的记录（MANUAL 没体现）');
   if (!st.report) throw new Error('没有一条「举报」来源的记录（REPORT 没体现）');
-  return `来源列：内容管理 ${st.manual} 条 / 举报 ${st.report} 条`;
+  return `来源列：管理台 ${st.manual} 条 / 举报 ${st.report} 条`;
 });
 
 await check('A9 长列表：1280x720 下页面可滚到底且分页栏可见（回归 2026-11-12 显示不全问题）', async () => {

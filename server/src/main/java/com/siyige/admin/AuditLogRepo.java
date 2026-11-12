@@ -13,16 +13,40 @@ import java.util.Map;
 /**
  * 处理记录（`sy_audit_log`）的读写。
  *
- * <p>表里只会有两种 `action`：{@link #ACTION_RESOLVE} / {@link #ACTION_RESTORE}。
+ * <p>`action` 有两类：举报处置链路（{@link #ACTION_RESOLVE} / {@link #ACTION_RESTORE}）
+ * 和管理台其它动作（视频复核 / 辩题审核 / 封禁解封，见下方 ACTION_* 常量）。
  * 这里**只存业务描述**，绝不允许出现密码、令牌或任何凭据。
  */
 @Repository
 public class AuditLogRepo {
 
+    /** 内容处置：屏蔽/禁言（从内容管理直接处置）/ 解除屏蔽，都归到这两个动作下。 */
     public static final String ACTION_RESOLVE = "REPORT_RESOLVE";
     public static final String ACTION_RESTORE = "RESTORE";
 
-    /** 来源：举报处理（默认）/ 管理员从内容管理直接处置。 */
+    /**
+     * 视频复核 / 辩题审核 / 用户封禁的动作值。
+     *
+     * <p>为什么复用同一张表而不是各建一张：处理记录页就是"管理员做过什么"的唯一入口，
+     * 分散成 4 张表以后"这个人今天干了啥"要 UNION 四次。`action` 列 varchar(24) 装得下，
+     * `target_type` varchar(8) 也够（VIDEO / TOPIC / USER）。
+     * 这些都是**不可"一键恢复"**的行（`canRestore` 只认 REPORT_RESOLVE + DELETE 类），
+     * 各自的恢复在各自页面里（视频有「恢复」，辩题可改回「通过」，内容可「解除屏蔽」）。
+     */
+    public static final String ACTION_VIDEO_DECIDE = "VIDEO_DECIDE";
+    public static final String ACTION_VIDEO_RESTORE = "VIDEO_RESTORE";
+    public static final String ACTION_TOPIC_APPROVE = "TOPIC_APPROVE";
+    public static final String ACTION_TOPIC_REJECT = "TOPIC_REJECT";
+    public static final String ACTION_TOPIC_OFFLINE = "TOPIC_OFFLINE";
+    public static final String ACTION_USER_BAN = "USER_BAN";
+    public static final String ACTION_USER_UNBAN = "USER_UNBAN";
+
+    /** 目标类型（`target_type` varchar(8)）。 */
+    public static final String TARGET_VIDEO = "VIDEO";
+    public static final String TARGET_TOPIC = "TOPIC";
+    public static final String TARGET_USER = "USER";
+
+    /** 来源（`source` 列）：REPORT = 从举报处理来的；MANUAL = 管理员在管理台直接操作。 */
     public static final String SOURCE_REPORT = "REPORT";
     public static final String SOURCE_MANUAL = "MANUAL";
 

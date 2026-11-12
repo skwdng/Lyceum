@@ -58,7 +58,7 @@ class AdminReportServiceTest {
         audit = new AuditLog(new AuditLogRepo(jdbc));
         service = new AdminReportService(reportRepo, community, banService, audit, notify);
         userRepo = new AdminUserRepo(jdbc);
-        userService = new AdminUserService(userRepo, banRepo, banService, notify);
+        userService = new AdminUserService(userRepo, banRepo, banService, notify, audit);
         stats = new AdminStatsService(reportRepo, userService);
 
         // 用户：u1/u4 = 举报人，u2 = 帖 100 与评论 200 的作者，u3 = 帖 101 的作者

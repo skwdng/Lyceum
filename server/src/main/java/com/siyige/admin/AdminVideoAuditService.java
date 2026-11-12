@@ -33,6 +33,8 @@ public class AdminVideoAuditService {
     /** 带筛选的队列查询（自查一条 SQL，口径与 VideoRepo.auditQueue 一致） */
     private final AdminVideoAuditRepo repo2;
     private final MachineAuditService machine;
+    /** 处理记录：视频复核通过/驳回/恢复都要留痕 */
+    private final AuditLog audit;
     private final boolean consoleEnabled;
 
     /** 单页上限 / 默认页大小 */
@@ -40,10 +42,12 @@ public class AdminVideoAuditService {
     static final int SIZE_DEFAULT = 20;
 
     public AdminVideoAuditService(VideoRepo repo, AdminVideoAuditRepo repo2, MachineAuditService machine,
+                                  AuditLog audit,
                                   @Value("${siyige.video.audit.console-enabled:false}") boolean consoleEnabled) {
         this.repo = repo;
         this.repo2 = repo2;
         this.machine = machine;
+        this.audit = audit;
         this.consoleEnabled = consoleEnabled;
     }
 
@@ -109,7 +113,8 @@ public class AdminVideoAuditService {
      *
      * <p>与视频模块 `decide` 的行为保持一致：写一条 HUMAN 审核日志 → 改 audit_status → 改上/下架。
      */
-    public Map<String, Object> decide(long videoId, String decision, String reason, long adminId, String adminName) {
+    public Map<String, Object> decide(long videoId, String decision, String reason, long adminId,
+                                      String adminName, String ip) {
         requireEnabled();
         String d = decision == null ? "" : decision.trim().toUpperCase();
         if (!"PASS".equals(d) && !"REJECT".equals(d)) {
@@ -121,11 +126,20 @@ public class AdminVideoAuditService {
         String why = reason == null ? "" : reason.trim();
         String note = why.isEmpty() ? ("PASS".equals(d) ? "人工复核通过" : "人工复核驳回") : why;
         String prev = v.get("audit_status") == null ? "" : String.valueOf(v.get("audit_status"));
+        String title = v.get("title") == null ? "" : String.valueOf(v.get("title"));
+        String author = v.get("user_id") == null ? null : String.valueOf(v.get("user_id"));
 
         repo.insertAudit(videoId, "HUMAN", d, note, operator(adminId, adminName),
-                "title=" + (v.get("title") == null ? "" : v.get("title")), prev);
+                "title=" + title, prev);
         repo.setAuditStatus(videoId, "PASS".equals(d) ? "PASSED" : "REJECTED", note);
         repo.setOnline(videoId, "PASS".equals(d));
+
+        // 处理记录：视频复核也要能在「处理记录」里看到（原来只有视频自己的 sy_video_audit）
+        audit.record(adminId, adminName, AuditLogRepo.ACTION_VIDEO_DECIDE, d,
+                AuditLogRepo.TARGET_VIDEO, videoId, author,
+                "视频复核" + ("PASS".equals(d) ? "通过" : "驳回") + " #" + videoId
+                        + (title.isEmpty() ? "" : "「" + title + "」")
+                        + (why.isEmpty() ? "" : "，理由：" + why), ip);
 
         log.info("管理台视频复核 video={} decision={} by={}", videoId, d, adminName);
         Map<String, Object> out = new LinkedHashMap<>();
@@ -136,7 +150,7 @@ public class AdminVideoAuditService {
     }
 
     /** 一键恢复：退回上一次判定之前的状态（与视频模块 `restore` 语义一致）。 */
-    public Map<String, Object> restore(long videoId, long adminId, String adminName) {
+    public Map<String, Object> restore(long videoId, long adminId, String adminName, String ip) {
         requireEnabled();
         Map<String, Object> last = repo.lastAudit(videoId);
         if (last == null) throw new IllegalArgumentException("NOT_RESTORABLE: 这个视频没有审核记录");
@@ -150,6 +164,10 @@ public class AdminVideoAuditService {
         repo.setOnline(videoId, "PASSED".equals(prev));
         repo.insertAudit(videoId, "HUMAN", "RESTORE", "一键恢复至 " + prev,
                 operator(adminId, adminName), "restore", prev);
+
+        audit.record(adminId, adminName, AuditLogRepo.ACTION_VIDEO_RESTORE, null,
+                AuditLogRepo.TARGET_VIDEO, videoId, null,
+                "视频复核一键恢复 #" + videoId + " 至 " + prev + "（撤销审核 " + auditId + "）", ip);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("ok", true);

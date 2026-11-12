@@ -1,5 +1,6 @@
 package com.siyige.admin;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -47,22 +48,26 @@ public class AdminTopicController {
     }
 
     @PostMapping("/{id}/approve")
-    public ResponseEntity<Void> approve(@PathVariable String id) {
-        service.approve(id);
+    public ResponseEntity<Void> approve(@PathVariable String id, HttpServletRequest http) {
+        service.approve(id, AdminContext.requireId(), AdminContext.account(), com.siyige.auth.ClientIp.of(http));
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/reject")
     public ResponseEntity<Void> reject(@PathVariable String id,
-                                       @RequestBody(required = false) AdminDtos.TopicReasonRequest req) {
-        service.reject(id, req == null ? null : req.reason());
+                                       @RequestBody(required = false) AdminDtos.TopicReasonRequest req,
+                                       HttpServletRequest http) {
+        service.reject(id, req == null ? null : req.reason(),
+                AdminContext.requireId(), AdminContext.account(), com.siyige.auth.ClientIp.of(http));
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/offline")
     public ResponseEntity<Void> offline(@PathVariable String id,
-                                        @RequestBody(required = false) AdminDtos.TopicReasonRequest req) {
-        service.offline(id, req == null ? null : req.reason());
+                                        @RequestBody(required = false) AdminDtos.TopicReasonRequest req,
+                                        HttpServletRequest http) {
+        service.offline(id, req == null ? null : req.reason(),
+                AdminContext.requireId(), AdminContext.account(), com.siyige.auth.ClientIp.of(http));
         return ResponseEntity.noContent().build();
     }
 }

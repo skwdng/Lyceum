@@ -1,5 +1,6 @@
 package com.siyige.admin;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -53,14 +54,17 @@ public class AdminVideoAuditController {
     }
 
     @PostMapping("/{id}/decide")
-    public Map<String, Object> decide(@PathVariable long id, @RequestBody(required = false) AdminDtos.VideoDecideRequest req) {
+    public Map<String, Object> decide(@PathVariable long id,
+                                      @RequestBody(required = false) AdminDtos.VideoDecideRequest req,
+                                      HttpServletRequest http) {
         return service.decide(id, req == null ? null : req.decision(), req == null ? null : req.reason(),
-                AdminContext.requireId(), AdminContext.account());
+                AdminContext.requireId(), AdminContext.account(), com.siyige.auth.ClientIp.of(http));
     }
 
     @PostMapping("/{id}/restore")
-    public ResponseEntity<Map<String, Object>> restore(@PathVariable long id) {
-        return ResponseEntity.ok(service.restore(id, AdminContext.requireId(), AdminContext.account()));
+    public ResponseEntity<Map<String, Object>> restore(@PathVariable long id, HttpServletRequest http) {
+        return ResponseEntity.ok(service.restore(id, AdminContext.requireId(), AdminContext.account(),
+                com.siyige.auth.ClientIp.of(http)));
     }
 
     @GetMapping("/rules")

@@ -32,10 +32,13 @@ public class AdminTopicService {
 
     private final AdminTopicRepo repo;
     private final Store store;
+    /** 处理记录：辩题通过/驳回/下架也要留痕 */
+    private final AuditLog audit;
 
-    public AdminTopicService(AdminTopicRepo repo, Store store) {
+    public AdminTopicService(AdminTopicRepo repo, Store store, AuditLog audit) {
         this.repo = repo;
         this.store = store;
+        this.audit = audit;
     }
 
     public Map<String, Object> topics(String modStatus, String source, String q, String id,
@@ -74,21 +77,26 @@ public class AdminTopicService {
     }
 
     /** 通过：`mod_status = PASS`。 */
-    public void approve(String id) {
+    public void approve(String id, long adminId, String adminName, String ip) {
         requireTopic(id);
         store.markModeration(id, "PASS", null);
-        log.info("辩题通过 id={} by={}", id, AdminContext.account());
+        audit.record(adminId, adminName, AuditLogRepo.ACTION_TOPIC_APPROVE, "PASS",
+                AuditLogRepo.TARGET_TOPIC, null, id, "辩题通过 #" + id + titleOf(id), ip);
+        log.info("辩题通过 id={} by={}", id, adminName);
     }
 
     /** 驳回：必须带理由（留痕）。 */
-    public void reject(String id, String reason) {
+    public void reject(String id, String reason, long adminId, String adminName, String ip) {
         requireTopic(id);
         String why = reason == null ? "" : reason.trim();
         if (why.isEmpty()) {
             throw new IllegalArgumentException("INVALID_PARAM: 驳回必须填理由（留痕用）");
         }
         store.markModeration(id, "REJECT", truncate(why));
-        log.info("辩题驳回 id={} reason={} by={}", id, why, AdminContext.account());
+        audit.record(adminId, adminName, AuditLogRepo.ACTION_TOPIC_REJECT, "REJECT",
+                AuditLogRepo.TARGET_TOPIC, null, id,
+                "辩题驳回 #" + id + titleOf(id) + "，理由：" + why, ip);
+        log.info("辩题驳回 id={} reason={} by={}", id, why, adminName);
     }
 
     /**
@@ -97,11 +105,24 @@ public class AdminTopicService {
      * <p>实现上等同"驳回"：`mod_status = REJECT`，前台 `Store.topics()` 会把它过滤掉，
      * 而管理端这条查询不过滤，所以仍然查得到、还能再改回 PASS。
      */
-    public void offline(String id, String reason) {
+    public void offline(String id, String reason, long adminId, String adminName, String ip) {
         requireTopic(id);
         String why = reason == null ? "" : reason.trim();
-        store.markModeration(id, "REJECT", truncate(why.isEmpty() ? "管理员下架" : why));
-        log.info("辩题下架 id={} reason={} by={}", id, why, AdminContext.account());
+        String note = why.isEmpty() ? "管理员下架" : why;
+        store.markModeration(id, "REJECT", truncate(note));
+        audit.record(adminId, adminName, AuditLogRepo.ACTION_TOPIC_OFFLINE, "REJECT",
+                AuditLogRepo.TARGET_TOPIC, null, id,
+                "辩题下架 #" + id + titleOf(id) + "，理由：" + note, ip);
+        log.info("辩题下架 id={} reason={} by={}", id, why, adminName);
+    }
+
+    /** 审计描述里带一眼题目标题（截断到 40 字，别把 detail 撑爆）。 */
+    private String titleOf(String id) {
+        Map<String, Object> row = repo.find(id);
+        Object t = row == null ? null : row.get("title");
+        String s = t == null ? "" : String.valueOf(t);
+        if (s.isEmpty()) return "";
+        return "「" + (s.length() <= 40 ? s : s.substring(0, 40)) + "」";
     }
 
     private void requireTopic(String id) {

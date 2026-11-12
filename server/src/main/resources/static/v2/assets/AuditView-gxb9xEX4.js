@@ -1,6 +1,6 @@
-import { _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, x as createTextVNode, t as toDisplayString, f as createCommentVNode, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, F as Fragment, e as renderList, r as ref, H as adminApi, s as toast, k as openBlock, u as unref, n as normalizeClass } from "./index-DPLYiPqf.js";
-import { u as useAdminStore } from "./admin-soGKd_4u.js";
-import { e as errText, f as fmtTime, a as actionName } from "./helpers-GwMOC4IQ.js";
+import { _ as _export_sfc, o as onMounted, c as createElementBlock, d as createBaseVNode, x as createTextVNode, t as toDisplayString, f as createCommentVNode, p as withDirectives, v as vModelText, q as withKeys, G as vModelSelect, F as Fragment, e as renderList, r as ref, H as adminApi, s as toast, k as openBlock, u as unref, n as normalizeClass } from "./index-DeYGo5O-.js";
+import { u as useAdminStore } from "./admin-CpUIVmsd.js";
+import { e as errText, f as fmtTime, a as actionName } from "./helpers-1QlzAgox.js";
 const _hoisted_1 = { "data-panel": "audit" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -74,10 +74,30 @@ const _sfc_main = {
     const admin = useAdminStore();
     const audit = ref(null);
     const f = ref({ q: "", adm: "", action: "", verdict: "", targetType: "", source: "", from: "", to: "" });
-    const ACTIONS = [["", "全部动作"], ["REPORT_RESOLVE", "举报处置"], ["RESTORE", "撤销处理"]];
-    const VERDICTS = [["", "全部结果"], ["IGNORE", "忽略"], ["DELETE", "删除内容"], ["BAN", "禁言"], ["DELETE_AND_BAN", "删除+禁言"]];
-    const TARGETS = [["", "全部对象"], ["POST", "帖子"], ["COMMENT", "评论"], ["USER", "用户"]];
-    const SOURCES = [["", "全部来源"], ["REPORT", "举报"], ["MANUAL", "内容管理"]];
+    const ACTIONS = [
+      ["", "全部动作"],
+      ["REPORT_RESOLVE", "举报处置 / 内容处置"],
+      ["RESTORE", "撤销处理"],
+      ["VIDEO_DECIDE", "视频复核"],
+      ["VIDEO_RESTORE", "视频恢复"],
+      ["TOPIC_APPROVE", "辩题通过"],
+      ["TOPIC_REJECT", "辩题驳回"],
+      ["TOPIC_OFFLINE", "辩题下架"],
+      ["USER_BAN", "全站封禁"],
+      ["USER_UNBAN", "解除封禁"]
+    ];
+    const VERDICTS = [
+      ["", "全部结果"],
+      ["IGNORE", "忽略"],
+      ["DELETE", "删除内容"],
+      ["BAN", "禁言"],
+      ["DELETE_AND_BAN", "删除+禁言"],
+      ["PASS", "通过"],
+      ["REJECT", "驳回"],
+      ["UNBAN", "解封"]
+    ];
+    const TARGETS = [["", "全部对象"], ["POST", "帖子"], ["COMMENT", "评论"], ["USER", "用户"], ["VIDEO", "视频"], ["TOPIC", "辩题"]];
+    const SOURCES = [["", "全部来源"], ["REPORT", "举报"], ["MANUAL", "管理台"]];
     onMounted(() => loadAudit(1));
     function filters() {
       const v = f.value;
@@ -91,6 +111,11 @@ const _sfc_main = {
         from: v.from || void 0,
         to: v.to || void 0
       };
+    }
+    function actionLabel(r) {
+      if (r.action === "REPORT_RESOLVE") return r.source === "MANUAL" ? "内容处置" : "举报处置";
+      if (r.action === "RESTORE") return r.source === "MANUAL" ? "解除屏蔽" : "撤销处理";
+      return actionName(r.action);
     }
     async function loadAudit(page = 1) {
       try {
@@ -260,21 +285,25 @@ const _sfc_main = {
                   createBaseVNode("td", null, toDisplayString(r.adminName || "#" + r.adminId), 1),
                   createBaseVNode("td", _hoisted_13, [
                     createBaseVNode("span", {
-                      class: normalizeClass(["tag", r.action === "RESTORE" ? "blue" : "orange"])
-                    }, toDisplayString(unref(actionName)(r.action)), 3),
+                      class: normalizeClass(["tag", r.action === "RESTORE" ? "blue" : r.source === "REPORT" ? "orange" : ""])
+                    }, toDisplayString(actionLabel(r)), 3),
                     r.verdict ? (openBlock(), createElementBlock("div", _hoisted_14, toDisplayString(unref(actionName)(r.verdict)), 1)) : createCommentVNode("", true)
                   ]),
                   createBaseVNode("td", _hoisted_15, [
                     r.targetType === "USER" ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
                       createTextVNode("用户 " + toDisplayString(r.targetOwner || ""), 1)
-                    ], 64)) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
+                    ], 64)) : r.targetType === "TOPIC" ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
+                      createTextVNode("辩题 " + toDisplayString(r.targetOwner || ""), 1)
+                    ], 64)) : r.targetType === "VIDEO" ? (openBlock(), createElementBlock(Fragment, { key: 2 }, [
+                      createTextVNode("视频 #" + toDisplayString(r.targetId), 1)
+                    ], 64)) : (openBlock(), createElementBlock(Fragment, { key: 3 }, [
                       createTextVNode(toDisplayString(r.targetType ? (r.targetType === "POST" ? "帖子" : "评论") + " #" + r.targetId : "-"), 1)
                     ], 64))
                   ]),
                   createBaseVNode("td", _hoisted_16, [
                     createBaseVNode("span", {
                       class: normalizeClass(["tag", r.source === "MANUAL" ? "blue" : ""])
-                    }, toDisplayString(r.source === "MANUAL" ? "内容管理" : "举报"), 3)
+                    }, toDisplayString(r.source === "MANUAL" ? "管理台" : "举报"), 3)
                   ]),
                   createBaseVNode("td", null, toDisplayString(r.detail || ""), 1),
                   createBaseVNode("td", null, [
@@ -314,7 +343,7 @@ const _sfc_main = {
     };
   }
 };
-const AuditView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-014a5161"]]);
+const AuditView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-ff011226"]]);
 export {
   AuditView as default
 };

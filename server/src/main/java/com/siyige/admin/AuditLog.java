@@ -62,6 +62,23 @@ public class AuditLog {
                 targetOwner, detail, ip);
     }
 
+    /**
+     * 通用写入口：视频复核 / 辩题审核 / 封禁解封等"管理台动作"都用它。
+     *
+     * <p>这些行的 `report_id = 0`（没有举报来源）、`source = MANUAL`，
+     * 因此**不会**出现在「一键恢复」的候选里（{@code canRestore} 只认 REPORT_RESOLVE + DELETE 类）——
+     * 各自的撤销在各自页面做（视频「恢复」、辩题改回「通过」、内容「解除屏蔽」）。
+     *
+     * @param action 取 {@code AuditLogRepo.ACTION_*}（VIDEO_DECIDE / TOPIC_OFFLINE / USER_BAN …）
+     * @param verdict 判定结果（PASS / REJECT / BAN / UNBAN），撤销类动作传 null
+     * @param targetOwner 目标归属：VIDEO/USER 传用户 id；TOPIC 传**题目 id**（`target_id` 是 bigint，
+     *                    装不下 `t7` 这种字符串 id，所以放这儿）
+     */
+    public void record(long adminId, String adminName, String action, String verdict, String targetType,
+                       Long targetId, String targetOwner, String detail, String ip) {
+        writeManual(action, verdict, adminId, adminName, targetType, targetId, targetOwner, detail, ip);
+    }
+
     private void writeManual(String action, String verdict, long adminId, String adminName,
                              String targetType, Long targetId, String targetOwner, String detail, String ip) {
         try {

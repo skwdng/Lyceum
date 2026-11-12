@@ -299,7 +299,39 @@ await check('D6 非管理员调管理端题库/视频复核被拒', async () => 
   return `topics=${t.status} video-audit=${v.status}`;
 });
 
-await check('D6 全程零 JS 异常', async () => {
+await check('D7 处理记录覆盖视频/辩题/封禁（不只是删帖删评禁言）', async () => {
+  // 补一次「辩题驳回」（D4 里只测了空理由被拒）和一对封禁/解封
+  const all = await call('GET', '/api/admin/topics?modStatus=ALL&page=1&size=50', undefined, ADMIN);
+  const another = (all.body.items || []).find((t) => t.id !== topicId);
+  if (another) {
+    await call('POST', `/api/admin/topics/${another.id}/reject`, { reason: '自检驳回' }, ADMIN);
+  }
+  const me = await call('GET', '/api/auth/me', undefined, user);
+  const target = me.body.id;
+  await call('POST', `/api/admin/users/${target}/status`, { status: 0, reason: '自检封禁' }, ADMIN);
+  await call('POST', `/api/admin/users/${target}/status`, { status: 1, reason: '自检解封' }, ADMIN);
+
+  const rows = await call('GET', '/api/admin/audit?page=1&size=50', undefined, ADMIN);
+  const items = rows.body.items || [];
+  const actions = items.map((r) => r.action);
+  const need = ['VIDEO_DECIDE', 'VIDEO_RESTORE', 'TOPIC_APPROVE', 'TOPIC_OFFLINE', 'TOPIC_REJECT', 'USER_BAN', 'USER_UNBAN'];
+  const missing = need.filter((a) => !actions.includes(a));
+  if (missing.length) throw new Error('处理记录缺这些动作：' + missing.join(',') + '（已有：' + [...new Set(actions)].join(',') + '）');
+
+  // 页面也要能看见：动作名是中文、对象列能区分 视频/辩题/用户
+  await openAdmin('admin/audit');
+  await waitFor(`document.querySelectorAll('[data-panel="audit"] tbody tr').length > 0`, '处理记录行');
+  const text = await ev(`document.querySelector('[data-panel="audit"]').innerText`);
+  for (const k of ['视频复核', '视频恢复', '辩题通过', '辩题下架', '辩题驳回', '全站封禁', '解除封禁']) {
+    if (!text.includes(k)) throw new Error('页面没显示「' + k + '」');
+  }
+  for (const k of ['视频 #', '辩题 t', '用户 ']) {
+    if (!text.includes(k)) throw new Error('对象列没显示「' + k + '」');
+  }
+  return `${need.length} 种动作齐全 · 页面文案/对象列都正确`;
+});
+
+await check('D8 全程零 JS 异常', async () => {
   if (errs.length) throw new Error(errs.slice(0, 2).join(' | '));
   return '无异常';
 });

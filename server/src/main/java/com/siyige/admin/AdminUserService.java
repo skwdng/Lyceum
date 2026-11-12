@@ -33,13 +33,16 @@ public class AdminUserService {
     private final BanService bans;
 
     private final com.siyige.community.NotificationService notifications;
+    /** 处理记录：封禁/解封也要留痕（2026-11-12 用户要求，处理记录要覆盖管理台所有动作） */
+    private final AuditLog audit;
 
     public AdminUserService(AdminUserRepo repo, BanRepo banRepo, BanService bans,
-                            com.siyige.community.NotificationService notifications) {
+                            com.siyige.community.NotificationService notifications, AuditLog audit) {
         this.repo = repo;
         this.banRepo = banRepo;
         this.bans = bans;
         this.notifications = notifications;
+        this.audit = audit;
     }
 
     // ==================== 列表 ====================
@@ -99,7 +102,7 @@ public class AdminUserService {
      * 所以**封了之后下一次请求就被踢**（不加缓存，决策 8）。
      */
     public void setStatus(String userId, Integer status, String reason) {
-        setStatus(userId, status, reason, 0L);
+        setStatus(userId, status, reason, 0L, null, null);
     }
 
     /**
@@ -109,6 +112,16 @@ public class AdminUserService {
      * 通知失败不影响封禁本身（NotificationService 内部兜住）。
      */
     public void setStatus(String userId, Integer status, String reason, long adminId) {
+        setStatus(userId, status, reason, adminId, null, null);
+    }
+
+    /**
+     * 全站封禁 / 解封（带操作人与来源 IP），并写一条处理记录。
+     *
+     * <p>审计写失败不影响封禁本身（{@link AuditLog#record} 内部兜住异常）。
+     */
+    public void setStatus(String userId, Integer status, String reason, long adminId,
+                          String adminName, String ip) {
         requireUser(userId);
         if (status == null || (status != 0 && status != 1)) {
             throw AuthException.invalidParam("status 只能是 0（封禁）或 1（正常）");
@@ -117,11 +130,19 @@ public class AdminUserService {
             throw AuthException.invalidParam("封禁原因最多 200 字");
         }
         repo.setStatus(userId, status);
-        log.info("全站状态变更 userId={} status={} reason={} ", userId, status,
-                reason == null ? "-" : reason.trim());
+        String why = reason == null ? "" : reason.trim();
+        log.info("全站状态变更 userId={} status={} reason={} ", userId, status, why.isEmpty() ? "-" : why);
         // 通知：封禁带理由，解封告知一声。失败不影响封禁本身（service 内部兜住）
         if (status == 0) notifications.onBanned(userId, adminId, reason);
         else notifications.onUnbanned(userId, adminId);
+
+        // 处理记录：处理记录页要能覆盖管理台所有动作，封禁/解封不能只在 sy_user 里改一列
+        audit.record(adminId, adminName,
+                status == 0 ? AuditLogRepo.ACTION_USER_BAN : AuditLogRepo.ACTION_USER_UNBAN,
+                status == 0 ? "BAN" : "UNBAN",
+                AuditLogRepo.TARGET_USER, null, userId,
+                (status == 0 ? "全站封禁 " : "解除封禁 ") + userId
+                        + (why.isEmpty() ? "" : "，理由：" + why), ip);
     }
 
     // ==================== 统计辅助 ====================

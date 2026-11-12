@@ -27,10 +27,30 @@ const audit = ref(null);
  */
 const f = ref({ q: '', adm: '', action: '', verdict: '', targetType: '', source: '', from: '', to: '' });
 
-const ACTIONS = [['', '全部动作'], ['REPORT_RESOLVE', '举报处置'], ['RESTORE', '撤销处理']];
-const VERDICTS = [['', '全部结果'], ['IGNORE', '忽略'], ['DELETE', '删除内容'], ['BAN', '禁言'], ['DELETE_AND_BAN', '删除+禁言']];
-const TARGETS = [['', '全部对象'], ['POST', '帖子'], ['COMMENT', '评论'], ['USER', '用户']];
-const SOURCES = [['', '全部来源'], ['REPORT', '举报'], ['MANUAL', '内容管理']];
+const ACTIONS = [
+  ['', '全部动作'],
+  ['REPORT_RESOLVE', '举报处置 / 内容处置'],
+  ['RESTORE', '撤销处理'],
+  ['VIDEO_DECIDE', '视频复核'],
+  ['VIDEO_RESTORE', '视频恢复'],
+  ['TOPIC_APPROVE', '辩题通过'],
+  ['TOPIC_REJECT', '辩题驳回'],
+  ['TOPIC_OFFLINE', '辩题下架'],
+  ['USER_BAN', '全站封禁'],
+  ['USER_UNBAN', '解除封禁']
+];
+const VERDICTS = [
+  ['', '全部结果'],
+  ['IGNORE', '忽略'],
+  ['DELETE', '删除内容'],
+  ['BAN', '禁言'],
+  ['DELETE_AND_BAN', '删除+禁言'],
+  ['PASS', '通过'],
+  ['REJECT', '驳回'],
+  ['UNBAN', '解封']
+];
+const TARGETS = [['', '全部对象'], ['POST', '帖子'], ['COMMENT', '评论'], ['USER', '用户'], ['VIDEO', '视频'], ['TOPIC', '辩题']];
+const SOURCES = [['', '全部来源'], ['REPORT', '举报'], ['MANUAL', '管理台']];
 
 onMounted(() => loadAudit(1));
 
@@ -46,6 +66,14 @@ function filters() {
     from: v.from || undefined,
     to: v.to || undefined
   };
+}
+
+/** 动作标签：同样是 REPORT_RESOLVE，从举报来的是「举报处置」，管理台直接做的是「内容处置」——
+ *  这两个的含义差很多（前者有举报人、后者没有），只按下拉里的枚举名显示会误导。 */
+function actionLabel(r) {
+  if (r.action === 'REPORT_RESOLVE') return r.source === 'MANUAL' ? '内容处置' : '举报处置';
+  if (r.action === 'RESTORE') return r.source === 'MANUAL' ? '解除屏蔽' : '撤销处理';
+  return actionName(r.action);
 }
 
 async function loadAudit(page = 1) {
@@ -134,15 +162,21 @@ async function restoreAudit(id) {
             <td class="muted" style="white-space: nowrap">{{ fmtTime(r.createdAt) }}</td>
             <td>{{ r.adminName || '#' + r.adminId }}</td>
             <td style="white-space: nowrap">
-              <span class="tag" :class="r.action === 'RESTORE' ? 'blue' : 'orange'">{{ actionName(r.action) }}</span>
+              <span class="tag" :class="r.action === 'RESTORE' ? 'blue' : (r.source === 'REPORT' ? 'orange' : '')">
+                {{ actionLabel(r) }}
+              </span>
               <div v-if="r.verdict" class="muted" style="font-size: 11.5px">{{ actionName(r.verdict) }}</div>
             </td>
             <td style="white-space: nowrap">
+              <!-- 对象：USER/TOPIC 的目标 id 不是数字（用户 id 是字符串、题目 id 是 t7 这种），
+                   所以它们放在 target_owner 里，这里按类型分开渲染 -->
               <template v-if="r.targetType === 'USER'">用户 {{ r.targetOwner || '' }}</template>
+              <template v-else-if="r.targetType === 'TOPIC'">辩题 {{ r.targetOwner || '' }}</template>
+              <template v-else-if="r.targetType === 'VIDEO'">视频 #{{ r.targetId }}</template>
               <template v-else>{{ r.targetType ? (r.targetType === 'POST' ? '帖子' : '评论') + ' #' + r.targetId : '-' }}</template>
             </td>
             <td style="white-space: nowrap">
-              <span class="tag" :class="r.source === 'MANUAL' ? 'blue' : ''">{{ r.source === 'MANUAL' ? '内容管理' : '举报' }}</span>
+              <span class="tag" :class="r.source === 'MANUAL' ? 'blue' : ''">{{ r.source === 'MANUAL' ? '管理台' : '举报' }}</span>
             </td>
             <td>{{ r.detail || '' }}</td>
             <td>
