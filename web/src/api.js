@@ -416,3 +416,18 @@ export const videoAuditApi = {
   restore: (id) => adminRequest('/video-audit/' + id + '/restore', { method: 'POST' }),
   rules: () => adminRequest('/video-audit/rules')
 };
+
+// ==================== 辩题审核（管理端） ====================
+
+/**
+ * 辩题审核。管理端列表**含被驳回/下架的题**（前台题库会过滤掉 REJECT，
+ * 那是 `Store.topics()` 的口径，两边各用各的 SQL）。
+ */
+export const topicAdminApi = {
+  list: (p) => adminRequest('/topics?' + toQuery(p)),
+  approve: (id) => adminRequest('/topics/' + encodeURIComponent(id) + '/approve', { method: 'POST' }),
+  reject: (id, reason) =>
+    adminRequest('/topics/' + encodeURIComponent(id) + '/reject', { method: 'POST', body: { reason } }),
+  offline: (id, reason) =>
+    adminRequest('/topics/' + encodeURIComponent(id) + '/offline', { method: 'POST', body: { reason } })
+};

@@ -32,7 +32,10 @@ public class Store {
 
     // ---------- topic ----------
     public List<Map<String, Object>> topics(String cat, String kw) {
-        StringBuilder sql = new StringBuilder("select * from sy_topic where 1=1");
+        // 前台题库要过滤掉被驳回/下架的题（mod_status = REJECT）。
+        // 管理端**不用**这条：它要能看到被驳回的题才能改判（见 AdminTopicRepo）。
+        StringBuilder sql = new StringBuilder(
+                "select * from sy_topic where coalesce(mod_status, 'PASS') <> 'REJECT'");
         List<Object> args = new ArrayList<>();
         if (cat != null && !cat.isBlank() && !"全部".equals(cat)) { sql.append(" and cat=?"); args.add(cat); }
         if (kw != null && !kw.isBlank()) { sql.append(" and title like ?"); args.add("%" + kw + "%"); }

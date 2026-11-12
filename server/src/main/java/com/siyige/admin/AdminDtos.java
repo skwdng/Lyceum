@@ -50,6 +50,9 @@ public final class AdminDtos {
     /** 视频复核：人工判定入参。decision = PASS | REJECT。 */
     public record VideoDecideRequest(String decision, String reason) { }
 
+    /** 辩题审核：驳回 / 下架的理由（驳回必填）。 */
+    public record TopicReasonRequest(String reason) { }
+
     /**
      * 举报处理入参。
      *
