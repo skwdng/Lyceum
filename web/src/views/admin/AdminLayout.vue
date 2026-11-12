@@ -33,12 +33,16 @@ const isGuest = computed(() => route.meta.guest === true);
 const title = computed(() => (route.meta && route.meta.title) || '管理台');
 
 /**
- * 内容区是独立滚动容器（整页高度固定 100vh），所以切页时必须手动把滚动位置归零 ——
- * 否则从"报表分析"（很长）切到"概览"会停在半空中，看起来像页面空白。
+ * 切页时把滚动位置归零。
+ *
+ * 现在整页滚动（document），所以主要归零 window；`mainEl` 仍是保守兜底 ——
+ * 万一将来又有人把内容区改回独立滚动容器，这一行能继续生效。
+ * 不归零的后果：从"处理记录"（很长）切到"概览"会停在半空中，看着像页面空白。
  */
 const mainEl = ref(null);
 watch(() => route.fullPath, () => {
   if (mainEl.value) mainEl.value.scrollTop = 0;
+  if (typeof window !== 'undefined') window.scrollTo(0, 0);
 });
 
 /** 折叠只在宽屏生效；窄屏永远是抽屉（宽度由 CSS 固定 208px） */

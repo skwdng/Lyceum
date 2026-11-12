@@ -14,9 +14,12 @@ import { errText } from './helpers.js';
 const STATUSES = [['REVIEW', '待复核'], ['PASSED', '已通过'], ['REJECTED', '已驳回'], ['ALL', '全部']];
 
 const status = ref('REVIEW');
-const size = 30;
+const page = ref(1);
+const size = 20;
 const list = ref([]);
 const stats = ref(null);
+const total = ref(0);
+const pages = ref(1);
 const loading = ref(true);
 const error = ref('');
 const busy = ref('');
@@ -32,9 +35,11 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await videoAuditApi.queue(status.value, size);
+    const res = await videoAuditApi.queue(status.value, page.value, size);
     list.value = res.list || [];
     stats.value = res.stats || null;
+    total.value = res.total || 0;
+    pages.value = res.pages || 1;
   } catch (e) {
     error.value = errText(e) || '加载失败';
     list.value = [];
@@ -44,6 +49,19 @@ async function load() {
 }
 
 onMounted(load);
+
+/** 切状态回到第 1 页（否则停在"待复核 3/3"这种不存在的页上） */
+function switchStatus(s) {
+  status.value = s;
+  page.value = 1;
+  load();
+}
+
+function go(p) {
+  if (p < 1 || p > pages.value) return;
+  page.value = p;
+  load();
+}
 
 async function act(key, fn, msg) {
   if (busy.value) return;
@@ -109,8 +127,9 @@ const ts = (v) => (typeof v === 'number' ? fmt(v) : (v ? String(v).slice(0, 16).
       <div class="body">
         <div class="va-bar">
           <button v-for="s in STATUSES" :key="s[0]" class="btn sm" :class="{ primary: status === s[0] }"
-                  @click="status = s[0]; load()">{{ s[1] }}</button>
+                  @click="switchStatus(s[0])">{{ s[1] }}</button>
           <span class="spacer"></span>
+          <span class="muted" style="font-size: 12px">共 {{ total }} 条</span>
           <button class="btn sm" :disabled="loading" @click="load">刷新</button>
         </div>
 
@@ -161,6 +180,12 @@ const ts = (v) => (typeof v === 'number' ? fmt(v) : (v ? String(v).slice(0, 16).
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div class="va-page">
+          <button class="btn sm" :disabled="page <= 1" @click="go(page - 1)">上一页</button>
+          <span class="muted">{{ page }} / {{ pages }}（共 {{ total }} 条）</span>
+          <button class="btn sm" :disabled="page >= pages" @click="go(page + 1)">下一页</button>
         </div>
       </div>
     </div>
@@ -222,6 +247,7 @@ const ts = (v) => (typeof v === 'number' ? fmt(v) : (v ? String(v).slice(0, 16).
 .va-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .va-ops { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .va-reason { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.va-page { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px; }
 .va-lb { display: block; font-size: 12.5px; color: #86909C; margin-bottom: 6px; }
 .va-ta { width: 100%; padding: 8px 10px; border: 1px solid #E5E6EB; border-radius: 8px; font-size: 13px; resize: vertical; }
 </style>

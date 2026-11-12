@@ -409,7 +409,7 @@ export const contentApi = {
  * 数据层与视频模块完全一致（同一个 VideoRepo），只是鉴权与操作人不同。
  */
 export const videoAuditApi = {
-  queue: (status, size = 30) => adminRequest('/video-audit/queue?' + toQuery({ status, size })),
+  queue: (status, page = 1, size = 20) => adminRequest('/video-audit/queue?' + toQuery({ status, page, size })),
   logs: (id) => adminRequest('/video-audit/' + id + '/logs'),
   decide: (id, decision, reason) =>
     adminRequest('/video-audit/' + id + '/decide', { method: 'POST', body: { decision, reason } }),

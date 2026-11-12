@@ -247,7 +247,34 @@ await check('A8 处理记录页分得出「内容管理」与「举报」两种�
   return `来源列：内容管理 ${st.manual} 条 / 举报 ${st.report} 条`;
 });
 
-await check('A9 全程零 JS 异常', async () => {
+await check('A9 长列表：1280x720 下页面可滚到底且分页栏可见（回归 2026-11-12 显示不全问题）', async () => {
+  // 这条守的是两个坑：① 主站全局 .panel 的 max-height:88vh 串到管理台导致内容被裁且无滑条；
+  // ② 内容区自成滚动容器、滚动条看不见。改成整页滚动 + panel max-height:none 之后，必须能滚到底。
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false });
+  try {
+    await openAdmin('admin/topics');            // 12 道题，必然超过 720 高
+    await waitFor(`document.querySelectorAll('[data-panel="topic-review"] tbody tr').length > 3`, '辩题行');
+    const st = await ev(`(async()=>{
+      const panel = document.querySelector('[data-panel="topic-review"] .panel');
+      const scrollable = document.documentElement.scrollHeight - innerHeight > 8;
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      await new Promise(r=>setTimeout(r,150));
+      const el = document.querySelector('[data-panel="topic-review"] .tr-page');
+      const r = el ? el.getBoundingClientRect() : null;
+      return { scrollable, maxH: getComputedStyle(panel).maxHeight,
+               atBottom: scrollY + innerHeight >= document.documentElement.scrollHeight - 2,
+               pagerVisible: r ? (r.top < innerHeight && r.bottom > 0) : false };})()`);
+    if (st.maxH !== 'none') throw new Error('面板仍被 max-height 限制：' + st.maxH);
+    if (!st.scrollable) throw new Error('内容超出但页面不可滚（滚动条/裁切问题回来了）');
+    if (!st.atBottom) throw new Error('滚不到底');
+    if (!st.pagerVisible) throw new Error('滚到底后分页栏仍不可见');
+    return `maxHeight=${st.maxH} · 可滚到底 · 分页栏可见`;
+  } finally {
+    await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
+  }
+});
+
+await check('A10 全程零 JS 异常', async () => {
   if (errs.length) throw new Error(errs.slice(0, 2).join(' | '));
   return '无异常';
 });

@@ -47,8 +47,17 @@
 
 /* ==================== 布局：侧栏 + 顶栏（本批新增） ==================== */
 
-/* 固定外壳：整页不再随内容变长，只有内容区自己滚（矮屏下侧栏/顶栏不动，滚动条属于内容区） */
-.adm-root .adm-layout{display:flex;height:100vh;overflow:hidden}
+/*
+ * 滚动策略：**整页滚动**（document 滚动），不再让内容区自己滚。
+ *
+ * 为什么改：之前是 `height:100vh + overflow:hidden` 外壳 + 内容区 `overflow-y:auto`。
+ * 内容区滚动条在很多场景下看不见（缩放 125%/150%、窗口较矮、被嵌在预览框里时尤其明显），
+ * 于是页面底部（包括分页栏）看着像被截断、又找不到滑条。改成整页滚动后，
+ * 浏览器自己的滚动条一定在，任何缩放下都能滚到分页栏。
+ *
+ * 侧栏仍是 sticky（桌面）/ fixed（窄屏抽屉），位置不受影响。
+ */
+.adm-root .adm-layout{display:flex;min-height:100vh;align-items:flex-start}
 
 .adm-root .adm-side{width:208px;flex:0 0 208px;background:#fff;border-right:1px solid #E5E6EB;
   display:flex;flex-direction:column;padding:14px 10px;position:sticky;top:0;height:100vh;
@@ -77,8 +86,8 @@
 .adm-root .adm-layout.collapsed .adm-nav a .badge{position:absolute;top:4px;right:8px;
   width:8px;height:8px;padding:0;border-radius:50%;font-size:0;overflow:hidden}
 
-.adm-root .adm-main{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;
-  overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+/* 内容列：不再自己滚（整页滚），只负责撑开高度 */
+.adm-root .adm-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .adm-root .adm-top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #E5E6EB;
   height:56px;display:flex;align-items:center;gap:12px;padding:0 20px}
 .adm-root .adm-title{font-size:15px;font-weight:600;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -109,7 +118,16 @@
 .adm-root .card .k{font-size:12.5px;color:#86909C}
 .adm-root .card .v{font-size:26px;font-weight:700;margin-top:4px}
 
-.adm-root .panel{background:#fff;border-radius:12px;border:1px solid #EFF0F1;overflow:hidden;width:auto}
+/*
+ * 面板。**必须显式清掉主站 `.panel` 的三个属性**：style.css 里有一条全局 `.panel`
+ * （主站弹窗用的：width:min(760px,100%) / max-height:88vh / overflow:auto / box-shadow），
+ * 类名和管理台撞车。我们给它加了 `.adm-root` 前缀提高优先级来覆盖，但**只覆盖了写在规则里的那些**，
+ * 于是 max-height:88vh 一直偷偷生效 + 这里的 overflow:hidden 把溢出部分直接裁掉：
+ * 表现就是"内容显示不全、还没有滑条"（2026-11-12 用户反馈，处理记录/辩题审核都能复现）。
+ * 所以 max-height:none 和 box-shadow:none 是**修 bug 必需**，不是可有可无的装饰。
+ */
+.adm-root .panel{background:#fff;border-radius:12px;border:1px solid #EFF0F1;overflow:hidden;
+  width:auto;max-height:none;box-shadow:none}
 .adm-root .panel h2{margin:0;padding:14px 18px;font-size:14px;border-bottom:1px solid #EFF0F1;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .adm-root .panel .body{padding:16px 18px}
 .adm-root .panel .foot{padding:14px 18px;border-top:1px solid #EFF0F1;display:flex;gap:10px;justify-content:flex-end;align-items:center;flex-wrap:wrap}
@@ -129,7 +147,12 @@
 .adm-root .panel > .body.scroll thead th{position:sticky;top:0;z-index:1;background:#FAFBFC}
 
 /* 表格只保留横向滚动（窄屏时列不会被挤没），不再限制高度 */
-.adm-root .tbl-x{overflow-x:auto}
+/* 表格只保留横向滚动（窄屏时列不会被挤没）；滚动条给个能看见的细条，
+   否则宽表格"右边还有内容"这件事完全没提示 */
+.adm-root .tbl-x{overflow-x:auto;scrollbar-width:thin;scrollbar-color:#C9CDD4 #F7F8FA}
+.adm-root .tbl-x::-webkit-scrollbar{height:10px}
+.adm-root .tbl-x::-webkit-scrollbar-thumb{background:#C9CDD4;border-radius:6px}
+.adm-root .tbl-x::-webkit-scrollbar-track{background:#F7F8FA;border-radius:6px}
 
 /* ==================== 加载 / 错误态（P5） ==================== */
 

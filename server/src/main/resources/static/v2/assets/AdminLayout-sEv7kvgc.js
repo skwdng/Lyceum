@@ -1,6 +1,6 @@
-import { r as ref, w as watch, o as onMounted, a as onBeforeUnmount, c as createElementBlock, b as createBlock, n as normalizeClass, d as createBaseVNode, F as Fragment, e as renderList, u as unref, f as createCommentVNode, t as toDisplayString, g as createVNode, h as computed, i as useRouter, j as useRoute, k as openBlock, l as withCtx, m as resolveComponent } from "./index-C3pLguN6.js";
-import { u as useAdminStore } from "./admin-v5oxQozY.js";
-import "./helpers-BrzU9CtK.js";
+import { r as ref, w as watch, o as onMounted, a as onBeforeUnmount, c as createElementBlock, b as createBlock, n as normalizeClass, d as createBaseVNode, F as Fragment, e as renderList, u as unref, f as createCommentVNode, t as toDisplayString, g as createVNode, h as computed, i as useRouter, j as useRoute, k as openBlock, l as withCtx, m as resolveComponent } from "./index-9PMnMO4v.js";
+import { u as useAdminStore } from "./admin-C68Hrkh7.js";
+import "./helpers-C9csyb4n.js";
 const ADMIN_MENU = [
   {
     group: "总览",
@@ -56,6 +56,7 @@ const _sfc_main = {
     const mainEl = ref(null);
     watch(() => route.fullPath, () => {
       if (mainEl.value) mainEl.value.scrollTop = 0;
+      if (typeof window !== "undefined") window.scrollTo(0, 0);
     });
     const collapsed = computed(() => admin.collapsed && !isNarrow.value);
     function badgeOf(key) {
