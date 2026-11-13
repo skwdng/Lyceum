@@ -168,14 +168,25 @@ await check('R2 管理员管理页：新建账号 → 一次性密码弹窗（12
   if (!selfRow || selfRow.role !== true || selfRow.stop !== true) {
     throw new Error('自己那一行的改角色/停用应当置灰：' + JSON.stringify(selfRow));
   }
-  // 填账号 + 选 VIEWER + 提交
-  await ev(`(()=>{const i=document.querySelector('[data-panel="admins"] .ad-input');
-    i.value=${JSON.stringify(viewerAcc)}; i.dispatchEvent(new Event('input',{bubbles:true})); return true;})()`);
-  await ev(`(()=>{const s=document.querySelector('[data-panel="admins"] select');
-    s.value='VIEWER'; s.dispatchEvent(new Event('change',{bubbles:true})); return true;})()`);
+  // 新建账号改成**弹窗**：点「＋ 新建账号」→ 弹窗里填账号/角色 → 创建
   await ev(`(()=>{[...document.querySelectorAll('[data-panel="admins"] button')]
     .find(b=>b.textContent.includes('新建账号')).click(); return true;})()`);
+  await waitFor(`!!document.querySelector('[data-panel="create-admin"]')`, '新建账号弹窗', 20000);
+  await waitFor(`!!document.querySelector('[data-panel="create-admin"] .ac-input')`, '弹窗表单', 20000);
+  await ev(`(()=>{const p=document.querySelector('[data-panel="create-admin"]');
+    const i=p.querySelector('.ac-input');
+    i.value=${JSON.stringify(viewerAcc)}; i.dispatchEvent(new Event('input',{bubbles:true}));
+    const s=p.querySelector('select');
+    s.value='VIEWER'; s.dispatchEvent(new Event('change',{bubbles:true}));
+    return true;})()`);
+  const tip = await ev(`(document.querySelector('[data-panel="create-admin"] .ac-tip')||{textContent:''}).textContent.trim()`);
+  if (!tip.includes('只读')) throw new Error('角色说明没跟着变：' + tip);
+  await ev(`(()=>{[...document.querySelectorAll('[data-panel="create-admin"] .foot button')]
+    .find(b=>b.textContent.includes('创建账号')).click(); return true;})()`);
   await waitFor(`!!document.querySelector('[data-panel="pwd-once"] .ad-pwd')`, '一次性密码弹窗', 20000);
+  if (await ev(`!!document.querySelector('[data-panel="create-admin"]')`)) {
+    throw new Error('创建成功后新建弹窗应当关闭，只留一次性密码弹窗');
+  }
   oneTimePwd = await ev(`document.querySelector('[data-panel="pwd-once"] .ad-pwd').textContent.trim()`);
   if (!/^[A-Za-z0-9]{12}$/.test(oneTimePwd)) throw new Error('一次性密码格式不对：' + oneTimePwd);
   const hint = await ev(`document.querySelector('[data-panel="pwd-once"]').innerText`);

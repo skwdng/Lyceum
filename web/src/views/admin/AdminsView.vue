@@ -25,11 +25,32 @@ const loading = ref(true);
 const error = ref('');
 const busy = ref('');
 
-/** 新建表单 */
+/** 新建账号弹窗里的表单 */
 const account = ref('');
 const role = ref('MOD');
 const customPwd = ref('');
 const creating = ref(false);
+const createOpen = ref(false);
+
+/** 角色一句话说明：建号时就知道这个人能干什么（减少建错角色） */
+const roleTip = computed(() => ({
+  SUPER: '全部权限：管账号、能导出全站数据',
+  OPS: '日常处置 + 处理记录撤销 + 报表；不能导出、不能审视频',
+  MOD: '内容与视频审核；不能封号、不能撤销处置、不能看报表',
+  VIEWER: '只读：所有列表可看，任何写操作都被拒'
+}[role.value] || ''));
+
+function openCreate() {
+  account.value = '';
+  role.value = 'MOD';
+  customPwd.value = '';
+  createOpen.value = true;
+}
+
+function closeCreate() {
+  if (creating.value) return;
+  createOpen.value = false;
+}
 
 /** 一次性密码弹窗：{ account, password, hint, kind } */
 const pwdModal = ref(null);
@@ -69,6 +90,7 @@ async function create() {
       hint: r.hint || '这是唯一一次能看到密码，请立刻线下发给对方',
       kind: 'created'
     };
+    createOpen.value = false;        // 建号成功 → 关掉表单弹窗，只留"一次性密码"那一个
     account.value = '';
     customPwd.value = '';
     await load();
@@ -154,21 +176,8 @@ function closePwdModal() {
       管理员管理
       <span class="spacer"></span>
       <span class="muted" style="font-size: 12.5px">共 {{ items.length }} 个账号</span>
+      <button class="btn primary sm" @click="openCreate">＋ 新建账号</button>
     </h2>
-
-    <!-- 新建 -->
-    <div class="ad-new">
-      <input v-model="account" class="ad-input" placeholder="账号（3-64 位，字母数字 _ . -）"
-             @keyup.enter="create" />
-      <select v-model="role" class="ad-input" style="width: 130px">
-        <option v-for="r in ROLES" :key="r" :value="r">{{ r }} · {{ ROLE_LABEL[r] }}</option>
-      </select>
-      <input v-model="customPwd" class="ad-input" style="min-width: 190px"
-             placeholder="密码（留空自动生成一次性密码）" />
-      <button class="btn primary sm" :disabled="creating" @click="create">
-        {{ creating ? '创建中…' : '新建账号' }}
-      </button>
-    </div>
 
     <div v-if="error" class="adm-error">
       <b>加载失败</b><span class="msg">{{ error }}</span>
@@ -198,7 +207,7 @@ function closePwdModal() {
               <span v-if="it.mustChangePwd" class="tag orange" style="margin-left: 6px">待改密</span>
             </td>
             <td>
-              <select class="ad-input ad-role" :value="it.role"
+              <select class="ad-role" :value="it.role"
                       :disabled="it.id === myId || busy === 'role' + it.id"
                       :title="it.id === myId ? '不能修改自己的角色（防止把自己锁死）' : '改角色后对方下一次请求就生效'"
                       @change="changeRole(it, $event.target.value)">
@@ -226,9 +235,41 @@ function closePwdModal() {
     </div>
 
     <p class="muted" style="font-size: 12px; margin-top: 12px">
-      账号只能由超管创建，**不存在自助注册**；不能硬删除（处理记录要对得上人），只能停用。
+      账号只能由超管创建，<b>不存在自助注册</b>；不能硬删除（处理记录要对得上人），只能停用。
       系统始终至少保留一个启用的超管。
     </p>
+
+    <!-- 新建账号：独立弹窗（不在列表上方堆表单，避免和表格抢视觉重心） -->
+    <div v-if="createOpen" class="mask" @click.self="closeCreate">
+      <div class="modal" style="width: 460px" data-panel="create-admin">
+        <h3>新建管理员账号</h3>
+        <div class="body">
+          <label class="ac-lb">账号</label>
+          <input v-model="account" class="ac-input" maxlength="64" autofocus
+                 placeholder="3-64 位，字母或数字开头，可含 _ . -" @keyup.enter="create" />
+
+          <label class="ac-lb">角色</label>
+          <select v-model="role" class="ac-input">
+            <option v-for="r in ROLES" :key="r" :value="r">{{ r }} · {{ ROLE_LABEL[r] }}</option>
+          </select>
+          <div class="ac-tip">{{ roleTip }}</div>
+
+          <label class="ac-lb">初始密码（可空）</label>
+          <input v-model="customPwd" type="text" class="ac-input" maxlength="64"
+                 placeholder="留空则自动生成一次性密码（推荐）" />
+
+          <p class="muted" style="font-size: 12px; margin: 10px 0 0">
+            创建成功后<b>只显示一次</b>密码：请立刻线下发给对方，对方首登必须改密。
+          </p>
+        </div>
+        <div class="foot">
+          <button class="btn" :disabled="creating" @click="closeCreate">取消</button>
+          <button class="btn primary" :disabled="creating" @click="create">
+            {{ creating ? '创建中…' : '创建账号' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- 一次性密码：唯一一次可见 -->
     <div v-if="pwdModal" class="mask" @click.self="closePwdModal">
@@ -253,12 +294,18 @@ function closePwdModal() {
 </template>
 
 <style scoped>
-.ad-new { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-.ad-input { width: auto; padding: 8px 10px; border: 1px solid #E5E6EB; border-radius: 8px;
-  font-size: 13px; background: #fff; }
-.ad-role { padding: 5px 8px; font-size: 12.5px; }
+/* 表格里的角色下拉 */
+.ad-role { padding: 5px 8px; font-size: 12.5px; border: 1px solid #E5E6EB; border-radius: 8px;
+  background: #fff; width: auto; }
 .ad-ops { display: inline-flex; gap: 6px; }
 .ad-pwd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 20px;
   letter-spacing: 1.5px; background: #F7F8FA; border: 1px dashed #C9CDD4; border-radius: 10px;
   padding: 14px; text-align: center; user-select: all; }
+
+/* 新建账号弹窗表单 */
+.ac-lb { display: block; font-size: 12.5px; color: #86909C; margin: 12px 0 6px; }
+.ac-lb:first-child { margin-top: 0; }
+.ac-input { width: 100%; padding: 9px 11px; border: 1px solid #E5E6EB; border-radius: 9px;
+  font-size: 13.5px; background: #fff; }
+.ac-tip { font-size: 11.5px; color: #86909C; margin-top: 5px; }
 </style>
