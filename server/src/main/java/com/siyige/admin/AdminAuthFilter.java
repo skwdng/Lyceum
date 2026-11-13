@@ -86,7 +86,9 @@ public class AdminAuthFilter extends OncePerRequestFilter {
                 long adminId = Long.parseLong(parsed.userId());
                 AdminStatusSource.AdminAuthInfo info = adminStatus.authInfo(adminId);
                 AuthState state = info.state();
-                if (state.disabled()) throw AuthException.notAdmin();
+                // 停用身份用 401 而不是 403：前端对 401 统一清令牌回登录页，
+            // 用 403 会停在「无权限」卡片上，当事人看不出是账号被停用了。
+            if (state.disabled()) throw AuthException.adminDisabled();
                 // 改密后，改密之前签发的管理员令牌立刻失效
                 if (state.isTokenStale(parsed.issuedAt())) throw AuthException.tokenStale();
 

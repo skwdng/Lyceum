@@ -64,17 +64,19 @@ public class RestoreService {
         if (row.get("undo_at") != null) {
             throw new IllegalArgumentException("ALREADY_RESTORED: 这次处理已经撤销过了");
         }
-        if (!AuditLogService.canRestore(row)) {
-            String verdict = row.get("verdict") == null ? "" : String.valueOf(row.get("verdict"));
-            throw new IllegalArgumentException("NOT_RESTORABLE: 这次处理没有可恢复的内容（"
-                    + AuditLogService.actionName(verdict) + "）");
-        }
-
         String targetType = row.get("target_type") == null ? null : String.valueOf(row.get("target_type"));
         // R2：管理员账号相关记录**永远不可恢复**。不拦住的话，处理记录页会出现一个「恢复」按钮，
         // 点了会拿着管理员 id 去 community.restorePost/Comment 里瞎改内容。
+        // 放在 canRestore 之前：那条通用文案会拼出空括号「（）」（管理员记录没有 verdict）。
         if (AuditLogRepo.TARGET_ADMIN.equals(targetType)) {
             throw new IllegalArgumentException("NOT_RESTORABLE: 管理员账号操作不能撤销（请到管理员管理页调整）");
+        }
+
+        if (!AuditLogService.canRestore(row)) {
+            String verdict = row.get("verdict") == null ? "" : String.valueOf(row.get("verdict"));
+            String why = AuditLogService.actionName(verdict);
+            throw new IllegalArgumentException("NOT_RESTORABLE: 这次处理没有可恢复的内容"
+                    + (why == null || why.isBlank() ? "" : "（" + why + "）"));
         }
         Object tid = row.get("target_id");
         if (targetType == null || tid == null) {

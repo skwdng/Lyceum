@@ -1499,7 +1499,7 @@ web/
 | content:read / moderate | Y / Y | Y / Y | Y / Y | Y / - |
 | audit:read / restore | Y / Y | Y / Y | Y / - | Y / - |
 | video:read / audit | Y / Y | Y / - | Y / Y | Y / - |
-| topic:read / moderate | Y / Y | Y / Y | Y / - | Y / - |
+| topic:read / moderate | Y / Y | Y / Y | Y / Y | Y / - |
 | analytics:read / export | Y / Y | Y / - | - / - | Y / - |
 
 ### 28.3 数据与鉴权链路

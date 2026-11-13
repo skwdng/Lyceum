@@ -173,8 +173,9 @@ class AdminAuthFilterTest {
 
         MockHttpServletResponse res = runForResponse("GET", "/api/admin/stats", token);
 
-        assertEquals(403, res.getStatus());
-        assertTrue(res.getContentAsString().contains("NOT_ADMIN"), res.getContentAsString());
+        // 401 而不是 403：前端只有 401 这一个出口会把令牌清掉回登录页
+        assertEquals(401, res.getStatus());
+        assertTrue(res.getContentAsString().contains("ACCOUNT_DISABLED"), res.getContentAsString());
     }
 
     // ---------- R1：角色进 AdminContext ----------

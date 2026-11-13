@@ -53,13 +53,14 @@ class AdminRbacTest {
     @Test
     void 审核_能审内容与视频但不能封号不能恢复不能看报表() {
         AdminRole r = AdminRole.MOD;
-        assertEquals(9, r.perms().size());
+        assertEquals(10, r.perms().size());
         assertTrue(r.has(Perm.CONTENT_MODERATE));
         assertTrue(r.has(Perm.VIDEO_AUDIT));
+        // 2026-11-13：审核员要能自己下架脏辩题，不必等运营（追加 topic:moderate，权限点 9 -> 10）
+        assertTrue(r.has(Perm.TOPIC_MODERATE), "审核可以下架辩题");
         assertFalse(r.has(Perm.USER_BAN), "审核不能封号");
         assertFalse(r.has(Perm.AUDIT_RESTORE), "审核不能撤销处置");
         assertFalse(r.has(Perm.ANALYTICS_READ), "审核不能看报表");
-        assertFalse(r.has(Perm.TOPIC_MODERATE));
     }
 
     @Test

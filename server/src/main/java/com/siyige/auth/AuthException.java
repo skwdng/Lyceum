@@ -97,6 +97,18 @@ public class AuthException extends RuntimeException {
                 "ACCOUNT_DISABLED: 账号已被封禁，请联系管理员");
     }
 
+    /**
+     * 管理员账号被停用。
+     *
+     * <p>与 {@link #accountDisabled()} 分开：那条是给普通用户看的（封禁），这条给管理台。
+     * 状态码用 401 而不是 403 —— 前端对 401 只有一个出口（清令牌回登录页），
+     * 用 403 会让人停在「无权限」卡片上，看不出是账号被停了。
+     */
+    public static AuthException adminDisabled() {
+        return new AuthException("ACCOUNT_DISABLED", HttpStatus.UNAUTHORIZED,
+                "ACCOUNT_DISABLED: 账号已被停用，请联系超管");
+    }
+
     /** 社区禁言：message 里带到期时间，前端直接展示。 */
     public static AuthException muted(String untilText) {
         return new AuthException("MUTED", HttpStatus.FORBIDDEN,

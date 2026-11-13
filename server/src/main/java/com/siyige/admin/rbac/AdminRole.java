@@ -38,7 +38,8 @@ public enum AdminRole {
         }
     },
 
-    /** 审核：内容与视频审核；**不能封号、不能恢复内容、不能看报表**。 */
+    /** 审核：内容 / 视频 / 辩题审核；**不能封号、不能恢复内容、不能看报表**。
+     *  2026-11-13 起补上 {@code topic:moderate}：审核员遇到脏辩题要能自己下架，不必等运营。 */
     MOD {
         @Override
         public Set<Perm> perms() {
@@ -47,7 +48,7 @@ public enum AdminRole {
                     Perm.CONTENT_READ, Perm.CONTENT_MODERATE,
                     Perm.AUDIT_READ,
                     Perm.VIDEO_READ, Perm.VIDEO_AUDIT,
-                    Perm.TOPIC_READ);
+                    Perm.TOPIC_READ, Perm.TOPIC_MODERATE);
         }
     },
 
