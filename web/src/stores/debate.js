@@ -30,9 +30,29 @@ function readSeats() {
   }
 }
 
+/** 席位固定顺序：排序不依赖到达顺序（旧版同款） */
+const SEAT_ORDER = { A1: 1, A2: 2, A3: 3, A4: 4, B1: 5, B2: 6, B3: 7, B4: 8 };
+
+/**
+ * 离线草稿：先引用用户原话，再按环节给一个攻击角度。
+ * 纯规则、不联网；质量不高，但保证"像对手在说话"而不是复读。
+ */
+function offlineReply(userText, seg) {
+  const quote = String(userText || '').replace(/\s+/g, ' ').trim().slice(0, 26);
+  const angles = {
+    立论: '你把重点放在「标准」上，但标准的执行主体一直没说清。请问这一条谁来兜底？',
+    驳立论: '你反驳的是我的表述，不是我的判断。我方判断是「可行优先于理想」，这一点你还没碰。',
+    质询: '先回答我问的：你说的「合理」由谁认定、按什么程序认定？不回答就等于默认没有标准。',
+    自由辩: '回到分歧点：如果按你的方案走，谁承担代价、谁负责复核？这两条你一直没说。',
+    总结: '收一下：你把「应该」讲成了「必须」，中间缺了一步——条件成立才成立'
+  };
+  const angle = angles[seg] || '你这句话我接住了，但还没回答我的问题：判准由谁定、怎么核？';
+  return '你说「' + quote + '…」——' + angle;
+}
+
 function keyOf(t) {
-  // 打字机的"身份"：同一轮、同一席位、同样长度 → 视为同一条（避免重渲染后重头打）
-  return t.step + '|' + t.seat + '|' + (((t.content || '').trim()) || '（这一轮没有说出内容）').length;
+  // 打字机的"身份"：同一轮、同一席位 → 视为同一条（内容长度一变就重头打，是旧版的坑）
+  return t.step + '|' + t.seat;
 }
 
 /**
@@ -61,6 +81,11 @@ export const useDebateStore = defineStore('debate', {
     matchId: null,
     match: null,
     turns: [],
+    /**
+     * 断网兜底产生的本地轮次（只在本地时间线里，不写服务端）。
+     * 结构同 turns，额外带 degraded: true —— 界面上打「离线草稿」标签，且不计分。
+     */
+    localTurns: [],
     remaining: 0,
     extendUsed: 0,
     lastKeep: 0,
@@ -111,23 +136,39 @@ export const useDebateStore = defineStore('debate', {
      * 聊天区要显示的回合（含打字进度）。
      * 规则见文件头：串行打字、我发言之前的 AI 直接全文、还没轮到的不显示。
      */
+    /** 服务端轮次 + 本地兜底轮次，按「步 → 席位」稳定排序 */
+    allTurns: (s) => {
+      const all = (s.turns || []).concat(s.localTurns || []);
+      return all.slice().sort(
+        (a, b) =>
+          (Number(a.step) - Number(b.step)) ||
+          ((SEAT_ORDER[a.seat] || 99) - (SEAT_ORDER[b.seat] || 99))
+      );
+    },
+
     turnsView: (s) => {
+      const sorted = (s.turns || []).concat(s.localTurns || []).slice().sort(
+        (a, b) =>
+          (Number(a.step) - Number(b.step)) ||
+          ((SEAT_ORDER[a.seat] || 99) - (SEAT_ORDER[b.seat] || 99))
+      );
       let lastMine = -1;
-      s.turns.forEach((t, i) => {
+      sorted.forEach((t, i) => {
         if (s.mySeats.includes(t.seat)) lastMine = i;
       });
       const forceFull = new Set();
-      s.turns.forEach((t, i) => {
+      sorted.forEach((t, i) => {
         if (i < lastMine && !s.mySeats.includes(t.seat)) forceFull.add(keyOf(t));
       });
       let firstUntyped = -1;
-      s.turns.forEach((t, i) => {
-        if (s.mySeats.includes(t.seat) || t.status === 'TIMEOUT') return;
+      sorted.forEach((t, i) => {
+        if (s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded) return;
         if (i < lastMine) return;
         if (!s.typed[keyOf(t)] && firstUntyped < 0) firstUntyped = i;
       });
-      const list = s.turns.filter(
-        (t, idx) => s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || firstUntyped === -1 || idx <= firstUntyped
+      const list = sorted.filter(
+        (t, idx) => s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded
+          || firstUntyped === -1 || idx <= firstUntyped
       );
       return list.map((t) => {
         const me = s.mySeats.includes(t.seat);
@@ -141,6 +182,8 @@ export const useDebateStore = defineStore('debate', {
           seat: t.seat,
           seg: t.seg,
           timeout,
+          /** 这一条是模板降级（服务端 TEMPLATE）或本地离线草稿 —— 界面要标出来 */
+          degraded: !!t.degraded || t.status === 'TEMPLATE',
           me,
           side: String(t.seat).startsWith('A') ? 'a' : 'b',
           text,
@@ -253,6 +296,11 @@ export const useDebateStore = defineStore('debate', {
       if (!this.matchId) return;
       try {
         const d = await debateApi.match(this.matchId);
+      // 席位以服务端为准：刷新/从链接进入时本地可能是旧值，不同步会把 AI 席位显示成「你」
+      if (d && d.match && d.match.my_seats) {
+        const seats = String(d.match.my_seats).split(',').map((x) => x.trim()).filter(Boolean);
+        if (seats.length) this.mySeats = seats;
+      }
         const prevCount = this.turns.length;
         const prevWaiting = this.waiting;
         const prevPhase = this.phase;
@@ -435,10 +483,52 @@ export const useDebateStore = defineStore('debate', {
         await this.load(false);
         return true;
       } catch (e) {
-        toast('提交失败，内容已保留：' + ((e && e.message) || ''));
-        await this.load(false);   // 和服务端重新对齐（可能已经推进到下一步）
+        // 网络不通 / 服务端异常：不丢字，也不打断训练 —— 本地接一条"我 + 对手草稿"
+        toast('提交失败，已按离线模式继续（不计分）');
+        this.continueOffline(body);
         return false;
       }
+    },
+
+    /**
+     * 离线兜底：把用户这句落进本地时间线，再补一条模板回应。
+     *
+     * <p>约束（和旧版一致）：
+     * · 只进本地，不写服务端，**不计入正式评分**；
+     * · 回应必须先引用用户刚说的话，再按环节挑攻击角度 —— 否则看起来像复读机；
+     * · 带 degraded: true，界面打「离线草稿」标签。
+     */
+    continueOffline(text) {
+      const body = String(text || '').trim();
+      if (!body) return;
+      const seat = (this.mySeats && this.mySeats[0]) || 'A1';
+      const seg = SEG_OF[Number((this.match && this.match.step) || 0) + 1] || '自由辩';
+      const stepBase = Number((this.match && this.match.step) || 0) + 1;
+      const oppSeat = String(seat).startsWith('A') ? 'B1' : 'A1';
+
+      this.localTurns.push({
+        step: stepBase,
+        seat,
+        seg,
+        content: body,
+        status: 'OK',
+        input_type: 'kb',
+        local: true
+      });
+
+      this.localTurns.push({
+        step: stepBase + 0.5,          // 半步：排在对方下一轮之前，视觉上紧跟其后
+        seat: oppSeat,
+        seg,
+        content: offlineReply(body, seg),
+        status: 'TEMPLATE',
+        degraded: true,
+        local: true
+      });
+
+      // 本地把回合往前推一格，避免界面卡在"轮到你"
+      if (this.match) this.match.step = stepBase;
+      this.waiting = false;
     },
 
     async buzz() {

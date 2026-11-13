@@ -12,6 +12,7 @@ import DiagView from './views/DiagView.vue';
 import WalletView from './views/WalletView.vue';
 import ChatView from './views/ChatView.vue';
 import SoloView from './views/SoloView.vue';
+import OfflineView from './views/OfflineView.vue';
 import MatchView from './views/MatchView.vue';
 import ReviewView from './views/ReviewView.vue';
 import RoomView from './views/RoomView.vue';
@@ -53,6 +54,7 @@ const routes = [
 
   // ---- 批 2：单人/对局/复盘已迁移，房间待迁 ----
   { path: '/solo', name: 'solo', component: SoloView, meta: { requiresAuth: true } },
+  { path: '/offline', name: 'offline', component: OfflineView, meta: { requiresAuth: true } },
   { path: '/room', name: 'room', component: RoomView, meta: { requiresAuth: true } },
   { path: '/chat', name: 'chat', component: ChatView, meta: { requiresAuth: true } },
   { path: '/match', name: 'match', component: MatchView, meta: { requiresAuth: true } },

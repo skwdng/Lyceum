@@ -17,6 +17,7 @@ import { toast } from '../utils/toast.js';
 
 const route = useRoute();
 const router = useRouter();
+function goOffline() { router.push('/offline'); }
 const debate = useDebateStore();
 const auth = useAuthStore();
 const meta = useMetaStore();
@@ -192,6 +193,7 @@ function errText(e) {
           >
         </div>
         <button class="btn primary" @click="useCustomTopic()">用这个题开练</button>
+        <button class="btn ghost" @click="goOffline">离线对练</button>
       </div>
 
       <div class="card">

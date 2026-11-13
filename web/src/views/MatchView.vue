@@ -306,6 +306,7 @@ const verdictOf = (t) => (t.typing ? '' : '');
                   <span>·</span>
                   <span>{{ t.seg }}</span>
                   <span v-if="t.timeout" class="tag r">超时</span>
+                  <span v-if="t.degraded" class="tag o" title="模板降级或本地离线草稿，不计入正式评分">离线草稿</span>
                 </div>
                 <div class="bub">
                   <span v-if="t.typing && !t.shown" class="pending">…</span>

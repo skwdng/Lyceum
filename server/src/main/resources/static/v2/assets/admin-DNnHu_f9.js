@@ -1,5 +1,5 @@
-import { O as defineStore, P as setAdminToken, l as toast, p as adminApi, G as getAdminToken } from "./index-BBvYsYtx.js";
-import { e as errText } from "./helpers-DLaWG9RE.js";
+import { O as defineStore, P as setAdminToken, l as toast, p as adminApi, G as getAdminToken } from "./index-DY3kDvSJ.js";
+import { e as errText } from "./helpers-7N7rPuXs.js";
 const COLLAPSED_KEY = "sy_admin_collapsed";
 function readCollapsed() {
   try {

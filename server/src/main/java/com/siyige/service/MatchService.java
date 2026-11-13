@@ -223,17 +223,17 @@ public class MatchService {
             if (aiSeat == null) return;                     // 全是玩家席位，等玩家抢
             ai.bind(id);
             applyTier(m);
-            String line;
+            AiService.Speech sp;
             try {
-                line = ai.speak(aiSeat, cur.seg(), str(m.get("topic_title")),
-                    str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+                sp = aiLine(m, aiSeat, cur.seg());
             } finally {
                 ai.clearOwnProfile();
                 ai.unbind();
             }
+            String line = sp.text();
             FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
             line = planted.text();
-            store.insertTurn(id, step + 1, aiSeat, cur.seg(), line, "OK", "ai");
+            store.insertTurn(id, step + 1, aiSeat, cur.seg(), line, sp.degraded() ? "TEMPLATE" : "OK", "ai");
             store.setPhase(id, "STEP");
             hub.emit(id, "turn", Map.of("seat", aiSeat, "seg", cur.seg(), "who", "ai",
                     "content", line, "buzzed", true));
@@ -255,18 +255,18 @@ public class MatchService {
         } else {
             ai.bind(id);
             applyTier(m);
-            String line;
+            AiService.Speech sp;
             try {
-                line = ai.speak(cur.seat(), cur.seg(), str(m.get("topic_title")),
-                    str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+                sp = aiLine(m, cur.seat(), cur.seg());
             } finally {
                 ai.clearOwnProfile();
                 ai.unbind();
             }
+            String line = sp.text();
             // 按难度概率埋一处逻辑漏洞，供玩家抓
             FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
             line = planted.text();
-            store.insertTurn(id, step + 1, cur.seat(), cur.seg(), line, "OK", "ai");
+            store.insertTurn(id, step + 1, cur.seat(), cur.seg(), line, sp.degraded() ? "TEMPLATE" : "OK", "ai");
             hub.emit(id, "turn", Map.of("seat", cur.seat(), "seg", cur.seg(), "who", "ai", "content", line));
             if (planted.type() != null) {
                 store.insertFlaw(id, step + 1, planted.type());
@@ -403,6 +403,21 @@ public class MatchService {
         return Map.of("ok", true);
     }
     /** 结算本场费用：按实际 token 用量多退少补。 */
+    /**
+     * 单人模式走两段式（先分析对方 → 再生成），多人房间保持单段生成。
+     * 返回 Speech 而不是 String，是为了把「本轮是否降级成模板」带给落库层。
+     */
+    private AiService.Speech aiLine(Map<String, Object> m, String seat, String seg) throws Exception {
+        String id = str(m.get("id"));
+        if ("solo".equals(str(m.get("kind")))) {
+            return ai.speakForSolo(seat, seg, str(m.get("topic_title")),
+                    str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+        }
+        String line = ai.speak(seat, seg, str(m.get("topic_title")),
+                str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+        return new AiService.Speech(line, false, "");
+    }
+
     /**
      * 按本场档位切换模型：
      * BASIC → 本地 ollama；BYOK → 用户自己的 key；PRO → 平台默认（不动 profile）。

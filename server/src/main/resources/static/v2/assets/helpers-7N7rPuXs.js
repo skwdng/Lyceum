@@ -1,4 +1,4 @@
-import { I as ApiError } from "./index-BBvYsYtx.js";
+import { I as ApiError } from "./index-DY3kDvSJ.js";
 function errText(e) {
   if (e instanceof ApiError) return e.message || e.code;
   return e && e.message || "操作失败";
