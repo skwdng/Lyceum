@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.admin.rbac.Perm;
+import com.siyige.admin.rbac.Require;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +39,7 @@ public class AdminVideoAuditController {
         this.service = service;
     }
 
+    @Require(Perm.VIDEO_READ)
     @GetMapping("/queue")
     public Map<String, Object> queue(@RequestParam(required = false) String status,
                                      @RequestParam(required = false) String q,
@@ -48,11 +51,13 @@ public class AdminVideoAuditController {
         return service.queue(status, q, authorId, from, to, page, size);
     }
 
+    @Require(Perm.VIDEO_READ)
     @GetMapping("/{id}/logs")
     public Map<String, Object> logs(@PathVariable long id) {
         return service.logs(id);
     }
 
+    @Require(Perm.VIDEO_AUDIT)
     @PostMapping("/{id}/decide")
     public Map<String, Object> decide(@PathVariable long id,
                                       @RequestBody(required = false) AdminDtos.VideoDecideRequest req,
@@ -61,12 +66,14 @@ public class AdminVideoAuditController {
                 AdminContext.requireId(), AdminContext.account(), com.siyige.auth.ClientIp.of(http));
     }
 
+    @Require(Perm.VIDEO_AUDIT)
     @PostMapping("/{id}/restore")
     public ResponseEntity<Map<String, Object>> restore(@PathVariable long id, HttpServletRequest http) {
         return ResponseEntity.ok(service.restore(id, AdminContext.requireId(), AdminContext.account(),
                 com.siyige.auth.ClientIp.of(http)));
     }
 
+    @Require(Perm.VIDEO_READ)
     @GetMapping("/rules")
     public Map<String, Object> rules() {
         return service.rules();

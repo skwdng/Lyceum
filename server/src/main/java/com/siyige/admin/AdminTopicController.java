@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.admin.rbac.Perm;
+import com.siyige.admin.rbac.Require;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +37,7 @@ public class AdminTopicController {
         this.service = service;
     }
 
+    @Require(Perm.TOPIC_READ)
     @GetMapping
     public Map<String, Object> list(@RequestParam(required = false) String modStatus,
                                     @RequestParam(required = false) String source,
@@ -47,12 +50,14 @@ public class AdminTopicController {
         return service.topics(modStatus, source, q, id, from, to, page, size);
     }
 
+    @Require(Perm.TOPIC_MODERATE)
     @PostMapping("/{id}/approve")
     public ResponseEntity<Void> approve(@PathVariable String id, HttpServletRequest http) {
         service.approve(id, AdminContext.requireId(), AdminContext.account(), com.siyige.auth.ClientIp.of(http));
         return ResponseEntity.noContent().build();
     }
 
+    @Require(Perm.TOPIC_MODERATE)
     @PostMapping("/{id}/reject")
     public ResponseEntity<Void> reject(@PathVariable String id,
                                        @RequestBody(required = false) AdminDtos.TopicReasonRequest req,
@@ -62,6 +67,7 @@ public class AdminTopicController {
         return ResponseEntity.noContent().build();
     }
 
+    @Require(Perm.TOPIC_MODERATE)
     @PostMapping("/{id}/offline")
     public ResponseEntity<Void> offline(@PathVariable String id,
                                         @RequestBody(required = false) AdminDtos.TopicReasonRequest req,

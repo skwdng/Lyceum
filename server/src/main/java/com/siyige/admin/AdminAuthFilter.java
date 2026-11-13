@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.admin.rbac.AdminRole;
+import com.siyige.admin.rbac.RbacException;
 import com.siyige.auth.AuthException;
 import com.siyige.auth.AuthState;
 import com.siyige.auth.JwtService;
@@ -12,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 /**
  * 管理端的鉴权过滤器（**只注册在 `/api/admin/*`**）。
@@ -25,14 +28,33 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>`/api/admin/auth/login` 直接放行，且**不解析**请求里可能带的旧令牌——
  * 否则一个过期的管理员令牌会把人卡在登录页外面。
+ *
+ * <p>R1 起这里还负责两件事（都在这一个地方做，不在 29 个接口里各写一遍）：
+ * <ol>
+ *   <li>把**角色**从数据库读出来写进 {@link AdminContext}（令牌里没有角色，也不该有）</li>
+ *   <li>**首登强制改密**：{@code must_change_pwd = true} 时除改密与 /me 之外一律
+ *       403 {@code PASSWORD_CHANGE_REQUIRED}</li>
+ * </ol>
  */
 public class AdminAuthFilter extends OncePerRequestFilter {
 
     private static final String BEARER = "Bearer ";
     private static final String LOGIN_PATH = "/api/admin/auth/login";
 
+    /**
+     * 首登强制改密时**仍然放行**的入口（执行提示词 1.5）。
+     *
+     * <p>不放行改密就没法改密，不放行 /me 前端连"我要改密"这个状态都拿不到。
+     * `GET /admin`（页面本身）不在 `/api/admin/*` 下，本来就不经过这个过滤器。
+     */
+    private static final Set<String> PWD_CHANGE_ALLOWED = Set.of(
+            "/api/admin/auth/password",
+            "/api/admin/auth/change-password",   // 兼容设计方案里的旧路径写法
+            "/api/admin/me"
+    );
+
     private final JwtService jwt;
-    /** 管理员认证状态（停用 + 改密时间），一条 SQL 取回。 */
+    /** 管理员认证状态（停用 + 改密时间 + 角色 + 强制改密），一条 SQL 取回。 */
     private final AdminStatusSource adminStatus;
 
     public AdminAuthFilter(JwtService jwt, AdminStatusSource adminStatus) {
@@ -62,18 +84,27 @@ public class AdminAuthFilter extends OncePerRequestFilter {
                 if (!parsed.isAdmin()) throw AuthException.notAdmin();
 
                 long adminId = Long.parseLong(parsed.userId());
-                AuthState state = adminStatus.authState(adminId);
+                AdminStatusSource.AdminAuthInfo info = adminStatus.authInfo(adminId);
+                AuthState state = info.state();
                 if (state.disabled()) throw AuthException.notAdmin();
                 // 改密后，改密之前签发的管理员令牌立刻失效
                 if (state.isTokenStale(parsed.issuedAt())) throw AuthException.tokenStale();
 
-                AdminContext.set(adminId, parsed.account());
+                // 首登 / 重置密码后强制改密：只放行改密与 /me
+                if (info.mustChangePwd() && !PWD_CHANGE_ALLOWED.contains(path)) {
+                    throw RbacException.passwordChangeRequired();
+                }
+
+                AdminContext.set(adminId, parsed.account(), info.role(), info.mustChangePwd());
             } catch (AuthException e) {
-                writeError(res, e);
+                writeError(res, e.status().value(), e.code(), e.getMessage());
+                return;
+            } catch (RbacException e) {
+                writeError(res, e.status().value(), e.code(), e.getMessage());
                 return;
             } catch (NumberFormatException e) {
                 // sub 不是数字说明令牌不是本系统签的，按未登录处理
-                writeError(res, AuthException.unauthorized());
+                writeError(res, 401, "UNAUTHORIZED", "UNAUTHORIZED: 请先登录管理后台");
                 return;
             }
 
@@ -99,12 +130,12 @@ public class AdminAuthFilter extends OncePerRequestFilter {
         return token.isEmpty() ? null : token;
     }
 
-    private static void writeError(HttpServletResponse res, AuthException e) throws IOException {
+    private static void writeError(HttpServletResponse res, int status, String code, String message) throws IOException {
         if (res.isCommitted()) return;
-        res.setStatus(e.status().value());
+        res.setStatus(status);
         res.setCharacterEncoding(StandardCharsets.UTF_8.name());
         res.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        String json = "{\"code\":\"" + e.code() + "\",\"message\":\"" + escape(e.getMessage()) + "\"}";
+        String json = "{\"code\":\"" + code + "\",\"message\":\"" + escape(message) + "\"}";
         res.getWriter().write(json);
         res.getWriter().flush();
     }

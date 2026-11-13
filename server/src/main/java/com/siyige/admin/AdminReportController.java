@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.admin.rbac.Perm;
+import com.siyige.admin.rbac.Require;
 import com.siyige.auth.ClientIp;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -35,6 +37,7 @@ public class AdminReportController {
         this.service = service;
     }
 
+    @Require(Perm.REPORT_READ)
     @GetMapping
     public Map<String, Object> queue(@RequestParam(required = false) String status,
                                      @RequestParam(defaultValue = "1") int page,
@@ -42,11 +45,13 @@ public class AdminReportController {
         return service.queue(status, page, size);
     }
 
+    @Require(Perm.REPORT_READ)
     @GetMapping("/{id}")
     public Map<String, Object> detail(@PathVariable long id) {
         return service.detail(id);
     }
 
+    @Require(Perm.REPORT_RESOLVE)
     @PostMapping("/{id}/resolve")
     public ResponseEntity<Void> resolve(@PathVariable long id,
                                         @RequestBody(required = false) AdminDtos.ResolveRequest req,

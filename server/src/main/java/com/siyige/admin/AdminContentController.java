@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.admin.rbac.Perm;
+import com.siyige.admin.rbac.Require;
 import com.siyige.auth.ClientIp;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -40,6 +42,7 @@ public class AdminContentController {
         this.service = service;
     }
 
+    @Require(Perm.CONTENT_READ)
     @GetMapping("/posts")
     public Map<String, Object> posts(@RequestParam(required = false) String q,
                                      @RequestParam(required = false) String type,
@@ -52,11 +55,13 @@ public class AdminContentController {
         return service.posts(q, type, status, authorId, from, to, page, size);
     }
 
+    @Require(Perm.CONTENT_READ)
     @GetMapping("/posts/{id}")
     public Map<String, Object> postDetail(@PathVariable long id) {
         return service.postDetail(id);
     }
 
+    @Require(Perm.CONTENT_READ)
     @GetMapping("/posts/{id}/comments")
     public Map<String, Object> postComments(@PathVariable long id,
                                             @RequestParam(defaultValue = "1") int page,
@@ -64,6 +69,7 @@ public class AdminContentController {
         return service.postComments(id, page, size);
     }
 
+    @Require(Perm.CONTENT_READ)
     @GetMapping("/comments")
     public Map<String, Object> comments(@RequestParam(required = false) String q,
                                         @RequestParam(required = false) Integer status,
@@ -77,6 +83,7 @@ public class AdminContentController {
     }
 
     /** 批量屏蔽 / 解除屏蔽：`action` = hide | unhide，`type` = post | comment（统一一个理由）。 */
+    @Require(Perm.CONTENT_MODERATE)
     @PostMapping("/content/batch")
     public Map<String, Object> batch(@RequestBody AdminDtos.BatchContentRequest req, HttpServletRequest http) {
         boolean hide = !"unhide".equalsIgnoreCase(req == null ? null : req.action());
@@ -85,6 +92,7 @@ public class AdminContentController {
                 req == null ? null : req.note());
     }
 
+    @Require(Perm.CONTENT_MODERATE)
     @PostMapping("/content/{type}/{id}/hide")
     public ResponseEntity<Void> hide(@PathVariable String type, @PathVariable long id,
                                      @RequestBody(required = false) AdminDtos.HideRequest req,
@@ -94,6 +102,7 @@ public class AdminContentController {
         return ResponseEntity.noContent().build();
     }
 
+    @Require(Perm.CONTENT_MODERATE)
     @PostMapping("/content/{type}/{id}/unhide")
     public ResponseEntity<Void> unhide(@PathVariable String type, @PathVariable long id,
                                        HttpServletRequest http) {
@@ -101,6 +110,7 @@ public class AdminContentController {
         return ResponseEntity.noContent().build();
     }
 
+    @Require(Perm.USER_BAN)
     @PostMapping("/users/{id}/mute")
     public ResponseEntity<Void> mute(@PathVariable String id,
                                      @RequestBody(required = false) AdminDtos.BanRequest req,
@@ -111,6 +121,7 @@ public class AdminContentController {
     }
 
     /** 用户违规浮窗：基本信息 + 统计 + 违规历史（禁言记录 / 被屏蔽的内容）。 */
+    @Require(Perm.USER_READ)
     @GetMapping("/users/{id}/profile")
     public Map<String, Object> profile(@PathVariable String id) {
         return service.userProfile(id);

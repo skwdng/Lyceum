@@ -1,5 +1,7 @@
 package com.siyige.admin.analytics;
 
+import com.siyige.admin.rbac.Perm;
+import com.siyige.admin.rbac.Require;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -39,17 +41,20 @@ public class AnalyticsController {
         this.exporter = exporter;
     }
 
+    @Require(Perm.ANALYTICS_READ)
     @GetMapping("/overview")
     public AnalyticsDtos.Overview overview(@RequestParam(required = false) String from,
                                            @RequestParam(required = false) String to) {
         return service.overview(from, to);
     }
 
+    @Require(Perm.ANALYTICS_READ)
     @GetMapping("/modules")
     public AnalyticsDtos.Modules modules(@RequestParam(required = false) String range) {
         return service.modules(range);
     }
 
+    @Require(Perm.ANALYTICS_READ)
     @GetMapping("/trend")
     public AnalyticsDtos.Trend trend(@RequestParam(required = false) String metric,
                                      @RequestParam(required = false) String range,
@@ -57,17 +62,20 @@ public class AnalyticsController {
         return service.trend(metric, range, granularity);
     }
 
+    @Require(Perm.ANALYTICS_READ)
     @GetMapping("/breakdown")
     public AnalyticsDtos.Breakdown breakdown(@RequestParam(required = false) String dim,
                                              @RequestParam(required = false) String range) {
         return service.breakdown(dim, range);
     }
 
+    @Require(Perm.ANALYTICS_READ)
     @GetMapping("/active")
     public AnalyticsDtos.Active active(@RequestParam(required = false) String range) {
         return service.active(range);
     }
 
+    @Require(Perm.ANALYTICS_READ)
     @GetMapping("/quality")
     public AnalyticsDtos.Quality quality(@RequestParam(required = false) String range) {
         return service.quality(range);
@@ -79,6 +87,7 @@ public class AnalyticsController {
      * <p>文件名是**英文 + 日期**（{@code modules_2026-11-11.xlsx}），
      * 不用中文：不同浏览器/系统对下载文件名编码的处理不一致，中文容易乱码。
      */
+    @Require(Perm.ANALYTICS_EXPORT)
     @GetMapping("/export")
     public ResponseEntity<byte[]> export(@RequestParam(required = false) String format,
                                         @RequestParam(required = false) String report,

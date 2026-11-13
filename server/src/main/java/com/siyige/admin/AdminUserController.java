@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.admin.rbac.Perm;
+import com.siyige.admin.rbac.Require;
 import com.siyige.auth.ClientIp;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +35,7 @@ public class AdminUserController {
         this.service = service;
     }
 
+    @Require(Perm.USER_READ)
     @GetMapping
     public Map<String, Object> list(@RequestParam(required = false) String q,
                                     @RequestParam(defaultValue = "1") int page,
@@ -40,6 +43,7 @@ public class AdminUserController {
         return service.users(q, page, size);
     }
 
+    @Require(Perm.USER_BAN)
     @PostMapping("/{id}/ban")
     public ResponseEntity<Void> ban(@PathVariable String id,
                                     @RequestBody(required = false) AdminDtos.BanRequest req) {
@@ -48,6 +52,7 @@ public class AdminUserController {
         return ResponseEntity.noContent().build();
     }
 
+    @Require(Perm.USER_BAN)
     @PostMapping("/{id}/unban")
     public ResponseEntity<Void> unban(@PathVariable String id) {
         service.unban(id, AdminContext.requireId());
@@ -55,6 +60,7 @@ public class AdminUserController {
     }
 
     /** 批量处置：action = mute | ban | unban（统一一个理由，逐条写处理记录）。 */
+    @Require(Perm.USER_BAN)
     @PostMapping("/batch")
     public Map<String, Object> batch(@RequestBody(required = false) AdminDtos.BatchUserRequest req,
                                      HttpServletRequest http) {
@@ -63,6 +69,13 @@ public class AdminUserController {
                 AdminContext.requireId(), AdminContext.account(), ClientIp.of(http));
     }
 
+    /**
+     * 全站封禁 / 解封。
+     *
+     * <p>权限点用 {@code user:ban}（设计方案 §1 表里把它列在 user:read 下，但那与
+     * §2 矩阵、§8「VIEWER 所有写操作 403」自相矛盾 —— 封禁是写操作，按 user:ban 处理）。
+     */
+    @Require(Perm.USER_BAN)
     @PostMapping("/{id}/status")
     public ResponseEntity<Void> status(@PathVariable String id,
                                        @RequestBody(required = false) AdminDtos.SetStatusRequest req,

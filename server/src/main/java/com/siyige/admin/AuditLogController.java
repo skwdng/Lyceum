@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.admin.rbac.Perm;
+import com.siyige.admin.rbac.Require;
 import com.siyige.auth.ClientIp;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -44,6 +46,7 @@ public class AuditLogController {
      * `action`（REPORT_RESOLVE / RESTORE）、`verdict`（IGNORE / DELETE / BAN / DELETE_AND_BAN）、
      * `targetType`（POST / COMMENT / USER）、`source`（REPORT / MANUAL）、`from`/`to`（`yyyy-MM-dd`，含当天）。
      */
+    @Require(Perm.AUDIT_READ)
     @GetMapping
     public Map<String, Object> page(@RequestParam(name = "q", required = false) String q,
                                     @RequestParam(name = "admin", required = false) String admin,
@@ -58,6 +61,7 @@ public class AuditLogController {
         return service.page(q, admin, action, verdict, targetType, source, from, to, page, size);
     }
 
+    @Require(Perm.AUDIT_RESTORE)
     @PostMapping("/{id}/restore")
     public ResponseEntity<Void> restore(@PathVariable long id, HttpServletRequest http) {
         restore.restore(id, AdminContext.requireId(), AdminContext.account(), ClientIp.of(http));

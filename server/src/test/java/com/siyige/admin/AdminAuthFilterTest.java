@@ -23,9 +23,20 @@ class AdminAuthFilterTest {
 
     @org.junit.jupiter.api.BeforeEach
     void defaultAuthState() {
-        // 默认"没停用、没改过密码"，个别用例再覆盖
-        org.mockito.Mockito.when(adminStatus.authState(org.mockito.ArgumentMatchers.anyLong()))
-                .thenReturn(com.siyige.auth.AuthState.UNKNOWN);
+        // 默认"没停用、没改过密码、角色 SUPER、不需要强制改密"，个别用例再覆盖。
+        // R1 起过滤器改读 authInfo（一条 SQL 同时取 status/pwd_changed_at/role/must_change_pwd），
+        // 所以桩从 authState 换成 authInfo —— 断言意图没变。
+        org.mockito.Mockito.when(adminStatus.authInfo(org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(inv -> new AdminStatusSource.AdminAuthInfo(
+                        com.siyige.auth.AuthState.UNKNOWN, com.siyige.admin.rbac.AdminRole.SUPER, false));
+    }
+
+    /** 造一个"管理员认证信息"桩（停用 / 改密时间 / 角色 / 强制改密）。 */
+    private void given(long adminId, boolean disabled, java.time.Instant pwdChangedAt,
+                       com.siyige.admin.rbac.AdminRole role, boolean mustChangePwd) {
+        org.mockito.Mockito.when(adminStatus.authInfo(adminId))
+                .thenReturn(new AdminStatusSource.AdminAuthInfo(
+                        new com.siyige.auth.AuthState(disabled, pwdChangedAt), role, mustChangePwd));
     }
 
     private static final class Capture {
@@ -147,8 +158,7 @@ class AdminAuthFilterTest {
     void 管理员改密后旧令牌返回401_TOKEN_STALE() throws Exception {
         String token = jwt.issueAdmin("1", "admin");
         java.time.Instant changed = jwt.parse(token).issuedAt().plusSeconds(30);
-        org.mockito.Mockito.when(adminStatus.authState(1L))
-                .thenReturn(new com.siyige.auth.AuthState(false, changed));
+        given(1L, false, changed, com.siyige.admin.rbac.AdminRole.SUPER, false);
 
         MockHttpServletResponse res = runForResponse("GET", "/api/admin/stats", token);
 
@@ -159,13 +169,45 @@ class AdminAuthFilterTest {
     @Test
     void 管理员被停用后令牌立刻失效() throws Exception {
         String token = jwt.issueAdmin("1", "admin");
-        org.mockito.Mockito.when(adminStatus.authState(1L))
-                .thenReturn(new com.siyige.auth.AuthState(true, null));
+        given(1L, true, null, com.siyige.admin.rbac.AdminRole.SUPER, false);
 
         MockHttpServletResponse res = runForResponse("GET", "/api/admin/stats", token);
 
         assertEquals(403, res.getStatus());
         assertTrue(res.getContentAsString().contains("NOT_ADMIN"), res.getContentAsString());
+    }
+
+    // ---------- R1：角色进 AdminContext ----------
+
+    @Test
+    void 管理员角色由数据库读出并写进AdminContext() throws Exception {
+        String token = jwt.issueAdmin("9", "ops1");
+        given(9L, false, null, com.siyige.admin.rbac.AdminRole.OPS, false);
+
+        com.siyige.admin.rbac.AdminRole[] seen = new com.siyige.admin.rbac.AdminRole[1];
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/admin/reports");
+        req.addHeader("Authorization", "Bearer " + token);
+        filter.doFilter(req, new MockHttpServletResponse(),
+                (rq, rs) -> seen[0] = AdminContext.role());
+
+        assertEquals(com.siyige.admin.rbac.AdminRole.OPS, seen[0], "角色必须来自数据库，且下游能读到");
+        assertFalse(AdminContext.has(com.siyige.admin.rbac.Perm.ADMIN_MANAGE), "OPS 没有 admin:manage");
+    }
+
+    @Test
+    void 首登未改密时业务接口被挡_改密与me放行() throws Exception {
+        String token = jwt.issueAdmin("5", "mod1");
+        given(5L, false, null, com.siyige.admin.rbac.AdminRole.MOD, true);
+
+        MockHttpServletResponse blocked = runForResponse("GET", "/api/admin/reports", token);
+        assertEquals(403, blocked.getStatus());
+        assertTrue(blocked.getContentAsString().contains("PASSWORD_CHANGE_REQUIRED"), blocked.getContentAsString());
+
+        MockHttpServletResponse me = runForResponse("GET", "/api/admin/me", token);
+        assertNotEquals(403, me.getStatus(), "/me 必须放行，否则前端拿不到 mustChangePwd");
+
+        MockHttpServletResponse pwd = runForResponse("PATCH", "/api/admin/auth/password", token);
+        assertNotEquals(403, pwd.getStatus(), "改密接口必须放行，否则永远改不了密码");
     }
 
     @Test

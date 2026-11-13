@@ -30,6 +30,20 @@ create table if not exists sy_admin (
 
 create unique index if not exists ux_admin_account on sy_admin(account);
 
+-- R1（管理员账号 + 权限分级）：5 个新列。
+--   role            : SUPER | OPS | MOD | VIEWER —— **权限矩阵的唯一输入**（每请求现查，不写进 JWT）
+--                     默认 SUPER：老库里已有的账号必须保持原权限，否则升级后自己把自己锁在外面；
+--                     新建账号时由接口显式指定角色（默认 MOD，绝不默认 SUPER）
+--   must_change_pwd : 首登 / 重置密码后为 true，除改密与 /me 之外一律 403 PASSWORD_CHANGE_REQUIRED
+--   last_login_at   : 管理员列表要显示"最后登录"
+--   created_by      : 谁创建的（审计对得上人；种子账号为空）
+--   role_changed_at : 改角色时间（排查"什么时候被提权/降权"）
+alter table sy_admin add column if not exists role varchar(16) not null default 'SUPER';
+alter table sy_admin add column if not exists must_change_pwd boolean not null default false;
+alter table sy_admin add column if not exists last_login_at timestamp;
+alter table sy_admin add column if not exists created_by varchar(64);
+alter table sy_admin add column if not exists role_changed_at timestamp;
+
 -- 举报
 --   target_type : POST | COMMENT（不做「举报用户」）
 --   reason      : SPAM | ABUSE | ILLEGAL | OTHER
