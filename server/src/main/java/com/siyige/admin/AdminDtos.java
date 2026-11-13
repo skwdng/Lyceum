@@ -68,4 +68,24 @@ public final class AdminDtos {
     public record ResolveRequest(String action, Integer banDays, String note) { }
     /** 服务端内部用的管理员视图（不含哈希），**不**直接下发。 */
     public record AdminView(Long id, String account) { }
+
+    // ---------- R2：管理员账号管理 ----------
+
+    /**
+     * 建账号入参。`password` 可空 —— 不填就由服务端生成一次性密码。
+     *
+     * <p><b>安全要求</b>：{@code toString()} 绝不输出 password。
+     */
+    public record CreateAdminRequest(String account, String role, String password) {
+        @Override
+        public String toString() {
+            return "CreateAdminRequest[account=" + account + ",role=" + role + ",password=<redacted>]";
+        }
+    }
+
+    /** 改角色入参。role = SUPER | OPS | MOD | VIEWER（必填）。 */
+    public record ChangeAdminRoleRequest(String role) { }
+
+    /** 启用 / 停用入参。 */
+    public record SetAdminEnabledRequest(Boolean enabled) { }
 }

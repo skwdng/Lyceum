@@ -64,7 +64,11 @@ class AdminSchemaTest {
     @Test
     void 三张新表的列齐了() throws Exception {
         try (Connection c = freshDb()) {
-            assertEquals(Set.of("ID", "ACCOUNT", "PASSWORD_HASH", "STATUS", "CREATED_AT"),
+            // R1 起 sy_admin 多了 5 列（role / must_change_pwd / last_login_at / created_by /
+            // role_changed_at），是老断言必须跟着改的地方 —— 这里故意写全量集合，
+            // 以后谁再偷偷加列/删列都会在这里报警。
+            assertEquals(Set.of("ID", "ACCOUNT", "PASSWORD_HASH", "STATUS", "CREATED_AT",
+                            "ROLE", "MUST_CHANGE_PWD", "LAST_LOGIN_AT", "CREATED_BY", "ROLE_CHANGED_AT"),
                     columnsOf(c, "SY_ADMIN"), "sy_admin 列不对");
 
             Set<String> report = columnsOf(c, "SY_REPORT");

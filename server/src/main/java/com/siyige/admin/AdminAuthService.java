@@ -70,6 +70,12 @@ public class AdminAuthService {
         }
 
         log.info("管理员登录成功 account={} adminId={}", admin.account(), admin.id());
+        // R2：记录最后登录时间（失败不影响登录 —— 列表页少一列而已）
+        try {
+            repo.touchLastLogin(admin.id());
+        } catch (RuntimeException e) {
+            log.warn("写 last_login_at 失败 adminId={}：{}", admin.id(), e.toString());
+        }
         return new AdminDtos.AdminView(admin.id(), admin.account());
     }
 
@@ -107,6 +113,8 @@ public class AdminAuthService {
 
         repo.changePassword(admin.id(), encoder.encode(newPassword),
                 java.sql.Timestamp.from(java.time.Instant.now()));
+        // R2：改完必须把"首登强制改密"标记清掉，否则改完还是进不去业务页
+        repo.clearMustChangePwd(admin.id());
         log.info("管理员改密成功 account={} adminId={}（该账号旧令牌全部失效）",
                 admin.account(), admin.id());
     }

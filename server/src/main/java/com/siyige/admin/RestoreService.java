@@ -71,6 +71,11 @@ public class RestoreService {
         }
 
         String targetType = row.get("target_type") == null ? null : String.valueOf(row.get("target_type"));
+        // R2：管理员账号相关记录**永远不可恢复**。不拦住的话，处理记录页会出现一个「恢复」按钮，
+        // 点了会拿着管理员 id 去 community.restorePost/Comment 里瞎改内容。
+        if (AuditLogRepo.TARGET_ADMIN.equals(targetType)) {
+            throw new IllegalArgumentException("NOT_RESTORABLE: 管理员账号操作不能撤销（请到管理员管理页调整）");
+        }
         Object tid = row.get("target_id");
         if (targetType == null || tid == null) {
             throw new IllegalArgumentException("NOT_RESTORABLE: 该记录没有可定位的目标");

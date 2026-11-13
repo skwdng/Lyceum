@@ -40,11 +40,19 @@ public class AuditLogRepo {
     public static final String ACTION_TOPIC_OFFLINE = "TOPIC_OFFLINE";
     public static final String ACTION_USER_BAN = "USER_BAN";
     public static final String ACTION_USER_UNBAN = "USER_UNBAN";
+    // R2：管理员账号管理（处理记录里能看到谁建了号、谁改了角色、谁重置了密码）
+    public static final String ACTION_ADMIN_CREATE = "ADMIN_CREATE";
+    public static final String ACTION_ADMIN_ROLE = "ADMIN_ROLE";
+    public static final String ACTION_ADMIN_DISABLE = "ADMIN_DISABLE";
+    public static final String ACTION_ADMIN_ENABLE = "ADMIN_ENABLE";
+    public static final String ACTION_ADMIN_RESET_PWD = "ADMIN_RESET_PWD";
 
     /** 目标类型（`target_type` varchar(8)）。 */
     public static final String TARGET_VIDEO = "VIDEO";
     public static final String TARGET_TOPIC = "TOPIC";
     public static final String TARGET_USER = "USER";
+    /** 管理员账号（`target_id` = 管理员 id，`target_owner` = 账号）。**不可「恢复」**。 */
+    public static final String TARGET_ADMIN = "ADMIN";
 
     /** 来源（`source` 列）：REPORT = 从举报处理来的；MANUAL = 管理员在管理台直接操作。 */
     public static final String SOURCE_REPORT = "REPORT";

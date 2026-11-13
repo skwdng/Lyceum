@@ -56,6 +56,16 @@ public class AdminRepo {
         return n == null ? 0 : n;
     }
 
+    /** 记录一次成功登录（管理员列表要显示"最后登录"）。失败不影响登录结果。 */
+    public void touchLastLogin(long id) {
+        jdbc.update("update sy_admin set last_login_at = current_timestamp where id = ?", id);
+    }
+
+    /** 清掉"首登必须改密"标记：改密成功之后调用。 */
+    public int clearMustChangePwd(long id) {
+        return jdbc.update("update sy_admin set must_change_pwd = false where id = ?", id);
+    }
+
     private static AdminRecord map(java.sql.ResultSet rs) throws java.sql.SQLException {
         Object status = rs.getObject("status");
         int st = status instanceof Number num ? num.intValue() : 1;
