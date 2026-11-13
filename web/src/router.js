@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { useAuthStore } from './stores/auth.js';
+import { useAdminStore } from './stores/admin.js';
 import { getAdminToken } from './api.js';
 import { trackView } from './utils/track.js';
 import LoginView from './views/LoginView.vue';
@@ -76,20 +77,28 @@ const routes = [
     children: [
       { path: '', redirect: '/admin/dashboard' },
       { path: 'login', name: 'admin-login', component: () => import('./views/admin/AdminLogin.vue'), meta: { guest: true } },
-      { path: 'dashboard', name: 'admin-dashboard', component: () => import('./views/admin/DashboardView.vue'), meta: { title: '概览' } },
-      { path: 'analytics', name: 'admin-analytics', component: () => import('./views/admin/AnalyticsView.vue'), meta: { title: '报表分析' } },
+      // 首登 / 重置密码后强制改密：这条路由**不受 mustChangePwd 拦截**（否则就是死锁）
+      {
+        path: 'change-password',
+        name: 'admin-change-password',
+        component: () => import('./views/admin/ChangePasswordView.vue'),
+        meta: { title: '修改密码', pwdChangeAllowed: true }
+      },
+      { path: 'dashboard', name: 'admin-dashboard', component: () => import('./views/admin/DashboardView.vue'), meta: { title: '概览', perm: 'analytics:read' } },
+      { path: 'analytics', name: 'admin-analytics', component: () => import('./views/admin/AnalyticsView.vue'), meta: { title: '报表分析', perm: 'analytics:read' } },
       {
         path: 'reports',
         name: 'admin-reports',
         component: () => import('./views/admin/ReportsView.vue'),
-        meta: { title: '举报处理', badge: 'pendingReports' }
+        meta: { title: '举报处理', badge: 'pendingReports', perm: 'report:read' }
       },
-      { path: 'users', name: 'admin-users', component: () => import('./views/admin/UsersView.vue'), meta: { title: '用户管理' } },
-      { path: 'content/posts', name: 'admin-content-posts', component: () => import('./views/admin/ContentPostsView.vue'), meta: { title: '帖子管理' } },
-      { path: 'content/comments', name: 'admin-content-comments', component: () => import('./views/admin/ContentCommentsView.vue'), meta: { title: '评论管理' } },
-      { path: 'video-audit', name: 'admin-video-audit', component: () => import('./views/admin/VideoAuditView.vue'), meta: { title: '视频复核' } },
-      { path: 'topics', name: 'admin-topics', component: () => import('./views/admin/TopicReviewView.vue'), meta: { title: '辩题审核' } },
-      { path: 'audit', name: 'admin-audit', component: () => import('./views/admin/AuditView.vue'), meta: { title: '处理记录' } },
+      { path: 'users', name: 'admin-users', component: () => import('./views/admin/UsersView.vue'), meta: { title: '用户管理', perm: 'user:read' } },
+      { path: 'content/posts', name: 'admin-content-posts', component: () => import('./views/admin/ContentPostsView.vue'), meta: { title: '帖子管理', perm: 'content:read' } },
+      { path: 'content/comments', name: 'admin-content-comments', component: () => import('./views/admin/ContentCommentsView.vue'), meta: { title: '评论管理', perm: 'content:read' } },
+      { path: 'video-audit', name: 'admin-video-audit', component: () => import('./views/admin/VideoAuditView.vue'), meta: { title: '视频复核', perm: 'video:read' } },
+      { path: 'topics', name: 'admin-topics', component: () => import('./views/admin/TopicReviewView.vue'), meta: { title: '辩题审核', perm: 'topic:read' } },
+      { path: 'audit', name: 'admin-audit', component: () => import('./views/admin/AuditView.vue'), meta: { title: '处理记录', perm: 'audit:read' } },
+      { path: 'admins', name: 'admin-admins', component: () => import('./views/admin/AdminsView.vue'), meta: { title: '管理员管理', perm: 'admin:manage' } },
       { path: 'settings', name: 'admin-settings', component: () => import('./views/admin/SettingsView.vue'), meta: { title: '设置' } }
     ]
   },
@@ -128,6 +137,25 @@ router.beforeEach(async (to) => {
     if (!hasAdmin && to.meta.guest !== true) return { path: ADMIN_LOGIN_PATH, replace: true };
     // 已登录还去登录页 -> 概览（避免登录后按浏览器"后退"又回到表单）
     if (hasAdmin && to.meta.guest === true) return { path: '/admin/dashboard', replace: true };
+
+    if (hasAdmin) {
+      const admin = useAdminStore();
+      // 刷新后 me 是空的：先补一次，否则菜单/无权限判断都会误判
+      if (!admin.me) await admin.loadMe();
+      // 首登 / 重置密码后**只能去改密页**（后端也拦：除改密与 /me 之外一律 403）
+      if (admin.mustChangePwd && !to.meta.pwdChangeAllowed) {
+        return { name: 'admin-change-password', replace: true };
+      }
+      // 登录落点是概览，但概览要 analytics:read（MOD 没有）：
+      // 这种情况换个有权限的落点，别一登录就给「无权限」卡片
+      if (to.name === 'admin-dashboard' && admin.me && !admin.has('analytics:read')) {
+        return { path: admin.firstAllowedPath(), replace: true };
+      }
+      // 改完密之后不该再停在改密页
+      if (!admin.mustChangePwd && to.meta.pwdChangeAllowed && !to.query.voluntary) {
+        return { path: '/admin/dashboard', replace: true };
+      }
+    }
   }
 
   return true;

@@ -325,6 +325,15 @@ export async function adminRequest(path, opts = {}) {
     setAdminToken('');
     window.dispatchEvent(new CustomEvent('sy:admin-unauthorized'));
   }
+  // R3：权限相关的 403 单独广播出去，让布局层决定怎么处理
+  //   PASSWORD_CHANGE_REQUIRED -> 跳改密页（**不要**清令牌、不要踢回登录）
+  //   FORBIDDEN_PERM           -> 就地 toast「没有权限」（后端已强制校验，前端只是少一次白跑）
+  if (resp.status === 403 && data && data.code === 'PASSWORD_CHANGE_REQUIRED') {
+    window.dispatchEvent(new CustomEvent('sy:admin-pwd-required'));
+  }
+  if (resp.status === 403 && data && data.code === 'FORBIDDEN_PERM') {
+    window.dispatchEvent(new CustomEvent('sy:admin-forbidden', { detail: data }));
+  }
   if (!resp.ok) {
     const message = (data && data.message) || (typeof text === 'string' && text) || 'HTTP ' + resp.status;
     throw new ApiError(message, (data && data.code) || 'HTTP_' + resp.status, resp.status);
@@ -337,6 +346,18 @@ export const adminApi = {
   password: (oldPassword, newPassword) =>
     adminRequest('/auth/password', { method: 'PATCH', body: { oldPassword, newPassword }, keepLogin: true }),
   stats: () => adminRequest('/stats'),
+  /** 当前管理员 + 角色 + 权限点（菜单/按钮按它渲染，**角色不写在令牌里**） */
+  me: () => adminRequest('/me'),
+  /** 管理员账号管理（仅 admin:manage = 超管） */
+  admins: () => adminRequest('/admins'),
+  createAdmin: ({ account, role, password }) =>
+    adminRequest('/admins', { method: 'POST', body: { account, role, password } }),
+  changeAdminRole: (id, role) =>
+    adminRequest('/admins/' + encodeURIComponent(id) + '/role', { method: 'POST', body: { role } }),
+  setAdminEnabled: (id, enabled) =>
+    adminRequest('/admins/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { enabled } }),
+  resetAdminPwd: (id) =>
+    adminRequest('/admins/' + encodeURIComponent(id) + '/reset-pwd', { method: 'POST' }),
   reports: (status, page, size = 20) =>
     adminRequest('/reports?status=' + (status || 'PENDING') + '&page=' + (page || 1) + '&size=' + size),
   report: (reportId) => adminRequest('/reports/' + reportId),

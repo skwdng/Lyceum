@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-5z4a15Ii.js","./admin-CDxRU6i7.js","./helpers-DLaWG9RE.js","./postDrawer-Jg7zAU0z.js","./userPop-2FP-pwix.js","./ModerationBar-CCUlPmus.js","./ModerationBar-BRGjagrt.css","./AdminLayout-D_K5Wm6x.css","./AdminLogin-rXB3RtS2.js","./DashboardView-C8Dsrc6G.js","./LineChart-mhXES8FJ.js","./LineChart-mMQnDcD4.css","./DashboardView-C8pX9Oep.css","./AnalyticsView-DLM-JttK.js","./AnalyticsView-BIzlUv8N.css","./ReportsView-BHYi5R3K.js","./ReportsView-CzwXvr_z.css","./UsersView-BxqKOkrT.js","./BatchActions-CCCvSZ2Z.js","./BatchActions-BqjXcE2x.css","./ContentPostsView-5RB7Z_--.js","./ContentPostsView-DMyV4z6b.css","./ContentCommentsView-CTCp0f_N.js","./ContentCommentsView-C89bjsk9.css","./VideoAuditView-BQzpBZB5.js","./VideoAuditView-Bgm0adiV.css","./TopicReviewView-5vGfL4Tm.js","./TopicReviewView-B85Zvq1H.css","./AuditView-CgNtB99x.js","./AuditView-CJyvFAzv.css","./SettingsView-Dz4jbRwN.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-DdkreFLz.js","./postDrawer-DKIicZFn.js","./userPop-CjaVOeEL.js","./ModerationBar-CQW0FTaK.js","./ModerationBar-Ba0e_XKr.css","./AdminLayout-W9-_g92d.css","./ChangePasswordView-DMqjyIuz.js","./ChangePasswordView-pt4N0wj3.css","./DashboardView-DwNyArM4.js","./LineChart-BdVf_q0h.js","./LineChart-mMQnDcD4.css","./DashboardView-C8pX9Oep.css","./AnalyticsView-Bk7FAuiu.js","./AnalyticsView-BPxgHatY.css","./ReportsView-cnu6vgpd.js","./ReportsView-DUvjuaz0.css","./UsersView-b89sDHM0.js","./BatchActions-C8j8ti9p.js","./BatchActions-BgSqlVNL.css","./ContentPostsView-Dp1p01A6.js","./ContentPostsView-DMyV4z6b.css","./ContentCommentsView-B75oqj2M.js","./ContentCommentsView-C89bjsk9.css","./VideoAuditView-BKiX63Ty.js","./VideoAuditView-CkpK9tY3.css","./TopicReviewView-BTJnxGc7.js","./TopicReviewView-Db8JN_kD.css","./AuditView-D3oxll3U.js","./AuditView-CfTOUhcb.css","./AdminsView-H6kXmBeD.js","./AdminsView-DjBrnQmr.css","./SettingsView-CCT6b_S4.js","./SettingsView-CmzjfufL.css"])))=>i.map(i=>d[i]);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -9289,6 +9289,12 @@ async function adminRequest(path, opts = {}) {
     setAdminToken("");
     window.dispatchEvent(new CustomEvent("sy:admin-unauthorized"));
   }
+  if (resp.status === 403 && data && data.code === "PASSWORD_CHANGE_REQUIRED") {
+    window.dispatchEvent(new CustomEvent("sy:admin-pwd-required"));
+  }
+  if (resp.status === 403 && data && data.code === "FORBIDDEN_PERM") {
+    window.dispatchEvent(new CustomEvent("sy:admin-forbidden", { detail: data }));
+  }
   if (!resp.ok) {
     const message = data && data.message || typeof text === "string" && text || "HTTP " + resp.status;
     throw new ApiError(message, data && data.code || "HTTP_" + resp.status, resp.status);
@@ -9299,6 +9305,14 @@ const adminApi = {
   login: (account, password) => adminRequest("/auth/login", { method: "POST", body: { account, password } }),
   password: (oldPassword, newPassword) => adminRequest("/auth/password", { method: "PATCH", body: { oldPassword, newPassword }, keepLogin: true }),
   stats: () => adminRequest("/stats"),
+  /** 当前管理员 + 角色 + 权限点（菜单/按钮按它渲染，**角色不写在令牌里**） */
+  me: () => adminRequest("/me"),
+  /** 管理员账号管理（仅 admin:manage = 超管） */
+  admins: () => adminRequest("/admins"),
+  createAdmin: ({ account, role, password }) => adminRequest("/admins", { method: "POST", body: { account, role, password } }),
+  changeAdminRole: (id, role) => adminRequest("/admins/" + encodeURIComponent(id) + "/role", { method: "POST", body: { role } }),
+  setAdminEnabled: (id, enabled) => adminRequest("/admins/" + encodeURIComponent(id) + "/status", { method: "POST", body: { enabled } }),
+  resetAdminPwd: (id) => adminRequest("/admins/" + encodeURIComponent(id) + "/reset-pwd", { method: "POST" }),
   reports: (status, page, size2 = 20) => adminRequest("/reports?status=" + (status || "PENDING") + "&page=" + (page || 1) + "&size=" + size2),
   report: (reportId) => adminRequest("/reports/" + reportId),
   resolve: (reportId, body) => adminRequest("/reports/" + reportId + "/resolve", { method: "POST", body }),
@@ -9763,7 +9777,7 @@ const useChatStore = /* @__PURE__ */ defineStore("chat", {
           this.error = "";
         }
       } catch (e) {
-        this.error = errText$1(e);
+        this.error = errText$2(e);
       }
     },
     /** 只刷角标（轮询用） */
@@ -9831,7 +9845,7 @@ const useChatStore = /* @__PURE__ */ defineStore("chat", {
         }
       } catch (e) {
         if (!beforeId) this.items = [];
-        this.error = errText$1(e);
+        this.error = errText$2(e);
         toast(this.error);
       }
     },
@@ -9906,7 +9920,7 @@ const useChatStore = /* @__PURE__ */ defineStore("chat", {
         this.stick = true;
         return true;
       } catch (e) {
-        toast(errText$1(e));
+        toast(errText$2(e));
         return false;
       }
     },
@@ -10003,7 +10017,7 @@ const useChatStore = /* @__PURE__ */ defineStore("chat", {
       if (!p2) return;
       this.pending = this.pending.filter((x) => x.clientMsgId !== clientMsgId);
       this.pending.push({ clientMsgId, body: p2.body, state: "failed", at: Date.now() });
-      toast(errText$1({ message: JSON.stringify({ code }) }));
+      toast(errText$2({ message: JSON.stringify({ code }) }));
     },
     /** 降级轮询：只拉当前会话的新消息 + 角标 */
     async pollTick() {
@@ -10051,7 +10065,7 @@ const useChatStore = /* @__PURE__ */ defineStore("chat", {
     }
   }
 });
-function errText$1(e) {
+function errText$2(e) {
   const code = e instanceof ApiError ? e.code : "";
   const raw = String(e && e.message || "");
   let parsed = "";
@@ -10919,6 +10933,246 @@ const __vitePreload = function preload(baseModule, deps, importerUrl) {
     return baseModule().catch(handlePreloadError);
   });
 };
+const ADMIN_MENU = [
+  {
+    group: "总览",
+    items: [
+      { to: "/admin/dashboard", label: "概览", icon: "◧", perm: "analytics:read" },
+      { to: "/admin/analytics", label: "报表分析", icon: "◔", perm: "analytics:read" }
+    ]
+  },
+  {
+    group: "运营",
+    items: [
+      { to: "/admin/reports", label: "举报处理", icon: "⚑", badge: "pendingReports", perm: "report:read" },
+      { to: "/admin/content/posts", label: "帖子管理", icon: "▤", perm: "content:read" },
+      { to: "/admin/content/comments", label: "评论管理", icon: "☷", perm: "content:read" },
+      { to: "/admin/video-audit", label: "视频复核", icon: "▷", perm: "video:read" },
+      { to: "/admin/topics", label: "辩题审核", icon: "❓", perm: "topic:read" },
+      { to: "/admin/users", label: "用户管理", icon: "☰", perm: "user:read" },
+      { to: "/admin/audit", label: "处理记录", icon: "⟲", perm: "audit:read" }
+    ]
+  },
+  {
+    group: "系统",
+    items: [
+      // 只有超管看得到：建号、改角色、重置密码
+      { to: "/admin/admins", label: "管理员管理", icon: "☗", perm: "admin:manage" },
+      { to: "/admin/settings", label: "设置", icon: "⚙" }
+    ]
+  }
+];
+function menuForCan(can) {
+  const allowed = (item) => !item.perm || typeof can === "function" && can(item.perm);
+  return ADMIN_MENU.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length > 0);
+}
+function errText$1(e) {
+  if (e instanceof ApiError) return e.message || e.code;
+  return e && e.message || "操作失败";
+}
+function fmtTime(ms) {
+  if (!ms) return "—";
+  const d = new Date(ms);
+  const p2 = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p2(d.getMonth() + 1) + "-" + p2(d.getDate()) + " " + p2(d.getHours()) + ":" + p2(d.getMinutes());
+}
+function reasonName$1(k) {
+  const m = { SPAM: "垃圾广告", ABUSE: "人身攻击", ILLEGAL: "违法违规", OTHER: "其他" };
+  return m[k] || k;
+}
+function actionName$1(k) {
+  const m = {
+    // 举报处置链路
+    IGNORE: "忽略",
+    DELETE: "删除内容",
+    BAN: "禁言",
+    DELETE_AND_BAN: "删除并禁言",
+    RESTORE: "撤销处理",
+    REPORT_RESOLVE: "举报处置",
+    // 管理台其它动作（2026-11-12 起也写处理记录）
+    VIDEO_DECIDE: "视频复核",
+    VIDEO_RESTORE: "视频恢复",
+    TOPIC_APPROVE: "辩题通过",
+    TOPIC_REJECT: "辩题驳回",
+    TOPIC_OFFLINE: "辩题下架",
+    USER_BAN: "全站封禁",
+    USER_UNBAN: "解除封禁",
+    // R2：管理员账号管理（处理记录里能看到谁建号/改角色/重置密码）
+    ADMIN_CREATE: "创建管理员",
+    ADMIN_ROLE: "改管理员角色",
+    ADMIN_DISABLE: "停用管理员",
+    ADMIN_ENABLE: "启用管理员",
+    ADMIN_RESET_PWD: "重置管理员密码",
+    PASS: "通过",
+    REJECT: "驳回",
+    UNBAN: "解封"
+  };
+  return m[k] || k;
+}
+const COLLAPSED_KEY = "sy_admin_collapsed";
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch (e) {
+    return false;
+  }
+}
+function writeCollapsed(v) {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, v ? "1" : "0");
+  } catch (e) {
+  }
+}
+function accountFromToken() {
+  const t = getAdminToken();
+  if (!t) return "";
+  try {
+    const part = t.split(".")[1];
+    if (!part) return "";
+    let s = String(part).replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const obj = JSON.parse(new TextDecoder().decode(bytes));
+    return obj && obj.acc ? String(obj.acc) : "";
+  } catch (e) {
+    return "";
+  }
+}
+const useAdminStore = /* @__PURE__ */ defineStore("admin", {
+  state: () => ({
+    /** `/api/admin/stats` 的原始返回；null = 还没拉过 */
+    stats: null,
+    /** 当前管理员账号（登录时记下 / 刷新时从令牌里解出来） */
+    account: accountFromToken(),
+    /** 宽屏侧栏是否收起（窄屏用抽屉，不看这个） */
+    collapsed: readCollapsed(),
+    /**
+     * `GET /api/admin/me` 的返回：`{ id, account, role, perms[], mustChangePwd }`。
+     *
+     * <p>**角色与权限点只在服务端判定，前端只做"显不显示"**：
+     * 菜单过滤、按钮显隐都读这里；后端每请求仍会用 `@Require` 再校验一次，
+     * 所以就算有人改了前端也没用。
+     *
+     * <p>为什么不从令牌里解角色：角色存在数据库、**每请求现查**，
+     * 改角色要立即生效；写进令牌就得等令牌过期（2 小时）。
+     */
+    me: null
+  }),
+  getters: {
+    /** 待处理举报数：侧栏「举报处理」的徽标 + 概览页第一张卡 */
+    pendingCount: (s) => s.stats && s.stats.pendingReports || 0,
+    /** 当前角色（SUPER / OPS / MOD / VIEWER），未加载时为空串 */
+    role: (s) => s.me && s.me.role || "",
+    /** 权限点数组（可能为空） */
+    perms: (s) => s.me && s.me.perms || [],
+    /** 首登 / 重置密码后必须先改密 */
+    mustChangePwd: (s) => !!(s.me && s.me.mustChangePwd)
+  },
+  actions: {
+    /**
+     * 有没有令牌（真正的有效性由后端判定）。
+     *
+     * ⚠️ 故意写成**方法**而不是 getter：Pinia 的 getter 是 computed，若它不读 state
+     * （这里是直接查 localStorage），值会被永久缓存 —— 登录/退出后不更新，
+     * 将来谁拿它做 `v-if` 就会踩「已登录却显示登录框」。方法每次现算，没有这个坑。
+     */
+    hasToken() {
+      return !!getAdminToken();
+    },
+    /** 拉统计（布局挂载时 / 登录成功后 / 处置完举报后调） */
+    async loadStats() {
+      try {
+        this.stats = await adminApi.stats();
+      } catch (e) {
+        toast(errText$1(e));
+      }
+    },
+    /**
+     * 拉当前身份（角色 + 权限点 + 是否待改密）。
+     *
+     * <p>登录后、刷新后各调一次；**失败不抛**（没权限时后端 403，页面自己会显示无权限卡片，
+     * 不该因此把人踢出去）。首登未改密时 `/me` 是放行的（后端白名单里有它）。
+     */
+    async loadMe() {
+      try {
+        this.me = await adminApi.me();
+        if (this.me && this.me.account) this.account = this.me.account;
+        return this.me;
+      } catch (e) {
+        this.me = null;
+        return null;
+      }
+    },
+    /** 有没有某个权限点（不传 = 没有） */
+    has(perm) {
+      return !!perm && this.perms.indexOf(perm) >= 0;
+    },
+    /** 任意一个命中即 true（`@Require` 的 OR 语义与后端一致） */
+    hasAny(list) {
+      if (!list || !list.length) return true;
+      return list.some((p2) => this.has(p2));
+    },
+    /**
+     * 登录后的落点：第一个有权限的菜单项。
+     *
+     * <p>为什么不能一律跳 `/admin/dashboard`：概览要 `analytics:read`，
+     * 而 MOD 没有这个权限 —— 一登录就撞「无权限」卡片，看着像坏了。
+     */
+    firstAllowedPath() {
+      for (const g of ADMIN_MENU) {
+        for (const it of g.items) {
+          if (!it.perm || this.has(it.perm)) return it.to;
+        }
+      }
+      return "/admin/settings";
+    },
+    /**
+     * 登录：换令牌 + 记账号 + 拉一次统计。
+     *
+     * 表单校验（空账号/空密码、busy 防重）留在 AdminLogin.vue —— 那是页面的事；
+     * 这里只负责「拿到令牌之后的状态」。
+     */
+    async login(accountName, password) {
+      const r = await adminApi.login(accountName, password);
+      if (r && r.token) setAdminToken(r.token);
+      this.account = accountName;
+      await this.loadMe();
+      if (this.has("analytics:read")) await this.loadStats();
+      return r;
+    },
+    /** 退出 / 改密成功：清令牌 + 清本台缓存（下次登录不会看到上一个人的数字）。 */
+    logout() {
+      setAdminToken("");
+      this.stats = null;
+      this.account = "";
+      this.me = null;
+    },
+    /**
+     * 全台唯一的 401 出口（`api.js` 广播 `sy:admin-unauthorized` 后由布局调用）。
+     *
+     * 旧版是「清令牌 → 原地变回登录框」；拆页后没有"原地"这个概念了，
+     * 所以这里只清状态，跳 `/admin/login` 由 AdminLayout 的监听器做
+     * （store 里拿 router 会形成 store → router → views → store 的循环 import）。
+     */
+    onUnauthorized() {
+      setAdminToken("");
+      this.stats = null;
+      this.account = "";
+      this.me = null;
+      toast("登录已失效，请重新登录");
+    },
+    /** 折叠 / 展开（宽屏），并记住到下次打开 */
+    setCollapsed(v) {
+      this.collapsed = !!v;
+      writeCollapsed(this.collapsed);
+    },
+    toggleCollapsed() {
+      this.setCollapsed(!this.collapsed);
+    }
+  }
+});
 const MODULE_OF = [
   [/^\/community/, "community"],
   [/^\/post\//, "community"],
@@ -17739,25 +17993,33 @@ const routes = [
   {
     path: "/admin",
     meta: { bare: true },
-    component: () => __vitePreload(() => import("./AdminLayout-5z4a15Ii.js"), true ? __vite__mapDeps([0,1,2,3,4,5,6,7]) : void 0, import.meta.url),
+    component: () => __vitePreload(() => import("./AdminLayout-DdkreFLz.js"), true ? __vite__mapDeps([0,1,2,3,4,5]) : void 0, import.meta.url),
     children: [
       { path: "", redirect: "/admin/dashboard" },
-      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-rXB3RtS2.js"), true ? __vite__mapDeps([8,1,2]) : void 0, import.meta.url), meta: { guest: true } },
-      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-C8Dsrc6G.js"), true ? __vite__mapDeps([9,10,11,2,12]) : void 0, import.meta.url), meta: { title: "概览" } },
-      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-DLM-JttK.js"), true ? __vite__mapDeps([13,10,11,2,14]) : void 0, import.meta.url), meta: { title: "报表分析" } },
+      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-BiyKU6Al.js"), true ? [] : void 0, import.meta.url), meta: { guest: true } },
+      // 首登 / 重置密码后强制改密：这条路由**不受 mustChangePwd 拦截**（否则就是死锁）
+      {
+        path: "change-password",
+        name: "admin-change-password",
+        component: () => __vitePreload(() => import("./ChangePasswordView-DMqjyIuz.js"), true ? __vite__mapDeps([6,7]) : void 0, import.meta.url),
+        meta: { title: "修改密码", pwdChangeAllowed: true }
+      },
+      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-DwNyArM4.js"), true ? __vite__mapDeps([8,9,10,11]) : void 0, import.meta.url), meta: { title: "概览", perm: "analytics:read" } },
+      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-Bk7FAuiu.js"), true ? __vite__mapDeps([12,9,10,13]) : void 0, import.meta.url), meta: { title: "报表分析", perm: "analytics:read" } },
       {
         path: "reports",
         name: "admin-reports",
-        component: () => __vitePreload(() => import("./ReportsView-BHYi5R3K.js"), true ? __vite__mapDeps([15,1,2,4,3,16]) : void 0, import.meta.url),
-        meta: { title: "举报处理", badge: "pendingReports" }
+        component: () => __vitePreload(() => import("./ReportsView-cnu6vgpd.js"), true ? __vite__mapDeps([14,2,1,15]) : void 0, import.meta.url),
+        meta: { title: "举报处理", badge: "pendingReports", perm: "report:read" }
       },
-      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-BxqKOkrT.js"), true ? __vite__mapDeps([17,1,2,4,18,19]) : void 0, import.meta.url), meta: { title: "用户管理" } },
-      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-5RB7Z_--.js"), true ? __vite__mapDeps([20,2,5,6,18,19,4,3,21]) : void 0, import.meta.url), meta: { title: "帖子管理" } },
-      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-CTCp0f_N.js"), true ? __vite__mapDeps([22,2,5,6,18,19,4,3,23]) : void 0, import.meta.url), meta: { title: "评论管理" } },
-      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-BQzpBZB5.js"), true ? __vite__mapDeps([24,2,4,25]) : void 0, import.meta.url), meta: { title: "视频复核" } },
-      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-5vGfL4Tm.js"), true ? __vite__mapDeps([26,2,27]) : void 0, import.meta.url), meta: { title: "辩题审核" } },
-      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-CgNtB99x.js"), true ? __vite__mapDeps([28,1,2,4,3,29]) : void 0, import.meta.url), meta: { title: "处理记录" } },
-      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-Dz4jbRwN.js"), true ? __vite__mapDeps([30,1,2]) : void 0, import.meta.url), meta: { title: "设置" } }
+      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-b89sDHM0.js"), true ? __vite__mapDeps([16,2,17,18]) : void 0, import.meta.url), meta: { title: "用户管理", perm: "user:read" } },
+      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-Dp1p01A6.js"), true ? __vite__mapDeps([19,3,4,17,18,2,1,20]) : void 0, import.meta.url), meta: { title: "帖子管理", perm: "content:read" } },
+      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-B75oqj2M.js"), true ? __vite__mapDeps([21,3,4,17,18,2,1,22]) : void 0, import.meta.url), meta: { title: "评论管理", perm: "content:read" } },
+      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-BKiX63Ty.js"), true ? __vite__mapDeps([23,2,24]) : void 0, import.meta.url), meta: { title: "视频复核", perm: "video:read" } },
+      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-BTJnxGc7.js"), true ? __vite__mapDeps([25,26]) : void 0, import.meta.url), meta: { title: "辩题审核", perm: "topic:read" } },
+      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-D3oxll3U.js"), true ? __vite__mapDeps([27,2,1,28]) : void 0, import.meta.url), meta: { title: "处理记录", perm: "audit:read" } },
+      { path: "admins", name: "admin-admins", component: () => __vitePreload(() => import("./AdminsView-H6kXmBeD.js"), true ? __vite__mapDeps([29,30]) : void 0, import.meta.url), meta: { title: "管理员管理", perm: "admin:manage" } },
+      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-CCT6b_S4.js"), true ? __vite__mapDeps([31,32]) : void 0, import.meta.url), meta: { title: "设置" } }
     ]
   },
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）
@@ -17777,6 +18039,19 @@ router.beforeEach(async (to) => {
     const hasAdmin = !!getAdminToken();
     if (!hasAdmin && to.meta.guest !== true) return { path: ADMIN_LOGIN_PATH, replace: true };
     if (hasAdmin && to.meta.guest === true) return { path: "/admin/dashboard", replace: true };
+    if (hasAdmin) {
+      const admin = useAdminStore();
+      if (!admin.me) await admin.loadMe();
+      if (admin.mustChangePwd && !to.meta.pwdChangeAllowed) {
+        return { name: "admin-change-password", replace: true };
+      }
+      if (to.name === "admin-dashboard" && admin.me && !admin.has("analytics:read")) {
+        return { path: admin.firstAllowedPath(), replace: true };
+      }
+      if (!admin.mustChangePwd && to.meta.pwdChangeAllowed && !to.query.voluntary) {
+        return { path: "/admin/dashboard", replace: true };
+      }
+    }
   }
   return true;
 });
@@ -17788,22 +18063,26 @@ app.use(createPinia());
 app.use(router);
 app.mount("#app");
 export {
-  withCtx as A,
-  resolveComponent as B,
-  vModelText as C,
-  withKeys as D,
-  analyticsApi as E,
+  onBeforeUnmount as A,
+  createBlock as B,
+  useRouter as C,
+  useRoute as D,
+  menuForCan as E,
   Fragment as F,
-  getAdminToken as G,
-  API_BASE as H,
-  ApiError as I,
-  onUnmounted as J,
-  vModelCheckbox as K,
-  videoAuditApi as L,
-  topicAdminApi as M,
-  reactive as N,
-  defineStore as O,
-  setAdminToken as P,
+  vModelText as G,
+  withKeys as H,
+  analyticsApi as I,
+  getAdminToken as J,
+  API_BASE as K,
+  ApiError as L,
+  onUnmounted as M,
+  reasonName$1 as N,
+  actionName$1 as O,
+  fmtTime as P,
+  vModelCheckbox as Q,
+  videoAuditApi as R,
+  topicAdminApi as S,
+  reactive as T,
   _export_sfc as _,
   openBlock as a,
   createBaseVNode as b,
@@ -17815,20 +18094,20 @@ export {
   withModifiers as h,
   ref as i,
   contentApi as j,
-  nextTick as k,
-  toast as l,
-  computed as m,
+  errText$1 as k,
+  nextTick as l,
+  toast as m,
   normalizeClass as n,
   onMounted as o,
-  adminApi as p,
-  createVNode as q,
+  computed as p,
+  adminApi as q,
   renderList as r,
-  onBeforeUnmount as s,
+  unref as s,
   toDisplayString as t,
-  unref as u,
+  useAdminStore as u,
   vModelSelect as v,
   watch as w,
-  createBlock as x,
-  useRouter as y,
-  useRoute as z
+  createVNode as x,
+  withCtx as y,
+  resolveComponent as z
 };

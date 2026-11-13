@@ -39,6 +39,10 @@ export function actionName(k) {
     VIDEO_DECIDE: '视频复核', VIDEO_RESTORE: '视频恢复',
     TOPIC_APPROVE: '辩题通过', TOPIC_REJECT: '辩题驳回', TOPIC_OFFLINE: '辩题下架',
     USER_BAN: '全站封禁', USER_UNBAN: '解除封禁',
+    // R2：管理员账号管理（处理记录里能看到谁建号/改角色/重置密码）
+    ADMIN_CREATE: '创建管理员', ADMIN_ROLE: '改管理员角色',
+    ADMIN_DISABLE: '停用管理员', ADMIN_ENABLE: '启用管理员',
+    ADMIN_RESET_PWD: '重置管理员密码',
     PASS: '通过', REJECT: '驳回', UNBAN: '解封'
   };
   return m[k] || k;

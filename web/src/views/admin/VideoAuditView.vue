@@ -11,6 +11,11 @@ import { videoAuditApi } from '../../api.js';
 import { toast } from '../../utils/toast.js';
 import { errText } from './helpers.js';
 import { userPop } from './userPop.js';
+import { useAdminStore } from '../../stores/admin.js';
+
+const adminStore = useAdminStore();
+/** 判定/恢复要 video:audit（OPS 和 VIEWER 只有 video:read，看不到这三个按钮） */
+const canAudit = computed(() => adminStore.has('video:audit'));
 
 const STATUSES = [['REVIEW', '待复核'], ['PASSED', '已通过'], ['REJECTED', '已驳回'], ['ALL', '全部']];
 
@@ -204,9 +209,13 @@ const ts = (v) => (typeof v === 'number' ? fmt(v) : (v ? String(v).slice(0, 16).
                 <td class="muted va-reason" :title="v.audit_reason || v.reason">{{ v.audit_reason || v.reason || '—' }}</td>
                 <td>
                   <span class="va-ops">
-                    <button class="btn sm" :disabled="!!busy" @click="pass(v)">通过</button>
-                    <button class="btn sm danger" :disabled="!!busy" @click="openReject(v)">驳回</button>
-                    <button class="btn sm" :disabled="!!busy" @click="restore(v)">恢复</button>
+                    <!-- video:audit 才渲染判定按钮；只读角色只看到"无操作" -->
+                    <template v-if="canAudit">
+                      <button class="btn sm" :disabled="!!busy" @click="pass(v)">通过</button>
+                      <button class="btn sm danger" :disabled="!!busy" @click="openReject(v)">驳回</button>
+                      <button class="btn sm" :disabled="!!busy" @click="restore(v)">恢复</button>
+                    </template>
+                    <span v-else class="muted" style="font-size: 12px">只读</span>
                     <button class="btn sm" @click="openLogs(v)">日志</button>
                   </span>
                 </td>

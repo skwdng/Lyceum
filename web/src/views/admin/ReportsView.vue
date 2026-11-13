@@ -9,7 +9,7 @@
  * · 详情弹窗打开时先清空 `note`；「处置」成功后清详情、toast、刷新列表**并且**刷 stats（徽标要跟着变）；
  * · 只有 BAN / DELETE_AND_BAN 才带 `banDays`（后端契约，前端不猜）。
  */
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { adminApi } from '../../api.js';
 import { useAdminStore } from '../../stores/admin.js';
 import { toast } from '../../utils/toast.js';
@@ -18,6 +18,9 @@ import { userPop } from './userPop.js';
 import { postDrawer } from './postDrawer.js';
 
 const admin = useAdminStore();
+
+/** 处置举报要 report:resolve（VIEWER 只有 report:read，看不到这四个按钮） */
+const canResolve = computed(() => admin.has('report:resolve'));
 
 const reports = ref(null);
 const reportStatus = ref('PENDING');
@@ -190,10 +193,14 @@ async function resolveReport(action) {
         </div>
         <div class="foot">
           <button class="btn" @click="detail = null">取消</button>
-          <button class="btn" @click="resolveReport('IGNORE')">忽略</button>
-          <button class="btn warn" @click="resolveReport('BAN')">禁言</button>
-          <button class="btn danger" @click="resolveReport('DELETE')">删除内容</button>
-          <button class="btn danger" @click="resolveReport('DELETE_AND_BAN')">删除并禁言</button>
+          <!-- report:resolve 才渲染处置按钮：VIEWER 只能看，不能处置 -->
+          <template v-if="canResolve">
+            <button class="btn" @click="resolveReport('IGNORE')">忽略</button>
+            <button class="btn warn" @click="resolveReport('BAN')">禁言</button>
+            <button class="btn danger" @click="resolveReport('DELETE')">删除内容</button>
+            <button class="btn danger" @click="resolveReport('DELETE_AND_BAN')">删除并禁言</button>
+          </template>
+          <span v-else class="muted" style="font-size: 12px">当前角色只能查看举报，不能处置</span>
         </div>
       </div>
     </div>

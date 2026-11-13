@@ -1,6 +1,4 @@
-import { c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, u as unref, f as withDirectives, C as vModelText, i as ref, l as toast, p as adminApi, I as ApiError, y as useRouter, a as openBlock } from "./index-BBvYsYtx.js";
-import { u as useAdminStore } from "./admin-CDxRU6i7.js";
-import { e as errText } from "./helpers-DLaWG9RE.js";
+import { _ as _export_sfc, u as useAdminStore, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, s as unref, e as createCommentVNode, F as Fragment, r as renderList, f as withDirectives, G as vModelText, i as ref, m as toast, q as adminApi, L as ApiError, k as errText, C as useRouter, a as openBlock } from "./index-DLaNzalC.js";
 const _hoisted_1 = { "data-panel": "settings" };
 const _hoisted_2 = {
   class: "panel",
@@ -8,8 +6,22 @@ const _hoisted_2 = {
 };
 const _hoisted_3 = { class: "body" };
 const _hoisted_4 = { style: { "font-size": "13px" } };
-const _hoisted_5 = { class: "panel form-narrow" };
-const _hoisted_6 = { class: "body" };
+const _hoisted_5 = {
+  key: 0,
+  class: "tag blue",
+  style: { "margin-left": "8px" }
+};
+const _hoisted_6 = {
+  key: 0,
+  style: { "margin-top": "12px" }
+};
+const _hoisted_7 = {
+  class: "muted",
+  style: { "font-size": "12px", "margin-bottom": "6px" }
+};
+const _hoisted_8 = { class: "pwd-perms" };
+const _hoisted_9 = { class: "panel form-narrow" };
+const _hoisted_10 = { class: "body" };
 const _sfc_main = {
   __name: "SettingsView",
   setup(__props) {
@@ -56,18 +68,30 @@ const _sfc_main = {
           ]),
           createBaseVNode("div", _hoisted_3, [
             createBaseVNode("div", _hoisted_4, [
-              _cache[5] || (_cache[5] = createTextVNode("账号：", -1)),
-              createBaseVNode("b", null, toDisplayString(unref(admin).account || "管理员"), 1)
+              _cache[5] || (_cache[5] = createTextVNode(" 账号：", -1)),
+              createBaseVNode("b", null, toDisplayString(unref(admin).account || "管理员"), 1),
+              unref(admin).role ? (openBlock(), createElementBlock("span", _hoisted_5, toDisplayString(unref(admin).role), 1)) : createCommentVNode("", true)
             ]),
             _cache[6] || (_cache[6] = createBaseVNode("div", {
               class: "muted",
               style: { "font-size": "12.5px", "margin-top": "6px" }
-            }, " 独立入口：这里的登录态与普通用户互不影响（各自一个令牌）。 ", -1))
+            }, " 独立入口：这里的登录态与普通用户互不影响（各自一个令牌）。 ", -1)),
+            unref(admin).role ? (openBlock(), createElementBlock("div", _hoisted_6, [
+              createBaseVNode("div", _hoisted_7, " 当前角色拥有的权限点（" + toDisplayString(unref(admin).perms.length) + " 个，改角色后下一次请求即生效）： ", 1),
+              createBaseVNode("div", _hoisted_8, [
+                (openBlock(true), createElementBlock(Fragment, null, renderList(unref(admin).perms, (p) => {
+                  return openBlock(), createElementBlock("span", {
+                    key: p,
+                    class: "tag"
+                  }, toDisplayString(p), 1);
+                }), 128))
+              ])
+            ])) : createCommentVNode("", true)
           ])
         ]),
-        createBaseVNode("div", _hoisted_5, [
+        createBaseVNode("div", _hoisted_9, [
           _cache[11] || (_cache[11] = createBaseVNode("h2", null, "修改密码", -1)),
-          createBaseVNode("div", _hoisted_6, [
+          createBaseVNode("div", _hoisted_10, [
             _cache[7] || (_cache[7] = createBaseVNode("p", {
               class: "muted",
               style: { "font-size": "12.5px", "margin": "0" }
@@ -108,6 +132,7 @@ const _sfc_main = {
     };
   }
 };
+const SettingsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-17ff1f39"]]);
 export {
-  _sfc_main as default
+  SettingsView as default
 };

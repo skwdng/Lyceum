@@ -1,8 +1,6 @@
-import { J as onUnmounted, o as onMounted, p as adminApi, l as toast, c as createElementBlock, b as createBaseVNode, d as createTextVNode, f as withDirectives, C as vModelText, D as withKeys, e as createCommentVNode, q as createVNode, F as Fragment, r as renderList, t as toDisplayString, i as ref, m as computed, a as openBlock, K as vModelCheckbox, n as normalizeClass, u as unref, v as vModelSelect } from "./index-BBvYsYtx.js";
-import { u as useAdminStore } from "./admin-CDxRU6i7.js";
-import { e as errText, f as fmtTime } from "./helpers-DLaWG9RE.js";
-import { u as userPop } from "./userPop-2FP-pwix.js";
-import { B as BatchActions } from "./BatchActions-CCCvSZ2Z.js";
+import { u as useAdminStore, M as onUnmounted, o as onMounted, q as adminApi, m as toast, k as errText, c as createElementBlock, b as createBaseVNode, d as createTextVNode, f as withDirectives, G as vModelText, H as withKeys, e as createCommentVNode, x as createVNode, F as Fragment, r as renderList, t as toDisplayString, i as ref, p as computed, a as openBlock, Q as vModelCheckbox, n as normalizeClass, s as unref, P as fmtTime, v as vModelSelect } from "./index-DLaNzalC.js";
+import { u as userPop } from "./userPop-CjaVOeEL.js";
+import { B as BatchActions } from "./BatchActions-C8j8ti9p.js";
 const _hoisted_1 = { "data-panel": "users" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = { style: { "padding": "0 18px" } };
@@ -52,12 +50,17 @@ const _hoisted_20 = ["onClick"];
 const _hoisted_21 = ["onClick"];
 const _hoisted_22 = ["onClick"];
 const _hoisted_23 = {
+  key: 1,
+  class: "muted",
+  style: { "font-size": "12px" }
+};
+const _hoisted_24 = {
   key: 3,
   class: "pager"
 };
-const _hoisted_24 = { class: "muted" };
-const _hoisted_25 = ["disabled"];
+const _hoisted_25 = { class: "muted" };
 const _hoisted_26 = ["disabled"];
+const _hoisted_27 = ["disabled"];
 const _sfc_main = {
   __name: "UsersView",
   setup(__props) {
@@ -68,6 +71,7 @@ const _sfc_main = {
     const users = ref(null);
     const usersQ = ref("");
     const banDaysByUser = ref({});
+    const canBan = computed(() => admin.has("user:ban"));
     const selected = ref([]);
     const allChecked = computed(() => !!users.value && (users.value.items || []).length > 0 && selected.value.length === users.value.items.length);
     function toggleAll(e) {
@@ -205,40 +209,42 @@ const _sfc_main = {
                     ])], 8, _hoisted_18), [
                       [vModelSelect, banDaysByUser.value[u.id]]
                     ]),
-                    createBaseVNode("button", {
-                      class: "btn sm warn",
-                      onClick: ($event) => banUser(u)
-                    }, "禁言", 8, _hoisted_19),
-                    createBaseVNode("button", {
-                      class: "btn sm",
-                      onClick: ($event) => unbanUser(u)
-                    }, "解禁", 8, _hoisted_20),
-                    u.disabled ? (openBlock(), createElementBlock("button", {
-                      key: 0,
-                      class: "btn sm",
-                      onClick: ($event) => setStatus(u, 1)
-                    }, "解封", 8, _hoisted_21)) : (openBlock(), createElementBlock("button", {
-                      key: 1,
-                      class: "btn sm danger",
-                      onClick: ($event) => setStatus(u, 0)
-                    }, "全站封禁", 8, _hoisted_22))
+                    canBan.value ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
+                      createBaseVNode("button", {
+                        class: "btn sm warn",
+                        onClick: ($event) => banUser(u)
+                      }, "禁言", 8, _hoisted_19),
+                      createBaseVNode("button", {
+                        class: "btn sm",
+                        onClick: ($event) => unbanUser(u)
+                      }, "解禁", 8, _hoisted_20),
+                      u.disabled ? (openBlock(), createElementBlock("button", {
+                        key: 0,
+                        class: "btn sm",
+                        onClick: ($event) => setStatus(u, 1)
+                      }, "解封", 8, _hoisted_21)) : (openBlock(), createElementBlock("button", {
+                        key: 1,
+                        class: "btn sm danger",
+                        onClick: ($event) => setStatus(u, 0)
+                      }, "全站封禁", 8, _hoisted_22))
+                    ], 64)) : (openBlock(), createElementBlock("span", _hoisted_23, "只读"))
                   ])
                 ]);
               }), 128))
             ])
           ])),
-          users.value && users.value.total > users.value.size ? (openBlock(), createElementBlock("div", _hoisted_23, [
-            createBaseVNode("span", _hoisted_24, "共 " + toDisplayString(users.value.total) + " 条 · 第 " + toDisplayString(users.value.page) + " 页", 1),
+          users.value && users.value.total > users.value.size ? (openBlock(), createElementBlock("div", _hoisted_24, [
+            createBaseVNode("span", _hoisted_25, "共 " + toDisplayString(users.value.total) + " 条 · 第 " + toDisplayString(users.value.page) + " 页", 1),
             createBaseVNode("button", {
               class: "btn sm",
               disabled: users.value.page <= 1,
               onClick: _cache[7] || (_cache[7] = ($event) => loadUsers(users.value.page - 1))
-            }, "上一页", 8, _hoisted_25),
+            }, "上一页", 8, _hoisted_26),
             createBaseVNode("button", {
               class: "btn sm",
               disabled: users.value.page >= Math.ceil(users.value.total / users.value.size),
               onClick: _cache[8] || (_cache[8] = ($event) => loadUsers(users.value.page + 1))
-            }, " 下一页 ", 8, _hoisted_26)
+            }, " 下一页 ", 8, _hoisted_27)
           ])) : createCommentVNode("", true)
         ])
       ]);

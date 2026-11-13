@@ -12,6 +12,11 @@ import { adminApi, contentApi } from '../../../api.js';
 import { toast } from '../../../utils/toast.js';
 import { errText } from '../helpers.js';
 import { postDrawer } from '../postDrawer.js';
+import { useAdminStore } from '../../../stores/admin.js';
+
+const adminStore = useAdminStore();
+/** 用户处置按钮要不要渲染：user:ban（VIEWER 看不到） */
+const canBan = computed(() => adminStore.has('user:ban'));
 
 const props = defineProps({
   userId: { type: String, required: true },
@@ -195,14 +200,18 @@ function jump(h) {
       </div>
 
       <div class="upop-foot">
-        <select v-model.number="muteDays" class="upop-sel">
-          <option :value="1">1 天</option>
-          <option :value="3">3 天</option>
-          <option :value="7">7 天</option>
-        </select>
-        <button class="btn sm" :disabled="!!busy" @click="mute">禁言</button>
-        <button class="btn sm danger" :disabled="!!busy" @click="ban">封禁</button>
-        <button class="btn sm" :disabled="!!busy" @click="unban">解封</button>
+        <!-- 用户处置要 user:ban：VIEWER / MOD / 只读角色看不到这一排按钮 -->
+        <template v-if="canBan">
+          <select v-model.number="muteDays" class="upop-sel">
+            <option :value="1">1 天</option>
+            <option :value="3">3 天</option>
+            <option :value="7">7 天</option>
+          </select>
+          <button class="btn sm" :disabled="!!busy" @click="mute">禁言</button>
+          <button class="btn sm danger" :disabled="!!busy" @click="ban">封禁</button>
+          <button class="btn sm" :disabled="!!busy" @click="unban">解封</button>
+        </template>
+        <span v-else class="muted" style="font-size: 11.5px">当前角色只能查看，不能处置用户</span>
         <span class="spacer"></span>
         <span v-if="busy" class="muted" style="font-size: 11.5px">处理中…</span>
       </div>

@@ -1,6 +1,5 @@
-import { G as getAdminToken, H as API_BASE, E as analyticsApi, I as ApiError, _ as _export_sfc, o as onMounted, c as createElementBlock, b as createBaseVNode, F as Fragment, r as renderList, e as createCommentVNode, t as toDisplayString, d as createTextVNode, q as createVNode, i as ref, l as toast, m as computed, a as openBlock, n as normalizeClass } from "./index-BBvYsYtx.js";
-import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-mhXES8FJ.js";
-import { e as errText } from "./helpers-DLaWG9RE.js";
+import { J as getAdminToken, K as API_BASE, I as analyticsApi, L as ApiError, _ as _export_sfc, u as useAdminStore, o as onMounted, c as createElementBlock, b as createBaseVNode, F as Fragment, r as renderList, e as createCommentVNode, t as toDisplayString, d as createTextVNode, x as createVNode, i as ref, k as errText, m as toast, p as computed, a as openBlock, n as normalizeClass } from "./index-DLaNzalC.js";
+import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-BdVf_q0h.js";
 async function downloadExport(params, fallbackName = "export.csv") {
   const token = getAdminToken();
   const resp = await fetch(API_BASE + analyticsApi.exportPath(params), {
@@ -128,6 +127,8 @@ const _hoisted_56 = { class: "v" };
 const _sfc_main = {
   __name: "AnalyticsView",
   setup(__props) {
+    const adminStore = useAdminStore();
+    const canExport = computed(() => adminStore.has("analytics:export"));
     const RANGES = [["7d", "近 7 天"], ["30d", "近 30 天"], ["90d", "近 90 天"]];
     const range = ref("30d");
     const loading = ref(true);
@@ -270,16 +271,18 @@ const _sfc_main = {
             createBaseVNode("h2", null, [
               _cache[16] || (_cache[16] = createTextVNode(" 模块浏览 ", -1)),
               _cache[17] || (_cache[17] = createBaseVNode("span", { class: "spacer" }, null, -1)),
-              createBaseVNode("button", {
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 0,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[2] || (_cache[2] = ($event) => exportReport({ format: "csv", report: "modules" }))
-              }, "CSV", 8, _hoisted_11),
-              createBaseVNode("button", {
+              }, "CSV", 8, _hoisted_11)) : createCommentVNode("", true),
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 1,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[3] || (_cache[3] = ($event) => exportReport({ format: "xlsx", report: "modules" }))
-              }, "XLSX", 8, _hoisted_12)
+              }, "XLSX", 8, _hoisted_12)) : createCommentVNode("", true)
             ]),
             createBaseVNode("div", _hoisted_13, [
               createBaseVNode("div", _hoisted_14, [
@@ -343,16 +346,18 @@ const _sfc_main = {
             createBaseVNode("h2", null, [
               _cache[22] || (_cache[22] = createTextVNode(" 活跃用户 ", -1)),
               _cache[23] || (_cache[23] = createBaseVNode("span", { class: "spacer" }, null, -1)),
-              createBaseVNode("button", {
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 0,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[4] || (_cache[4] = ($event) => exportReport({ format: "csv", report: "active" }))
-              }, "CSV", 8, _hoisted_21),
-              createBaseVNode("button", {
+              }, "CSV", 8, _hoisted_21)) : createCommentVNode("", true),
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 1,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[5] || (_cache[5] = ($event) => exportReport({ format: "xlsx", report: "active" }))
-              }, "XLSX", 8, _hoisted_22)
+              }, "XLSX", 8, _hoisted_22)) : createCommentVNode("", true)
             ]),
             createBaseVNode("div", _hoisted_23, [
               createBaseVNode("div", _hoisted_24, [
@@ -381,21 +386,24 @@ const _sfc_main = {
             createBaseVNode("h2", null, [
               _cache[27] || (_cache[27] = createTextVNode(" 内容与治理 ", -1)),
               _cache[28] || (_cache[28] = createBaseVNode("span", { class: "spacer" }, null, -1)),
-              createBaseVNode("button", {
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 0,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[6] || (_cache[6] = ($event) => exportReport({ format: "csv", report: "trend", metric: "reports" }))
-              }, "举报 CSV", 8, _hoisted_32),
-              createBaseVNode("button", {
+              }, "举报 CSV", 8, _hoisted_32)) : createCommentVNode("", true),
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 1,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[7] || (_cache[7] = ($event) => exportReport({ format: "csv", report: "trend", metric: "posts" }))
-              }, "发帖 CSV", 8, _hoisted_33),
-              createBaseVNode("button", {
+              }, "发帖 CSV", 8, _hoisted_33)) : createCommentVNode("", true),
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 2,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[8] || (_cache[8] = ($event) => exportReport({ format: "xlsx", report: "breakdown", dim: "report_reason" }))
-              }, "举报原因 XLSX", 8, _hoisted_34)
+              }, "举报原因 XLSX", 8, _hoisted_34)) : createCommentVNode("", true)
             ]),
             createBaseVNode("div", _hoisted_35, [
               createBaseVNode("div", _hoisted_36, [
@@ -432,16 +440,18 @@ const _sfc_main = {
             createBaseVNode("h2", null, [
               _cache[32] || (_cache[32] = createTextVNode(" 营收 ", -1)),
               _cache[33] || (_cache[33] = createBaseVNode("span", { class: "spacer" }, null, -1)),
-              createBaseVNode("button", {
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 0,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[9] || (_cache[9] = ($event) => exportReport({ format: "csv", report: "trend", metric: "revenue" }))
-              }, "CSV", 8, _hoisted_40),
-              createBaseVNode("button", {
+              }, "CSV", 8, _hoisted_40)) : createCommentVNode("", true),
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 1,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[10] || (_cache[10] = ($event) => exportReport({ format: "xlsx", report: "breakdown", dim: "tier" }))
-              }, "档位 XLSX", 8, _hoisted_41)
+              }, "档位 XLSX", 8, _hoisted_41)) : createCommentVNode("", true)
             ]),
             createBaseVNode("div", _hoisted_42, [
               createBaseVNode("div", _hoisted_43, [
@@ -470,16 +480,18 @@ const _sfc_main = {
             createBaseVNode("h2", null, [
               _cache[36] || (_cache[36] = createTextVNode(" 对局质量 ", -1)),
               _cache[37] || (_cache[37] = createBaseVNode("span", { class: "spacer" }, null, -1)),
-              createBaseVNode("button", {
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 0,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[11] || (_cache[11] = ($event) => exportReport({ format: "csv", report: "quality" }))
-              }, "CSV", 8, _hoisted_47),
-              createBaseVNode("button", {
+              }, "CSV", 8, _hoisted_47)) : createCommentVNode("", true),
+              canExport.value ? (openBlock(), createElementBlock("button", {
+                key: 1,
                 class: "btn sm",
                 disabled: !!exporting.value,
                 onClick: _cache[12] || (_cache[12] = ($event) => exportReport({ format: "xlsx", report: "quality" }))
-              }, "XLSX", 8, _hoisted_48)
+              }, "XLSX", 8, _hoisted_48)) : createCommentVNode("", true)
             ]),
             createBaseVNode("div", _hoisted_49, [
               createBaseVNode("div", _hoisted_50, [
@@ -510,7 +522,7 @@ const _sfc_main = {
     };
   }
 };
-const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-9540abac"]]);
+const AnalyticsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-01f6e6f8"]]);
 export {
   AnalyticsView as default
 };

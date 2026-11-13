@@ -12,6 +12,11 @@ import { computed, onMounted, ref } from 'vue';
 import { topicAdminApi } from '../../api.js';
 import { toast } from '../../utils/toast.js';
 import { errText } from './helpers.js';
+import { useAdminStore } from '../../stores/admin.js';
+
+const adminStore = useAdminStore();
+/** 辩题判定要 topic:moderate（MOD / VIEWER 只有 topic:read） */
+const canModerate = computed(() => adminStore.has('topic:moderate'));
 
 const STATUSES = [['ALL', '全部'], ['PASS', '正常'], ['REJECT', '已驳回/下架'], ['NEED_EDIT', '待修改'], ['pending', '待审']];
 const SOURCES = [['', '全部来源'], ['official', '官方'], ['custom', '自定义']];
@@ -176,9 +181,12 @@ const tagClass = (s) => (s === 'PASS' ? 'ok' : (s === 'REJECT' ? 'red' : 'orange
                 <td class="muted">{{ fmt(t.modAt) }}</td>
                 <td>
                   <span class="tr-ops">
-                    <button class="btn sm" :disabled="!!busy" @click="approve(t)">通过</button>
-                    <button class="btn sm danger" :disabled="!!busy" @click="openPrompt(t, 'reject')">驳回</button>
-                    <button class="btn sm warn" :disabled="!!busy" @click="openPrompt(t, 'offline')">下架</button>
+                    <template v-if="canModerate">
+                      <button class="btn sm" :disabled="!!busy" @click="approve(t)">通过</button>
+                      <button class="btn sm danger" :disabled="!!busy" @click="openPrompt(t, 'reject')">驳回</button>
+                      <button class="btn sm warn" :disabled="!!busy" @click="openPrompt(t, 'offline')">下架</button>
+                    </template>
+                    <span v-else class="muted" style="font-size: 12px">只读</span>
                   </span>
                 </td>
               </tr>

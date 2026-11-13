@@ -10,7 +10,7 @@
  * 与旧版的唯一差异（用户不可见）：旧版恢复后顺带刷新举报队列的本地缓存；
  * 现在队列是独立子页，下次进入时自己重拉，不在本页发多余请求。
  */
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { adminApi } from '../../api.js';
 import { useAdminStore } from '../../stores/admin.js';
 import { toast } from '../../utils/toast.js';
@@ -19,6 +19,9 @@ import { userPop } from './userPop.js';
 import { postDrawer } from './postDrawer.js';
 
 const admin = useAdminStore();
+
+/** 撤销处置要 audit:restore（MOD / VIEWER 只有 audit:read） */
+const canRestore = computed(() => admin.has('audit:restore'));
 
 const audit = ref(null);
 
@@ -39,7 +42,12 @@ const ACTIONS = [
   ['TOPIC_REJECT', '辩题驳回'],
   ['TOPIC_OFFLINE', '辩题下架'],
   ['USER_BAN', '全站封禁'],
-  ['USER_UNBAN', '解除封禁']
+  ['USER_UNBAN', '解除封禁'],
+  ['ADMIN_CREATE', '创建管理员'],
+  ['ADMIN_ROLE', '改管理员角色'],
+  ['ADMIN_DISABLE', '停用管理员'],
+  ['ADMIN_ENABLE', '启用管理员'],
+  ['ADMIN_RESET_PWD', '重置管理员密码']
 ];
 const VERDICTS = [
   ['', '全部结果'],
@@ -51,7 +59,8 @@ const VERDICTS = [
   ['REJECT', '驳回'],
   ['UNBAN', '解封']
 ];
-const TARGETS = [['', '全部对象'], ['POST', '帖子'], ['COMMENT', '评论'], ['USER', '用户'], ['VIDEO', '视频'], ['TOPIC', '辩题']];
+const TARGETS = [['', '全部对象'], ['POST', '帖子'], ['COMMENT', '评论'], ['USER', '用户'],
+  ['VIDEO', '视频'], ['TOPIC', '辩题'], ['ADMIN', '管理员']];
 const SOURCES = [['', '全部来源'], ['REPORT', '举报'], ['MANUAL', '管理台']];
 
 onMounted(() => loadAudit(1));
@@ -186,6 +195,10 @@ async function restoreAudit(id) {
               </template>
               <template v-else-if="r.targetType === 'TOPIC'">辩题 {{ r.targetOwner || '' }}</template>
               <template v-else-if="r.targetType === 'VIDEO'">视频 #{{ r.targetId }}</template>
+              <!-- 管理员账号操作（R2）：显示账号名，不给点（管理员管理页才有改角色/停用） -->
+              <template v-else-if="r.targetType === 'ADMIN'">
+                管理员 <b>{{ r.targetOwner || ('#' + r.targetId) }}</b>
+              </template>
               <template v-else-if="r.targetType === 'POST'">
                 <a class="au-link" @click="openTarget(r)">帖子 #{{ r.targetId }}</a>
               </template>
@@ -208,7 +221,8 @@ async function restoreAudit(id) {
             </td>
             <td style="text-align: right">
               <template v-if="r.action !== 'RESTORE' && !r.undone">
-                <button v-if="r.canRestore" class="btn sm danger" @click="restoreAudit(r.id)">恢复</button>
+                <button v-if="r.canRestore && canRestore" class="btn sm danger" @click="restoreAudit(r.id)">恢复</button>
+                <span v-else-if="r.canRestore" class="muted" style="font-size: 12px">无撤销权限</span>
                 <span v-else class="muted" style="font-size: 12px">不可恢复</span>
               </template>
               <span v-else-if="r.action !== 'RESTORE'" class="muted" style="font-size: 12px">已撤销</span>

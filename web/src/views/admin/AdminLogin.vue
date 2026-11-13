@@ -30,7 +30,9 @@ async function login() {
     await admin.login(account.value.trim(), password.value);
     password.value = '';
     toast('登录成功');
-    router.replace('/admin/dashboard');
+    // 落到**第一个有权限的页面**：概览要 analytics:read，MOD / VIEWER 里有人没有，
+    // 一律跳概览会一登录就撞「无权限」卡片。
+    router.replace(admin.firstAllowedPath());
   } catch (e) {
     toast(errText(e));
   } finally {

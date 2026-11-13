@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { adminApi, getAdminToken, setAdminToken } from '../api.js';
+import { ADMIN_MENU } from '../adminMenu.js';
 import { toast } from '../utils/toast.js';
 // 错误文案必须与旧版逐字一致，所以复用同一个 errText（纯函数，不会形成循环依赖）
 import { errText } from '../views/admin/helpers.js';
@@ -70,12 +71,29 @@ export const useAdminStore = defineStore('admin', {
     /** 当前管理员账号（登录时记下 / 刷新时从令牌里解出来） */
     account: accountFromToken(),
     /** 宽屏侧栏是否收起（窄屏用抽屉，不看这个） */
-    collapsed: readCollapsed()
+    collapsed: readCollapsed(),
+    /**
+     * `GET /api/admin/me` 的返回：`{ id, account, role, perms[], mustChangePwd }`。
+     *
+     * <p>**角色与权限点只在服务端判定，前端只做"显不显示"**：
+     * 菜单过滤、按钮显隐都读这里；后端每请求仍会用 `@Require` 再校验一次，
+     * 所以就算有人改了前端也没用。
+     *
+     * <p>为什么不从令牌里解角色：角色存在数据库、**每请求现查**，
+     * 改角色要立即生效；写进令牌就得等令牌过期（2 小时）。
+     */
+    me: null
   }),
 
   getters: {
     /** 待处理举报数：侧栏「举报处理」的徽标 + 概览页第一张卡 */
-    pendingCount: (s) => (s.stats && s.stats.pendingReports) || 0
+    pendingCount: (s) => (s.stats && s.stats.pendingReports) || 0,
+    /** 当前角色（SUPER / OPS / MOD / VIEWER），未加载时为空串 */
+    role: (s) => (s.me && s.me.role) || '',
+    /** 权限点数组（可能为空） */
+    perms: (s) => (s.me && s.me.perms) || [],
+    /** 首登 / 重置密码后必须先改密 */
+    mustChangePwd: (s) => !!(s.me && s.me.mustChangePwd)
   },
 
   actions: {
@@ -100,6 +118,50 @@ export const useAdminStore = defineStore('admin', {
     },
 
     /**
+     * 拉当前身份（角色 + 权限点 + 是否待改密）。
+     *
+     * <p>登录后、刷新后各调一次；**失败不抛**（没权限时后端 403，页面自己会显示无权限卡片，
+     * 不该因此把人踢出去）。首登未改密时 `/me` 是放行的（后端白名单里有它）。
+     */
+    async loadMe() {
+      try {
+        this.me = await adminApi.me();
+        if (this.me && this.me.account) this.account = this.me.account;
+        return this.me;
+      } catch (e) {
+        // 401 由 api.js 广播统一处理；其余情况保持 me=null（页面按"无权限"渲染）
+        this.me = null;
+        return null;
+      }
+    },
+
+    /** 有没有某个权限点（不传 = 没有） */
+    has(perm) {
+      return !!perm && this.perms.indexOf(perm) >= 0;
+    },
+
+    /** 任意一个命中即 true（`@Require` 的 OR 语义与后端一致） */
+    hasAny(list) {
+      if (!list || !list.length) return true;
+      return list.some((p) => this.has(p));
+    },
+
+    /**
+     * 登录后的落点：第一个有权限的菜单项。
+     *
+     * <p>为什么不能一律跳 `/admin/dashboard`：概览要 `analytics:read`，
+     * 而 MOD 没有这个权限 —— 一登录就撞「无权限」卡片，看着像坏了。
+     */
+    firstAllowedPath() {
+      for (const g of ADMIN_MENU) {
+        for (const it of g.items) {
+          if (!it.perm || this.has(it.perm)) return it.to;
+        }
+      }
+      return '/admin/settings';
+    },
+
+    /**
      * 登录：换令牌 + 记账号 + 拉一次统计。
      *
      * 表单校验（空账号/空密码、busy 防重）留在 AdminLogin.vue —— 那是页面的事；
@@ -109,7 +171,10 @@ export const useAdminStore = defineStore('admin', {
       const r = await adminApi.login(accountName, password);
       if (r && r.token) setAdminToken(r.token);
       this.account = accountName;
-      await this.loadStats();
+      // 先拿身份：菜单/按钮/强制改密都靠它
+      await this.loadMe();
+      // 概览统计要 analytics:read（MOD 没有），没权限就别白打一次 403
+      if (this.has('analytics:read')) await this.loadStats();
       return r;
     },
 
@@ -118,6 +183,7 @@ export const useAdminStore = defineStore('admin', {
       setAdminToken('');
       this.stats = null;
       this.account = '';
+      this.me = null;
     },
 
     /**
@@ -131,6 +197,7 @@ export const useAdminStore = defineStore('admin', {
       setAdminToken('');
       this.stats = null;
       this.account = '';
+      this.me = null;
       toast('登录已失效，请重新登录');
     },
 

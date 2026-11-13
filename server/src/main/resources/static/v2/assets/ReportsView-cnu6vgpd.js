@@ -1,8 +1,6 @@
-import { _ as _export_sfc, J as onUnmounted, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, F as Fragment, r as renderList, t as toDisplayString, e as createCommentVNode, h as withModifiers, u as unref, f as withDirectives, C as vModelText, v as vModelSelect, i as ref, p as adminApi, l as toast, a as openBlock, n as normalizeClass } from "./index-BBvYsYtx.js";
-import { u as useAdminStore } from "./admin-CDxRU6i7.js";
-import { r as reasonName, e as errText, a as actionName, f as fmtTime } from "./helpers-DLaWG9RE.js";
-import { u as userPop } from "./userPop-2FP-pwix.js";
-import { p as postDrawer } from "./postDrawer-Jg7zAU0z.js";
+import { _ as _export_sfc, u as useAdminStore, M as onUnmounted, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, F as Fragment, r as renderList, t as toDisplayString, e as createCommentVNode, h as withModifiers, s as unref, N as reasonName, f as withDirectives, G as vModelText, v as vModelSelect, i as ref, q as adminApi, m as toast, k as errText, p as computed, O as actionName, a as openBlock, n as normalizeClass, P as fmtTime } from "./index-DLaNzalC.js";
+import { u as userPop } from "./userPop-CjaVOeEL.js";
+import { p as postDrawer } from "./postDrawer-DKIicZFn.js";
 const _hoisted_1 = { "data-panel": "reports" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = ["onClick"];
@@ -65,10 +63,16 @@ const _hoisted_25 = {
   style: { "margin-top": "8px", "font-size": "12.5px" }
 };
 const _hoisted_26 = { class: "foot" };
+const _hoisted_27 = {
+  key: 1,
+  class: "muted",
+  style: { "font-size": "12px" }
+};
 const _sfc_main = {
   __name: "ReportsView",
   setup(__props) {
     const admin = useAdminStore();
+    const canResolve = computed(() => admin.has("report:resolve"));
     const reports = ref(null);
     const reportStatus = ref("PENDING");
     const detail = ref(null);
@@ -263,22 +267,24 @@ const _sfc_main = {
                 class: "btn",
                 onClick: _cache[6] || (_cache[6] = ($event) => detail.value = null)
               }, "取消"),
-              createBaseVNode("button", {
-                class: "btn",
-                onClick: _cache[7] || (_cache[7] = ($event) => resolveReport("IGNORE"))
-              }, "忽略"),
-              createBaseVNode("button", {
-                class: "btn warn",
-                onClick: _cache[8] || (_cache[8] = ($event) => resolveReport("BAN"))
-              }, "禁言"),
-              createBaseVNode("button", {
-                class: "btn danger",
-                onClick: _cache[9] || (_cache[9] = ($event) => resolveReport("DELETE"))
-              }, "删除内容"),
-              createBaseVNode("button", {
-                class: "btn danger",
-                onClick: _cache[10] || (_cache[10] = ($event) => resolveReport("DELETE_AND_BAN"))
-              }, "删除并禁言")
+              canResolve.value ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
+                createBaseVNode("button", {
+                  class: "btn",
+                  onClick: _cache[7] || (_cache[7] = ($event) => resolveReport("IGNORE"))
+                }, "忽略"),
+                createBaseVNode("button", {
+                  class: "btn warn",
+                  onClick: _cache[8] || (_cache[8] = ($event) => resolveReport("BAN"))
+                }, "禁言"),
+                createBaseVNode("button", {
+                  class: "btn danger",
+                  onClick: _cache[9] || (_cache[9] = ($event) => resolveReport("DELETE"))
+                }, "删除内容"),
+                createBaseVNode("button", {
+                  class: "btn danger",
+                  onClick: _cache[10] || (_cache[10] = ($event) => resolveReport("DELETE_AND_BAN"))
+                }, "删除并禁言")
+              ], 64)) : (openBlock(), createElementBlock("span", _hoisted_27, "当前角色只能查看举报，不能处置"))
             ])
           ])
         ])) : createCommentVNode("", true)
@@ -286,7 +292,7 @@ const _sfc_main = {
     };
   }
 };
-const ReportsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-f19155b6"]]);
+const ReportsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-e69facf6"]]);
 export {
   ReportsView as default
 };

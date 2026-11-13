@@ -10,6 +10,7 @@
  */
 import { computed, ref } from 'vue';
 import { adminApi, contentApi } from '../../../api.js';
+import { useAdminStore } from '../../../stores/admin.js';
 import { toast } from '../../../utils/toast.js';
 import { errText } from '../helpers.js';
 
@@ -30,6 +31,16 @@ const busy = ref('');
 const muteOpen = ref(false);
 const muteDays = ref(3);
 const muteReason = ref('');
+
+/**
+ * 按钮级权限：没有权限点就**不渲染按钮**（不是灰掉）。
+ *
+ * <p>后端每个接口还挂着 `@Require`，所以这只是"别让人点到一个注定 403 的按钮"；
+ * 真正的强制在服务端。
+ */
+const adminStore = useAdminStore();
+const canModerate = computed(() => adminStore.has('content:moderate'));
+const canBan = computed(() => adminStore.has('user:ban'));
 
 const disabled = computed(() => !!busy.value);
 
@@ -84,10 +95,12 @@ function unban() {
 
 <template>
   <span class="mb">
-    <button v-if="!hidden" class="btn" :class="size" :disabled="disabled" @click="hide">屏蔽</button>
-    <button v-else class="btn" :class="size" :disabled="disabled" @click="unhide">解除屏蔽</button>
+    <!-- 内容处置：content:moderate（VIEWER / 无此权限的角色看不到） -->
+    <button v-if="canModerate && !hidden" class="btn" :class="size" :disabled="disabled" @click="hide">屏蔽</button>
+    <button v-else-if="canModerate" class="btn" :class="size" :disabled="disabled" @click="unhide">解除屏蔽</button>
 
-    <template v-if="showUserActions && authorId">
+    <!-- 用户处置：user:ban（MOD / VIEWER 看不到） -->
+    <template v-if="canBan && showUserActions && authorId">
       <button class="btn" :class="size" :disabled="disabled" @click="openMute">禁言</button>
       <button class="btn" :class="size" :disabled="disabled" @click="ban">封禁</button>
       <button class="btn" :class="size" :disabled="disabled" @click="unban">解封</button>

@@ -27,6 +27,9 @@ const users = ref(null);
 const usersQ = ref('');
 const banDaysByUser = ref({});
 
+/** user:ban 才渲染禁言/封禁/解封按钮 */
+const canBan = computed(() => admin.has('user:ban'));
+
 /** 多选（批量禁言/封禁/解封用） */
 const selected = ref([]);
 const allChecked = computed(() =>
@@ -141,10 +144,14 @@ async function setStatus(u, status) {
                 <option :value="3">3 天</option>
                 <option :value="7">7 天</option>
               </select>
-              <button class="btn sm warn" @click="banUser(u)">禁言</button>
-              <button class="btn sm" @click="unbanUser(u)">解禁</button>
-              <button v-if="u.disabled" class="btn sm" @click="setStatus(u, 1)">解封</button>
-              <button v-else class="btn sm danger" @click="setStatus(u, 0)">全站封禁</button>
+              <!-- user:ban 才渲染处置按钮：MOD / VIEWER 只能看用户列表 -->
+              <template v-if="canBan">
+                <button class="btn sm warn" @click="banUser(u)">禁言</button>
+                <button class="btn sm" @click="unbanUser(u)">解禁</button>
+                <button v-if="u.disabled" class="btn sm" @click="setStatus(u, 1)">解封</button>
+                <button v-else class="btn sm danger" @click="setStatus(u, 0)">全站封禁</button>
+              </template>
+              <span v-else class="muted" style="font-size: 12px">只读</span>
             </td>
           </tr>
         </tbody>

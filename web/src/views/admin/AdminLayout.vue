@@ -13,10 +13,12 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ADMIN_MENU } from '../../adminMenu.js';
+import { menuForCan } from '../../adminMenu.js';
 import { useAdminStore } from '../../stores/admin.js';
+import { toast } from '../../utils/toast.js';
 import UserProfilePop from './components/UserProfilePop.vue';
 import PostDetailDrawer from './components/PostDetailDrawer.vue';
+import ForbiddenCard from './components/ForbiddenCard.vue';
 import { userPop } from './userPop.js';
 import { postDrawer } from './postDrawer.js';
 import './admin.css';
@@ -35,6 +37,21 @@ const isGuest = computed(() => route.meta.guest === true);
 
 /** 顶栏标题取路由 meta.title（菜单文案的同一份来源） */
 const title = computed(() => (route.meta && route.meta.title) || '管理台');
+
+/** 菜单按权限过滤：没权限的项不渲染（角色/权限点来自 `/api/admin/me`） */
+const menu = computed(() => menuForCan((perm) => admin.has(perm)));
+
+/**
+ * 直接输 URL 进无权限页面：渲染「无权限」卡片，**不跳走、不 404、不白屏**。
+ *
+ * <p>`me` 还没加载完时不判（避免刷新瞬间闪一下"无权限"）；
+ * 真正兜底的是后端 `@Require`，这里只决定显示什么。
+ */
+const missingPerm = computed(() => {
+  const need = route.meta && route.meta.perm;
+  if (!need || !admin.me) return '';
+  return admin.has(need) ? '' : need;
+});
 
 /**
  * 切页时把滚动位置归零。
@@ -91,15 +108,40 @@ function handleUnauthorized() {
   if (route.path !== '/admin/login') router.replace('/admin/login');
 }
 
+/**
+ * 首登 / 重置密码后强制改密（后端 403 PASSWORD_CHANGE_REQUIRED 广播到这里）。
+ *
+ * <p>**不清令牌、不踢回登录**：人已经登录了，只是必须先改密；
+ * 踢回登录页会让人以为"密码不对"，而实际上他手上的是一次性密码。
+ */
+function handlePwdRequired() {
+  if (route.name !== 'admin-change-password') {
+    router.replace({ name: 'admin-change-password' });
+  }
+}
+
+/** 后端 403 FORBIDDEN_PERM：前端少画了按钮也拦不住控制台，这里给一次明确提示 */
+function handleForbidden(e) {
+  const msg = (e && e.detail && e.detail.message) || 'FORBIDDEN_PERM: 没有权限执行该操作';
+  toast(msg);
+}
+
 onMounted(() => {
   window.addEventListener('sy:admin-unauthorized', handleUnauthorized);
+  window.addEventListener('sy:admin-pwd-required', handlePwdRequired);
+  window.addEventListener('sy:admin-forbidden', handleForbidden);
   if (mq && mq.addEventListener) mq.addEventListener('change', onMediaChange);
-  // 统计全台只拉这一次（坑 #1：别让每个子页各发一遍）
-  if (admin.hasToken()) admin.loadStats();
+  // 身份 + 统计：全台各拉一次（坑 #1：别让每个子页各发一遍）
+  if (admin.hasToken()) {
+    if (!admin.me) admin.loadMe();
+    if (admin.has('analytics:read')) admin.loadStats();
+  }
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('sy:admin-unauthorized', handleUnauthorized);
+  window.removeEventListener('sy:admin-pwd-required', handlePwdRequired);
+  window.removeEventListener('sy:admin-forbidden', handleForbidden);
   if (mq && mq.removeEventListener) mq.removeEventListener('change', onMediaChange);
 });
 </script>
@@ -121,7 +163,7 @@ onBeforeUnmount(() => {
         </div>
 
         <nav class="adm-nav">
-          <template v-for="(group, gi) in ADMIN_MENU" :key="gi">
+          <template v-for="(group, gi) in menu" :key="gi">
             <div class="g">{{ group.group }}</div>
             <RouterLink
               v-for="item in group.items"
@@ -147,12 +189,15 @@ onBeforeUnmount(() => {
           <button class="adm-iconbtn" aria-label="展开/收起菜单" @click="onToggle">☰</button>
           <h1 class="adm-title">{{ title }}</h1>
           <span class="spacer"></span>
+          <span v-if="admin.role" class="adm-role" :title="'当前角色：' + admin.role">{{ admin.role }}</span>
           <span class="adm-who">{{ admin.account || '管理员' }}</span>
           <button class="btn sm" @click="logout">退出登录</button>
         </header>
 
         <div class="adm-body">
-          <RouterView />
+          <!-- 无权限卡片：直接输 URL 进来时显示它，而不是白屏/404 -->
+          <ForbiddenCard v-if="missingPerm" :perm="missingPerm" :role="admin.role" />
+          <RouterView v-else />
         </div>
       </div>
     </div>

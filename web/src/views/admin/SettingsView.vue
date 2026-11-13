@@ -61,9 +61,21 @@ function logout() {
         <button class="btn sm" @click="logout">退出登录</button>
       </h2>
       <div class="body">
-        <div style="font-size: 13px">账号：<b>{{ admin.account || '管理员' }}</b></div>
+        <div style="font-size: 13px">
+          账号：<b>{{ admin.account || '管理员' }}</b>
+          <span v-if="admin.role" class="tag blue" style="margin-left: 8px">{{ admin.role }}</span>
+        </div>
         <div class="muted" style="font-size: 12.5px; margin-top: 6px">
           独立入口：这里的登录态与普通用户互不影响（各自一个令牌）。
+        </div>
+        <!-- 角色与权限点：出问题时让管理员自己就能说清"我有什么权限" -->
+        <div v-if="admin.role" style="margin-top: 12px">
+          <div class="muted" style="font-size: 12px; margin-bottom: 6px">
+            当前角色拥有的权限点（{{ admin.perms.length }} 个，改角色后下一次请求即生效）：
+          </div>
+          <div class="pwd-perms">
+            <span v-for="p in admin.perms" :key="p" class="tag">{{ p }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -87,3 +99,7 @@ function logout() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.pwd-perms { display: flex; gap: 6px; flex-wrap: wrap; }
+</style>

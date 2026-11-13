@@ -1,6 +1,4 @@
-import { c as createElementBlock, b as createBaseVNode, f as withDirectives, C as vModelText, D as withKeys, t as toDisplayString, i as ref, l as toast, y as useRouter, a as openBlock } from "./index-BBvYsYtx.js";
-import { u as useAdminStore } from "./admin-CDxRU6i7.js";
-import { e as errText } from "./helpers-DLaWG9RE.js";
+import { u as useAdminStore, c as createElementBlock, b as createBaseVNode, f as withDirectives, G as vModelText, H as withKeys, t as toDisplayString, i as ref, m as toast, k as errText, C as useRouter, a as openBlock } from "./index-DLaNzalC.js";
 const _hoisted_1 = { class: "login-wrap" };
 const _hoisted_2 = { class: "login-box" };
 const _hoisted_3 = ["disabled"];
@@ -20,7 +18,7 @@ const _sfc_main = {
         await admin.login(account.value.trim(), password.value);
         password.value = "";
         toast("登录成功");
-        router.replace("/admin/dashboard");
+        router.replace(admin.firstAllowedPath());
       } catch (e) {
         toast(errText(e));
       } finally {

@@ -15,6 +15,11 @@ import DonutChart from '../../components/charts/DonutChart.vue';
 import LineChart from '../../components/charts/LineChart.vue';
 import { toast } from '../../utils/toast.js';
 import { errText } from './helpers.js';
+import { useAdminStore } from '../../stores/admin.js';
+
+const adminStore = useAdminStore();
+/** 导出全站数据是独立权限（只给超管）：没权限就不渲染这些按钮 */
+const canExport = computed(() => adminStore.has('analytics:export'));
 import { downloadExport } from './exportFile.js';
 
 const RANGES = [['7d', '近 7 天'], ['30d', '近 30 天'], ['90d', '近 90 天']];
@@ -158,8 +163,8 @@ async function exportReport(params, key) {
         <h2>
           模块浏览
           <span class="spacer"></span>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'modules' })">CSV</button>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'modules' })">XLSX</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'modules' })">CSV</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'modules' })">XLSX</button>
         </h2>
         <div class="body scroll">
           <div class="adm-split">
@@ -209,8 +214,8 @@ async function exportReport(params, key) {
         <h2>
           活跃用户
           <span class="spacer"></span>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'active' })">CSV</button>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'active' })">XLSX</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'active' })">CSV</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'active' })">XLSX</button>
         </h2>
         <div class="body">
           <div class="adm-stats">
@@ -232,9 +237,9 @@ async function exportReport(params, key) {
         <h2>
           内容与治理
           <span class="spacer"></span>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'trend', metric: 'reports' })">举报 CSV</button>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'trend', metric: 'posts' })">发帖 CSV</button>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'breakdown', dim: 'report_reason' })">举报原因 XLSX</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'trend', metric: 'reports' })">举报 CSV</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'trend', metric: 'posts' })">发帖 CSV</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'breakdown', dim: 'report_reason' })">举报原因 XLSX</button>
         </h2>
         <div class="body">
           <div class="adm-split">
@@ -257,8 +262,8 @@ async function exportReport(params, key) {
         <h2>
           营收
           <span class="spacer"></span>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'trend', metric: 'revenue' })">CSV</button>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'breakdown', dim: 'tier' })">档位 XLSX</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'trend', metric: 'revenue' })">CSV</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'breakdown', dim: 'tier' })">档位 XLSX</button>
         </h2>
         <div class="body">
           <div class="adm-split">
@@ -284,8 +289,8 @@ async function exportReport(params, key) {
         <h2>
           对局质量
           <span class="spacer"></span>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'quality' })">CSV</button>
-          <button class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'quality' })">XLSX</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'csv', report: 'quality' })">CSV</button>
+          <button v-if="canExport" class="btn sm" :disabled="!!exporting" @click="exportReport({ format: 'xlsx', report: 'quality' })">XLSX</button>
         </h2>
         <div class="body">
           <div class="adm-stats">

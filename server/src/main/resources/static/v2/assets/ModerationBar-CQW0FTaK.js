@@ -1,5 +1,4 @@
-import { _ as _export_sfc, a as openBlock, c as createElementBlock, n as normalizeClass, F as Fragment, b as createBaseVNode, e as createCommentVNode, h as withModifiers, t as toDisplayString, r as renderList, f as withDirectives, C as vModelText, m as computed, l as toast, i as ref, j as contentApi, p as adminApi } from "./index-BBvYsYtx.js";
-import { e as errText } from "./helpers-DLaWG9RE.js";
+import { _ as _export_sfc, u as useAdminStore, a as openBlock, c as createElementBlock, n as normalizeClass, e as createCommentVNode, F as Fragment, b as createBaseVNode, h as withModifiers, t as toDisplayString, r as renderList, f as withDirectives, G as vModelText, p as computed, m as toast, i as ref, j as contentApi, k as errText, q as adminApi } from "./index-DLaNzalC.js";
 const _hoisted_1 = { class: "mb" };
 const _hoisted_2 = ["disabled"];
 const _hoisted_3 = ["disabled"];
@@ -40,6 +39,9 @@ const _sfc_main = {
     const muteOpen = ref(false);
     const muteDays = ref(3);
     const muteReason = ref("");
+    const adminStore = useAdminStore();
+    const canModerate = computed(() => adminStore.has("content:moderate"));
+    const canBan = computed(() => adminStore.has("user:ban"));
     const disabled = computed(() => !!busy.value);
     async function run(key, fn, okMsg) {
       if (busy.value) return;
@@ -87,18 +89,18 @@ const _sfc_main = {
     }
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("span", _hoisted_1, [
-        !__props.hidden ? (openBlock(), createElementBlock("button", {
+        canModerate.value && !__props.hidden ? (openBlock(), createElementBlock("button", {
           key: 0,
           class: normalizeClass(["btn", __props.size]),
           disabled: disabled.value,
           onClick: hide
-        }, "屏蔽", 10, _hoisted_2)) : (openBlock(), createElementBlock("button", {
+        }, "屏蔽", 10, _hoisted_2)) : canModerate.value ? (openBlock(), createElementBlock("button", {
           key: 1,
           class: normalizeClass(["btn", __props.size]),
           disabled: disabled.value,
           onClick: unhide
-        }, "解除屏蔽", 10, _hoisted_3)),
-        __props.showUserActions && __props.authorId ? (openBlock(), createElementBlock(Fragment, { key: 2 }, [
+        }, "解除屏蔽", 10, _hoisted_3)) : createCommentVNode("", true),
+        canBan.value && __props.showUserActions && __props.authorId ? (openBlock(), createElementBlock(Fragment, { key: 2 }, [
           createBaseVNode("button", {
             class: normalizeClass(["btn", __props.size]),
             disabled: disabled.value,
@@ -160,7 +162,7 @@ const _sfc_main = {
     };
   }
 };
-const ModerationBar = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-8dd54889"]]);
+const ModerationBar = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-8bfd4b6a"]]);
 export {
   ModerationBar as M
 };

@@ -14,6 +14,7 @@
  */
 import { computed, ref } from 'vue';
 import { contentApi } from '../../../api.js';
+import { useAdminStore } from '../../../stores/admin.js';
 import { toast } from '../../../utils/toast.js';
 import { errText } from '../helpers.js';
 
@@ -23,6 +24,10 @@ const props = defineProps({
   ids: { type: Array, default: () => [] }
 });
 const emit = defineEmits(['clear', 'done']);
+
+const adminStore = useAdminStore();
+/** 没有对应权限点时整条批量栏都不出现（后端仍会拦，这里只是别让人白点） */
+const allowed = computed(() => adminStore.has(props.kind === 'user' ? 'user:ban' : 'content:moderate'));
 
 const busy = ref('');
 const modal = ref(null);   // { action, title }
@@ -85,7 +90,7 @@ function submit() {
 </script>
 
 <template>
-  <div v-if="count" class="batch">
+  <div v-if="count && allowed" class="batch">
     <span class="batch-n">已选 <b>{{ count }}</b> {{ isUser ? '个用户' : '条内容' }}</span>
 
     <template v-if="isUser">

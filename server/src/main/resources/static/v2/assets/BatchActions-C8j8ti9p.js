@@ -1,5 +1,4 @@
-import { _ as _export_sfc, a as openBlock, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, v as vModelSelect, e as createCommentVNode, F as Fragment, r as renderList, n as normalizeClass, h as withModifiers, C as vModelText, m as computed, i as ref, l as toast, j as contentApi } from "./index-BBvYsYtx.js";
-import { e as errText } from "./helpers-DLaWG9RE.js";
+import { _ as _export_sfc, u as useAdminStore, a as openBlock, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, v as vModelSelect, e as createCommentVNode, F as Fragment, r as renderList, n as normalizeClass, h as withModifiers, G as vModelText, p as computed, i as ref, m as toast, j as contentApi, k as errText } from "./index-DLaNzalC.js";
 const _hoisted_1 = {
   key: 0,
   class: "batch"
@@ -31,6 +30,8 @@ const _sfc_main = {
   setup(__props, { emit: __emit }) {
     const props = __props;
     const emit = __emit;
+    const adminStore = useAdminStore();
+    const allowed = computed(() => adminStore.has(props.kind === "user" ? "user:ban" : "content:moderate"));
     const busy = ref("");
     const modal = ref(null);
     const note = ref("");
@@ -79,7 +80,7 @@ const _sfc_main = {
       run(modal.value.action, note.value.trim() || null);
     }
     return (_ctx, _cache) => {
-      return count.value ? (openBlock(), createElementBlock("div", _hoisted_1, [
+      return count.value && allowed.value ? (openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("span", _hoisted_2, [
           _cache[5] || (_cache[5] = createTextVNode("已选 ", -1)),
           createBaseVNode("b", null, toDisplayString(count.value), 1),
@@ -156,7 +157,7 @@ const _sfc_main = {
     };
   }
 };
-const BatchActions = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-b3c0afe8"]]);
+const BatchActions = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-a55363b7"]]);
 export {
   BatchActions as B
 };
