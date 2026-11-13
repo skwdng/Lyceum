@@ -111,6 +111,38 @@ EXPIRE    hot:debate:2026-11-01 172800        # 保留 2 天
 
 内存实现 `HotRank.MemoryHotRank` 与上面命令语义一致，key 为 `hot:debate:{当天}`。
 
+## 管理端：账号与权限（RBAC，2026-11-13）
+
+管理员是**独立账号体系**（`sy_admin`，令牌 `typ=ADMIN`），与普通用户完全分离。
+角色 4 个、权限点 15 个，**角色存数据库、每请求一条 SQL 现查**（不写进 JWT，改角色下一次请求即生效）。
+
+| 角色 | 能干什么 |
+|---|---|
+| `SUPER` 超管 | 全部 15 个权限点：账号管理 + 导出全站数据 |
+| `OPS` 运营 | 日常处置（举报/内容/用户封禁/辩题）+ 处理记录撤销 + 报表；**不能导出、不能审视频、不能管账号** |
+| `MOD` 审核 | 内容与视频审核；**不能封号、不能撤销处置、不能看报表** |
+| `VIEWER` 只读 | 所有读接口；**所有写接口 403** |
+
+```bash
+# 1) 超管登录（种子 admin/admin123）
+curl -s -XPOST localhost:8080/api/admin/auth/login \
+  -H 'Content-Type: application/json' -d '{"account":"admin","password":"admin123"}'
+
+# 2) 当前身份与权限点（前端菜单/按钮就按它渲染）
+curl -s localhost:8080/api/admin/me -H "Authorization: Bearer $TOKEN"
+
+# 3) 建一个只读账号（响应里的 password 只出现这一次）
+curl -s -XPOST localhost:8080/api/admin/admins -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"account":"viewer1","role":"VIEWER"}'
+```
+
+- 接口权限用 `@Require(Perm.X)` 声明，`RequireAspect` 统一校验：不够 → 403 `FORBIDDEN_PERM`
+  （message 带缺的权限点）；没角色 → 403 `NOT_ADMIN`。
+- 首登 / 重置密码后 `must_change_pwd=true`：除「改密」和 `/me` 之外一律 403
+  `PASSWORD_CHANGE_REQUIRED`（拦截只在 `AdminAuthFilter` 一处）。
+- 账号**不能硬删除**，只能停用；处理记录里的 `target_type='ADMIN'` 记录不可恢复。
+- 细节见 `docs/管理接口契约.md` §11 与 `docs/SPEC.md` §28。
+
 ## 已实现 / 未实现
 
 | | 状态 |

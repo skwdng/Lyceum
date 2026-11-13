@@ -230,8 +230,6 @@ function jump(h) {
 .upop-body { padding: 12px 14px; overflow: auto; flex: 1 1 auto; min-height: 0; }
 .upop-foot { flex: 0 0 auto; }
 .upop-pager { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 8px; font-size: 12px; }
-.upop-x { margin-left: 6px; border: none; background: none; font-size: 18px; line-height: 1; color: #86909C; cursor: pointer; }
-.upop-body { padding: 12px 14px; overflow: auto; }
 .upop-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12.5px; }
 .upop-stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 10px 0; font-size: 12.5px; color: #4E5969; }
 .upop-stats i { font-style: normal; color: #F53F3F; }

@@ -1461,3 +1461,96 @@ web/
 ### 27.6 本期已知不影响使用的问题
 
 - 帖子详情抽屉为全局单例，理论上可通过脚本跨路由保持打开；正常界面下抽屉有遮罩，侧栏不可点，不构成可达路径
+
+---
+
+## 28. 管理员账号与权限分级（RBAC）（2026-11-13 追加）
+
+> 设计方案：`管理员账号与权限分级-设计方案.md`；分支 `feature-admin-rbac`。
+> 一句话：**账号只能由超管建，权限按 4 个角色分级，无权限要明确拒绝而不是白屏。**
+
+### 28.1 权限点（15 个，`com.siyige.admin.rbac.Perm`）
+
+| 权限点 | 覆盖接口 |
+|---|---|
+| `admin:manage` | `/api/admin/admins/**`（列表/创建/改角色/启停/重置密码） |
+| `report:read` / `report:resolve` | `GET /reports`、`GET /reports/{id}` / `POST /reports/{id}/resolve` |
+| `user:read` | `GET /users`、`GET /users/{id}/profile` |
+| `user:ban` | `POST /users/{id}/ban|unban|status|mute`、`POST /users/batch` |
+| `content:read` | `GET /posts`、`/posts/{id}`、`/posts/{id}/comments`、`GET /comments` |
+| `content:moderate` | `POST /content/{type}/{id}/hide|unhide`、`POST /content/batch` |
+| `audit:read` / `audit:restore` | `GET /audit` / `POST /audit/{id}/restore` |
+| `video:read` / `video:audit` | `GET /video-audit/{queue,{id}/logs,rules}` / `POST /video-audit/{id}/{decide,restore}` |
+| `topic:read` / `topic:moderate` | `GET /topics` / `POST /topics/{id}/{approve,reject,offline}` |
+| `analytics:read` | `GET /stats` + `analytics/{overview,modules,trend,breakdown,active,quality}` |
+| `analytics:export` | **仅** `GET /analytics/export`（导出全站数据，只给超管） |
+
+- **R-RBAC-01** 权限点代码 MUST 是上面这些字符串：`/api/admin/me` 下发、403 文案、前端菜单
+  三处都按它匹配，改名等于改契约。
+- **R-RBAC-02** 权限矩阵 MUST 只写一处（`AdminRole.perms()`）；别处 MUST NOT 再写角色判断。
+
+### 28.2 角色与矩阵（`com.siyige.admin.rbac.AdminRole`）
+
+| 权限点 | SUPER | OPS | MOD | VIEWER |
+|---|:--:|:--:|:--:|:--:|
+| admin:manage | Y | - | - | - |
+| report:read / resolve | Y / Y | Y / Y | Y / Y | Y / - |
+| user:read / ban | Y / Y | Y / Y | Y / - | Y / - |
+| content:read / moderate | Y / Y | Y / Y | Y / Y | Y / - |
+| audit:read / restore | Y / Y | Y / Y | Y / - | Y / - |
+| video:read / audit | Y / Y | Y / - | Y / Y | Y / - |
+| topic:read / moderate | Y / Y | Y / Y | Y / - | Y / - |
+| analytics:read / export | Y / Y | Y / - | - / - | Y / - |
+
+### 28.3 数据与鉴权链路
+
+- **R-RBAC-03** 角色 MUST 存数据库（`sy_admin.role`），MUST NOT 写进 JWT：
+  写进令牌的话改角色要等令牌过期（2 小时）才生效，而实际要求"改完下一次请求就生效"。
+- **R-RBAC-04** 每请求 MUST 只用**一条** SQL 取全（`AdminStatusSource.authInfo`）：
+  `status + pwd_changed_at + role + must_change_pwd`。加角色 MUST NOT 增加查询次数。
+- **R-RBAC-05** 接口权限 MUST 用 `@Require(Perm.X)` 声明 + `RequireAspect` 统一校验；
+  角色缺失 MUST 403 `NOT_ADMIN`（**绝不静默放行**）；权限不足 MUST 403 `FORBIDDEN_PERM`
+  并在 message 里带上缺的权限点。
+- **R-RBAC-06** `sy_admin` 只加列（`role` / `must_change_pwd` / `last_login_at` /
+  `created_by` / `role_changed_at`）；`role` 默认 `SUPER`，老账号升级后不被降权。
+
+### 28.4 账号规则（A 方案：超管创建）
+
+- **R-RBAC-07** MUST NOT 有自助注册/邀请码；只能 `POST /api/admin/admins` 由超管建号。
+- **R-RBAC-08** 一次性密码 MUST 12 位、去掉易混淆字符（`0 O 1 l I`）、`SecureRandom`，
+  且 MUST 同时含数字与字母；明文 MUST 只出现在「创建」与「重置」两次响应里，
+  库里只存 Argon2 哈希，日志与审计文案 MUST NOT 出现密码。
+- **R-RBAC-09** 保护规则 MUST 实现并返回 400：`CANNOT_DISABLE_SELF` / `CANNOT_DEMOTE_SELF` /
+  `LAST_SUPER` / `ROLE_REQUIRED`（创建不给角色，**不默认超管**）/ `ADMIN_EXISTS` /
+  `WEAK_PASSWORD`（复用用户侧 `PasswordPolicy`）。
+- **R-RBAC-10** 账号 MUST NOT 硬删除，只能停用（处理记录要能对上人）。
+- **R-RBAC-11** 重置密码 MUST 同时刷新 `pwd_changed_at`（旧令牌立刻失效）+ `must_change_pwd=true`；
+  首登改密成功后 MUST 清 `must_change_pwd`。
+- **R-RBAC-12** `must_change_pwd=true` 时 MUST 除「改密」「`/me`」之外全部 403
+  `PASSWORD_CHANGE_REQUIRED`；拦截实现 MUST 只在 `AdminAuthFilter` 一处，不得逐接口写。
+
+### 28.5 审计
+
+- **R-RBAC-13** 账号操作 MUST 写 `sy_audit_log`（`report_id=0`、`source='MANUAL'`、
+  `target_type='ADMIN'`、`target_id=管理员id`、`target_owner=账号`），
+  动作：`ADMIN_CREATE / ADMIN_ROLE / ADMIN_DISABLE / ADMIN_ENABLE / ADMIN_RESET_PWD`。
+- **R-RBAC-14** `target_type='ADMIN'` 的记录 MUST NOT 可恢复（`RestoreService` 直接
+  409 `NOT_RESTORABLE`），否则「恢复」按钮会拿管理员 id 去改内容。
+
+### 28.6 前端行为
+
+- **R-RBAC-15** 登录后 MUST 调 `GET /api/admin/me` 拿角色与权限点；菜单 MUST 按 `perm` 过滤；
+  按钮 MUST 按权限点显隐（不是灰掉）。
+- **R-RBAC-16** 直接输 URL 进无权限页面 MUST 显示「无权限」卡片（含缺的权限点），
+  MUST NOT 白屏或 404。
+- **R-RBAC-17** `mustChangePwd=true` MUST 强制跳改密页；改完 MUST 回登录页重新登录。
+- **R-RBAC-18** 登录落点 MUST 是第一个有权限的页面（概览要 `analytics:read`，MOD 没有）。
+- **R-RBAC-19** 前端权限只是体验层：后端 `@Require` MUST 独立强制校验，改前端 MUST NOT 能提权。
+
+### 28.7 测试
+
+- 权限矩阵参数化测试 `AdminPermissionMatrixTest`（`@SpringBootTest` + MockMvc）：
+  4 角色 × 35 条接口 + 匿名 401 + 首登强制改密 + 改角色立即生效。
+- 账号规则 `AdminAccountServiceTest`（19 条，真 H2）。
+- 界面自检 `server/scripts/selftest_vue_admin_rbac.mjs`（9 项）：建号 → 一次性密码 →
+  强制改密 → 菜单/按钮按权限 → 无权限卡片 → VIEWER 零处置按钮 → 改角色即时生效。
