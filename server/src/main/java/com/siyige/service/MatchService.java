@@ -203,10 +203,49 @@ public class MatchService {
 
     // ---------- 定时推进（AI 回合 / 超时） ----------
 
+    /** 多久没动静算「没人管了」（毫秒）。比最长单步（180 秒）留足余量。 */
+    private static final long ABANDON_AFTER_MS = 15 * 60 * 1000L;
+
     @Scheduled(fixedDelay = 250)
     public void tick() {
+        reapAbandoned();
         for (Map<String, Object> m : store.runningMatches()) {
             try { tickOne(m); } catch (Exception e) { log.warn("tick {} failed: {}", m.get("id"), e.toString()); }
+        }
+    }
+
+    /**
+     * 回收「僵尸对局」：长时间没有任何推进的对局判 ABANDONED。
+     *
+     * <p>为什么要它：tick 每 250ms 扫描所有 RUNNING 对局，AI 调用串行排队。
+     * 用户关掉页面 / 断网后，那场对局会永远停在 RUNNING 一直占用调度线程，
+     * 攒几场之后正常对局的 AI 发言会被拖到几十秒（2026-11-14 压测实测）。
+     *
+     * <p>判据用「最后活跃时间」：deadline_at 每次推进都会刷新，正在打的对局不会被误杀。
+     */
+    private void reapAbandoned() {
+        long now = System.currentTimeMillis();
+        List<Map<String, Object>> running;
+        try {
+            running = store.runningMatches();
+        } catch (Exception e) {
+            return;
+        }
+        for (Map<String, Object> row : running) {
+            try {
+                long dl = num(row.get("deadline_at"));
+                long started = num(row.get("started_at"));
+                long anchorTs = Math.max(dl, started);
+                if (anchorTs <= 0 || now - anchorTs < ABANDON_AFTER_MS) continue;
+
+                String id = str(row.get("id"));
+                log.info("回收僵尸对局 {}（{} 分钟无推进）", id, (now - anchorTs) / 60000);
+                store.finishMatch(id, "ABANDONED", 0);
+                settleBilling(id, row);          // 预扣的按实际用量结掉，不留挂账
+                hub.emit(id, "match.end", Map.of("abandoned", true));
+            } catch (Exception e) {
+                log.warn("回收失败 {}: {}", str(row.get("id")), e.toString());
+            }
         }
     }
 

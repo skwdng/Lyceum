@@ -64,6 +64,8 @@ siyige:
     pay-secret: dev-secret-change-me   # 回调签名密钥，上线必须换
   video:
     audit:
+      # 机器初审通过后是否仍进人工队列（true=更严；false=机器过了就直接上线）
+      pass-requires-review: ${SIYIGE_VIDEO_PASS_REVIEW:true}
       reject-words: 涉政敏感,色情,赌博,毒品,代考,枪,炸弹
       review-words: 打架,骂战,人身攻击,盗版,搬运,洗稿
       title-min: 4

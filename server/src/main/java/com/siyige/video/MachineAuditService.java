@@ -26,6 +26,8 @@ public class MachineAuditService {
 
     private final List<String> rejectWords;
     private final List<String> reviewWords;
+    /** 机器通过后是否仍需人工复核（默认 true：宁可慢一点，不让违规内容直接上线） */
+    private final boolean passRequiresReview;
     private final int titleMin;
     private final int titleMax;
     private final boolean allowLocalUpload;
@@ -33,11 +35,13 @@ public class MachineAuditService {
     public MachineAuditService(
             @Value("${siyige.video.audit.reject-words:}") String rejectWords,
             @Value("${siyige.video.audit.review-words:}") String reviewWords,
+                         @Value("${siyige.video.audit.pass-requires-review:true}") boolean passRequiresReview,
             @Value("${siyige.video.audit.title-min:4}") int titleMin,
             @Value("${siyige.video.audit.title-max:60}") int titleMax,
             @Value("${siyige.video.audit.allow-local-upload:true}") boolean allowLocalUpload) {
         this.rejectWords = split(rejectWords);
         this.reviewWords = split(reviewWords);
+        this.passRequiresReview = passRequiresReview;
         this.titleMin = titleMin;
         this.titleMax = titleMax;
         this.allowLocalUpload = allowLocalUpload;
@@ -83,6 +87,8 @@ public class MachineAuditService {
         if (t.length() < 8 && d.isEmpty())
             return new Verdict("REVIEW", "信息偏少（标题短且无简介），转人工看一眼");
 
+        // 机器通过 ≠ 可以上线：默认再进人工队列（可在配置里关掉）
+        if (passRequiresReview) return new Verdict("REVIEW", "机器初审通过，等待人工复核");
         return new Verdict("PASS", "机器初审通过");
     }
 

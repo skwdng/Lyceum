@@ -1,0 +1,36 @@
+<view class="wrap">
+  <view class="row" style="justify-content:space-between;align-items:flex-start">
+    <view>
+      <view class="title">单人辩论</view>
+      <view class="sub">选一道题直接开打，缺的席位由 AI 补齐</view>
+    </view>
+    <view class="tag blue">余额 ¥{{walletText}}</view>
+  </view>
+
+  <view class="card" style="margin-top:14px">
+    <view class="sub" style="margin-bottom:8px">AI 档位</view>
+    <view class="row" style="flex-wrap:wrap;gap:8px">
+      <view wx:for="{{tiers}}" wx:key="key"
+            class="tag {{tier===item.key?'blue':''}}"
+            data-k="{{item.key}}" bindtap="pickTier">
+        {{item.label}}
+      </view>
+      <view wx:if="{{!tiers.length}}" class="sub">档位加载中…</view>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="empty">加载题库…</view>
+
+  <view wx:for="{{topics}}" wx:key="id" class="card" data-id="{{item.id}}" bindtap="start">
+    <view style="font-size:16px;font-weight:600;line-height:1.4">{{item.title}}</view>
+    <view class="row" style="margin-top:8px;justify-content:space-between">
+      <view class="row" style="gap:6px">
+        <view class="tag">{{item.tag || item.category || '辩题'}}</view>
+        <view class="tag">{{item.level || '通用'}}</view>
+      </view>
+      <view style="color:#2f5bea;font-size:13px">开练 →</view>
+    </view>
+  </view>
+
+  <view wx:if="{{!loading && !topics.length}}" class="empty">没有可用辩题</view>
+</view>

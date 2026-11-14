@@ -24,6 +24,15 @@ const unread = useUnreadStore();
 const wallet = useWalletStore();
 const chat = useChatStore();
 
+/** 移动端底部 tab：只放 5 个高频入口，其余收在「我的」里 */
+const MOBILE_TABS = [
+  { k: 'solo', n: '辩论', i: '🎙' },
+  { k: 'room', n: '联机', i: '👥' },
+  { k: 'community', n: '社区', i: '💬' },
+  { k: 'video', n: '视频', i: '🎬' },
+  { k: 'me', n: '我的', i: '👤' }
+];
+
 /** 当前路由名：导航高亮用 */
 const current = computed(() => route.name);
 
@@ -125,6 +134,19 @@ const avatarText = computed(() => {
       </div>
       <slot v-else />
     </main>
+
+    <!-- 移动端底部 tab（桌面端 CSS 里隐藏） -->
+    <nav class="tabbar">
+      <RouterLink
+        v-for="tb in MOBILE_TABS"
+        :key="tb.k"
+        :to="{ name: tb.k }"
+        :class="{ on: current === tb.k }"
+      >
+        <span class="ti">{{ tb.i }}</span>
+        <span class="tn">{{ tb.n }}</span>
+      </RouterLink>
+    </nav>
   </div>
 </template>
 
@@ -139,4 +161,33 @@ const avatarText = computed(() => {
 .gate-icon { font-size: 34px; line-height: 1; margin-bottom: 10px; }
 .gate-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 
+
+/* ---------- 移动端 ---------- */
+.tabbar { display: none; }
+
+@media (max-width: 860px) {
+  /* 侧栏整体收起：桌面是左侧固定栏，手机改成抽屉式隐藏，靠底部 tab 导航 */
+  .sb { display: none !important; }
+  #main { padding: 12px 12px 76px !important; max-width: 100% !important; }
+
+  .tabbar {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 50;
+    background: #fff;
+    border-top: 1px solid #ece9e2;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    justify-content: space-around;
+  }
+  .tabbar a {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 11px; color: #8a909c; text-decoration: none;
+    padding: 4px 0; border-radius: 10px;
+  }
+  .tabbar a.on { color: #2f5bea; background: #eef3ff; }
+  .tabbar .ti { font-size: 18px; line-height: 1; }
+  .tabbar .tn { font-size: 11px; }
+}
 </style>

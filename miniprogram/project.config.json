@@ -1,0 +1,16 @@
+{
+  "description": "思弈阁 · AI 辩论训练（微信小程序端）",
+  "packOptions": { "ignore": [] },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.5.0",
+  "appid": "touristappid",
+  "projectname": "siyige-miniprogram",
+  "miniprogramRoot": "./"
+}

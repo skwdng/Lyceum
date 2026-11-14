@@ -1,0 +1,45 @@
+<view class="wrap">
+  <view class="row" style="justify-content:space-between;align-items:flex-start">
+    <view class="grow">
+      <view class="title" style="font-size:17px">{{title}}</view>
+      <view class="sub">第 {{stepText}} 步 · {{status === 'RUNNING' ? '进行中' : status}}</view>
+    </view>
+    <view wx:if="{{!unlimited && waiting}}" class="tag orange">{{secondsLeft}}s</view>
+  </view>
+
+  <view class="card" style="margin-top:12px;min-height:200px">
+    <view wx:for="{{turns}}" wx:key="index" class="msg {{item.mine ? 'me' : ''}}">
+      <view class="bub">
+        <view class="who">{{item.mine ? '你' : 'AI 辩手'}} · {{item.seat}} · {{item.seg}}
+          <text wx:if="{{item.degraded}}" class="tag orange" style="margin-left:6px">离线草稿</text>
+        </view>
+        <view>{{item.content}}</view>
+      </view>
+    </view>
+    <view wx:if="{{!turns.length}}" class="empty">对局开始，等待第一条发言…</view>
+  </view>
+
+  <view wx:if="{{review}}" class="card">
+    <view style="font-size:16px;font-weight:600">本场 {{review.total}} 分</view>
+    <view class="sub" style="margin-top:6px">
+      立论 {{review.dims.matter}} · 论证 {{review.dims.method}} · 表达 {{review.dims.manner}} ·
+      应变 {{review.dims.adapt}} · 论据 {{review.dims.evidence}}
+    </view>
+    <view class="sub" style="margin-top:4px">本场 {{review.tokens}} token</view>
+    <button class="btn ghost" style="margin-top:12px" bindtap="backHome">再来一场</button>
+  </view>
+
+  <block wx:if="{{!review}}">
+    <view wx:if="{{waiting}}" class="card">
+      <textarea class="input" style="min-height:96px" placeholder="写下你的发言…"
+                value="{{draft}}" bindinput="onDraft" maxlength="1000" />
+      <button class="btn primary" style="margin-top:12px" loading="{{busy}}" bindtap="submit">发送</button>
+    </view>
+    <view wx:else class="card row" style="justify-content:space-between">
+      <view class="sub">对方正在思考…</view>
+      <button class="btn ghost" size="mini" disabled="{{skipBusy}}" bindtap="skip">
+        {{skipBusy ? '催中…' : '催一下'}}
+      </button>
+    </view>
+  </block>
+</view>
