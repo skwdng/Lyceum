@@ -1,7 +1,10 @@
 package com.siyige.admin;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
+
+import java.io.IOException;
 
 /**
  * 管理页入口：`/admin` -> 跳到 Vue 版管理台 `v2/index.html#/admin`。
@@ -25,7 +28,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class AdminPageController {
 
     @GetMapping("/admin")
-    public String page() {
-        return "redirect:v2/index.html#/admin";
+    public void page(HttpServletResponse res) throws IOException {
+        // 手写 302 + 相对 Location：
+        // 用 Spring 的 "redirect:" 会被容器改写成绝对地址（Host 头是反代后的内网地址，
+        // 且丢掉 /siyige 前缀），外部访问会跳到 127.0.0.1 —— 线上实测踩到。
+        res.setStatus(HttpServletResponse.SC_FOUND);
+        res.setHeader("Location", "v2/index.html#/admin");
     }
 }

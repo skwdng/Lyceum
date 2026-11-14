@@ -39,6 +39,7 @@ public class MatchService {
     private final com.siyige.billing.WalletService wallet;
     private final com.siyige.billing.UserLlmService userLlm;
     private final com.siyige.ai.AiTier aiTier;
+    private final com.siyige.repo.RoomStore roomStore;
     private final HotRank hot;
     private final SseHub hub;
     private final FlawService flaw;
@@ -57,7 +58,8 @@ public class MatchService {
                         UtteranceCheck utterance,
                         com.siyige.billing.WalletService wallet,
                         com.siyige.billing.UserLlmService userLlm,
-                        com.siyige.ai.AiTier aiTier) {
+                        com.siyige.ai.AiTier aiTier,
+                        com.siyige.repo.RoomStore roomStore) {
         this.store = store; this.ai = ai; this.scorer = scorer; this.hot = hot; this.hub = hub;
         this.flaw = flaw; this.json = json; this.timeScale = timeScale; this.aiThinkMs = aiThinkMs;
         this.defaultTurnSeconds = defaultTurnSeconds;
@@ -66,6 +68,7 @@ public class MatchService {
         this.wallet = wallet;
         this.userLlm = userLlm;
         this.aiTier = aiTier;
+        this.roomStore = roomStore;
     }
 
     // ---------- 开局 ----------
@@ -154,6 +157,17 @@ public class MatchService {
 
     @Active
     public Map<String, Object> submit(String matchId, String content, String inputType) throws Exception {
+        return submit(matchId, content, inputType, null);
+    }
+
+    /**
+     * 玩家提交发言。
+     *
+     * @param userId 提交者；**联机对局必须传**，否则会退化成
+     *               「这场里任意一个真人席位都能替对方发言」（2026-11-14 线上实测踩到：
+     *               B 方提交的内容被记成了 A1 的发言）
+     */
+    public Map<String, Object> submit(String matchId, String content, String inputType, String userId) throws Exception {
         Map<String, Object> m = require(matchId);
         List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
         int step = num(m.get("step"));
@@ -166,11 +180,18 @@ public class MatchService {
         if (!TurnEngine.isMine(mine, speaker))
             throw new IllegalStateException("NOT_YOUR_TURN: 当前轮到 " + speaker);
 
+        // 真实席位校验：是谁在提交，就必须坐在当前发言席上
+        String mySeat = seatOfUser(m, userId);
+        if (mySeat != null && !mySeat.equals(speaker)) {
+            throw new IllegalStateException("NOT_YOUR_TURN: 现在是 " + speaker + " 的回合，你坐 " + mySeat);
+        }
+
         String text = content == null || content.isBlank() ? "（未发言）" : content.trim();
         // 敷衍发言（「11」「对」「嗯」）记为 EMPTY：不算内容，不计入评分文本，
         // 但对局照常推进——下一轮 AI 会明确点出「你这一轮没有回答问题」。
         String status = (utterance != null && utterance.vacuous(text)) ? "EMPTY" : "OK";
-        store.insertTurn(matchId, step + 1, speaker, cur.seg(), text, status,
+        String recordSeat = (mySeat != null && !mySeat.isBlank()) ? mySeat : speaker;
+        store.insertTurn(matchId, step + 1, recordSeat, cur.seg(), text, status,
                 inputType == null ? "kb" : inputType);
         hot.zincrby(str(m.get("topic_id")), 2);   // 发言 +2
         hub.emit(matchId, "turn", Map.of(
@@ -447,6 +468,26 @@ public class MatchService {
      * 按本场档位切换模型：
      * BASIC → 本地 ollama；BYOK → 用户自己的 key；PRO → 平台默认（不动 profile）。
      */
+    /**
+     * 把提交者映射到席位：
+     * · 房间对局：查 sy_seat 里这个人坐哪（房码 → 席位）；
+     * · 单人：对局里 my_seats 只有一个，直接取。
+     *
+     * @return 解析不出来时返回 null（老客户端不传 userId 的情况，保持兼容）
+     */
+    private String seatOfUser(Map<String, Object> m, String userId) {
+        if (userId == null || userId.isBlank()) return null;
+        if ("room".equalsIgnoreCase(str(m.get("kind"))) && roomStore != null) {
+            String code = roomStore.codeOfMatch(str(m.get("id")));
+            if (code != null) {
+                String s = roomStore.seatOfUser(code, userId);
+                if (s != null) return s;
+            }
+        }
+        Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
+        return mine.isEmpty() ? null : mine.iterator().next();
+    }
+
     private void applyTier(Map<String, Object> m) {
         String tier = str(m.get("tier"));
         String owner = str(m.get("user_id"));

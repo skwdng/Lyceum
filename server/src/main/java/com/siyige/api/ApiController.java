@@ -205,7 +205,8 @@ public class ApiController {
         guard(id);
         String content = String.valueOf(body.getOrDefault("content", ""));
         String inputType = String.valueOf(body.getOrDefault("inputType", "kb"));
-        return matches.submit(id, content, inputType);
+        // 身份要带下去：联机对局靠它判断「这轮该不该你说话」
+        return matches.submit(id, content, inputType, UserContext.requireId());
     }
 
     @GetMapping(value = "/matches/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
