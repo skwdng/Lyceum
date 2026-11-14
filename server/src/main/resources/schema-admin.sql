@@ -82,8 +82,13 @@ create table if not exists sy_community_ban (
 create index if not exists ix_ban_user on sy_community_ban(user_id, until);
 
 -- 种子管理员：admin / admin123（Argon2id）
-merge into sy_admin(account, password_hash, status) key(account)
-values ('admin', '$argon2id$v=19$m=19456,t=2,p=1$YBWShW1aHjyBEfjlYxdpYQ$zeEY/pL7f1hqrexbIVH+mS26BRHe2DdcMrQMuULjvQ4', 1);
+--
+-- 只用「不存在才插入」，**不能**用 merge into … key(account)：
+-- merge 每次启动都会把 password_hash 覆盖回 admin123，
+-- 管理员改过的密码会被下一次部署/重启冲掉（2026-11-14 线上实测踩到）。
+insert into sy_admin(account, password_hash, status)
+select 'admin', '$argon2id$v=19$m=19456,t=2,p=1$YBWShW1aHjyBEfjlYxdpYQ$zeEY/pL7f1hqrexbIVH+mS26BRHe2DdcMrQMuULjvQ4', 1
+ where not exists (select 1 from sy_admin where account = 'admin');
 
 -- ============================================================================
 -- 内容管理台（feature-admin-content）

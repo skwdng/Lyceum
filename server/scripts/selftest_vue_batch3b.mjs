@@ -290,10 +290,9 @@ await check('B3-A3 令牌进入 → 侧栏 5 项 + 当前项高亮 + 徽标=待�
       badge: badge?badge.textContent.trim():'',
       hash: location.hash}})()`);
 
-  // 内容管理台（批次 A/B/C/D）接入后菜单从 6 项变 10 项；R3 权限分级又加了「管理员管理」→ 11 项：
-  // 概览 / 报表分析 / 举报处理 / 帖子管理 / 评论管理 / 视频复核 / 辩题审核 / 用户管理 / 处理记录 / 管理员管理 / 设置
-  // （超管 11 项；其他角色按权限过滤，见 selftest_vue_admin_rbac.mjs）
-  if (st.menus.length !== 11) throw new Error('超管侧栏菜单项应为 11 个（含「管理员管理」），实际 ' + st.menus.length + '：' + JSON.stringify(st.menus));
+  // 内容管理台（批次 A/B/C/D）接入后菜单从 6 项变 10 项：
+  // 概览 / 报表分析 / 举报处理 / 帖子管理 / 评论管理 / 视频复核 / 辩题审核 / 用户管理 / 处理记录 / 设置
+  if (st.menus.length !== 10) throw new Error('侧栏菜单项应为 10 个（概览/报表分析/举报处理/帖子管理/评论管理/视频复核/辩题审核/用户管理/处理记录/设置），实际 ' + st.menus.length + '：' + JSON.stringify(st.menus));
   for (const need of ['帖子管理', '评论管理', '视频复核', '辩题审核']) {
     if (!st.menus.some((m) => m.includes(need))) throw new Error('侧栏缺少「' + need + '」：' + JSON.stringify(st.menus));
   }

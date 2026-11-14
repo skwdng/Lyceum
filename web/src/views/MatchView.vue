@@ -306,6 +306,7 @@ const verdictOf = (t) => (t.typing ? '' : '');
                   <span>·</span>
                   <span>{{ t.seg }}</span>
                   <span v-if="t.timeout" class="tag r">超时</span>
+                  <span v-if="t.degraded" class="tag o" title="模板降级或本地离线草稿，不计入正式评分">离线草稿</span>
                 </div>
                 <div class="bub">
                   <span v-if="t.typing && !t.shown" class="pending">…</span>
@@ -384,8 +385,14 @@ const verdictOf = (t) => (t.typing ? '' : '');
           </template>
           <div v-else class="waiting">
             对方正在思考…
-            <button v-if="debate.kind === 'solo'" class="btn sm ghost" style="margin-left: 10px" @click="debate.skipAi()">
-              催一下
+            <button
+              v-if="debate.kind === 'solo' && debate.canSkip()"
+              class="btn sm ghost"
+              style="margin-left: 10px"
+              :disabled="debate.skipBusy"
+              @click="debate.skipAi()"
+            >
+              {{ debate.skipBusy ? '催中…' : '催一下' }}
             </button>
           </div>
         </div>

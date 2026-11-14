@@ -8,6 +8,7 @@ export const NAV = [
   { g: '训练' },
   { k: 'solo', n: '单人辩论' },
   { k: 'room', n: '多人辩论' },
+  { k: 'offline', n: '离线对练' },
   { k: 'hot', n: '热辩榜' },
   { g: '我的' },
   { k: 'diag', n: '能力分析' },

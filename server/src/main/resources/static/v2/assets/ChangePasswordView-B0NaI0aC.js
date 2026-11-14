@@ -1,4 +1,4 @@
-import { _ as _export_sfc, u as useAdminStore, c as createElementBlock, b as createBaseVNode, d as createTextVNode, e as createCommentVNode, f as withDirectives, G as vModelText, H as withKeys, t as toDisplayString, s as unref, p as computed, i as ref, m as toast, q as adminApi, k as errText, C as useRouter, D as useRoute, a as openBlock } from "./index-Y_koWb_U.js";
+import { _ as _export_sfc, u as useAdminStore, c as createElementBlock, b as createBaseVNode, d as createTextVNode, e as createCommentVNode, f as withDirectives, G as vModelText, H as withKeys, t as toDisplayString, s as unref, p as computed, i as ref, m as toast, q as adminApi, k as errText, C as useRouter, D as useRoute, a as openBlock } from "./index-D7NCGdZh.js";
 const _hoisted_1 = {
   class: "panel cpwd",
   "data-panel": "admin-change-pwd"
@@ -118,7 +118,7 @@ const _sfc_main = {
     };
   }
 };
-const ChangePasswordView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-4c8cc465"]]);
+const ChangePasswordView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-24b16032"]]);
 export {
   ChangePasswordView as default
 };
