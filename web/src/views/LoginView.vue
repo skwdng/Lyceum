@@ -20,9 +20,9 @@ const router = useRouter();
 const auth = useAuthStore();
 const unread = useUnreadStore();
 
-const tab = ref('login');
+const tab = ref('login');           // login | register
 /** 登录/注册失败的原因：贴在按钮下方，不用抬头找 toast */
-const authError = ref('');           // login | register
+const authError = ref('');
 const account = ref('');
 const password = ref('');
 const busy = ref(false);
