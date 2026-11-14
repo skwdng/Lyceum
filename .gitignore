@@ -39,3 +39,8 @@ docs/shots/
 scripts/_*
 server/_*.log
 server/_*.err
+
+# ---- 新前端（Vue）依赖；构建产物 static/v2 要提交，别忽略 ----
+web/node_modules/
+web/.vite/
+web/dist/

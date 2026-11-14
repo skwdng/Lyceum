@@ -1,5 +1,6 @@
 package com.siyige.community;
 
+import com.siyige.admin.analytics.Active;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.siyige.community.ai.AiAccount;
@@ -184,6 +185,7 @@ public class CommentService {
 
     /** 发布评论：root_id / reply_object_* 全部由服务端派生（R-COM-19）。 */
     @Transactional
+    @Active
     public Map<String, Object> create(String userId, long postId, Map<String, Object> body) {
         muteGuard.assertNotMuted(userId);          // 被禁言不能发评论
         requirePost(postId);
@@ -292,6 +294,19 @@ public class CommentService {
     }
 
     // ==================== 内部 ====================
+
+    /**
+     * 供**管理台**调用：屏蔽 / 解除屏蔽评论后重算帖子的 comment_count / last_comment_at / hot_score。
+     *
+     * <p>为什么必须在管理台侧显式调一次：`CommunityRepo.softDeleteComment` 只把 status 改成 2，
+     * 不碰 `sy_post.comment_count`（那是用户自己删评论时由本类的 {@link #recomputePostStats} 重算的）。
+     * 结果就是管理台屏蔽一条评论后，帖子列表上的「评论数」不变 —— 2026-11-12 用户反馈的问题。
+     *
+     * <p>这里只是把已有的私有实现暴露出来复用，**没有改它的算法**（同一套 count/max/hotScore）。
+     */
+    public void refreshPostStats(long postId) {
+        recomputePostStats(postId);
+    }
 
     /** R-COM-22：事务内锁 post 行后重新 count/max，避免并发下计数丢失。 */
     private void recomputePostStats(long postId) {

@@ -47,3 +47,11 @@ create table if not exists sy_audit_log (
 
 create index if not exists ix_audit_report on sy_audit_log(report_id, created_at);
 create index if not exists ix_audit_time   on sy_audit_log(created_at);
+
+-- ── 内容管理台：直接处置也要能留痕 ──────────────────────────────────────────
+--   source        来源：REPORT（举报处理，默认）/ MANUAL（管理员从内容管理直接处置）
+--   target_owner  内容作者的用户 id（用户浮窗按人查违规历史；禁言这类"目标是用户"的记录也填它）
+-- MANUAL 时 report_id 写 0（AuditLogRepo.MANUAL_REPORT_ID），
+-- RestoreService 见到 report_id <= 0 会跳过"把关联举报改回 REOPENED"，其余逻辑不变。
+alter table sy_audit_log add column if not exists source       varchar(16) default 'REPORT';
+alter table sy_audit_log add column if not exists target_owner varchar(32);

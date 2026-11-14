@@ -30,6 +30,20 @@ create table if not exists sy_admin (
 
 create unique index if not exists ux_admin_account on sy_admin(account);
 
+-- R1（管理员账号 + 权限分级）：5 个新列。
+--   role            : SUPER | OPS | MOD | VIEWER —— **权限矩阵的唯一输入**（每请求现查，不写进 JWT）
+--                     默认 SUPER：老库里已有的账号必须保持原权限，否则升级后自己把自己锁在外面；
+--                     新建账号时由接口显式指定角色（默认 MOD，绝不默认 SUPER）
+--   must_change_pwd : 首登 / 重置密码后为 true，除改密与 /me 之外一律 403 PASSWORD_CHANGE_REQUIRED
+--   last_login_at   : 管理员列表要显示"最后登录"
+--   created_by      : 谁创建的（审计对得上人；种子账号为空）
+--   role_changed_at : 改角色时间（排查"什么时候被提权/降权"）
+alter table sy_admin add column if not exists role varchar(16) not null default 'SUPER';
+alter table sy_admin add column if not exists must_change_pwd boolean not null default false;
+alter table sy_admin add column if not exists last_login_at timestamp;
+alter table sy_admin add column if not exists created_by varchar(64);
+alter table sy_admin add column if not exists role_changed_at timestamp;
+
 -- 举报
 --   target_type : POST | COMMENT（不做「举报用户」）
 --   reason      : SPAM | ABUSE | ILLEGAL | OTHER
@@ -68,5 +82,26 @@ create table if not exists sy_community_ban (
 create index if not exists ix_ban_user on sy_community_ban(user_id, until);
 
 -- 种子管理员：admin / admin123（Argon2id）
-merge into sy_admin(account, password_hash, status) key(account)
-values ('admin', '$argon2id$v=19$m=19456,t=2,p=1$YBWShW1aHjyBEfjlYxdpYQ$zeEY/pL7f1hqrexbIVH+mS26BRHe2DdcMrQMuULjvQ4', 1);
+--
+-- 只用「不存在才插入」，**不能**用 merge into … key(account)：
+-- merge 每次启动都会把 password_hash 覆盖回 admin123，
+-- 管理员改过的密码会被下一次部署/重启冲掉（2026-11-14 线上实测踩到）。
+insert into sy_admin(account, password_hash, status)
+select 'admin', '$argon2id$v=19$m=19456,t=2,p=1$YBWShW1aHjyBEfjlYxdpYQ$zeEY/pL7f1hqrexbIVH+mS26BRHe2DdcMrQMuULjvQ4', 1
+ where not exists (select 1 from sy_admin where account = 'admin');
+
+-- ============================================================================
+-- 内容管理台（feature-admin-content）
+--
+-- 注：`sy_audit_log` 的两列（source / target_owner）放在 **schema-security.sql** 里追加 ——
+-- 那张表本身是在 schema-security.sql 创建的，而本文件在它之前执行（见 application.yml
+-- 的 schema-locations 顺序），ALTER 写在前面会直接报"表不存在"。
+-- ============================================================================
+
+-- 评论列表的筛选/排序。帖子侧已有 ix_post_new(status, created_at) 覆盖，无需重复建。
+create index if not exists ix_comment_status on sy_post_comment(status, created_at);
+create index if not exists ix_comment_author on sy_post_comment(user_id, created_at);
+
+-- 注：设计稿里还提了 create index ix_ban_user on sy_community_ban(user_id, created_at)，
+-- 但同名索引已存在于 (user_id, until)（见上面第 68 行），`if not exists` 会静默跳过，
+-- 建了也不会生效，所以这里不重复声明。

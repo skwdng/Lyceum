@@ -64,13 +64,20 @@ public class RestoreService {
         if (row.get("undo_at") != null) {
             throw new IllegalArgumentException("ALREADY_RESTORED: 这次处理已经撤销过了");
         }
-        if (!AuditLogService.canRestore(row)) {
-            String verdict = row.get("verdict") == null ? "" : String.valueOf(row.get("verdict"));
-            throw new IllegalArgumentException("NOT_RESTORABLE: 这次处理没有可恢复的内容（"
-                    + AuditLogService.actionName(verdict) + "）");
+        String targetType = row.get("target_type") == null ? null : String.valueOf(row.get("target_type"));
+        // R2：管理员账号相关记录**永远不可恢复**。不拦住的话，处理记录页会出现一个「恢复」按钮，
+        // 点了会拿着管理员 id 去 community.restorePost/Comment 里瞎改内容。
+        // 放在 canRestore 之前：那条通用文案会拼出空括号「（）」（管理员记录没有 verdict）。
+        if (AuditLogRepo.TARGET_ADMIN.equals(targetType)) {
+            throw new IllegalArgumentException("NOT_RESTORABLE: 管理员账号操作不能撤销（请到管理员管理页调整）");
         }
 
-        String targetType = row.get("target_type") == null ? null : String.valueOf(row.get("target_type"));
+        if (!AuditLogService.canRestore(row)) {
+            String verdict = row.get("verdict") == null ? "" : String.valueOf(row.get("verdict"));
+            String why = AuditLogService.actionName(verdict);
+            throw new IllegalArgumentException("NOT_RESTORABLE: 这次处理没有可恢复的内容"
+                    + (why == null || why.isBlank() ? "" : "（" + why + "）"));
+        }
         Object tid = row.get("target_id");
         if (targetType == null || tid == null) {
             throw new IllegalArgumentException("NOT_RESTORABLE: 该记录没有可定位的目标");
@@ -94,7 +101,9 @@ public class RestoreService {
         }
 
         // 3) 举报状态 ACCEPTED -> REOPENED（终态，不回队列）
-        int reopened = reportRepo.reopenReport(reportId);
+        //    仅当这条记录来自举报处理。管理员从内容管理直接处置（source=MANUAL）时
+        //    report_id = 0，没有关联举报可改，跳过这一步；其余逻辑与老路径完全一致。
+        int reopened = reportId > 0 ? reportRepo.reopenReport(reportId) : 0;
 
         // 4) 另记一条 RESTORE 审计（失败也不影响已经完成的事实）
         audit.recordRestore(reportId, adminId, adminName, targetType, targetId,

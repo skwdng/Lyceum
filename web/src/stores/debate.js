@@ -1,0 +1,674 @@
+import { defineStore } from 'pinia';
+import { debateApi, getToken } from '../api.js';
+import { useAuthStore } from './auth.js';
+import { useWalletStore } from './wallet.js';
+import { toast } from '../utils/toast.js';
+
+/** 第 N 步 → 发言席位（与后端赛制一致） */
+export const SEAT_OF = { 1: 'A1', 2: 'B1', 3: 'A2', 4: 'B2', 5: 'A3', 6: 'B3', 7: 'A2', 8: 'B2', 9: 'A3', 10: 'B3', 11: 'B4', 12: 'A4' };
+/** 第 N 步 → 环节名 */
+export const SEG_OF = { 1: '立论', 2: '立论', 3: '驳立论', 4: '驳立论', 5: '质询', 6: '质询', 7: '自由辩', 8: '自由辩', 9: '自由辩', 10: '自由辩', 11: '总结', 12: '总结' };
+/** 八个席位 */
+export const SEATS = [
+  { k: 'A1', side: 'A', role: '一辩' }, { k: 'A2', side: 'A', role: '二辩' },
+  { k: 'A3', side: 'A', role: '三辩' }, { k: 'A4', side: 'A', role: '四辩' },
+  { k: 'B1', side: 'B', role: '一辩' }, { k: 'B2', side: 'B', role: '二辩' },
+  { k: 'B3', side: 'B', role: '三辩' }, { k: 'B4', side: 'B', role: '四辩' }
+];
+
+const LS = {
+  seats: 'sy_seats', mode: 'sy_mode', pace: 'sy_pace', diff: 'sy_diff', tier: 'sy_tier'
+};
+
+function readSeats() {
+  try {
+    const raw = localStorage.getItem(LS.seats);
+    const arr = raw ? JSON.parse(raw) : null;
+    return Array.isArray(arr) && arr.length ? arr : ['A1'];
+  } catch (e) {
+    return ['A1'];
+  }
+}
+
+/** 席位固定顺序：排序不依赖到达顺序（旧版同款） */
+const SEAT_ORDER = { A1: 1, A2: 2, A3: 3, A4: 4, B1: 5, B2: 6, B3: 7, B4: 8 };
+
+/**
+ * 离线草稿：先引用用户原话，再按环节给一个攻击角度。
+ * 纯规则、不联网；质量不高，但保证"像对手在说话"而不是复读。
+ */
+function offlineReply(userText, seg) {
+  const quote = String(userText || '').replace(/\s+/g, ' ').trim().slice(0, 26);
+  const angles = {
+    立论: '你把重点放在「标准」上，但标准的执行主体一直没说清。请问这一条谁来兜底？',
+    驳立论: '你反驳的是我的表述，不是我的判断。我方判断是「可行优先于理想」，这一点你还没碰。',
+    质询: '先回答我问的：你说的「合理」由谁认定、按什么程序认定？不回答就等于默认没有标准。',
+    自由辩: '回到分歧点：如果按你的方案走，谁承担代价、谁负责复核？这两条你一直没说。',
+    总结: '收一下：你把「应该」讲成了「必须」，中间缺了一步——条件成立才成立'
+  };
+  const angle = angles[seg] || '你这句话我接住了，但还没回答我的问题：判准由谁定、怎么核？';
+  return '你说「' + quote + '…」——' + angle;
+}
+
+function keyOf(t) {
+  // 打字机的"身份"：同一轮、同一席位 → 视为同一条（内容长度一变就重头打，是旧版的坑）
+  return t.step + '|' + t.seat;
+}
+
+/**
+ * 对局（单人 / 多人共用）。
+ *
+ * 从旧 match.js + solo.js 移植。几个关键点：
+ * · **轮询 400ms + SSE 双通道**：SSE 只用来"有新东西了"叫醒前端，数据仍以 HTTP 为准；
+ * · **打字机不能因为重渲染而重头打**：进度存在 `shown[key]`，重渲染后从那里接着打；
+ * · **串行打字**：只推进最靠前的一条，保证"上一个人说完，下一个才开口"；
+ * · **我发言之前的 AI 内容一律直接显示全文**，否则会看起来像"他抢在我前面说"；
+ * · 计时：只有轮到我且不是不限时才递减；最后 30 秒标红；打字时自动续时（有上限）。
+ */
+export const useDebateStore = defineStore('debate', {
+  state: () => ({
+    // 单人配置（持久化，刷新后还在）
+    mySeats: readSeats(),
+    mode: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.mode)) || 'FULL',
+    pace: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.pace)) || 'normal',
+    difficulty: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.diff)) || 'pro',
+    /** AI 档位：BASIC(本地免费) / PRO(平台) / BYOK(自带 Key)，默认 PRO；后端会兜底降级 */
+    tier: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.tier)) || 'PRO',
+    pendingTopicId: null,
+    pendingTitle: null,
+
+    // 对局
+    matchId: null,
+    match: null,
+    turns: [],
+    /**
+     * 断网兜底产生的本地轮次（只在本地时间线里，不写服务端）。
+     * 结构同 turns，额外带 degraded: true —— 界面上打「离线草稿」标签，且不计分。
+     */
+    localTurns: [],
+    remaining: 0,
+    extendUsed: 0,
+    lastKeep: 0,
+    phase: 'STEP',
+    kind: 'solo',
+    unlimited: false,
+    waiting: false,
+    cards: [],
+    cardsTopic: null,
+    brief: null,
+    showBrief: false,
+    flawOffer: null,
+    err: '',
+
+    // 「催一下」：防连点（幂等由后端保证，这里只管按钮状态）
+    skipBusy: false,
+    skipUntil: 0,      // 冷却结束时间戳
+    skipStep: -1,      // 已催过的步（同一轮不再显示按钮）
+
+    // 打字机
+    shown: {},
+    typed: {},
+    stickBottom: true,
+    /** 用户最后一次手动滚动的时间戳：打字机 600ms 内不自动滚（旧版同款防拽） */
+    lastUserScroll: 0,
+    /** 离开对局页时的滚动位置：切回来接着看，不跳顶也不跳底 */
+    chatScrollTop: 0,
+
+    // 复盘
+    review: null,
+    panel: null,
+    panelBusy: false,
+
+    pollTimer: null,
+    es: null,
+    typeTimer: null,
+    clockTimer: null
+  }),
+
+  getters: {
+    steps: (s) => (s.mode === 'SPRINT' ? [1, 2, 7, 8, 9, 10, 11, 12] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+    stepNo: (s) => Number((s.match && s.match.step) || 0) + 1,
+    /** 本场我要发言几次 */
+    myTurnCount: (s) => s.steps.filter((n) => s.mySeats.includes(SEAT_OF[n])).length,
+
+    /** 条状席位：谁是当前发言人 */
+    stripSeats: (s) => {
+      const curSeat = SEAT_OF[s.stepNo];
+      return SEATS.map((x) => ({ ...x, me: s.mySeats.includes(x.k), cur: curSeat === x.k }));
+    },
+
+    /**
+     * 聊天区要显示的回合（含打字进度）。
+     * 规则见文件头：串行打字、我发言之前的 AI 直接全文、还没轮到的不显示。
+     */
+    /** 服务端轮次 + 本地兜底轮次，按「步 → 席位」稳定排序 */
+    allTurns: (s) => {
+      const all = (s.turns || []).concat(s.localTurns || []);
+      return all.slice().sort(
+        (a, b) =>
+          (Number(a.step) - Number(b.step)) ||
+          ((SEAT_ORDER[a.seat] || 99) - (SEAT_ORDER[b.seat] || 99))
+      );
+    },
+
+    turnsView: (s) => {
+      const sorted = (s.turns || []).concat(s.localTurns || []).slice().sort(
+        (a, b) =>
+          (Number(a.step) - Number(b.step)) ||
+          ((SEAT_ORDER[a.seat] || 99) - (SEAT_ORDER[b.seat] || 99))
+      );
+      let lastMine = -1;
+      sorted.forEach((t, i) => {
+        if (s.mySeats.includes(t.seat)) lastMine = i;
+      });
+      const forceFull = new Set();
+      sorted.forEach((t, i) => {
+        if (i < lastMine && !s.mySeats.includes(t.seat)) forceFull.add(keyOf(t));
+      });
+      let firstUntyped = -1;
+      sorted.forEach((t, i) => {
+        if (s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded) return;
+        if (i < lastMine) return;
+        if (!s.typed[keyOf(t)] && firstUntyped < 0) firstUntyped = i;
+      });
+      const list = sorted.filter(
+        (t, idx) => s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded
+          || firstUntyped === -1 || idx <= firstUntyped
+      );
+      return list.map((t) => {
+        const me = s.mySeats.includes(t.seat);
+        const timeout = t.status === 'TIMEOUT';
+        const text = (t.content || '').trim() || '（这一轮没有说出内容）';
+        const key = keyOf(t);
+        const typing = !me && !timeout && !s.typed[key] && !forceFull.has(key);
+        const shown = typing ? s.shown[key] || 0 : text.length;
+        return {
+          key,
+          seat: t.seat,
+          seg: t.seg,
+          timeout,
+          /** 这一条是模板降级（服务端 TEMPLATE）或本地离线草稿 —— 界面要标出来 */
+          degraded: !!t.degraded || t.status === 'TEMPLATE',
+          me,
+          side: String(t.seat).startsWith('A') ? 'a' : 'b',
+          text,
+          typing,
+          shown
+        };
+      });
+    }
+  },
+
+  actions: {
+    // ==================== 单人配置 ====================
+    setSeats(list) {
+      this.mySeats = list.slice();
+      try {
+        localStorage.setItem(LS.seats, JSON.stringify(this.mySeats));
+      } catch (e) {
+        /* 忽略 */
+      }
+    },
+    toggleSeat(k) {
+      const i = this.mySeats.indexOf(k);
+      if (i >= 0) {
+        if (this.mySeats.length === 1) {
+          toast('至少保留一个席位');
+          return;
+        }
+        this.mySeats = this.mySeats.filter((x) => x !== k);
+      } else {
+        this.mySeats = this.mySeats.concat(k);
+      }
+      this.setSeats(this.mySeats);
+    },
+    setDifficulty(d) {
+      this.difficulty = d;
+      try {
+        localStorage.setItem(LS.diff, d);
+      } catch (e) {
+        /* 忽略 */
+      }
+    },
+    setPace(p) {
+      this.pace = p;
+      try {
+        localStorage.setItem(LS.pace, p);
+      } catch (e) {
+        /* 忽略 */
+      }
+    },
+    setTier(t) {
+      this.tier = t;
+      try {
+        localStorage.setItem(LS.tier, t);
+      } catch (e) {
+        /* 忽略 */
+      }
+    },
+    setMode(m) {
+      this.mode = m;
+      try {
+        localStorage.setItem(LS.mode, m);
+      } catch (e) {
+        /* 忽略 */
+      }
+    },
+
+    // ==================== 开局 ====================
+    async createMatch(extra) {
+      const auth = useAuthStore();
+      if (!auth.user) {
+        toast('登录后才能开始辩论');
+        return null;
+      }
+      const payload = {
+        seats: this.mySeats,
+        mode: this.mode,
+        pace: this.pace,
+        difficulty: this.difficulty,
+        tier: this.tier || 'PRO',
+        ...(extra || {})
+      };
+      if (!payload.topicId && this.pendingTitle) payload.title = this.pendingTitle;
+      try {
+        const r = await debateApi.createMatch(payload);
+        this.matchId = r.matchId;
+        this.pendingTitle = null;
+        return r.matchId;
+      } catch (e) {
+        toast('开局失败：' + ((e && e.message) || ''));
+        return null;
+      }
+    },
+
+    /** 进入对局页时调用：拉一次 + 起轮询 + 连 SSE */
+    async start(matchId) {
+      this.matchId = String(matchId);   // 对局 id 是字符串（m9324a4c326），不能当数字
+      this.turns = [];
+      this.match = null;
+      this.typed = {};
+      this.shown = {};
+      this.flawOffer = null;
+      this.review = null;
+      this.panel = null;
+      await this.load(true);
+      this.startPoll();
+      this.startClock();
+    },
+
+    async load(first) {
+      if (!this.matchId) return;
+      try {
+        const d = await debateApi.match(this.matchId);
+      // 席位以服务端为准：刷新/从链接进入时本地可能是旧值，不同步会把 AI 席位显示成「你」
+      if (d && d.match && d.match.my_seats) {
+        const seats = String(d.match.my_seats).split(',').map((x) => x.trim()).filter(Boolean);
+        if (seats.length) this.mySeats = seats;
+      }
+        const prevCount = this.turns.length;
+        const prevWaiting = this.waiting;
+        const prevPhase = this.phase;
+        this.match = d.match;
+        this.turns = d.turns || [];
+        this.remaining = d.remainingSec || 0;
+        this.extendUsed = d.extendUsed || 0;
+        this.phase = d.phase || 'STEP';
+        this.kind = d.kind || 'solo';
+        this.unlimited = !!d.unlimited;
+        this.waiting = !!d.waitingForMe;
+        this.err = '';
+
+        // 论据卡：换了辩题才拉
+        if (d.match && d.match.topic_id && this.cardsTopic !== d.match.topic_id) {
+          try {
+            const ev = await debateApi.evidence(d.match.topic_id);
+            this.cards = ev.cards || [];
+            this.cardsTopic = d.match.topic_id;
+          } catch (e) {
+            this.cards = [];
+          }
+        }
+
+        // 对局结束：停一切计时器，拉复盘
+        if (d.match && d.match.status !== 'RUNNING') {
+          this.stopPoll();
+          this.stopClock();
+          this.flawOffer = null;
+          await this.loadReview();
+          return;
+        }
+        if (first || prevCount !== this.turns.length || prevWaiting !== this.waiting || prevPhase !== this.phase) {
+          this.stickBottom = true;
+        }
+      } catch (e) {
+        this.err = (e && e.message) || String(e);
+      }
+    },
+
+    startPoll() {
+      this.stopPoll();
+      this.pollTimer = setInterval(() => this.load(false), 400);
+      this.openStream();
+    },
+    stopPoll() {
+      if (this.pollTimer) {
+        clearInterval(this.pollTimer);
+        this.pollTimer = null;
+      }
+      this.closeStream();
+    },
+
+    /**
+     * SSE：AI 一说完立刻推过来，不用等下一次轮询。
+     * 令牌只能走查询参数（EventSource 不支持请求头），后端只对 /events 接受 ?token=。
+     */
+    openStream() {
+      this.closeStream();
+      if (!this.matchId || typeof EventSource === 'undefined') return;
+      const auth = useAuthStore();
+      if (!auth.user) return;
+      const token = getToken();
+      if (!token) return;
+      try {
+        this.es = new EventSource(debateApi.eventsUrl(this.matchId, token));
+        this.es.onmessage = (e) => {
+          try {
+            const d = JSON.parse(e.data);
+            if (d.type === 'flaw') {
+              this.flawOffer = { step: d.step, options: d.options || [] };
+              toast('对方这轮发言埋了一处漏洞，指出来');
+              return;
+            }
+          } catch (err) {
+            /* 非 JSON 帧直接忽略 */
+          }
+          this.load(false);
+        };
+        this.es.onerror = () => {
+          // 断线由 400ms 轮询兜底；未登录时不要再重连（否则刷 401）
+          if (!auth.user) this.closeStream();
+        };
+      } catch (e) {
+        /* 忽略 */
+      }
+    },
+    closeStream() {
+      if (this.es) {
+        try {
+          this.es.close();
+        } catch (e) {
+          /* 忽略 */
+        }
+        this.es = null;
+      }
+    },
+
+    // ==================== 打字机 ====================
+    startTyping() {
+      if (this.typeTimer) return;
+      const pauses = {};
+      this.typeTimer = setInterval(() => {
+        // 串行：只推进最靠前的那条未打完的
+        const next = this.turnsView.find((x) => x.typing);
+        if (!next) return;
+        const now = Date.now();
+        if (now < (pauses[next.key] || 0)) return;
+        const idx = next.shown + 1;
+        this.shown[next.key] = idx;
+        // 只在三个条件同时满足时自动滚：① 处于贴底 ② 用户 600ms 内没手动滚过 ③ 每 3 个字滚一次
+        // （旧版踩过：每字都滚会把正在往上翻历史的用户拽回底部）
+        if (this.stickBottom && Date.now() - (this.lastUserScroll || 0) > 600 && idx % 3 === 0) {
+          if (this.scrollToBottom) this.scrollToBottom();
+        }
+        if (idx >= next.text.length) {
+          this.typed[next.key] = true;
+          return;
+        }
+        const ch = next.text.charAt(idx - 1);
+        const per = Math.min(150, Math.max(18, Math.round(6500 / Math.max(1, next.text.length))));
+        let d = per;
+        if (ch === '。' || ch === '！' || ch === '？') d = Math.min(520, per * 8);
+        else if (ch === '，' || ch === '；' || ch === '：') d = Math.min(240, per * 3);
+        else if (ch === '「' || ch === '」') d = Math.round(per * 1.5);
+        pauses[next.key] = now + d;
+      }, 40);
+    },
+    stopTyping() {
+      if (this.typeTimer) {
+        clearInterval(this.typeTimer);
+        this.typeTimer = null;
+      }
+    },
+
+    // ==================== 计时 ====================
+    startClock() {
+      this.stopClock();
+      this.clockTimer = setInterval(() => {
+        if (!this.waiting) return;
+        if (this.remaining > 0) this.remaining -= 1;
+      }, 1000);
+    },
+    stopClock() {
+      if (this.clockTimer) {
+        clearInterval(this.clockTimer);
+        this.clockTimer = null;
+      }
+    },
+
+    /** 打字太慢会自动续时（单人模式不限时，不该续） */
+    async keepalive() {
+      if (!this.matchId || !this.waiting || this.unlimited) return;
+      const now = Date.now();
+      if (this.remaining > 120) return;
+      if (this.extendUsed >= 3) return;
+      if (now - this.lastKeep < 15000) return;
+      this.lastKeep = now;
+      try {
+        const r = await debateApi.keepalive(this.matchId);
+        if (r && r.extended) {
+          this.extendUsed = r.used;
+          this.remaining += r.addSec;
+          toast('已自动续时 ' + r.addSec + ' 秒（' + r.used + '/' + r.max + '）');
+        }
+      } catch (e) {
+        /* 续时失败不影响发言 */
+      }
+    },
+
+    // ==================== 动作 ====================
+    async submitTurn(text) {
+      const body = String(text || '').trim();
+      if (!body) {
+        toast('说点什么再发');
+        return false;
+      }
+      try {
+        await debateApi.submitTurn(this.matchId, body);
+        await this.load(false);
+        return true;
+      } catch (e) {
+        // 网络不通 / 服务端异常：不丢字，也不打断训练 —— 本地接一条"我 + 对手草稿"
+        toast('提交失败，已按离线模式继续（不计分）');
+        this.continueOffline(body);
+        return false;
+      }
+    },
+
+    /**
+     * 离线兜底：把用户这句落进本地时间线，再补一条模板回应。
+     *
+     * <p>约束（和旧版一致）：
+     * · 只进本地，不写服务端，**不计入正式评分**；
+     * · 回应必须先引用用户刚说的话，再按环节挑攻击角度 —— 否则看起来像复读机；
+     * · 带 degraded: true，界面打「离线草稿」标签。
+     */
+    continueOffline(text) {
+      const body = String(text || '').trim();
+      if (!body) return;
+      const seat = (this.mySeats && this.mySeats[0]) || 'A1';
+      const seg = SEG_OF[Number((this.match && this.match.step) || 0) + 1] || '自由辩';
+      const stepBase = Number((this.match && this.match.step) || 0) + 1;
+      const oppSeat = String(seat).startsWith('A') ? 'B1' : 'A1';
+
+      this.localTurns.push({
+        step: stepBase,
+        seat,
+        seg,
+        content: body,
+        status: 'OK',
+        input_type: 'kb',
+        local: true
+      });
+
+      this.localTurns.push({
+        step: stepBase + 0.5,          // 半步：排在对方下一轮之前，视觉上紧跟其后
+        seat: oppSeat,
+        seg,
+        content: offlineReply(body, seg),
+        status: 'TEMPLATE',
+        degraded: true,
+        local: true
+      });
+
+      // 本地把回合往前推一格，避免界面卡在"轮到你"
+      if (this.match) this.match.step = stepBase;
+      this.waiting = false;
+    },
+
+    async buzz() {
+      if (!this.matchId) return;
+      try {
+        const r = await debateApi.buzz(this.matchId);
+        if (r && r.ok) {
+          // 抢到就立刻拿到话筒：本地先切状态，不等下一轮轮询
+          this.phase = 'STEP';
+          this.waiting = true;
+          this.remaining = r.seconds || 90;
+          this.extendUsed = 0;
+          toast('抢到了，你有 ' + r.seconds + ' 秒');
+          await this.load(false);
+        } else {
+          toast((r && r.reason) || '没抢到');
+        }
+      } catch (e) {
+        toast('抢拍失败：' + ((e && e.message) || ''));
+      }
+    },
+
+    /**
+     * 催一下：让 AI 立刻接话。
+     *
+     * 连点保护做三层：
+     * · 前端 in-flight：请求没回来之前按钮不可再点；
+     * · 前端冷却 3 秒 + 同一步只催一次（记住 skipStep）；
+     * · 后端幂等（同一轮只生效一次 + 3 秒冷却），前端被绕过也拦得住。
+     */
+    async skipAi() {
+      if (!this.matchId || this.skipBusy) return;
+      if (Date.now() < this.skipUntil) return;
+      const step = Number((this.match && this.match.step) || 0);
+      if (this.skipStep === step) return;
+
+      this.skipBusy = true;
+      try {
+        const r = await debateApi.skip(this.matchId);
+        if (r && r.ok) {
+          this.skipStep = step;
+          this.skipUntil = Date.now() + 3000;
+          toast('已催，对方开始回应');
+          await this.load(false);
+        } else {
+          toast((r && r.reason) || '现在不能催');
+          // 后端说"已经催过"也算生效，别再让用户连点
+          if (String((r && r.reason) || '').includes('已经催过')) {
+            this.skipStep = step;
+            this.skipUntil = Date.now() + 3000;
+          }
+        }
+      } catch (e) {
+        toast('催失败：' + ((e && e.message) || ''));
+      } finally {
+        this.skipBusy = false;
+      }
+    },
+
+    /** 催一下按钮该不该显示：AI 还没开口（没有正在打字的条目）才给 */
+    canSkip() {
+      if (this.kind !== 'solo' || !this.waiting) {
+        const typing = (this.turnsView || []).some((t) => t.typing);
+        if (typing) return false;
+      }
+      const step = Number((this.match && this.match.step) || 0);
+      return this.skipStep !== step && Date.now() >= this.skipUntil && !this.skipBusy;
+    },
+
+    async toggleBrief() {
+      this.showBrief = !this.showBrief;
+      if (!this.showBrief || this.brief) return;
+      const m = this.match;
+      if (!m || !m.topic_id) return;
+      const side = String(m.my_seats || 'A1').charAt(0);
+      toast('正在生成作战卡…');
+      try {
+        this.brief = await debateApi.brief(m.topic_id, side);
+      } catch (e) {
+        this.brief = null;
+        toast('作战卡生成失败');
+      }
+    },
+
+    // ==================== 复盘 ====================
+    async loadReview() {
+      if (!this.matchId) return;
+      try {
+        this.review = await debateApi.review(this.matchId);
+      } catch (e) {
+        this.review = null;
+      }
+      // 余额可能因为本场扣费变了
+      useWalletStore().refresh();
+    },
+
+    async runPanel() {
+      if (!this.matchId || this.panelBusy) return;
+      this.panelBusy = true;
+      this.panel = null;
+      try {
+        const d = await debateApi.panel(this.matchId);
+        this.panel = d && d.ok ? d.panel : { failed: true, reason: (d && d.reason) || '评审团暂时不可用' };
+      } catch (e) {
+        this.panel = { failed: true, reason: (e && e.message) || '评审失败' };
+      } finally {
+        this.panelBusy = false;
+      }
+    },
+
+    /** 离开对局页 / 换账号：把所有计时器和缓冲清干净 */
+    reset() {
+      this.stopPoll();
+      this.stopTyping();
+      this.stopClock();
+      this.matchId = null;
+      this.match = null;
+      this.turns = [];
+      this.remaining = 0;
+      this.extendUsed = 0;
+      this.phase = 'STEP';
+      this.waiting = false;
+      this.cards = [];
+      this.cardsTopic = null;
+      this.brief = null;
+      this.showBrief = false;
+      this.flawOffer = null;
+      this.shown = {};
+      this.typed = {};
+      this.review = null;
+      this.panel = null;
+      this.tier = 'PRO';   // 换账号/离开对局：档位回默认，避免把上一个账号的选择带过去
+      this.lastUserScroll = 0;
+      this.chatScrollTop = 0;
+      this.err = '';
+    }
+  }
+});

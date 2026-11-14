@@ -1,6 +1,7 @@
 package com.siyige.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.siyige.admin.analytics.Active;
 import com.siyige.ai.AiService;
 import com.siyige.api.SseHub;
 import com.siyige.domain.Format;
@@ -37,6 +38,8 @@ public class MatchService {
     private final java.util.Random rnd = new java.util.Random();
     private final com.siyige.billing.WalletService wallet;
     private final com.siyige.billing.UserLlmService userLlm;
+    private final com.siyige.ai.AiTier aiTier;
+    private final com.siyige.repo.RoomStore roomStore;
     private final HotRank hot;
     private final SseHub hub;
     private final FlawService flaw;
@@ -54,7 +57,9 @@ public class MatchService {
                         @Value("${siyige.pace.ai-delay-scale:1.0}") double aiDelayScale,
                         UtteranceCheck utterance,
                         com.siyige.billing.WalletService wallet,
-                        com.siyige.billing.UserLlmService userLlm) {
+                        com.siyige.billing.UserLlmService userLlm,
+                        com.siyige.ai.AiTier aiTier,
+                        com.siyige.repo.RoomStore roomStore) {
         this.store = store; this.ai = ai; this.scorer = scorer; this.hot = hot; this.hub = hub;
         this.flaw = flaw; this.json = json; this.timeScale = timeScale; this.aiThinkMs = aiThinkMs;
         this.defaultTurnSeconds = defaultTurnSeconds;
@@ -62,6 +67,8 @@ public class MatchService {
         this.utterance = utterance;
         this.wallet = wallet;
         this.userLlm = userLlm;
+        this.aiTier = aiTier;
+        this.roomStore = roomStore;
     }
 
     // ---------- 开局 ----------
@@ -85,6 +92,13 @@ public class MatchService {
 
     public String create(String userId, String topicId, String seatsRaw, String mode, int turnSeconds,
                          String pace, String difficulty, String kind) throws Exception {
+        return create(userId, topicId, seatsRaw, mode, turnSeconds, pace, difficulty, kind, null, null);
+    }
+
+    /** 带 AI 档位与付款人的开局（多人房间传房主为付款人）。 */
+    @Active
+    public String create(String userId, String topicId, String seatsRaw, String mode, int turnSeconds,
+                         String pace, String difficulty, String kind, String tierRaw, String payerUserId) throws Exception {
         Set<String> seats = TurnEngine.parseSeats(seatsRaw);
         for (String s : seats) {
             if (!TurnEngine.validSeat(s)) throw new IllegalArgumentException("非法席位: " + s);
@@ -101,22 +115,29 @@ public class MatchService {
         int turnSec = stepSeconds(steps.get(0), turnSeconds, pace, kind);
         // 开场不需要"等对方说完"，AI 直接开口（1.2 秒）
         Long deadline = firstMine ? deadlineFor(turnSec) : Long.valueOf(openingDelay());
+        String tier = aiTier == null ? "PRO" : aiTier.normalize(tierRaw);
         store.createMatch(id, userId, topicId, String.valueOf(topic.get("title")), mode,
                 TurnEngine.joinSeats(seats), turnSec, pace, difficulty, kind, deadline,
-                queryRounds, freeRounds);
-        // 用户自带 key：这一场的模型调用走他自己的额度，平台只收服务费
-        boolean ownKey = false;
-        if (userLlm != null) {
-            var profile = userLlm.profileOf(userId);
-            if (profile != null) {
-                ownKey = true;
+                queryRounds, freeRounds, tier, payerUserId);
+        // 档位落地：BYOK 需要真的有 key；没配 key 就退回 PRO
+        if ("BYOK".equals(tier) && userLlm != null) {
+            if (userLlm.profileOf(userId) == null) {
+                tier = "PRO";
+                store.setTier(id, tier);
+            } else {
                 store.setOwnKey(id, true);
             }
+        } else if (userLlm != null && userLlm.profileOf(userId) != null) {
+            // 配了自己的 key 但没选档位：默认按自带 Key 走（不多收模型成本）
+            store.setOwnKey(id, true);
         }
 
-        // 计费：开局预扣（余额不足直接拒绝，不给开）
-        if (wallet != null) {
-            long held = wallet.hold(userId, id);
+        // 计费：基础版 / 自带 Key 都免费，不预扣；只有高级版按预估冻结
+        boolean freeTier = "BYOK".equals(tier)
+                || (aiTier != null && !aiTier.chargeModelCost(tier) && !aiTier.chargeServiceFee(tier));
+        String payer = (payerUserId == null || payerUserId.isBlank()) ? userId : payerUserId;
+        if (wallet != null && !freeTier) {
+            long held = wallet.hold(payer, id);
             if (held < 0) {
                 throw new IllegalStateException("余额不足，请先充值（本场预估 "
                         + (wallet.estimateCents() / 100.0) + " 元）");
@@ -134,7 +155,19 @@ public class MatchService {
 
     // ---------- 玩家提交 ----------
 
+    @Active
     public Map<String, Object> submit(String matchId, String content, String inputType) throws Exception {
+        return submit(matchId, content, inputType, null);
+    }
+
+    /**
+     * 玩家提交发言。
+     *
+     * @param userId 提交者；**联机对局必须传**，否则会退化成
+     *               「这场里任意一个真人席位都能替对方发言」（2026-11-14 线上实测踩到：
+     *               B 方提交的内容被记成了 A1 的发言）
+     */
+    public Map<String, Object> submit(String matchId, String content, String inputType, String userId) throws Exception {
         Map<String, Object> m = require(matchId);
         List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
         int step = num(m.get("step"));
@@ -147,11 +180,18 @@ public class MatchService {
         if (!TurnEngine.isMine(mine, speaker))
             throw new IllegalStateException("NOT_YOUR_TURN: 当前轮到 " + speaker);
 
+        // 真实席位校验：是谁在提交，就必须坐在当前发言席上
+        String mySeat = seatOfUser(m, userId);
+        if (mySeat != null && !mySeat.equals(speaker)) {
+            throw new IllegalStateException("NOT_YOUR_TURN: 现在是 " + speaker + " 的回合，你坐 " + mySeat);
+        }
+
         String text = content == null || content.isBlank() ? "（未发言）" : content.trim();
         // 敷衍发言（「11」「对」「嗯」）记为 EMPTY：不算内容，不计入评分文本，
         // 但对局照常推进——下一轮 AI 会明确点出「你这一轮没有回答问题」。
         String status = (utterance != null && utterance.vacuous(text)) ? "EMPTY" : "OK";
-        store.insertTurn(matchId, step + 1, speaker, cur.seg(), text, status,
+        String recordSeat = (mySeat != null && !mySeat.isBlank()) ? mySeat : speaker;
+        store.insertTurn(matchId, step + 1, recordSeat, cur.seg(), text, status,
                 inputType == null ? "kb" : inputType);
         hot.zincrby(str(m.get("topic_id")), 2);   // 发言 +2
         hub.emit(matchId, "turn", Map.of(
@@ -203,18 +243,18 @@ public class MatchService {
             String aiSeat = pickAiSeat(m, cur);
             if (aiSeat == null) return;                     // 全是玩家席位，等玩家抢
             ai.bind(id);
-            ai.useOwnProfile(str(m.get("user_id")), userLlm);
-            String line;
+            applyTier(m);
+            AiService.Speech sp;
             try {
-                line = ai.speak(aiSeat, cur.seg(), str(m.get("topic_title")),
-                    str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+                sp = aiLine(m, aiSeat, cur.seg());
             } finally {
                 ai.clearOwnProfile();
                 ai.unbind();
             }
+            String line = sp.text();
             FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
             line = planted.text();
-            store.insertTurn(id, step + 1, aiSeat, cur.seg(), line, "OK", "ai");
+            store.insertTurn(id, step + 1, aiSeat, cur.seg(), line, sp.degraded() ? "TEMPLATE" : "OK", "ai");
             store.setPhase(id, "STEP");
             hub.emit(id, "turn", Map.of("seat", aiSeat, "seg", cur.seg(), "who", "ai",
                     "content", line, "buzzed", true));
@@ -235,19 +275,19 @@ public class MatchService {
                     "content", "（超时未发言）", "timeout", true));
         } else {
             ai.bind(id);
-            ai.useOwnProfile(str(m.get("user_id")), userLlm);
-            String line;
+            applyTier(m);
+            AiService.Speech sp;
             try {
-                line = ai.speak(cur.seat(), cur.seg(), str(m.get("topic_title")),
-                    str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+                sp = aiLine(m, cur.seat(), cur.seg());
             } finally {
                 ai.clearOwnProfile();
                 ai.unbind();
             }
+            String line = sp.text();
             // 按难度概率埋一处逻辑漏洞，供玩家抓
             FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
             line = planted.text();
-            store.insertTurn(id, step + 1, cur.seat(), cur.seg(), line, "OK", "ai");
+            store.insertTurn(id, step + 1, cur.seat(), cur.seg(), line, sp.degraded() ? "TEMPLATE" : "OK", "ai");
             hub.emit(id, "turn", Map.of("seat", cur.seat(), "seg", cur.seg(), "who", "ai", "content", line));
             if (planted.type() != null) {
                 store.insertFlaw(id, step + 1, planted.type());
@@ -366,32 +406,122 @@ public class MatchService {
         return null;
     }
 
-    /** 单人模式「催一下」：跳过 AI 的等待，让它立刻接话。 */
+    /** 「催一下」的最小间隔：连点不生效（毫秒） */
+    private static final long SKIP_COOLDOWN_MS = 3000;
+
+    /**
+     * 单人模式「催一下」：跳过 AI 的等待，让它立刻接话。
+     *
+     * <p>**幂等**：同一轮只生效一次。连点、脚本刷、以及"AI 已经在打字了又去催"都不会再起作用——
+     * 之前没有这层保护，连点会把 deadline 反复推到过去，出现「一催就直接说完」的观感。
+     */
     public Map<String, Object> skip(String matchId) {
         Map<String, Object> m = require(matchId);
-        if (!"RUNNING".equals(str(m.get("status")))) return Map.of("ok", false, "reason", "not-running");
+        if (!"RUNNING".equals(str(m.get("status")))) return Map.of("ok", false, "reason", "对局已结束");
         if (!"solo".equalsIgnoreCase(str(m.get("kind"))))
             return Map.of("ok", false, "reason", "多人对局不能跳过");
         if ("BUZZ".equals(str(m.get("phase"))))
             return Map.of("ok", false, "reason", "抢拍阶段不能跳过");
+
+        int step = num(m.get("step"));
         List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
-        Format.Step cur = Format.stepAt(steps, num(m.get("step")));
+        Format.Step cur = Format.stepAt(steps, step);
         if (cur == null) return Map.of("ok", false, "reason", "已结束");
         if (TurnEngine.isMine(TurnEngine.parseSeats(str(m.get("my_seats"))), cur.seat()))
             return Map.of("ok", false, "reason", "现在轮到你说");
-        store.updateStep(matchId, num(m.get("step")), System.currentTimeMillis() - 1);
-        hub.emit(matchId, "skip", Map.of("step", num(m.get("step")) + 1));
+
+        // ① 同一轮只允许催一次
+        int skippedStep = num(m.get("skipped_step"));
+        if (skippedStep == step) return Map.of("ok", false, "reason", "这一轮已经催过了");
+
+        // ② 冷却：两次催之间至少 3 秒（防脚本连点）
+        long lastAt = num(m.get("last_skip_at"));
+        long now = System.currentTimeMillis();
+        if (now - lastAt < SKIP_COOLDOWN_MS) {
+            long wait = (SKIP_COOLDOWN_MS - (now - lastAt) + 999) / 1000;
+            return Map.of("ok", false, "reason", "别急，" + wait + " 秒后再催");
+        }
+
+        // ③ 落库：先记账再改 deadline，两步都做才算成功
+        store.setSkip(matchId, step, now);
+        store.updateStep(matchId, step, now - 1);
+        hub.emit(matchId, "skip", Map.of("step", step + 1));
         return Map.of("ok", true);
     }
     /** 结算本场费用：按实际 token 用量多退少补。 */
+    /**
+     * 单人模式走两段式（先分析对方 → 再生成），多人房间保持单段生成。
+     * 返回 Speech 而不是 String，是为了把「本轮是否降级成模板」带给落库层。
+     */
+    private AiService.Speech aiLine(Map<String, Object> m, String seat, String seg) throws Exception {
+        String id = str(m.get("id"));
+        if ("solo".equals(str(m.get("kind")))) {
+            return ai.speakForSolo(seat, seg, str(m.get("topic_title")),
+                    str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+        }
+        String line = ai.speak(seat, seg, str(m.get("topic_title")),
+                str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
+        return new AiService.Speech(line, false, "");
+    }
+
+    /**
+     * 按本场档位切换模型：
+     * BASIC → 本地 ollama；BYOK → 用户自己的 key；PRO → 平台默认（不动 profile）。
+     */
+    /**
+     * 把提交者映射到席位：
+     * · 房间对局：查 sy_seat 里这个人坐哪（房码 → 席位）；
+     * · 单人：对局里 my_seats 只有一个，直接取。
+     *
+     * @return 解析不出来时返回 null（老客户端不传 userId 的情况，保持兼容）
+     */
+    private String seatOfUser(Map<String, Object> m, String userId) {
+        if (userId == null || userId.isBlank()) return null;
+        if ("room".equalsIgnoreCase(str(m.get("kind"))) && roomStore != null) {
+            String code = roomStore.codeOfMatch(str(m.get("id")));
+            if (code != null) {
+                String s = roomStore.seatOfUser(code, userId);
+                if (s != null) return s;
+            }
+        }
+        Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
+        return mine.isEmpty() ? null : mine.iterator().next();
+    }
+
+    private void applyTier(Map<String, Object> m) {
+        String tier = str(m.get("tier"));
+        String owner = str(m.get("user_id"));
+        if ("BYOK".equals(tier) || "true".equalsIgnoreCase(str(m.get("own_key")))) {
+            ai.useOwnProfile(owner, userLlm);
+            return;
+        }
+        if (aiTier != null) {
+            var p = aiTier.profileOf(tier);
+            if (p != null) ai.useProfile(p);      // BASIC
+        }
+    }
+
     private void settleBilling(String matchId, Map<String, Object> m) {
         if (wallet == null) return;
         try {
-            String userId = str(m.get("user_id"));
+            // 付款人：多人房间由房主承担；单人就是自己
+            String userId = str(m.get("payer_user_id"));
+            if (userId.isBlank()) userId = str(m.get("user_id"));
+
+            String tier = str(m.get("tier"));
+            // 基础版（本地模型）：免费，不结算也不扣服务费
+            if (aiTier != null && !aiTier.chargeModelCost(tier) && !aiTier.chargeServiceFee(tier)) {
+                Map<String, Object> bill = Map.of("freeTier", true, "tier", tier,
+                        "tokens", 0, "modelCostCents", 0, "serviceFeeCents", 0, "totalCents", 0);
+                store.saveBill(matchId, 0);
+                hub.emit(matchId, "bill", bill);
+                ai.clearMatchUsage(matchId);
+                return;
+            }
             // 按对局精确归集：不受其它对局 / 其它接口调用影响
-            boolean own = "true".equalsIgnoreCase(str(m.get("own_key")));
+            boolean own = "true".equalsIgnoreCase(str(m.get("own_key"))) || "BYOK".equals(tier);
             if (own) {
-                // 用用户自己的 key：模型成本不计，只收服务费
+                // 自带 Key：模型成本不计，服务费也不收（可能指向用户本地模型，平台零成本）
                 Map<String, Object> bill = wallet.settleOwnKey(userId, matchId);
                 store.saveBill(matchId, 0);
                 hub.emit(matchId, "bill", bill);
@@ -440,8 +570,6 @@ public class MatchService {
         ScoreService.Score sc = scorer.score(turns, mine, str(m.get("topic_id")), store.flaws(matchId));
 
         store.finishMatch(matchId, "FINISHED", sc.total());
-        store.insertRecord(str(m.get("user_id")), matchId, str(m.get("topic_title")),
-                str(m.get("my_seats")), sc.total(), sc.turns());
         hot.zincrby(str(m.get("topic_id")), 5 + sc.turns() * 0.0);   // 打完 +5
 
         // 六维画像：滑动平均（含场次样本数）+ 本场数据单独存一份，用于算增量
@@ -484,6 +612,10 @@ public class MatchService {
         int streak = diag == null ? 1 : num(diag.get("streak")) + 1;
         store.saveDiag(str(m.get("user_id")), json.writeValueAsString(avg), json.writeValueAsString(flaws),
                 streak, prevSamples + 1, json.writeValueAsString(now));
+
+        // 记录本场（含六维），供能力分析按「最近 N 场」重新聚合
+        store.insertRecord(str(m.get("user_id")), matchId, str(m.get("topic_title")),
+                str(m.get("my_seats")), sc.total(), sc.turns(), json.writeValueAsString(now));
 
         hub.emit(matchId, "match.end", Map.of(
                 "total", sc.total(), "matter", sc.matter(), "method", sc.method(), "manner", sc.manner(),

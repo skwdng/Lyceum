@@ -224,6 +224,9 @@ public class AiService {
     }
 
     public void clearOwnProfile() { llm.clearProfile(); }
+
+    /** 基础版：切到本地 ollama 的配置。 */
+    public void useProfile(com.siyige.ai.LlmClient.Profile p) { llm.useProfile(p); }
     public void unbind() { llm.unbindMatch(); }
     public long tokensForMatch(String matchId) { return llm.tokensForMatch(matchId); }
     public void clearMatchUsage(String matchId) { llm.clearMatchUsage(matchId); }
@@ -261,6 +264,68 @@ public class AiService {
 
     public String speak(String seat, String seg, String topicTitle) {
         return speak(seat, seg, topicTitle, List.of());
+    }
+
+    /** 一条发言的结果：正文 + 是否降级到模板 + 用过的结构化分析。 */
+    public record Speech(String text, boolean degraded, String analysis) {}
+
+    private static final String ANALYST = """
+            你是辩论分析器。只做拆解，不写回应、不给建议、不评价输赢。
+            输出必须是纯 JSON（不要 markdown 代码块），字段固定：
+            {"claim":"对方核心主张（一句话）",
+             "evidence":["他给的论据，每条不超过 20 字"],
+             "fallacies":[{"type":"以偏概全|因果倒置|循环论证|偷换概念|诉诸情绪|无","quote":"摘自对方原话，不超过 12 字"}],
+             "weakness":"最容易被击穿的一点（一句话）"}
+            若确实没有可指摘之处，fallacies 给空数组，weakness 写"标准未给"或"事实未核"。
+            """;
+
+    /**
+     * 单人模式专用：先分析对方上一句，再生成回应。
+     *
+     * <p>两步分开是刻意的 —— 一次让它"分析 + 写稿"，它一定跳过分析直接套话。
+     * 分析失败不阻断对局，只是本轮退化为"无分析生成"。
+     */
+    public Speech speakForSolo(String seat, String seg, String topicTitle, String topicId, String difficulty,
+                               List<Map<String, Object>> history) {
+        Personas.Persona p = Personas.of(seat);
+        String mateLast = lastSameSide(history, seat);
+        String oppLast = lastOpposite(history, seat);
+        String mine = myKeyLines(history, seat);
+
+        String analysis = "";
+        if (llmEnabled() && oppLast != null && !oppLast.isBlank()
+                && !(utterance != null && utterance.vacuous(oppLast))) {
+            try {
+                analysis = analyze(oppLast, topicTitle, seg);
+            } catch (Exception e) {
+                log.warn("对手发言分析失败，本轮按无分析生成：{}", e.toString());
+            }
+        }
+
+        boolean degraded = false;
+        String text;
+        if (llmEnabled()) {
+            try {
+                text = llm.chat(SYSTEM, buildPrompt(seat, seg, topicTitle, topicId, difficulty, p,
+                        mateLast, oppLast, mine, history, analysis), p.temperature(), 25);
+            } catch (Exception e) {
+                log.warn("LLM 发言失败，降级模板：{}", e.toString());
+                text = template(seat, seg, mateLast, history);
+                degraded = true;
+            }
+        } else {
+            text = template(seat, seg, mateLast, history);
+            degraded = true;
+        }
+        return new Speech(guard(text, p, mateLast, oppLast, seat, history), degraded, analysis);
+    }
+
+    /** 只做分析：把对方上一句拆成 主张/论据/漏洞/弱点。 */
+    public String analyze(String oppText, String topicTitle, String seg) throws Exception {
+        String prompt = "辩题：" + (topicTitle == null ? "" : topicTitle)
+                + "\n当前环节：" + (seg == null ? "" : seg)
+                + "\n对方刚说：「" + shorten(oppText, 400) + "」";
+        return llm.chat(ANALYST, prompt, 0.2, 12);
     }
 
     // ---------------------------------------------------------------- 上下文
@@ -313,6 +378,12 @@ public class AiService {
     private String buildPrompt(String seat, String seg, String topic, String topicId, String difficulty, Personas.Persona p,
                                String mateLast, String oppLast, String mine,
                                List<Map<String, Object>> history) {
+        return buildPrompt(seat, seg, topic, topicId, difficulty, p, mateLast, oppLast, mine, history, "");
+    }
+
+    private String buildPrompt(String seat, String seg, String topic, String topicId, String difficulty, Personas.Persona p,
+                               String mateLast, String oppLast, String mine,
+                               List<Map<String, Object>> history, String analysis) {
         StringBuilder sb = new StringBuilder();
         sb.append("【身份】").append(Personas.side(seat)).append(Personas.role(seat))
           .append("（").append(seat).append("），说话风格：").append(p.style())
@@ -347,6 +418,14 @@ public class AiService {
         String used = usedOpenings(history);
         if (!used.isBlank())
             sb.append("【场上已用过的开头】").append(used).append("（本轮禁止再用，必须换一种）\n");
+
+        // 单人模式：先把对方上一句拆成结构（主张/论据/漏洞/弱点），再据此回应。
+        // 这一段是"真的听他说话"的落点：回应必须命中 analysis 里的具体项。
+        if (analysis != null && !analysis.isBlank()) {
+            sb.append("\n【对方上一句的结构化分析（必须据此回应，不要照抄 JSON，也不要提「分析」二字）】\n")
+              .append(shorten(analysis, 600)).append("\n");
+            sb.append("回应要求：先正面回应它的 claim 或 weakness 其中之一，再指出 fallacies 里的一处（有就指，没有就讲标准）。\n");
+        }
 
         sb.append("\n【本轮要求】\n");
         sb.append("1. 输出 ").append(segChars(seg, p)).append(" 字，最多 3 段。\n");

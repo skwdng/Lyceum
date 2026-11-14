@@ -72,10 +72,39 @@ public class RoomStore {
         return rows.isEmpty() ? null : lower(rows.get(0));
     }
 
+    /**
+     * 给新加入的人挑座位。
+     *
+     * <p>规则：**先补人少的一侧**，同侧再按 seat_key 顺序。
+     * 之前直接 order by seat_key 取第一个空位，结果第一个人坐 A1、第二个人坐 A2 ——
+     * 两个真人被塞进同一队，谁也没法跟对方辩（线上实测踩到）。
+     */
     public String firstEmpty(String code) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "select seat_key from sy_seat where room_code=? and occupant='EMPTY' order by seat_key limit 1", code);
-        return rows.isEmpty() ? null : String.valueOf(rows.get(0).get("seat_key"));
+                "select seat_key from sy_seat where room_code=? and occupant='EMPTY' " +
+                "order by case when seat_key like 'A%' then 0 else 1 end, seat_key", code);
+        if (rows.isEmpty()) return null;
+
+        // 数一下两侧已坐了几个真人
+        List<Map<String, Object>> humans = jdbc.queryForList(
+                "select seat_key from sy_seat where room_code=? and occupant<>'EMPTY'", code);
+        long sideA = humans.stream().filter(r -> String.valueOf(r.get("seat_key")).startsWith("A")).count();
+        long sideB = humans.size() - sideA;
+        String prefer = sideA <= sideB ? "A" : "B";
+
+        for (Map<String, Object> r : rows) {
+            String seat = String.valueOf(r.get("seat_key"));
+            if (seat.startsWith(prefer)) return seat;
+        }
+        return String.valueOf(rows.get(0).get("seat_key"));
+    }
+
+    /** 反查：这场对局属于哪个房间（联机发言校验用）。 */
+    public String codeOfMatch(String matchId) {
+        if (matchId == null || matchId.isBlank()) return null;
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "select code from sy_room where match_id=?", matchId);
+        return rows.isEmpty() ? null : String.valueOf(rows.get(0).get("code"));
     }
 
     public String seatOfUser(String code, String userId) {

@@ -50,8 +50,9 @@ class RoomNicknameTest {
         when(store.topic("t1")).thenReturn(Map.of("id", "t1", "title", "人工智能生成内容是否应享有著作权"));
 
         MatchService matches = mock(MatchService.class);
+        // 多人房改由房主付费后，create 多了 tier / payerUserId 两个参数（10 参）
         when(matches.create(anyString(), anyString(), anyString(), anyString(), anyInt(),
-                anyString(), anyString(), anyString())).thenReturn("m-room-1");
+                anyString(), anyString(), anyString(), anyString(), anyString())).thenReturn("m-room-1");
 
         service = new RoomService(roomStore, store, matches);
 

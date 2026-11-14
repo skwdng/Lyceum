@@ -181,3 +181,14 @@ alter table sy_match add column if not exists bill_tokens bigint default 0;
 
 -- 用户自带 key 的对局标记
 alter table sy_match add column if not exists own_key boolean default false;
+-- 能力分析「最近 N 场」：每场结束把六维分写进记录（dims_json）
+alter table sy_record add column if not exists dims_json varchar(400);
+
+-- AI 档位与付款人：单人可选基础版(本地 ollama)/高级版(deepseek)/自带Key；
+-- 多人房间整场费用由房主承担，所以付款人和发起人分开记
+alter table sy_match add column if not exists tier varchar(16) default 'PRO';
+alter table sy_match add column if not exists payer_user_id varchar(32);
+
+-- 「催一下」幂等：同一轮只允许催一次，并记最后一次时间防连点
+alter table sy_match add column if not exists skipped_step int default -1;
+alter table sy_match add column if not exists last_skip_at bigint default 0;

@@ -1,0 +1,13 @@
+
+/* 筛选条：一行放不下会自动换行（1480 以下基本会换两行，别硬挤） */
+.au-bar[data-v-9e115ead] { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 12px 18px; border-bottom: 1px solid #EFF0F1;
+}
+.au-input[data-v-9e115ead] { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px;
+  font-size: 13px; min-width: 190px; background: #fff;
+}
+/* 对象列里的用户 id 也可以点（看这个人的封禁历史） */
+.au-link[data-v-9e115ead] { color: #165DFF; cursor: pointer;
+}
+.au-link[data-v-9e115ead]:hover { text-decoration: underline;
+}

@@ -31,6 +31,19 @@ public class AdminErrors {
         return body(e.code(), e.getMessage(), e.status());
     }
 
+    /**
+     * 权限 / 首登改密相关的 403（{@code NOT_ADMIN} / {@code FORBIDDEN_PERM} /
+     * {@code PASSWORD_CHANGE_REQUIRED}）。
+     *
+     * <p>单独一个处理分支的好处：这几种错误**不是**参数问题，前端要按 code 分流
+     * （FORBIDDEN_PERM → 无权限提示；PASSWORD_CHANGE_REQUIRED → 跳改密页），
+     * 混进 400 的 default 分支就会被当成"参数不合法"。
+     */
+    @ExceptionHandler(com.siyige.admin.rbac.RbacException.class)
+    public ResponseEntity<Map<String, Object>> onRbac(com.siyige.admin.rbac.RbacException e) {
+        return body(e.code(), e.getMessage(), e.status());
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> onUnreadable(HttpMessageNotReadableException e) {
         return body("INVALID_PARAM", "INVALID_PARAM: 请求体格式不正确", HttpStatus.BAD_REQUEST);
@@ -48,9 +61,13 @@ public class AdminErrors {
         int colon = msg.indexOf(':');
         String code = colon > 0 ? msg.substring(0, colon).trim() : "INVALID_PARAM";
         HttpStatus status = switch (code) {
-            case "REPORT_NOT_FOUND", "USER_NOT_FOUND", "AUDIT_NOT_FOUND" -> HttpStatus.NOT_FOUND;
-            // 恢复类冲突一律 409：ALREADY_RESTORED 表示已经撤销过，NOT_RESTORABLE 表示没东西可恢复
-            case "ALREADY_REPORTED", "ALREADY_RESTORED", "NOT_RESTORABLE" -> HttpStatus.CONFLICT;
+            case "REPORT_NOT_FOUND", "USER_NOT_FOUND", "AUDIT_NOT_FOUND",
+                 "POST_NOT_FOUND", "COMMENT_NOT_FOUND", "TOPIC_NOT_FOUND",
+                 "VIDEO_NOT_FOUND", "ADMIN_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            // 恢复类冲突一律 409：ALREADY_RESTORED 表示已经撤销过，NOT_RESTORABLE 表示没东西可恢复；
+            // 内容管理的 ALREADY_HIDDEN / NOT_HIDDEN 同理（重复点两次不该是 500）
+            case "ALREADY_REPORTED", "ALREADY_RESTORED", "NOT_RESTORABLE",
+                 "ALREADY_HIDDEN", "NOT_HIDDEN" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_REQUEST;
         };
         return body(code, msg, status);

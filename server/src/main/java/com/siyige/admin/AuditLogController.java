@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.admin.rbac.Perm;
+import com.siyige.admin.rbac.Require;
 import com.siyige.auth.ClientIp;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
@@ -37,12 +39,29 @@ public class AuditLogController {
         this.restore = restore;
     }
 
+    /**
+     * 处理记录分页 + 筛选。
+     *
+     * <p>筛选参数全部可空：`q`（详情/操作人/内容作者，模糊）、`admin`（数字=管理员 id，否则按账号模糊）、
+     * `action`（REPORT_RESOLVE / RESTORE）、`verdict`（IGNORE / DELETE / BAN / DELETE_AND_BAN）、
+     * `targetType`（POST / COMMENT / USER）、`source`（REPORT / MANUAL）、`from`/`to`（`yyyy-MM-dd`，含当天）。
+     */
+    @Require(Perm.AUDIT_READ)
     @GetMapping
-    public Map<String, Object> page(@RequestParam(name = "page", required = false, defaultValue = "1") int page,
+    public Map<String, Object> page(@RequestParam(name = "q", required = false) String q,
+                                    @RequestParam(name = "admin", required = false) String admin,
+                                    @RequestParam(name = "action", required = false) String action,
+                                    @RequestParam(name = "verdict", required = false) String verdict,
+                                    @RequestParam(name = "targetType", required = false) String targetType,
+                                    @RequestParam(name = "source", required = false) String source,
+                                    @RequestParam(name = "from", required = false) String from,
+                                    @RequestParam(name = "to", required = false) String to,
+                                    @RequestParam(name = "page", required = false, defaultValue = "1") int page,
                                     @RequestParam(name = "size", required = false, defaultValue = "20") int size) {
-        return service.page(page, size);
+        return service.page(q, admin, action, verdict, targetType, source, from, to, page, size);
     }
 
+    @Require(Perm.AUDIT_RESTORE)
     @PostMapping("/{id}/restore")
     public ResponseEntity<Void> restore(@PathVariable long id, HttpServletRequest http) {
         restore.restore(id, AdminContext.requireId(), AdminContext.account(), ClientIp.of(http));

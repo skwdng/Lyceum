@@ -1,5 +1,6 @@
 package com.siyige.community;
 
+import com.siyige.admin.analytics.Active;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,7 @@ public class LikeService {
 
     /** 点赞帖子：已赞则什么都不做，仍返回成功。 */
     @Transactional
+    @Active
     public void likePost(String userId, long postId) {
         muteGuard.assertNotMuted(userId);      // 被禁言不能点赞；取消点赞不拦
         changePostLike(userId, postId, true);
@@ -51,6 +53,7 @@ public class LikeService {
 
     /** 点赞评论：不重算帖子热度。 */
     @Transactional
+    @Active
     public void likeComment(String userId, long commentId) {
         muteGuard.assertNotMuted(userId);
         changeCommentLike(userId, commentId, true);

@@ -1,0 +1,253 @@
+<script setup>
+/**
+ * 处理记录 / 审计（原 AdminView 的 audit 面板 L367–422，逻辑 L35 / L136–142 / L177–190）。
+ *
+ * 「一键恢复」的三条既有语义原样保留：
+ * · 必须二次确认，文案一字不改（恢复＝内容重新可见，**禁言不会一并解除**）；
+ * · 只有 `canRestore` 的记录才给按钮，其余显示「不可恢复」；
+ * · 已经是 RESTORE 的审计行没有"恢复"操作，状态列显示 `—`。
+ *
+ * 与旧版的唯一差异（用户不可见）：旧版恢复后顺带刷新举报队列的本地缓存；
+ * 现在队列是独立子页，下次进入时自己重拉，不在本页发多余请求。
+ */
+import { computed, onMounted, ref } from 'vue';
+import { adminApi } from '../../api.js';
+import { useAdminStore } from '../../stores/admin.js';
+import { toast } from '../../utils/toast.js';
+import { actionName, errText, fmtTime } from './helpers.js';
+import { userPop } from './userPop.js';
+import { postDrawer } from './postDrawer.js';
+
+const admin = useAdminStore();
+
+/** 撤销处置要 audit:restore（MOD / VIEWER 只有 audit:read） */
+const canRestore = computed(() => admin.has('audit:restore'));
+
+const audit = ref(null);
+
+/**
+ * 筛选条件。全部空 = 不过滤（与改造前行为一致）。
+ * `q` 关键词（详情/操作人/内容作者）、`adm` 操作人（纯数字按 id）、
+ * `action` / `verdict` / `targetType` / `source` 精确匹配，`from` / `to` 为 `yyyy-MM-dd`（含当天）。
+ */
+const f = ref({ q: '', adm: '', action: '', verdict: '', targetType: '', source: '', from: '', to: '' });
+
+const ACTIONS = [
+  ['', '全部动作'],
+  ['REPORT_RESOLVE', '举报处置 / 内容处置'],
+  ['RESTORE', '撤销处理'],
+  ['VIDEO_DECIDE', '视频复核'],
+  ['VIDEO_RESTORE', '视频恢复'],
+  ['TOPIC_APPROVE', '辩题通过'],
+  ['TOPIC_REJECT', '辩题驳回'],
+  ['TOPIC_OFFLINE', '辩题下架'],
+  ['USER_BAN', '全站封禁'],
+  ['USER_UNBAN', '解除封禁'],
+  ['ADMIN_CREATE', '创建管理员'],
+  ['ADMIN_ROLE', '改管理员角色'],
+  ['ADMIN_DISABLE', '停用管理员'],
+  ['ADMIN_ENABLE', '启用管理员'],
+  ['ADMIN_RESET_PWD', '重置管理员密码']
+];
+const VERDICTS = [
+  ['', '全部结果'],
+  ['IGNORE', '忽略'],
+  ['DELETE', '删除内容'],
+  ['BAN', '禁言'],
+  ['DELETE_AND_BAN', '删除+禁言'],
+  ['PASS', '通过'],
+  ['REJECT', '驳回'],
+  ['UNBAN', '解封']
+];
+const TARGETS = [['', '全部对象'], ['POST', '帖子'], ['COMMENT', '评论'], ['USER', '用户'],
+  ['VIDEO', '视频'], ['TOPIC', '辩题'], ['ADMIN', '管理员']];
+const SOURCES = [['', '全部来源'], ['REPORT', '举报'], ['MANUAL', '管理台']];
+
+onMounted(() => loadAudit(1));
+
+function filters() {
+  const v = f.value;
+  return {
+    q: v.q.trim() || undefined,
+    admin: v.adm.trim() || undefined,
+    action: v.action || undefined,
+    verdict: v.verdict || undefined,
+    targetType: v.targetType || undefined,
+    source: v.source || undefined,
+    from: v.from || undefined,
+    to: v.to || undefined
+  };
+}
+
+/** 动作标签：同样是 REPORT_RESOLVE，从举报来的是「举报处置」，管理台直接做的是「内容处置」——
+ *  这两个的含义差很多（前者有举报人、后者没有），只按下拉里的枚举名显示会误导。 */
+function actionLabel(r) {
+  if (r.action === 'REPORT_RESOLVE') return r.source === 'MANUAL' ? '内容处置' : '举报处置';
+  if (r.action === 'RESTORE') return r.source === 'MANUAL' ? '解除屏蔽' : '撤销处理';
+  return actionName(r.action);
+}
+
+/** 点「对象」里的帖子/评论 → 打开帖子详情抽屉（评论自动定位） */
+function openTarget(r) {
+  if (r.targetType === 'POST') return postDrawer.open(r.postId || r.targetId, null);
+  if (r.targetType === 'COMMENT') {
+    if (!r.postId) return toast('这条评论所属的帖子已经不在了');
+    return postDrawer.open(r.postId, r.targetId);
+  }
+}
+
+async function loadAudit(page = 1) {
+  try {
+    audit.value = await adminApi.auditFiltered({ ...filters(), page, size: 20 });
+  } catch (e) {
+    toast(errText(e));
+  }
+}
+
+function search() {
+  loadAudit(1);
+}
+
+function resetFilters() {
+  f.value = { q: '', adm: '', action: '', verdict: '', targetType: '', source: '', from: '', to: '' };
+  loadAudit(1);
+}
+
+async function restoreAudit(id) {
+  if (!window.confirm('确认撤销这次处理？内容会重新可见')) return;
+  try {
+    await adminApi.restoreAudit(id);
+    toast('已恢复：内容重新可见（禁言不会一并解除）');
+    await Promise.all([
+      loadAudit(audit.value ? audit.value.page : 1),
+      admin.loadStats()
+    ]);
+  } catch (e) {
+    toast(errText(e));
+  }
+}
+</script>
+
+<template>
+  <div data-panel="audit">
+    <div class="panel">
+      <h2>
+        处理记录
+        <span class="spacer"></span>
+        <span v-if="audit" class="muted" style="font-weight: 400; font-size: 12px">共 {{ audit.total }} 条</span>
+      </h2>
+
+      <div class="au-bar">
+        <input v-model="f.q" class="au-input" placeholder="关键词（详情/操作人/作者）" @keyup.enter="search" />
+        <input v-model="f.adm" class="au-input" style="min-width: 130px" placeholder="操作人（id 或账号）"
+               @keyup.enter="search" />
+        <select v-model="f.action" class="au-input" style="width: 120px" @change="search">
+          <option v-for="o in ACTIONS" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+        </select>
+        <select v-model="f.verdict" class="au-input" style="width: 130px" @change="search">
+          <option v-for="o in VERDICTS" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+        </select>
+        <select v-model="f.targetType" class="au-input" style="width: 110px" @change="search">
+          <option v-for="o in TARGETS" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+        </select>
+        <select v-model="f.source" class="au-input" style="width: 120px" @change="search">
+          <option v-for="o in SOURCES" :key="o[0]" :value="o[0]">{{ o[1] }}</option>
+        </select>
+        <input v-model="f.from" class="au-input" style="width: 150px" type="date" title="起始日期" @change="search" />
+        <span class="muted" style="font-size: 12px">至</span>
+        <input v-model="f.to" class="au-input" style="width: 150px" type="date" title="结束日期" @change="search" />
+        <button class="btn primary sm" @click="search">搜索</button>
+        <button class="btn sm" @click="resetFilters">重置</button>
+      </div>
+
+      <div v-if="!audit" class="muted" style="padding: 20px">加载中…</div>
+      <div v-else-if="!(audit.items || []).length" class="muted" style="padding: 28px; text-align: center">
+        没有符合条件的处理记录
+      </div>
+      <table v-else>
+        <thead>
+          <tr>
+            <th style="width: 130px">时间</th>
+            <th style="width: 90px">操作人</th>
+            <th style="width: 140px">动作</th>
+            <th style="width: 110px">对象</th>
+            <th style="width: 80px">来源</th>
+            <th>详情</th>
+            <th style="width: 100px">状态</th>
+            <th style="width: 90px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in audit.items" :key="r.id">
+            <td class="muted" style="white-space: nowrap">{{ fmtTime(r.createdAt) }}</td>
+            <td>{{ r.adminName || '#' + r.adminId }}</td>
+            <td style="white-space: nowrap">
+              <span class="tag" :class="r.action === 'RESTORE' ? 'blue' : (r.source === 'REPORT' ? 'orange' : '')">
+                {{ actionLabel(r) }}
+              </span>
+              <div v-if="r.verdict" class="muted" style="font-size: 11.5px">{{ actionName(r.verdict) }}</div>
+            </td>
+            <td style="white-space: nowrap">
+              <!-- 对象：USER/TOPIC 的目标 id 不是数字（用户 id 是字符串、题目 id 是 t7 这种），
+                   所以它们放在 target_owner 里，这里按类型分开渲染 -->
+              <template v-if="r.targetType === 'USER'">
+                用户 <a class="au-link" @click="userPop.open(r.targetOwner, $event)">{{ r.targetOwner || '' }}</a>
+              </template>
+              <template v-else-if="r.targetType === 'TOPIC'">辩题 {{ r.targetOwner || '' }}</template>
+              <template v-else-if="r.targetType === 'VIDEO'">视频 #{{ r.targetId }}</template>
+              <!-- 管理员账号操作（R2）：显示账号名，不给点（管理员管理页才有改角色/停用） -->
+              <template v-else-if="r.targetType === 'ADMIN'">
+                管理员 <b>{{ r.targetOwner || ('#' + r.targetId) }}</b>
+              </template>
+              <template v-else-if="r.targetType === 'POST'">
+                <a class="au-link" @click="openTarget(r)">帖子 #{{ r.targetId }}</a>
+              </template>
+              <template v-else-if="r.targetType === 'COMMENT'">
+                <a class="au-link" @click="openTarget(r)">评论 #{{ r.targetId }}</a>
+              </template>
+              <template v-else>-</template>
+            </td>
+            <td style="white-space: nowrap">
+              <span class="tag" :class="r.source === 'MANUAL' ? 'blue' : ''">{{ r.source === 'MANUAL' ? '管理台' : '举报' }}</span>
+            </td>
+            <td>{{ r.detail || '' }}</td>
+            <td>
+              <span v-if="r.action === 'RESTORE'" class="muted" style="font-size: 12px">—</span>
+              <template v-else-if="r.undone">
+                <span class="tag">已撤销</span>
+                <div class="muted" style="font-size: 11.5px">{{ fmtTime(r.undoAt) }}</div>
+              </template>
+              <span v-else class="tag ok">生效中</span>
+            </td>
+            <td style="text-align: right">
+              <template v-if="r.action !== 'RESTORE' && !r.undone">
+                <button v-if="r.canRestore && canRestore" class="btn sm danger" @click="restoreAudit(r.id)">恢复</button>
+                <span v-else-if="r.canRestore" class="muted" style="font-size: 12px">无撤销权限</span>
+                <span v-else class="muted" style="font-size: 12px">不可恢复</span>
+              </template>
+              <span v-else-if="r.action !== 'RESTORE'" class="muted" style="font-size: 12px">已撤销</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-if="audit && audit.total > audit.size" class="pager">
+        <span class="muted">共 {{ audit.total }} 条 · 第 {{ audit.page }} 页</span>
+        <button class="btn sm" :disabled="audit.page <= 1" @click="loadAudit(audit.page - 1)">上一页</button>
+        <button class="btn sm" :disabled="audit.page >= Math.ceil(audit.total / audit.size)" @click="loadAudit(audit.page + 1)">
+          下一页
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+/* 筛选条：一行放不下会自动换行（1480 以下基本会换两行，别硬挤） */
+.au-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 12px 18px; border-bottom: 1px solid #EFF0F1; }
+.au-input { width: auto; padding: 7px 10px; border: 1px solid #E5E6EB; border-radius: 8px;
+  font-size: 13px; min-width: 190px; background: #fff; }
+/* 对象列里的用户 id 也可以点（看这个人的封禁历史） */
+.au-link { color: #165DFF; cursor: pointer; }
+.au-link:hover { text-decoration: underline; }
+</style>

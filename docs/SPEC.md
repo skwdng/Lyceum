@@ -655,7 +655,7 @@ siyige:
 | 缓存/状态 | Redis | 7.x | 房间快照、发言令牌、限流、榜单 |
 | AI 框架 | Spring AI | 1.x | `ChatClient.stream()` / `.entity()` / `@Tool` |
 | 模型 | DeepSeek API（OpenAI 兼容） | – | deepseek-chat |
-| 前端 | Vue 3.4 + Vite 5 + Arco Design Vue + Pinia + ECharts | – | 页面/图表 |
+| 前端 | Vue 3 + Vite 6 + Pinia（**无 UI 库、无图表库**） | – | 见 §24（§14.1 为原计划，实际按 §24 实现） |
 | SSE 客户端 | `@microsoft/fetch-event-source` | 2.x | 原生 EventSource 不能带 header |
 | 部署 | Docker Compose + Nginx | – | 一键起 MySQL/Redis/App/Nginx |
 
@@ -1220,3 +1220,337 @@ location /api/ {
   若将来要加，MUST 在网关 / 过滤器层做，MUST NOT 塞进 `ChatService`（会把事务与限流耦在一起）。
 
 ---
+
+
+---
+
+## 24. 前端：Vue 3 实现（2026-11-10 追加）
+
+> 本节描述**实际实现**。§14.1 的技术表是立项时的计划（Vue 3.4 + Arco + ECharts + MySQL + WebFlux），
+> 实际交付与此有偏差；前端以本节为准，偏差原因见各条说明。
+>
+> 背景：原前端是原生 JS（`core.js` + `js/views/*.js`，约 5,400 行）。2026-11-10 分 5 批整体迁到
+> Vue 3，17 个页面全部重写（约 7,000 行），旧文件删除，**同一批修掉了一个线上白屏事故**。
+
+### 24.1 选型（与 §14.1 的差异及原因）
+
+| 项 | 计划 | 实际 | 原因 |
+|---|---|---|---|
+| 框架 | Vue 3.4 | **Vue 3.5** | 直接装最新稳定版 |
+| 构建 | Vite 5 | **Vite 6** | 同上 |
+| UI 库 | Arco Design Vue | **不用** | 现有界面风格已定型，引 UI 库等于重做视觉；且包体会翻倍 |
+| 图表 | ECharts | **手写 SVG 雷达** | 只用一个雷达图，引 ECharts（≈300KB）不划算 |
+| 语言 | 未定 | **JavaScript（非 TS）** | 与团队现状一致，改用 TS 的成本在类型标注而非代码 |
+
+### 24.2 硬性要求
+
+- **R-WEB-01** 前端 MUST 为 Vue 3 单页应用（`web/`），MUST NOT 再新增原生 JS 视图文件，
+  MUST NOT 重新引入第二套前端。
+- **R-WEB-02** 路由 MUST 使用 **Hash 模式**（`createWebHashHistory`）。理由：Spring 静态资源
+  没有 SPA fallback，History 模式一刷新即 404，而后端本期不得改动。
+- **R-WEB-03** 静态资源路径 MUST 由构建 `base` 生成（相对 `'./'`），**MUST NOT 手写**
+  `/js/...`、`/css/...` 这类根绝对路径。
+  > 这是真实事故：旧 `index.html` 有 17 处根绝对路径，部署在 `/siyige/` 子路径下全部 404，
+  > 页面停在「正在连接后端…」，与直接双击 `static/index.html` 的症状一致。
+- **R-WEB-04** 用户令牌 MUST 存 `localStorage['sy_jwt']`（兼容旧会话）；管理员令牌 MUST 独立为
+  `localStorage['sy_admin_jwt']`，MUST NOT 混用。
+- **R-WEB-05** 接口前缀 MUST 由 `location.pathname` 判断 `/siyige` 得到，统一收敛在 `api.js`；
+  业务代码 MUST NOT 自己拼 URL 前缀。
+- **R-WEB-06** 构建产物 MUST 提交到 `server/src/main/resources/static/v2/`，
+  生产服务器 MUST NOT 依赖 Node/npm。
+- **R-WEB-07** 未读角标 MUST 只有一处轮询（`stores/unread.js`，45 秒）；页面组件 MUST NOT
+  自建 `setInterval`。WebSocket 同一用户同一时刻 MUST 只有一条连接。
+- **R-WEB-08** 切换账号 MUST 重置全部 store（`reset()`），MUST NOT 让上一个账号的会话、
+  未读、余额残留。历史缺陷：换账号后「标题显示自己、未读消不掉、发消息失败」。
+- **R-WEB-09** 每批迁移 MUST 配套浏览器自检脚本（`server/scripts/selftest_vue_*.mjs`），
+  脚本开头 MUST 清 `localStorage` 并等待应用挂载完成，否则多脚本共用一个浏览器 profile 会互相污染。
+- **R-WEB-10** 旧前端文件 MUST 在新页面验收通过后统一删除；删除 MUST 与入口切换放在同一批提交，
+  MUST NOT 出现「新旧两套都在改」的状态。
+
+### 24.3 入口与部署
+
+```text
+用户访问  /siyige/                    -> static/index.html（21 行，只做一次跳转）
+          /siyige/v2/index.html#/<路由> -> Vue 应用本体（Hash 路由）
+管理台    /siyige/v2/index.html#/admin  -> 裸布局 + sy_admin_jwt + /api/admin
+```
+
+- 跳转 MUST 保留 `query` 与 `hash`：老书签 `/?v=community`、`/#/community/12` 不得失效
+- 构建：`cd web && npm i && npm run build`（产物直接落进 `static/v2/`）
+- 服务器侧 **无需改 Nginx**（仍走现有 `/siyige/ → 127.0.0.1:8080`）；
+  唯一例外是聊天 WebSocket，仍需 `/siyige/ws/` 的 Upgrade 配置（见 §23 上线前置条件）
+
+### 24.4 目录
+
+```text
+web/
+├── vite.config.js      base='./' + outDir=static/v2 + dev proxy(/api, /ws)
+├── src/App.vue         外壳（侧栏 / 内容区 / 未读角标）
+├── src/router.js       Hash 路由（17 个页面）
+├── src/nav.js          侧栏导航（加页面 = 加一行）
+├── src/api.js          API_BASE / 401 / 错误体
+├── src/stores/         auth / unread / wallet / chat / debate / meta
+├── src/utils/          chatWs / community / markdown / format / toast
+├── src/components/     AppShell / ToastHost / ReportModal
+└── src/views/*.vue     一人一块，与旧 js/views/*.js 一一对应
+```
+
+### 24.5 验收
+
+| 项 | 标准 |
+|---|---|
+| 入口 | `/` 落到新版；`/js/core.js`、`/css/app.css`、`/admin.html` 均 404 |
+| 登录 | 注册/登录/改密/退出全通；刷新不掉登录；换账号不串状态 |
+| 页面 | 17 个页面逐屏有实质内容，无空白、无 JS 异常 |
+| 实时 | 聊天 WS 双端收发；断线自动重连、降级轮询后仍可收 |
+| 自检 | `selftest_vue_batch0/1/2/2b/3/3b/entry.mjs` 全绿 |
+
+
+---
+
+## 25. AI 档位与能力分析（2026-11-10 追加）
+
+> 本节记录 2026-11-10 与「前端迁 Vue」同日上线的两块能力：**计费档位**与**能力分析画像**。
+> 接口与字段见 `docs/社交接口契约.md` 之外的两处实现：`ai/AiTier.java` 与 `api/ApiController.diag`。
+
+### 25.1 AI 档位
+
+| 档位 | key | 模型 | 计费 | 可用性 |
+|---|---|---|---|---|
+| 基础版 | `BASIC` | 本地 ollama（默认 `qwen2.5:7b`） | 免费（模型成本 0，服务费 0） | 需 `SIYIGE_BASIC_ENABLED=true` 且本地装了 ollama |
+| 高级版 | `PRO` | 平台模型（deepseek） | 按 token 实算 + 服务费 | 恒可用 |
+| 自带 Key | `BYOK` | 用户自己的 baseUrl / key / model | **全免费**（平台零成本） | 需在钱包里配过 key |
+
+- **R-TIER-01** `GET /api/ai-tiers` MUST 返回三档的 `key / label / available / model / note`。
+- **R-TIER-02** 档位取值非法或缺省 MUST 归一为 `PRO`；`BASIC` 未启用时 MUST 静默降级为 `PRO`。
+- **R-TIER-03** 选了 `BYOK` 但用户没配 key 时 MUST 退回 `PRO`（MUST NOT 按免费结算）。
+- **R-TIER-04** `BYOK` 与 `BASIC` MUST NOT 收任何费用（预扣、结算、服务费全免）。
+- **R-TIER-05** 多人房间整场费用 MUST 记在**房主**名下（`sy_match.payer_user_id`），与发起人分开。
+- **R-TIER-06** 前端 MUST NOT 自行计算费用，只显示后端返回的账单。
+
+### 25.2 能力分析
+
+- **R-DIAG-01** 画像 MUST 为**六维**：立论 / 论证 / 表达 / 应变 / 论据 / **协同**。
+- **R-DIAG-02** 「协同」MUST 只在**有真人队友**时计分；单人局同侧是 AI 补位（`input_type=ai`），
+  MUST 按中性 60 记，MUST NOT 让 AI 发言把协同拉成 0 或 100。
+- **R-DIAG-03** `GET /api/diag?n=` MUST 支持「最近 N 场」（`n<=0` 或省略 = 全部），
+  返回 MUST 带 `total / window / samples / empty`。
+- **R-DIAG-04** 每场结束 MUST 把该场六维写进 `sy_record.dims_json`，窗口均值 MUST 用逐场记录重算。
+- **R-DIAG-05** 没有任何逐场记录时 MUST 返回 `empty:true` 且 `dims` 为空，
+  MUST NOT 返回写死的占位维度（前端据此显示空态，不画假雷达）。
+- **R-DIAG-06** 前端雷达 MUST 支持从中心生长动画与「0→值」条形动画，且 MUST 显示与上一场的增减箭头。
+
+### 25.3 对局可继续（前端行为）
+
+- **R-RESUME-01** 离开对局页 MUST 只停轮询与 SSE，MUST NOT 清空 `matchId / match`。
+- **R-RESUME-02** 回到对局页 MUST 自动恢复轮询并立即拉一次状态。
+- **R-RESUME-03** 任意页面 MUST 能看到「有一场还没打完」入口并能一键回到该场。
+- **R-RESUME-04** 聊天区自动滚动 MUST 同时满足：贴底、用户 600ms 内没手动滚过、每 3 个字一次；
+  用户滚轮 / 触摸 / 方向键操作 MUST 立刻解除跟随。
+
+
+---
+
+## 26. 管理后台与报表（2026-11-11 追加）
+
+> 本节对应 `feature-rebuild-admin` 这一批：管理台从「单页 + 三个 tab」改成左侧栏 + 六个子页，
+> 并新增模块浏览统计、活跃用户埋点与报表页。后端聚合在 `admin/analytics/`，采集在 `track/`。
+
+### 26.1 布局与路由
+
+- **R-ADM-01** 管理台 MUST 为左侧栏 + 嵌套路由结构，子页 MUST 为
+  `概览 / 报表分析 / 举报处理 / 用户管理 / 处理记录 / 设置`。
+- **R-ADM-02** 未持有管理员令牌访问任意子页 MUST 被送到登录页；已登录访问登录页 MUST 回到概览。
+- **R-ADM-03** 侧栏 MUST 可折叠（宽屏 208px → 56px），折叠状态 MUST 持久化；窄屏（<760px）
+  MUST 默认收起并提供抽屉式展开。
+- **R-ADM-04** `GET /admin` MUST 302 到 SPA 入口（相对路径，兼容 `/siyige/` 子路径部署），
+  MUST NOT 再用 forward（会因相对 base 变成白屏）。
+
+### 26.2 模块浏览统计
+
+- **R-STAT-01** 统计单元 MUST 是**模块**（11 个：community / chat / match / solo / video / hot /
+  diag / records / wallet / friends / admin），MUST NOT 按具体页面路径统计。
+- **R-STAT-02** 上报 MUST 由前端路由切换触发（`POST /api/track/pv`），同一模块连续切换 MUST 去抖；
+  该接口 MUST 允许匿名访问（匿名只计 PV，登录用户才进 UV）。
+- **R-STAT-03** 未在白名单内的 module 值 MUST 返回 400。
+- **R-STAT-04** PV MUST 用 Redis Hash 累加、UV MUST 用 HyperLogLog（去重且省内存）；
+  两者 MUST 由定时任务落库 `sy_module_view`（PV 每 5 分钟、UV 每小时快照），
+  取增量 MUST 用「读取并清空」的原子脚本，落库失败 MUST 把增量补回。
+- **R-STAT-05** 未回写的实时增量 MUST 叠加进报表今日数据（只读不删，避免与落库重复计数）。
+
+### 26.3 活跃用户
+
+- **R-ACT-01** 活跃 MUST 只统计「有效行为」：登录、开局、提交发言、发帖、评论、发私信、点赞、举报；
+  MUST NOT 把浏览、轮询、心跳、SSE 连接算作活跃。
+- **R-ACT-02** 打点 MUST 用注解 + AOP 实现（`@Active`），MUST NOT 修改业务方法体。
+- **R-ACT-03** DAU MUST 用 HyperLogLog 按日记录，每天落库 `sy_daily_active`；
+  WAU / MAU MUST 现场用 PFMERGE 合并计算，MUST NOT 额外建表。
+- **R-ACT-04** 本期 MUST NOT 做历史回填（当前无历史数据，且 H2 为内存库）。
+
+### 26.4 报表与导出
+
+- **R-RPT-01** 报表接口 MUST 只读，路径前缀 `/api/admin/analytics/**`，与「举报管理」
+  （`AdminReport*`，report = 举报）**命名区分**，不得混淆。
+- **R-RPT-02** 报表 MUST 支持时间范围 `7d / 30d / 90d` 与自定义 `from/to`；KPI MUST 带与上一周期对比。
+- **R-RPT-03** 报表缓存 MUST ≤ 5 秒并支持手动刷新（数据要能"点完就看到变化"）。
+- **R-RPT-04** 导出 MUST 同时支持 CSV 与 XLSX；CSV MUST 带 UTF-8 BOM；
+  XLSX MUST 为真实 zip 包（不得用 CSV 改名冒充），本期 MUST NOT 引入 POI / EasyExcel。
+- **R-RPT-05** 图表 MUST 为自研 SVG，MUST NOT 引入图表库；空数据 MUST 显示占位而不画空坐标系。
+
+### 26.5 本期不做（记待办）
+
+- 管理员权限分级（只读 / 运营 / 超级）
+- 漏洞（失败原因）统计：系统内存在两套命名不一致的漏洞枚举，需先统一再统计
+- 留存分析（次日 / 7 日）
+
+
+---
+
+## 27. 内容管理台与审核接入（2026-11-12 追加）
+
+> 本节对应 `feature-admin-content`：管理台新增内容管理（帖子 / 评论）、用户违规浮窗，
+> 并把视频人工复核与辩题审核接进管理台。
+
+### 27.1 内容管理
+
+- **R-CM-01** 帖子 MUST 支持按 关键词 / 类型 / 状态 / 作者 / 时间区间 筛选并分页；
+  评论 MUST 支持跨帖搜索（结果带所属帖子 id 与标题）。
+- **R-CM-02** 关键词 MUST 转义 LIKE 通配符（`%` `_`）并显式 `escape`，否则输入 `%` 会全表命中。
+- **R-CM-03** 分页 `size` MUST 有上限（≤50），越界 MUST 返回空页而不是报错。
+- **R-CM-04** 帖子详情 MUST 返回正文、统计与**完整评论树**（楼 + 楼中楼两层，按 `root_id` 分组），
+  且 MUST 包含**已屏蔽**的评论（管理端可见，用户侧不可见）。
+- **R-CM-05** 从评论跳转到帖子详情 MUST 原地打开并滚动定位、高亮该楼层。
+- **R-CM-06** 屏蔽 = 软删（`sy_post.status=2` / `sy_post_comment.status=2`），
+  MUST 复用举报处置那套副作用（目标下 PENDING 举报置 ACCEPTED、写审计），MUST NOT 另造一套。
+- **R-CM-07** 屏蔽评论后 MUST 重算所属帖子的 `comment_count / last_comment_at / hot_score`
+  （复用 `CommentService` 既有重算，不改算法）。
+
+### 27.2 处置动作与审计
+
+- **R-CM-08** 管理台可执行：屏蔽 / 解除 / 禁言（1·3·7 天）/ 封禁 / 解封，MUST 支持多选批量与统一理由；
+  批量 MUST 返回 `done / failed / total`，部分失败不整体回滚。
+- **R-CM-09** `sy_audit_log` MUST 新增 `source` 列区分 `REPORT`（举报处置）与 `MANUAL`（管理台主动处置）；
+  MANUAL 时 `report_id=0`，MUST NOT 改既有列的 NOT NULL 约束。
+- **R-CM-10** 一键恢复 MUST 兼容 MANUAL 来源（`report_id<=0` 时跳过"关联举报改回 REOPENED"），
+  REPORT 老路径行为 MUST 保持逐字一致。
+
+### 27.3 用户违规浮窗
+
+- **R-USR-01** 全站点用户名 MUST 可点击弹浮窗（内容管理 / 评论树 / 视频作者 / 举报作者 / 处理记录 / 用户管理），
+  MUST 复用同一个组件与接口。
+- **R-USR-02** 浮窗 MUST 显示：基本信息与状态、发帖/评论/对局/余额统计、
+  被封禁记录、禁言历史（起止）、被删除内容（可翻页）。
+- **R-USR-03** 浮窗内可直接禁言 / 封禁 / 解封；操作成功后列表状态 MUST 即时同步。
+
+### 27.4 视频复核
+
+- **R-VID-01** 视频人工复核 MUST 走管理端（`/api/admin/video-audit/**`，管理员令牌），
+  MUST NOT 只凭"已登录"放行——否则任何注册用户都能给自己过审。
+- **R-VID-02** 旧入口 `/api/video/audit/*` MUST 拒绝（非管理员 403），并在代码注释说明迁移去向。
+- **R-VID-03** 驳回 MUST 使视频不上广场；恢复 MUST 回到驳回前的状态；每次判定 MUST 写 `sy_video_audit`。
+
+### 27.5 辩题审核
+
+- **R-TOPIC-01** 管理端题库列表 MUST 包含被驳回 / 下架的题（用于复审），
+  MUST NOT 复用前台 `Store.topics()` 的过滤。
+- **R-TOPIC-02** 前台题库 MUST 过滤 `mod_status='REJECT'`。
+- **R-TOPIC-03** 驳回 MUST 填理由并落 `mod_reason / mod_at`；通过 = `PASS`，下架 = `REJECT`。
+- **R-TOPIC-04** 本期 MUST NOT 把自定义辩题改成"人工先审再开打"（会阻塞用户开局），
+  人工只做事后下架与驳回留痕。
+
+### 27.6 本期已知不影响使用的问题
+
+- 帖子详情抽屉为全局单例，理论上可通过脚本跨路由保持打开；正常界面下抽屉有遮罩，侧栏不可点，不构成可达路径
+
+---
+
+## 28. 管理员账号与权限分级（RBAC）（2026-11-13 追加）
+
+> 设计方案：`管理员账号与权限分级-设计方案.md`；分支 `feature-admin-rbac`。
+> 一句话：**账号只能由超管建，权限按 4 个角色分级，无权限要明确拒绝而不是白屏。**
+
+### 28.1 权限点（15 个，`com.siyige.admin.rbac.Perm`）
+
+| 权限点 | 覆盖接口 |
+|---|---|
+| `admin:manage` | `/api/admin/admins/**`（列表/创建/改角色/启停/重置密码） |
+| `report:read` / `report:resolve` | `GET /reports`、`GET /reports/{id}` / `POST /reports/{id}/resolve` |
+| `user:read` | `GET /users`、`GET /users/{id}/profile` |
+| `user:ban` | `POST /users/{id}/ban|unban|status|mute`、`POST /users/batch` |
+| `content:read` | `GET /posts`、`/posts/{id}`、`/posts/{id}/comments`、`GET /comments` |
+| `content:moderate` | `POST /content/{type}/{id}/hide|unhide`、`POST /content/batch` |
+| `audit:read` / `audit:restore` | `GET /audit` / `POST /audit/{id}/restore` |
+| `video:read` / `video:audit` | `GET /video-audit/{queue,{id}/logs,rules}` / `POST /video-audit/{id}/{decide,restore}` |
+| `topic:read` / `topic:moderate` | `GET /topics` / `POST /topics/{id}/{approve,reject,offline}` |
+| `analytics:read` | `GET /stats` + `analytics/{overview,modules,trend,breakdown,active,quality}` |
+| `analytics:export` | **仅** `GET /analytics/export`（导出全站数据，只给超管） |
+
+- **R-RBAC-01** 权限点代码 MUST 是上面这些字符串：`/api/admin/me` 下发、403 文案、前端菜单
+  三处都按它匹配，改名等于改契约。
+- **R-RBAC-02** 权限矩阵 MUST 只写一处（`AdminRole.perms()`）；别处 MUST NOT 再写角色判断。
+
+### 28.2 角色与矩阵（`com.siyige.admin.rbac.AdminRole`）
+
+| 权限点 | SUPER | OPS | MOD | VIEWER |
+|---|:--:|:--:|:--:|:--:|
+| admin:manage | Y | - | - | - |
+| report:read / resolve | Y / Y | Y / Y | Y / Y | Y / - |
+| user:read / ban | Y / Y | Y / Y | Y / - | Y / - |
+| content:read / moderate | Y / Y | Y / Y | Y / Y | Y / - |
+| audit:read / restore | Y / Y | Y / Y | Y / - | Y / - |
+| video:read / audit | Y / Y | Y / - | Y / Y | Y / - |
+| topic:read / moderate | Y / Y | Y / Y | Y / Y | Y / - |
+| analytics:read / export | Y / Y | Y / - | - / - | Y / - |
+
+### 28.3 数据与鉴权链路
+
+- **R-RBAC-03** 角色 MUST 存数据库（`sy_admin.role`），MUST NOT 写进 JWT：
+  写进令牌的话改角色要等令牌过期（2 小时）才生效，而实际要求"改完下一次请求就生效"。
+- **R-RBAC-04** 每请求 MUST 只用**一条** SQL 取全（`AdminStatusSource.authInfo`）：
+  `status + pwd_changed_at + role + must_change_pwd`。加角色 MUST NOT 增加查询次数。
+- **R-RBAC-05** 接口权限 MUST 用 `@Require(Perm.X)` 声明 + `RequireAspect` 统一校验；
+  角色缺失 MUST 403 `NOT_ADMIN`（**绝不静默放行**）；权限不足 MUST 403 `FORBIDDEN_PERM`
+  并在 message 里带上缺的权限点。
+- **R-RBAC-06** `sy_admin` 只加列（`role` / `must_change_pwd` / `last_login_at` /
+  `created_by` / `role_changed_at`）；`role` 默认 `SUPER`，老账号升级后不被降权。
+
+### 28.4 账号规则（A 方案：超管创建）
+
+- **R-RBAC-07** MUST NOT 有自助注册/邀请码；只能 `POST /api/admin/admins` 由超管建号。
+- **R-RBAC-08** 一次性密码 MUST 12 位、去掉易混淆字符（`0 O 1 l I`）、`SecureRandom`，
+  且 MUST 同时含数字与字母；明文 MUST 只出现在「创建」与「重置」两次响应里，
+  库里只存 Argon2 哈希，日志与审计文案 MUST NOT 出现密码。
+- **R-RBAC-09** 保护规则 MUST 实现并返回 400：`CANNOT_DISABLE_SELF` / `CANNOT_DEMOTE_SELF` /
+  `LAST_SUPER` / `ROLE_REQUIRED`（创建不给角色，**不默认超管**）/ `ADMIN_EXISTS` /
+  `WEAK_PASSWORD`（复用用户侧 `PasswordPolicy`）。
+- **R-RBAC-10** 账号 MUST NOT 硬删除，只能停用（处理记录要能对上人）。
+- **R-RBAC-11** 重置密码 MUST 同时刷新 `pwd_changed_at`（旧令牌立刻失效）+ `must_change_pwd=true`；
+  首登改密成功后 MUST 清 `must_change_pwd`。
+- **R-RBAC-12** `must_change_pwd=true` 时 MUST 除「改密」「`/me`」之外全部 403
+  `PASSWORD_CHANGE_REQUIRED`；拦截实现 MUST 只在 `AdminAuthFilter` 一处，不得逐接口写。
+
+### 28.5 审计
+
+- **R-RBAC-13** 账号操作 MUST 写 `sy_audit_log`（`report_id=0`、`source='MANUAL'`、
+  `target_type='ADMIN'`、`target_id=管理员id`、`target_owner=账号`），
+  动作：`ADMIN_CREATE / ADMIN_ROLE / ADMIN_DISABLE / ADMIN_ENABLE / ADMIN_RESET_PWD`。
+- **R-RBAC-14** `target_type='ADMIN'` 的记录 MUST NOT 可恢复（`RestoreService` 直接
+  409 `NOT_RESTORABLE`），否则「恢复」按钮会拿管理员 id 去改内容。
+
+### 28.6 前端行为
+
+- **R-RBAC-15** 登录后 MUST 调 `GET /api/admin/me` 拿角色与权限点；菜单 MUST 按 `perm` 过滤；
+  按钮 MUST 按权限点显隐（不是灰掉）。
+- **R-RBAC-16** 直接输 URL 进无权限页面 MUST 显示「无权限」卡片（含缺的权限点），
+  MUST NOT 白屏或 404。
+- **R-RBAC-17** `mustChangePwd=true` MUST 强制跳改密页；改完 MUST 回登录页重新登录。
+- **R-RBAC-18** 登录落点 MUST 是第一个有权限的页面（概览要 `analytics:read`，MOD 没有）。
+- **R-RBAC-19** 前端权限只是体验层：后端 `@Require` MUST 独立强制校验，改前端 MUST NOT 能提权。
+
+### 28.7 测试
+
+- 权限矩阵参数化测试 `AdminPermissionMatrixTest`（`@SpringBootTest` + MockMvc）：
+  4 角色 × 35 条接口 + 匿名 401 + 首登强制改密 + 改角色立即生效。
+- 账号规则 `AdminAccountServiceTest`（19 条，真 H2）。
+- 界面自检 `server/scripts/selftest_vue_admin_rbac.mjs`（9 项）：建号 → 一次性密码 →
+  强制改密 → 菜单/按钮按权限 → 无权限卡片 → VIEWER 零处置按钮 → 改角色即时生效。
