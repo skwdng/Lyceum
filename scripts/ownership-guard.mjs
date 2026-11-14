@@ -107,7 +107,7 @@ if (buckets.his.length) {
   console.log(`
 ⛔ 越界了：上面 ${buckets.his.length} 个文件属于队友（社区 / 社交 / 通知 / 管理台 / 账号）。
    要么撤掉，要么改成「发消息 + 提 patch」让他自己改。
-   常用替代做法见 docs/协作规范.md §11「不改对方代码的三种办法」。`);
+   常用替代做法见 docs/归属边界与不改对方代码.md §二「三种不改他代码的替代做法」。`);
   process.exit(1);
 }
 
