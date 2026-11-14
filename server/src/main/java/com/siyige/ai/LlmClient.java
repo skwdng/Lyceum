@@ -164,6 +164,91 @@ public class LlmClient {
         return text;
     }
 
+    /**
+     * 流式生成：模型一边说，回调一边收增量。
+     *
+     * <p>这是「最小可用流式」：只加一个方法，不改调用方的结构。
+     * 和 {@link #chat} 的区别只有两点：
+     * <ul>
+     *   <li>请求体带 {@code stream:true} + {@code stream_options.include_usage}（最后一块会带 usage，计费不受影响）</li>
+     *   <li>用 {@code BodyHandlers.ofLines()} 逐行读，遇到 {@code data: {...}} 就取 {@code choices[0].delta.content} 回调出去</li>
+     * </ul>
+     *
+     * <p>失败策略：中途抛异常时**直接抛给调用方**，由它决定回落到 {@link #chat}（整段重来）还是降级模板。
+     *
+     * @param onDelta 每收到一小段就回调一次（可能被调用几十次，别在里面做重活）
+     * @return 完整文本（等于所有 delta 拼起来）
+     */
+    public String chatStream(String system, String user, double temperature, int timeoutSec,
+                             java.util.function.Consumer<String> onDelta) throws Exception {
+        String body = json.writeValueAsString(Map.of(
+                "model", activeModel(),
+                "temperature", temperature,
+                "max_tokens", 900,
+                "stream", true,
+                "stream_options", Map.of("include_usage", true),
+                "messages", List.of(
+                        Map.of("role", "system", "content", system),
+                        Map.of("role", "user", "content", user))
+        ));
+
+        HttpRequest req = HttpRequest.newBuilder(
+                        URI.create(activeBaseUrl().replaceAll("/+$", "") + "/chat/completions"))
+                .timeout(Duration.ofSeconds(timeoutSec))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + activeKey())
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+
+        StringBuilder all = new StringBuilder();
+        StringBuilder usageLine = new StringBuilder();
+
+        HttpResponse<java.util.stream.Stream<String>> resp =
+                http.send(req, HttpResponse.BodyHandlers.ofLines());
+
+        if (resp.statusCode() / 100 != 2) {
+            log.warn("LLM stream {} -> {}", resp.statusCode(), resp.body().limit(3).toList());
+            throw new IllegalStateException("LLM HTTP " + resp.statusCode());
+        }
+
+        try (var lines = resp.body()) {
+            for (String line : (Iterable<String>) lines::iterator) {
+                if (line == null || line.isBlank()) continue;
+                if (!line.startsWith("data:")) continue;                 // 忽略注释/空行
+                String payload = line.substring(5).trim();
+                if ("[DONE]".equals(payload)) break;
+                try {
+                    var node = json.readTree(payload);
+                    var choice = node.path("choices").path(0);
+                    String delta = choice.path("delta").path("content").asText("");
+                    if (!delta.isEmpty()) {
+                        all.append(delta);
+                        if (onDelta != null) onDelta.accept(delta);
+                    }
+                    if (node.has("usage") && !node.path("usage").isNull()) {
+                        usageLine.setLength(0);
+                        usageLine.append(payload);
+                    }
+                } catch (Exception ignore) {
+                    // 单块解析失败不影响整体（模型偶尔会发不完整的分片）
+                }
+            }
+        }
+
+        // 计费：优先用最后一块的 usage；没有就按字符估算（4 字符≈1 token，宁可高估）
+        if (usageLine.length() > 0) {
+            recordUsage(usageLine.toString());
+        } else {
+            long approx = Math.max(1, all.length() / 4);
+            calls.incrementAndGet();
+            completionTokens.addAndGet(approx);
+            String mid = CURRENT_MATCH.get();
+            if (mid != null) perMatch.computeIfAbsent(mid, k -> new AtomicLong()).addAndGet(approx);
+            log.info("LLM stream 无 usage，按字符估算 completion≈{}", approx);
+        }
+        return all.toString();
+    }
+
     /** 结构化输出：要求模型只返回 JSON 对象。 */
     public String chatJson(String system, String user, int timeoutSec) throws Exception {
         String body = json.writeValueAsString(Map.of(

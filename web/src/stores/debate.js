@@ -105,6 +105,13 @@ export const useDebateStore = defineStore('debate', {
     skipUntil: 0,      // 冷却结束时间戳
     skipStep: -1,      // 已催过的步（同一轮不再显示按钮）
 
+    /**
+     * 流式预览：{ seat: { seg, text } }。
+     * 模型一边生成，服务端一边推 token，这里攒起来直接渲染；
+     * 收到正式 turn 时清掉对应席位（以落库文本为准，避免校验过的文本和原始流不一致）。
+     */
+    streaming: {},
+
     // 打字机
     shown: {},
     typed: {},
@@ -297,6 +304,14 @@ export const useDebateStore = defineStore('debate', {
       this.startClock();
     },
 
+    /** 流式预览转正：正式发言落库后，把该席位的预览清掉 */
+    clearStreamingSeat(seat) {
+      if (!seat || !this.streaming[seat]) return;
+      const next = { ...this.streaming };
+      delete next[seat];
+      this.streaming = next;
+    },
+
     async load(first) {
       if (!this.matchId) return;
       try {
@@ -378,6 +393,15 @@ export const useDebateStore = defineStore('debate', {
             if (d.type === 'flaw') {
               this.flawOffer = { step: d.step, options: d.options || [] };
               toast('对方这轮发言埋了一处漏洞，指出来');
+              return;
+            }
+            // 流式增量：只更新预览，**不触发 load**（一块一条要拉几十次接口）
+            if (d.type === 'token') {
+              const seat = d.seat || '';
+              const cur = this.streaming[seat] || { seg: d.seg || '', text: '' };
+              cur.text += d.delta || '';
+              cur.seg = d.seg || cur.seg;
+              this.streaming = { ...this.streaming, [seat]: cur };
               return;
             }
           } catch (err) {

@@ -285,7 +285,7 @@ public class MatchService {
             applyTier(m);
             AiService.Speech sp;
             try {
-                sp = aiLine(m, aiSeat, cur.seg());
+                sp = aiLineFor(m, aiSeat, cur.seg());
             } finally {
                 ai.clearOwnProfile();
                 ai.unbind();
@@ -317,7 +317,7 @@ public class MatchService {
             applyTier(m);
             AiService.Speech sp;
             try {
-                sp = aiLine(m, cur.seat(), cur.seg());
+                sp = aiLineFor(m, cur.seat(), cur.seg());
             } finally {
                 ai.clearOwnProfile();
                 ai.unbind();
@@ -492,6 +492,25 @@ public class MatchService {
      * 单人模式走两段式（先分析对方 → 再生成），多人房间保持单段生成。
      * 返回 Speech 而不是 String，是为了把「本轮是否降级成模板」带给落库层。
      */
+    /**
+     * 单人模式的流式版本：边生成边把增量推给前端。
+     *
+     * <p>前端收到 {@code token} 事件就开始渲染，不用等整段生成完再"假装打字"。
+     * 首发延迟从「等模型说完（约 8 秒）」降到「模型说出第一个字（约 1 秒）」。
+     */
+    private AiService.Speech aiLineStream(Map<String, Object> m, String seat, String seg) throws Exception {
+        String id = str(m.get("id"));
+        return ai.speakForSoloStream(seat, seg, str(m.get("topic_title")),
+                str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id),
+                delta -> hub.emit(id, "token", Map.of("seat", seat, "seg", seg, "delta", delta)));
+    }
+
+    /** 单人 → 流式；多人房间 → 整段（广播给多个人，增量推太碎没意义） */
+    private AiService.Speech aiLineFor(Map<String, Object> m, String seat, String seg) throws Exception {
+        if ("solo".equalsIgnoreCase(str(m.get("kind")))) return aiLineStream(m, seat, seg);
+        return aiLine(m, seat, seg);
+    }
+
     private AiService.Speech aiLine(Map<String, Object> m, String seat, String seg) throws Exception {
         String id = str(m.get("id"));
         if ("solo".equals(str(m.get("kind")))) {

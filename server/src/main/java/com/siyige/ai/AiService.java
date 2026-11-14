@@ -320,6 +320,57 @@ public class AiService {
         return new Speech(guard(text, p, mateLast, oppLast, seat, history), degraded, analysis);
     }
 
+    /**
+     * 两段式的流式版：分析照旧（阻塞，很快），**只有生成这一步流式**。
+     *
+     * <p>为什么要单独一个方法而不是改 speakForSolo：房间里多人对局不走两段式，
+     * 也不需要流式（SSE 广播给多个人，增量推太碎）。这里只服务单人模式。
+     *
+     * @param onDelta 每收到一小段文本回调一次，调用方负责推给前端
+     */
+    public Speech speakForSoloStream(String seat, String seg, String topicTitle, String topicId,
+                                      String difficulty, List<Map<String, Object>> history,
+                                      java.util.function.Consumer<String> onDelta) {
+        Personas.Persona p = Personas.of(seat);
+        String mateLast = lastSameSide(history, seat);
+        String oppLast = lastOpposite(history, seat);
+        String mine = myKeyLines(history, seat);
+
+        String analysis = "";
+        if (llmEnabled() && oppLast != null && !oppLast.isBlank()
+                && !(utterance != null && utterance.vacuous(oppLast))) {
+            try {
+                analysis = analyze(oppLast, topicTitle, seg);
+            } catch (Exception e) {
+                log.warn("对手发言分析失败，本轮按无分析生成：{}", e.toString());
+            }
+        }
+
+        boolean degraded = false;
+        String text;
+        if (llmEnabled()) {
+            try {
+                text = llm.chatStream(SYSTEM, buildPrompt(seat, seg, topicTitle, topicId, difficulty, p,
+                        mateLast, oppLast, mine, history, analysis), p.temperature(), 25, onDelta);
+            } catch (Exception e) {
+                // 流式失败：整段重来一次（不走流式），再不行才降级模板
+                log.warn("流式生成失败，回落整段：{}", e.toString());
+                try {
+                    text = llm.chat(SYSTEM, buildPrompt(seat, seg, topicTitle, topicId, difficulty, p,
+                            mateLast, oppLast, mine, history, analysis), p.temperature(), 25);
+                } catch (Exception e2) {
+                    log.warn("LLM 发言失败，降级模板：{}", e2.toString());
+                    text = template(seat, seg, mateLast, history);
+                    degraded = true;
+                }
+            }
+        } else {
+            text = template(seat, seg, mateLast, history);
+            degraded = true;
+        }
+        return new Speech(guard(text, p, mateLast, oppLast, seat, history), degraded, analysis);
+    }
+
     /** 只做分析：把对方上一句拆成 主张/论据/漏洞/弱点。 */
     public String analyze(String oppText, String topicTitle, String seg) throws Exception {
         String prompt = "辩题：" + (topicTitle == null ? "" : topicTitle)

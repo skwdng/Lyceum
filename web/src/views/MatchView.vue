@@ -40,6 +40,16 @@ const payerLabel = computed(() => {
 });
 const activeSeat = computed(() => SEAT_OF[debate.stepNo] || '');
 
+/** 正在流式输出的气泡（模型一边生成一边显示，不用等整段） */
+const streamList = computed(() =>
+  Object.entries(debate.streaming || {}).map(([seat, x]) => ({
+    key: 'stream-' + seat,
+    seat,
+    seg: x.seg,
+    text: x.text
+  }))
+);
+
 const cdText = computed(() => {
   if (debate.unlimited) return debate.waiting ? '不限时' : '';
   if (!debate.waiting) return '';
@@ -313,6 +323,17 @@ const verdictOf = (t) => (t.typing ? '' : '');
                   <template v-else>{{ t.typing ? t.text.slice(0, t.shown) : t.text }}</template>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <!-- 流式气泡：模型还在说，先把已有的字显示出来 -->
+          <div v-for="s in streamList" :key="s.key" class="msg" :class="s.seat.startsWith('A') ? 'a' : 'b'">
+            <div class="ava" :class="s.seat.startsWith('A') ? 'a' : 'b'">{{ s.seat.startsWith('A') ? '正' : '反' }}</div>
+            <div class="bd">
+              <div class="hd"><b>AI 辩手</b><span>{{ s.seat }}</span><span>·</span><span>{{ s.seg }}</span>
+                <span class="tag blue" title="模型正在生成，先显示已收到的部分">生成中…</span>
+              </div>
+              <div class="bub">{{ s.text }}<span class="caret">▍</span></div>
             </div>
           </div>
 
