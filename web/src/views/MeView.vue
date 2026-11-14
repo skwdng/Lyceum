@@ -86,6 +86,8 @@ async function changePassword() {
 }
 
 async function logout() {
+  // 危险动作（会清掉本地令牌，重登才能回来）：先确认
+  if (!window.confirm('退出登录？\n\n退出后需要重新登录才能继续训练，本地不会丢数据。')) return;
   busy.value = true;
   try {
     await auth.logout();

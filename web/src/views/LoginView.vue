@@ -20,7 +20,9 @@ const router = useRouter();
 const auth = useAuthStore();
 const unread = useUnreadStore();
 
-const tab = ref('login');           // login | register
+const tab = ref('login');
+/** 登录/注册失败的原因：贴在按钮下方，不用抬头找 toast */
+const authError = ref('');           // login | register
 const account = ref('');
 const password = ref('');
 const busy = ref(false);
@@ -56,7 +58,8 @@ function validate() {
 async function submit() {
   if (busy.value) return;
   const bad = validate();
-  if (bad) return toast(bad);
+  authError.value = '';
+  if (bad) { authError.value = bad; toast(bad); return; }
 
   busy.value = true;
   try {
@@ -67,7 +70,8 @@ async function submit() {
     toast((isReg.value ? '注册成功，' : '欢迎回来，') + (auth.user ? auth.user.name : ''));
     router.replace(route.query.next || { name: 'me' });
   } catch (e) {
-    toast(authErrText(e));
+    authError.value = authErrText(e);
+    toast(authError.value);
   } finally {
     busy.value = false;
   }
@@ -116,6 +120,7 @@ function authErrText(e) {
       <button class="btn primary" :disabled="busy" @click="submit">
         {{ busy ? '请稍候…' : (isReg ? '注册并登录' : '登录') }}
       </button>
+    <div v-if="authError" class="auth-err">{{ authError }}</div>
     </div>
   </div>
 </template>

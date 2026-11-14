@@ -99,6 +99,8 @@ function resumeMatch() {
 
 /** 放弃这一场：只清本地状态（后端那一局会自然超时结束），与旧版一致 */
 function abandonMatch() {
+  // 危险动作：会丢掉这一场的位置和进度，先确认再执行
+  if (!window.confirm('放弃这一场对局？\n\n这一场的进度会丢失，已扣的费用按已用量结算，不可恢复。')) return;
   debate.reset();
   toast('已放弃这一场');
 }

@@ -218,3 +218,18 @@ table.t tr:last-child td { border-bottom: none; }
   }
   .sb .me > div:last-child { display: none; }
 }
+
+/* 登录失败：贴在按钮下方的就地提示（比 toast 更容易被看到） */
+.auth-err {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fdf1f0;
+  border: 1px solid #f3d6d2;
+  color: #b03a2e;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* 复盘里的总分：用主色，不用错误红（分数低不代表出错） */
+.score-color { color: #2f5bea; }

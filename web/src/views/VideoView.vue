@@ -25,6 +25,9 @@ const seg = ref('');
 /** 搜索关键词：非空时列表来自 /api/video/search，不再走游标分页 */
 const q = ref('');
 const searching = ref(false);
+/** 搜索框默认收起：只有点右上角「🔍 搜索」才展开 */
+const searchOpen = ref(false);
+const searchEl = ref(null);
 const loading = ref(false);
 const consoleEnabled = ref(false);
 const feedEl = ref(null);
@@ -114,6 +117,15 @@ onBeforeUnmount(() => {
   if (io) io.disconnect();
 });
 
+/** 右上角搜索按钮：展开时聚焦输入框，收起时保持信息流 */
+async function toggleSearch() {
+  searchOpen.value = !searchOpen.value;
+  if (searchOpen.value) {
+    await nextTick();
+    if (searchEl.value) searchEl.value.focus();
+  }
+}
+
 /** 搜索：关键词为空就回到信息流 */
 async function doSearch() {
   const kw = String(q.value || '').trim();
@@ -138,6 +150,7 @@ async function doSearch() {
 async function clearSearch() {
   q.value = '';
   searching.value = false;
+  searchOpen.value = false;      // 「收起」= 关掉输入框 + 回到信息流
   await loadFeed(true);
 }
 
@@ -301,20 +314,23 @@ function errText(e) {
     <div class="vtop">
       <b style="font-size: 16px">视频</b>
       <span style="flex: 1"></span>
+      <button class="btn sm ghost" title="搜索" @click="toggleSearch">🔍 搜索</button>
       <button class="btn sm ghost" @click="openPublish">发布</button>
       <button v-if="consoleEnabled" class="btn sm ghost" @click="openAudit">审核台</button>
     </div>
 
-    <div class="vsearch">
+    <!-- 搜索框默认收起：只有点了右上角才展开，避免常驻占一行、也少一个误触入口 -->
+    <div v-if="searchOpen" class="vsearch">
       <input
+        ref="searchEl"
         v-model="q"
         class="vsearch-input"
         type="search"
         placeholder="搜索标题 / 辩题 / 描述，回车搜索"
         @keydown.enter="doSearch"
       />
-      <button v-if="!q" class="btn sm primary" @click="doSearch">搜索</button>
-      <button v-else class="btn sm ghost" @click="clearSearch">清除</button>
+      <button class="btn sm primary" @click="doSearch">搜索</button>
+      <button class="btn sm ghost" @click="clearSearch">收起</button>
     </div>
 
     <div ref="feedEl" class="vfeed" @scroll="onFeedScroll">

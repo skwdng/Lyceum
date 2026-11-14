@@ -46,12 +46,12 @@
 }
 
 /* 改密区与昵称区之间的分隔线：旧版是内联样式，这里收成 scoped 类 */
-.pwd-block[data-v-549725b3] {
+.pwd-block[data-v-a05d490c] {
   border-top: 1px solid #eff0f1;
   margin: 22px -24px 0;
   padding: 18px 24px 0;
 }
-.pwd-title[data-v-549725b3] { font-size: 14px; font-weight: 600; margin-bottom: 4px;
+.pwd-title[data-v-a05d490c] { font-size: 14px; font-weight: 600; margin-bottom: 4px;
 }
 
 .bill-strip[data-v-0f26f55a] {
@@ -281,6 +281,21 @@ table.t tr:last-child td { border-bottom: none; }
   }
   .sb .me > div:last-child { display: none; }
 }
+
+/* 登录失败：贴在按钮下方的就地提示（比 toast 更容易被看到） */
+.auth-err {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #fdf1f0;
+  border: 1px solid #f3d6d2;
+  color: #b03a2e;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* 复盘里的总分：用主色，不用错误红（分数低不代表出错） */
+.score-color { color: #2f5bea; }
 /* ==================== 批 2：消息 / 私聊 ====================
    从旧 css/app.css 摘录（数值不改）。
    注意类名是 .soc-chat 而不是 .chat：辩论页的对话区用的是 .chat（批 2 后半段会迁过来）。 */

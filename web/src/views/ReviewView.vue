@@ -85,7 +85,7 @@ function verdictClass(v) {
     <div class="card">
       <div class="row" style="align-items: flex-end; gap: 30px; flex-wrap: wrap">
         <div>
-          <div class="big">{{ r.total }}<small>分</small></div>
+          <div class="big score-color">{{ r.total == null ? '待出分' : r.total }}<small v-if="r.total != null">分</small></div>
           <div style="font-size: 12px; color: #8a909c; margin-top: 4px">三维加权 · 已写入记录</div>
         </div>
         <div style="flex: 1; min-width: 240px">
