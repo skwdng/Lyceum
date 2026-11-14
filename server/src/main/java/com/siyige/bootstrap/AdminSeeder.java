@@ -1,4 +1,4 @@
-package com.siyige.admin;
+package com.siyige.bootstrap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +10,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 /**
+ * 管理员账号初始化（**放在 bootstrap 包**：管理端是队友的模块，我这边只做启动期初始化，
+ *  不改他的目录，避免协作时互相踩）。
+ *
  * 管理员账号初始化（只在库里有 0 个管理员时执行一次）。
  *
  * <p>为什么需要它：管理端是独立账号体系（`sy_admin`），没有注册接口，
