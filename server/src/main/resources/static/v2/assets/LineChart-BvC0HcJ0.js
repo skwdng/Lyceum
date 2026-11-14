@@ -1,4 +1,4 @@
-import { o as onMounted, s as onBeforeUnmount, i as ref, _ as _export_sfc, a as openBlock, c as createElementBlock, F as Fragment, r as renderList, b as createBaseVNode, g as normalizeStyle, u as unref, d as createTextVNode, t as toDisplayString, e as createCommentVNode, h as withModifiers, n as normalizeClass, m as computed, k as nextTick } from "./index-DY3kDvSJ.js";
+import { o as onMounted, s as onBeforeUnmount, i as ref, _ as _export_sfc, a as openBlock, c as createElementBlock, F as Fragment, r as renderList, b as createBaseVNode, g as normalizeStyle, u as unref, d as createTextVNode, t as toDisplayString, e as createCommentVNode, h as withModifiers, n as normalizeClass, m as computed, k as nextTick } from "./index-CMPBEC9e.js";
 const PALETTE = ["#165DFF", "#00B42A", "#FF7D00", "#F53F3F", "#722ED1", "#0FC6C2", "#F7BA1E", "#86909C"];
 function niceScale(value, tickHint = 4) {
   const v = Number(value) || 0;

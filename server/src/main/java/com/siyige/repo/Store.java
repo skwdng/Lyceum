@@ -111,6 +111,11 @@ public class Store {
         jdbc.update("update sy_match set own_key=? where id=?", own, id);
     }
 
+    /** 记下「本轮已催」与时间戳（幂等 + 防连点）。 */
+    public void setSkip(String id, int step, long at) {
+        jdbc.update("update sy_match set skipped_step=?, last_skip_at=? where id=?", step, at, id);
+    }
+
     public Map<String, Object> match(String id) {
         List<Map<String, Object>> rows = jdbc.queryForList("select * from sy_match where id=?", id);
         return rows.isEmpty() ? null : lower(rows.get(0));

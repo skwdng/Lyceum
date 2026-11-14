@@ -100,6 +100,11 @@ export const useDebateStore = defineStore('debate', {
     flawOffer: null,
     err: '',
 
+    // 「催一下」：防连点（幂等由后端保证，这里只管按钮状态）
+    skipBusy: false,
+    skipUntil: 0,      // 冷却结束时间戳
+    skipStep: -1,      // 已催过的步（同一轮不再显示按钮）
+
     // 打字机
     shown: {},
     typed: {},
@@ -551,19 +556,51 @@ export const useDebateStore = defineStore('debate', {
       }
     },
 
+    /**
+     * 催一下：让 AI 立刻接话。
+     *
+     * 连点保护做三层：
+     * · 前端 in-flight：请求没回来之前按钮不可再点；
+     * · 前端冷却 3 秒 + 同一步只催一次（记住 skipStep）；
+     * · 后端幂等（同一轮只生效一次 + 3 秒冷却），前端被绕过也拦得住。
+     */
     async skipAi() {
-      if (!this.matchId) return;
+      if (!this.matchId || this.skipBusy) return;
+      if (Date.now() < this.skipUntil) return;
+      const step = Number((this.match && this.match.step) || 0);
+      if (this.skipStep === step) return;
+
+      this.skipBusy = true;
       try {
         const r = await debateApi.skip(this.matchId);
         if (r && r.ok) {
+          this.skipStep = step;
+          this.skipUntil = Date.now() + 3000;
           toast('已催，对方开始回应');
           await this.load(false);
         } else {
           toast((r && r.reason) || '现在不能催');
+          // 后端说"已经催过"也算生效，别再让用户连点
+          if (String((r && r.reason) || '').includes('已经催过')) {
+            this.skipStep = step;
+            this.skipUntil = Date.now() + 3000;
+          }
         }
       } catch (e) {
         toast('催失败：' + ((e && e.message) || ''));
+      } finally {
+        this.skipBusy = false;
       }
+    },
+
+    /** 催一下按钮该不该显示：AI 还没开口（没有正在打字的条目）才给 */
+    canSkip() {
+      if (this.kind !== 'solo' || !this.waiting) {
+        const typing = (this.turnsView || []).some((t) => t.typing);
+        if (typing) return false;
+      }
+      const step = Number((this.match && this.match.step) || 0);
+      return this.skipStep !== step && Date.now() >= this.skipUntil && !this.skipBusy;
     },
 
     async toggleBrief() {

@@ -188,3 +188,7 @@ alter table sy_record add column if not exists dims_json varchar(400);
 -- 多人房间整场费用由房主承担，所以付款人和发起人分开记
 alter table sy_match add column if not exists tier varchar(16) default 'PRO';
 alter table sy_match add column if not exists payer_user_id varchar(32);
+
+-- 「催一下」幂等：同一轮只允许催一次，并记最后一次时间防连点
+alter table sy_match add column if not exists skipped_step int default -1;
+alter table sy_match add column if not exists last_skip_at bigint default 0;

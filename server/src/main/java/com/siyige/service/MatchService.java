@@ -385,21 +385,46 @@ public class MatchService {
         return null;
     }
 
-    /** 单人模式「催一下」：跳过 AI 的等待，让它立刻接话。 */
+    /** 「催一下」的最小间隔：连点不生效（毫秒） */
+    private static final long SKIP_COOLDOWN_MS = 3000;
+
+    /**
+     * 单人模式「催一下」：跳过 AI 的等待，让它立刻接话。
+     *
+     * <p>**幂等**：同一轮只生效一次。连点、脚本刷、以及"AI 已经在打字了又去催"都不会再起作用——
+     * 之前没有这层保护，连点会把 deadline 反复推到过去，出现「一催就直接说完」的观感。
+     */
     public Map<String, Object> skip(String matchId) {
         Map<String, Object> m = require(matchId);
-        if (!"RUNNING".equals(str(m.get("status")))) return Map.of("ok", false, "reason", "not-running");
+        if (!"RUNNING".equals(str(m.get("status")))) return Map.of("ok", false, "reason", "对局已结束");
         if (!"solo".equalsIgnoreCase(str(m.get("kind"))))
             return Map.of("ok", false, "reason", "多人对局不能跳过");
         if ("BUZZ".equals(str(m.get("phase"))))
             return Map.of("ok", false, "reason", "抢拍阶段不能跳过");
+
+        int step = num(m.get("step"));
         List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
-        Format.Step cur = Format.stepAt(steps, num(m.get("step")));
+        Format.Step cur = Format.stepAt(steps, step);
         if (cur == null) return Map.of("ok", false, "reason", "已结束");
         if (TurnEngine.isMine(TurnEngine.parseSeats(str(m.get("my_seats"))), cur.seat()))
             return Map.of("ok", false, "reason", "现在轮到你说");
-        store.updateStep(matchId, num(m.get("step")), System.currentTimeMillis() - 1);
-        hub.emit(matchId, "skip", Map.of("step", num(m.get("step")) + 1));
+
+        // ① 同一轮只允许催一次
+        int skippedStep = num(m.get("skipped_step"));
+        if (skippedStep == step) return Map.of("ok", false, "reason", "这一轮已经催过了");
+
+        // ② 冷却：两次催之间至少 3 秒（防脚本连点）
+        long lastAt = num(m.get("last_skip_at"));
+        long now = System.currentTimeMillis();
+        if (now - lastAt < SKIP_COOLDOWN_MS) {
+            long wait = (SKIP_COOLDOWN_MS - (now - lastAt) + 999) / 1000;
+            return Map.of("ok", false, "reason", "别急，" + wait + " 秒后再催");
+        }
+
+        // ③ 落库：先记账再改 deadline，两步都做才算成功
+        store.setSkip(matchId, step, now);
+        store.updateStep(matchId, step, now - 1);
+        hub.emit(matchId, "skip", Map.of("step", step + 1));
         return Map.of("ok", true);
     }
     /** 结算本场费用：按实际 token 用量多退少补。 */

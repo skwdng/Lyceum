@@ -385,8 +385,14 @@ const verdictOf = (t) => (t.typing ? '' : '');
           </template>
           <div v-else class="waiting">
             对方正在思考…
-            <button v-if="debate.kind === 'solo'" class="btn sm ghost" style="margin-left: 10px" @click="debate.skipAi()">
-              催一下
+            <button
+              v-if="debate.kind === 'solo' && debate.canSkip()"
+              class="btn sm ghost"
+              style="margin-left: 10px"
+              :disabled="debate.skipBusy"
+              @click="debate.skipAi()"
+            >
+              {{ debate.skipBusy ? '催中…' : '催一下' }}
             </button>
           </div>
         </div>

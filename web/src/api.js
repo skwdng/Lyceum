@@ -256,6 +256,8 @@ export const videoApi = {
   feed: (cursor, segment) =>
     http.get('/api/video/feed?size=6' + (cursor ? '&cursor=' + cursor : '') +
       (segment ? '&segment=' + encodeURIComponent(segment) : '')),
+  /** 关键词搜索：标题 / 描述 / 辩题（最多 30 条，不分页） */
+  search: (q) => http.get('/api/video/search?q=' + encodeURIComponent(q)),
   detail: (id) => http.get('/api/video/videos/' + id),
   like: (id, cancel) => http.post('/api/video/videos/' + id + '/like', { cancel: !!cancel }),
   comment: (id, content) => http.post('/api/video/videos/' + id + '/comments', { content }),

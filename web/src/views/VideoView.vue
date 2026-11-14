@@ -22,6 +22,9 @@ const list = ref([]);
 const cursor = ref(0);
 const stats = ref({});
 const seg = ref('');
+/** 搜索关键词：非空时列表来自 /api/video/search，不再走游标分页 */
+const q = ref('');
+const searching = ref(false);
 const loading = ref(false);
 const consoleEnabled = ref(false);
 const feedEl = ref(null);
@@ -91,6 +94,7 @@ function bindPlayers() {
 }
 
 function onFeedScroll() {
+  if (searching.value || q.value) return;      // 搜索结果是固定一批，不做无限加载
   const box = feedEl.value;
   if (!box) return;
   if (box.scrollTop + box.clientHeight > box.scrollHeight - 240) loadFeed(false);
@@ -109,6 +113,33 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   if (io) io.disconnect();
 });
+
+/** 搜索：关键词为空就回到信息流 */
+async function doSearch() {
+  const kw = String(q.value || '').trim();
+  if (!kw) return;
+  searching.value = true;
+  loading.value = true;
+  try {
+    const d = await videoApi.search(kw);
+    list.value = (d && d.list) || [];
+    cursor.value = 0;
+    await nextTick();
+    bindPlayers();
+    if (!list.value.length) toast('没有匹配的视频');
+  } catch (e) {
+    toast('搜索失败：' + errText(e));
+  } finally {
+    searching.value = false;
+    loading.value = false;
+  }
+}
+
+async function clearSearch() {
+  q.value = '';
+  searching.value = false;
+  await loadFeed(true);
+}
 
 function switchSeg(s) {
   if (seg.value === s) return;
@@ -269,26 +300,25 @@ function errText(e) {
   <div class="vwrap">
     <div class="vtop">
       <b style="font-size: 16px">视频</b>
-      <span style="font-size: 12.5px; color: #9aa0ae">辩论短视频 · {{ passedCount }} 条在架</span>
       <span style="flex: 1"></span>
       <button class="btn sm ghost" @click="openPublish">发布</button>
       <button v-if="consoleEnabled" class="btn sm ghost" @click="openAudit">审核台</button>
     </div>
 
-    <div class="vfilter">
-      <button
-        v-for="s in SEGS"
-        :key="s || 'all'"
-        class="vseg"
-        :class="{ on: seg === s }"
-        @click="switchSeg(s)"
-      >
-        {{ s || '全部' }}
-      </button>
+    <div class="vsearch">
+      <input
+        v-model="q"
+        class="vsearch-input"
+        type="search"
+        placeholder="搜索标题 / 辩题 / 描述，回车搜索"
+        @keydown.enter="doSearch"
+      />
+      <button v-if="!q" class="btn sm primary" @click="doSearch">搜索</button>
+      <button v-else class="btn sm ghost" @click="clearSearch">清除</button>
     </div>
 
     <div ref="feedEl" class="vfeed" @scroll="onFeedScroll">
-      <div v-if="!list.length" class="vempty">{{ loading ? '加载中…' : '这个筛选下还没有过审的视频' }}</div>
+      <div v-if="!list.length" class="vempty">{{ loading ? '加载中…' : (q ? '没有匹配「' + q + '」的视频' : '还没有过审的视频') }}</div>
 
       <div v-for="v in list" :key="v.id" class="vslide">
         <div class="vwater">辩</div>
