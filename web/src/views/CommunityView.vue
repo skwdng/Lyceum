@@ -32,6 +32,10 @@ const type = ref('ALL');
 const sort = ref('NEW');
 const range = ref('ALL');
 const topicId = ref('');
+/** T2：当前筛选的标签 id（空 = 全部）；与 URL 的 ?tagId= 双向同步，可分享可后退 */
+const tagId = ref('');
+/** T2：顶部热门标签条（后端按使用次数排序，最多 12 个） */
+const hotTags = ref([]);
 const page = ref(1);
 const size = ref(10);
 const ban = ref(null);
@@ -60,6 +64,7 @@ const chips = computed(() => {
   const out = [];
   if (type.value !== 'ALL') out.push(['type', '类型：' + typeName(type.value)]);
   if (topicId.value) out.push(['topicId', '辩题：' + topicName(topicId.value)]);
+  if (tagId.value) out.push(['tagId', '标签：' + tagName(tagId.value)]);
   if (range.value !== 'ALL') out.push(['range', '时间：' + rangeName(range.value)]);
   if (q.value.trim()) out.push(['q', '关键词：' + q.value.trim()]);
   return out;
@@ -70,6 +75,26 @@ function topicName(id) {
   return t ? t.title : id;
 }
 
+/** T2：标签名——优先用热门条里的，其次用当前列表卡片上的（后台改名后两处都会变） */
+function tagName(id) {
+  const t = hotTags.value.find((x) => String(x.id) === String(id));
+  if (t) return t.name;
+  for (const p of posts.value) {
+    const hit = (p.tags || []).find((x) => String(x.id) === String(id));
+    if (hit) return hit.name;
+  }
+  return '#' + id;
+}
+
+async function loadHotTags() {
+  try {
+    const res = await communityApi.tagHot(12);
+    hotTags.value = ((res && res.items) || []).map((t) => ({ id: t.id, name: t.name, useCount: t.useCount }));
+  } catch (e) {
+    hotTags.value = [];      // 热门条挂了不影响列表
+  }
+}
+
 async function loadPosts() {
   loading.value = true;
   try {
@@ -77,6 +102,7 @@ async function loadPosts() {
       type: type.value === 'ALL' ? '' : type.value,
       title: q.value.trim(),
       topicId: topicId.value,
+      tagId: tagId.value,
       range: range.value,
       sort: sort.value,
       page: page.value,
@@ -107,11 +133,24 @@ async function loadBan() {
 }
 
 onMounted(async () => {
-  // 从通知深链回来可能带筛选（?topicId=…），这里接一下
+  // 从通知深链回来可能带筛选（?topicId=… / ?tagId=…），这里接一下
   if (route.query.topicId) topicId.value = String(route.query.topicId);
-  await Promise.all([meta.ensureTopics(), loadBan()]);
+  if (route.query.tagId || route.query.tag) tagId.value = String(route.query.tagId || route.query.tag);
+  await Promise.all([meta.ensureTopics(), loadBan(), loadHotTags()]);
   await loadPosts();
 });
+
+// 浏览器后退/前进：URL 里的 tagId 变了就跟着变（筛选状态由 URL 承载）
+watch(
+  () => route.query.tagId,
+  (v) => {
+    const next = v == null ? '' : String(v);
+    if (next === tagId.value) return;
+    tagId.value = next;
+    page.value = 1;
+    loadPosts();
+  }
+);
 
 // 搜索防抖：只匹配标题，280ms（旧版同款）
 watch(q, () => {
@@ -127,13 +166,35 @@ function setFilter(k, v) {
   else if (k === 'sort') sort.value = v;
   else if (k === 'range') range.value = v;
   else if (k === 'topicId') topicId.value = v;
+  else if (k === 'tagId') tagId.value = v;
+  if (k === 'tagId') syncTagQuery();
   page.value = 1;
   loadPosts();
+}
+
+/** T2：把标签筛选写进 URL（?tagId=3），刷新与分享都还在筛选状态 */
+function syncTagQuery() {
+  const query = { ...route.query };
+  if (tagId.value) query.tagId = String(tagId.value);
+  else delete query.tagId;
+  delete query.tag;                      // 旧别名不用了，统一成 tagId
+  router.replace({ name: 'community', query });
+}
+
+/** 热门条 / 卡片标签点击：设筛选 + 滚回顶部 */
+function setTag(id) {
+  if (String(tagId.value) === String(id)) {
+    setFilter('tagId', '');              // 再点一次 = 取消（热门条上是"全部"按钮的语义）
+    return;
+  }
+  setFilter('tagId', String(id));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function removeFilter(k) {
   if (k === 'type') type.value = 'ALL';
   else if (k === 'topicId') topicId.value = '';
+  else if (k === 'tagId') { tagId.value = ''; syncTagQuery(); }
   else if (k === 'range') range.value = 'ALL';
   else if (k === 'q') q.value = '';
   page.value = 1;
@@ -144,7 +205,9 @@ function clearFilters() {
   q.value = '';
   type.value = 'ALL';
   topicId.value = '';
+  tagId.value = '';
   range.value = 'ALL';
+  syncTagQuery();
   page.value = 1;
   loadPosts();
 }
@@ -205,6 +268,21 @@ function onSaved(info) {
 
     <div class="comm">
       <div class="comm-main">
+        <!-- T2：热门标签条（点一下筛列表，URL 带 tagId；再点一次取消） -->
+        <div class="ccard tagbar" data-panel="tag-bar">
+          <span class="tb-lb">热门标签</span>
+          <button class="htag" :class="{ on: !tagId }" @click="setFilter('tagId', '')">全部</button>
+          <button
+            v-for="t in hotTags"
+            :key="t.id"
+            class="htag"
+            :class="{ on: String(tagId) === String(t.id) }"
+            :data-tag-id="t.id"
+            @click="setTag(t.id)"
+          >{{ t.name }}</button>
+          <span v-if="!hotTags.length" class="tb-none">还没有人用过标签，发帖时加一个就有了</span>
+        </div>
+
         <div class="ccard" style="padding: 14px 16px; margin-bottom: 14px">
           <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center">
             <div class="sbox">
@@ -258,10 +336,10 @@ function onSaved(info) {
 
         <div v-if="loading" class="ccard" style="padding: 48px; text-align: center; color: #86909c">正在加载…</div>
         <template v-else-if="posts.length">
-          <CommunityPostCard v-for="p in posts" :key="p.id" :post="p" :q="q" @open="openPost" />
+          <CommunityPostCard v-for="p in posts" :key="p.id" :post="p" :q="q" @open="openPost" @tag="setTag" />
         </template>
         <div v-else class="empty-box">
-          没有匹配的帖子{{ q ? '：搜索「' + q + '」' : '' }}
+          没有匹配的帖子{{ q ? '：搜索「' + q + '」' : '' }}{{ tagId ? '（标签筛选下）' : '' }}
           <br>
           <button class="btn btn-sm" style="margin-top: 14px" @click="clearFilters">清除筛选条件</button>
         </div>

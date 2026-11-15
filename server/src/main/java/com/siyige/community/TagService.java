@@ -48,6 +48,15 @@ public class TagService {
     public static final int NAME_MAX_CP = 12;
     /** 热门标签缓存 60 秒（设计方案 §2.1）。 */
     private static final long HOT_TTL_SECONDS = 60;
+    /**
+     * 热门缓存只存**一份**（最多 24 条），要几个切几个。
+     *
+     * <p>不按 limit 分 key：否则 `?limit=12` 与 `?limit=5` 是两份缓存，
+     * 标签一变就得挨个清（漏一个就出现"热门条里没有刚打的标签"）。
+     * 一份 key 的好处是失效只要删一次。
+     */
+    private static final String HOT_KEY = "tag:hot";
+    private static final int HOT_MAX = 24;
 
     /** 会破坏展示或 URL 的字符：井号 / at / 斜杠 / 反斜杠。 */
     private static final String FORBIDDEN_CHARS = "#@/\\";
@@ -120,28 +129,59 @@ public class TagService {
     public List<Map<String, Object>> suggest(String q, int limit) {
         String key = q == null ? null : q.trim().toLowerCase(java.util.Locale.ROOT);
         int n = Math.min(20, Math.max(1, limit));
-        return repo.suggest(SCOPE_POST, key, n);
+        return publicList(repo.suggest(SCOPE_POST, key, n));
     }
 
     /**
      * 社区页顶部热门标签：使用次数降序，**Redis 缓存 60 秒**。
      *
      * <p>缓存失败/Redis 不可用就直接查库（列表页要能打开，不能因为缓存挂了白屏）。
+     * 任何标签变动都会 {@link #invalidateHot()}，所以刚打的标签立刻能在热门条里看到。
      */
     public List<Map<String, Object>> hot(int limit) {
-        int n = Math.min(24, Math.max(1, limit));
-        String cacheKey = "tag:hot:" + n;
-        String cached = redisGet(cacheKey);
+        int n = Math.min(HOT_MAX, Math.max(1, limit));
+        List<Map<String, Object>> all = null;
+        String cached = redisGet(HOT_KEY);
         if (cached != null) {
             try {
-                return json.readValue(cached, new TypeReference<List<Map<String, Object>>>() { });
+                all = json.readValue(cached, new TypeReference<List<Map<String, Object>>>() { });
             } catch (Exception e) {
                 log.warn("热门标签缓存解析失败，回退查库：{}", e.toString());
             }
         }
-        List<Map<String, Object>> rows = repo.hot(SCOPE_POST, n);
-        redisSet(cacheKey, toJson(rows));
-        return rows;
+        if (all == null) {
+            all = publicList(repo.hot(SCOPE_POST, HOT_MAX));
+            redisSet(HOT_KEY, toJson(all));
+        }
+        return all.size() > n ? new ArrayList<>(all.subList(0, n)) : all;
+    }
+
+    /** 标签有任何变动（新建/挂上/摘掉/改名/合并/删除）就清热门缓存，别让用户等 60 秒。 */
+    public void invalidateHot() {
+        try {
+            redis.delete(HOT_KEY);
+        } catch (RuntimeException e) {
+            log.warn("清热门标签缓存失败（忽略，最多旧 60 秒）：{}", e.toString());
+        }
+    }
+
+    /**
+     * 出参统一收口：库里是 `ID / NAME / USE_COUNT`（H2 大写列名），
+     * 直接吐出去前端就得猜大小写。这里固定成 `{id,name,useCount}`,
+     * H2 与 MySQL 两种驱动的列名差异也一并抹平。
+     */
+    private static List<Map<String, Object>> publicList(List<Map<String, Object>> rows) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (rows == null) return out;
+        for (Map<String, Object> r : rows) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", r.get("id") instanceof Number n ? n.longValue() : r.get("id"));
+            m.put("name", r.get("name"));
+            Object used = r.get("use_count");
+            m.put("useCount", used instanceof Number n ? n.intValue() : 0);
+            out.add(m);
+        }
+        return out;
     }
 
     /** 一篇帖子的标签（详情用）。 */
@@ -233,6 +273,7 @@ public class TagService {
         Set<Long> touched = new LinkedHashSet<>(before);
         touched.addAll(target);
         for (Long id : touched) repo.recount(id);
+        invalidateHot();
     }
 
     /** 帖子被**彻底删除**时才会用到（软删不调用，见类注释）。 */
@@ -241,6 +282,7 @@ public class TagService {
         List<Long> before = repo.tagIdsOfPost(postId);
         repo.detachAllOfPost(postId);
         for (Long id : before) repo.recount(id);
+        invalidateHot();
     }
 
     // ==================== 配额（Redis，挂了就放行） ====================

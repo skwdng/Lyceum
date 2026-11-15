@@ -145,6 +145,11 @@ export const communityApi = {
     return http.get('/api/community/posts' + (qs ? '?' + qs : ''));
   },
   post: (id) => http.get('/api/community/posts/' + id),
+  /** T2：发帖时的标签联想（只返回用过的，按使用次数降序） */
+  tagSuggest: (q, limit = 10) =>
+    http.get('/api/community/tags?q=' + encodeURIComponent(q || '') + '&limit=' + limit),
+  /** T2：社区页顶部热门标签（后端 Redis 缓存 60 秒） */
+  tagHot: (limit = 12) => http.get('/api/community/tags/hot?limit=' + limit),
   /** 进详情先计数（旧版 B3 的顺序：先 view 再拉详情，否则每次都少算一次） */
   markView: (id) => http.post('/api/community/posts/' + id + '/view', {}),
   likePost: (id, on) => (on ? http.post('/api/community/posts/' + id + '/like', {}) : http.del('/api/community/posts/' + id + '/like')),

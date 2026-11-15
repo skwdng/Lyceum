@@ -291,6 +291,11 @@ function openReport(type, id) {
 function back() {
   router.push({ name: 'community' });
 }
+
+/** T2：点详情里的标签 → 回列表并带上筛选（用 query，可分享可后退） */
+function gotoTag(id) {
+  router.push({ name: 'community', query: { tagId: String(id) } });
+}
 </script>
 
 <template>
@@ -340,6 +345,17 @@ function back() {
           </div>
 
           <div class="post-body" v-html="bodyHtml"></div>
+
+          <!-- T2：完整标签（点任意一个回列表并按它筛选） -->
+          <div v-if="post.tags && post.tags.length" class="post-tags" data-panel="post-tags" style="margin-top: 16px">
+            <span
+              v-for="t in post.tags"
+              :key="t.id"
+              class="p-tag"
+              :data-tag-id="t.id"
+              @click="gotoTag(t.id)"
+            >{{ t.name }}</span>
+          </div>
 
           <div style="display: flex; gap: 10px; margin-top: 22px; padding-top: 18px; border-top: 1px solid #f2f3f5">
             <button class="btn" :class="{ 'btn-primary': post.liked }" @click="toggleLike">

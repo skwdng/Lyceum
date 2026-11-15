@@ -232,13 +232,13 @@ class TagServiceTest {
         long p1 = post("u1");
         service.bindPostTags(p1, "u1", List.of("AI"));
 
-        // 缓存命中
-        when(ops.get("tag:hot:12")).thenReturn("[{\"id\":9,\"name\":\"缓存标签\",\"use_count\":3}]");
+        // 缓存命中（热门缓存只有一份 key，要几个切几个）
+        when(ops.get("tag:hot")).thenReturn("[{\"id\":9,\"name\":\"缓存标签\",\"useCount\":3}]");
         List<Map<String, Object>> cached = service.hot(12);
         assertEquals("缓存标签", cached.get(0).get("name"));
 
         // Redis 挂了：回退查库，不能因为缓存挂了就报错
-        when(ops.get("tag:hot:5")).thenThrow(new RuntimeException("redis down"));
+        when(ops.get("tag:hot")).thenThrow(new RuntimeException("redis down"));
         List<Map<String, Object>> fresh = service.hot(5);
         assertFalse(fresh.isEmpty());
         assertEquals("AI", fresh.get(0).get("name"));

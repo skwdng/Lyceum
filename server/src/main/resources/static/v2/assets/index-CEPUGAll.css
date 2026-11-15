@@ -1,27 +1,27 @@
 
 /* 只写这一批新增的两块；其余全部复用 style.css 里的既有类名 */
-.gate-card[data-v-ba1d57be] {
+.gate-card[data-v-a35b6b5b] {
   max-width: 560px;
   margin: 48px auto;
   text-align: center;
   padding: 32px 28px;
 }
-.gate-icon[data-v-ba1d57be] { font-size: 34px; line-height: 1; margin-bottom: 10px;
+.gate-icon[data-v-a35b6b5b] { font-size: 34px; line-height: 1; margin-bottom: 10px;
 }
-.gate-title[data-v-ba1d57be] { font-size: 16px; font-weight: 600; margin-bottom: 8px;
+.gate-title[data-v-a35b6b5b] { font-size: 16px; font-weight: 600; margin-bottom: 8px;
 }
 
 
 /* ---------- 移动端 ---------- */
-.tabbar[data-v-ba1d57be] { display: none;
+.tabbar[data-v-a35b6b5b] { display: none;
 }
 @media (max-width: 860px) {
   /* 侧栏整体收起：桌面是左侧固定栏，手机改成抽屉式隐藏，靠底部 tab 导航 */
-.sb[data-v-ba1d57be] { display: none !important;
+.sb[data-v-a35b6b5b] { display: none !important;
 }
-#main[data-v-ba1d57be] { padding: 12px 12px 76px !important; max-width: 100% !important;
+#main[data-v-a35b6b5b] { padding: 12px 12px 76px !important; max-width: 100% !important;
 }
-.tabbar[data-v-ba1d57be] {
+.tabbar[data-v-a35b6b5b] {
     display: flex;
     position: fixed;
     left: 0; right: 0; bottom: 0;
@@ -31,27 +31,27 @@
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
     justify-content: space-around;
 }
-.tabbar a[data-v-ba1d57be] {
+.tabbar a[data-v-a35b6b5b] {
     flex: 1;
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     font-size: 11px; color: #8a909c; text-decoration: none;
     padding: 4px 0; border-radius: 10px;
 }
-.tabbar a.on[data-v-ba1d57be] { color: #2f5bea; background: #eef3ff;
+.tabbar a.on[data-v-a35b6b5b] { color: #2f5bea; background: #eef3ff;
 }
-.tabbar .ti[data-v-ba1d57be] { font-size: 18px; line-height: 1;
+.tabbar .ti[data-v-a35b6b5b] { font-size: 18px; line-height: 1;
 }
-.tabbar .tn[data-v-ba1d57be] { font-size: 11px;
+.tabbar .tn[data-v-a35b6b5b] { font-size: 11px;
 }
 }
 
 /* 改密区与昵称区之间的分隔线：旧版是内联样式，这里收成 scoped 类 */
-.pwd-block[data-v-a05d490c] {
+.pwd-block[data-v-256d9d95] {
   border-top: 1px solid #eff0f1;
   margin: 22px -24px 0;
   padding: 18px 24px 0;
 }
-.pwd-title[data-v-a05d490c] { font-size: 14px; font-weight: 600; margin-bottom: 4px;
+.pwd-title[data-v-256d9d95] { font-size: 14px; font-weight: 600; margin-bottom: 4px;
 }
 
 .bill-strip[data-v-0f26f55a] {
@@ -542,6 +542,11 @@ table.t tr:last-child td { border-bottom: none; }
   .cm .post-title em{font-style:normal;flex:1;min-width:0;color:#1D2129}
   .cm .post-excerpt{font-size:13px;color:#86909C;line-height:1.65;margin-bottom:11px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   .cm .post-meta{display:flex;align-items:center;gap:12px;font-size:12px;color:#A9AEB8;flex-wrap:wrap}
+  /* T2：卡片上的标签（前 3 个 + 折叠计数）；点它筛列表，不打开帖子 */
+  .cm .post-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-4px 0 10px}
+  .cm .p-tag{padding:2px 8px;border-radius:6px;background:#F2F3F5;color:#4E5969;font-size:11.5px;cursor:pointer;transition:.15s}
+  .cm .p-tag:hover{background:#E8F3FF;color:#165DFF}
+  .cm .p-tag.more{background:transparent;color:#A9AEB8;cursor:default}
   .cm .post-meta .au{display:flex;align-items:center;gap:6px;color:#4E5969}
   .cm .mini-av{width:20px;height:20px;border-radius:6px;background:#94BFFF;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-style:normal}
   .cm .post-reply{width:74px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#F7F8FA;border-radius:9px;color:#86909C}
@@ -574,6 +579,23 @@ table.t tr:last-child td { border-bottom: none; }
   .cm .htag{display:inline-block;padding:3px 9px;background:#F7F8FA;border-radius:6px;font-size:12px;color:#4E5969;margin:0 6px 6px 0;cursor:pointer;transition:.15s;border:none}
   .cm .htag:hover{background:#E8F3FF;color:#165DFF}
   .cm .htag.on{background:#165DFF;color:#fff}
+  /* T2：社区页顶部的热门标签条（[全部] [AI] [教育] …） */
+  .cm .tagbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:11px 16px;margin-bottom:14px}
+  .cm .tagbar .tb-lb{font-size:12px;color:#A9AEB8;margin-right:2px}
+  .cm .tagbar .htag{margin:0}
+  .cm .tagbar .tb-none{font-size:12px;color:#A9AEB8}
+  /* T2：发帖弹窗里的标签选择器（chip + 输入 + 联想下拉） */
+  .cm .tag-pick{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border:1px solid #E5E6EB;border-radius:9px;padding:7px 9px;min-height:40px}
+  .cm .tag-pick .tp-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 5px 3px 9px;border-radius:6px;background:#E8F3FF;color:#165DFF;font-size:12px;font-weight:500}
+  .cm .tag-pick .tp-chip i{width:14px;height:14px;border-radius:50%;background:#BEDAFF;color:#165DFF;font-style:normal;font-size:9px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+  .cm .tag-pick .tp-chip i:hover{background:#165DFF;color:#fff}
+  .cm .tag-pick input{flex:1;min-width:110px;border:none;outline:none;font-size:13px;font-family:inherit;background:transparent}
+  .cm .tag-hint{font-size:11.5px;color:#A9AEB8;margin-top:5px}
+  .cm .tag-sug{margin-top:6px;border:1px solid #E5E6EB;border-radius:9px;max-height:168px;overflow:auto;background:#fff}
+  .cm .tag-sug .ts{display:flex;align-items:center;gap:8px;padding:8px 11px;font-size:12.5px;cursor:pointer}
+  .cm .tag-sug .ts.on,.cm .tag-sug .ts:hover{background:#F2F3F5}
+  .cm .tag-sug .ts small{margin-left:auto;color:#A9AEB8;font-size:11px}
+  .cm .tag-sug .ts.new{color:#165DFF}
   .cm .sbox{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;height:36px;border:1px solid #E5E6EB;border-radius:8px;padding:0 12px;background:#F7F8FA;transition:.15s}
   .cm .sbox:focus-within{background:#fff;border-color:#165DFF;box-shadow:0 0 0 3px rgba(22,93,255,.1)}
   .cm .sbox input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13.5px;color:#1D2129}
