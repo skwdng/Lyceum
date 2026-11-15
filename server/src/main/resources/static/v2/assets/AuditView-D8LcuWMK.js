@@ -1,6 +1,6 @@
-import { _ as _export_sfc, u as useAdminStore, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, e as createCommentVNode, f as withDirectives, G as vModelText, H as withKeys, v as vModelSelect, F as Fragment, r as renderList, i as ref, q as adminApi, m as toast, k as errText, a as openBlock, s as unref, P as fmtTime, n as normalizeClass, O as actionName, p as computed } from "./index-C873Ol8c.js";
-import { u as userPop } from "./userPop-CAemFDpo.js";
-import { p as postDrawer } from "./postDrawer-BjKuNpSg.js";
+import { _ as _export_sfc, u as useAdminStore, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, e as createCommentVNode, f as withDirectives, G as vModelText, H as withKeys, v as vModelSelect, F as Fragment, r as renderList, i as ref, q as adminApi, m as toast, k as errText, a as openBlock, s as unref, P as fmtTime, n as normalizeClass, O as actionName, p as computed } from "./index-9ckqbnPu.js";
+import { u as userPop } from "./userPop-DU2QldvC.js";
+import { p as postDrawer } from "./postDrawer-Cr60Haxe.js";
 const _hoisted_1 = { "data-panel": "audit" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {
@@ -117,7 +117,8 @@ const _sfc_main = {
       ["USER", "用户"],
       ["VIDEO", "视频"],
       ["TOPIC", "辩题"],
-      ["ADMIN", "管理员"]
+      ["ADMIN", "管理员"],
+      ["TAG", "标签"]
     ];
     const SOURCES = [["", "全部来源"], ["REPORT", "举报"], ["MANUAL", "管理台"]];
     onMounted(() => loadAudit(1));
@@ -387,7 +388,7 @@ const _sfc_main = {
     };
   }
 };
-const AuditView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-9e115ead"]]);
+const AuditView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-04910a3a"]]);
 export {
   AuditView as default
 };

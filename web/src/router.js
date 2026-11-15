@@ -97,6 +97,7 @@ const routes = [
       { path: 'users', name: 'admin-users', component: () => import('./views/admin/UsersView.vue'), meta: { title: '用户管理', perm: 'user:read' } },
       { path: 'content/posts', name: 'admin-content-posts', component: () => import('./views/admin/ContentPostsView.vue'), meta: { title: '帖子管理', perm: 'content:read' } },
       { path: 'content/comments', name: 'admin-content-comments', component: () => import('./views/admin/ContentCommentsView.vue'), meta: { title: '评论管理', perm: 'content:read' } },
+      { path: 'tags', name: 'admin-tags', component: () => import('./views/admin/TagsView.vue'), meta: { title: '标签管理', perm: 'content:moderate' } },
       { path: 'video-audit', name: 'admin-video-audit', component: () => import('./views/admin/VideoAuditView.vue'), meta: { title: '视频复核', perm: 'video:read' } },
       { path: 'topics', name: 'admin-topics', component: () => import('./views/admin/TopicReviewView.vue'), meta: { title: '辩题审核', perm: 'topic:read' } },
       { path: 'audit', name: 'admin-audit', component: () => import('./views/admin/AuditView.vue'), meta: { title: '处理记录', perm: 'audit:read' } },

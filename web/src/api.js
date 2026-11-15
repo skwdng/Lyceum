@@ -365,6 +365,18 @@ export const adminApi = {
     adminRequest('/admins/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { enabled } }),
   resetAdminPwd: (id) =>
     adminRequest('/admins/' + encodeURIComponent(id) + '/reset-pwd', { method: 'POST' }),
+  /** T3：标签管理（content:moderate） */
+  tags: (q, page = 1, size = 20) => {
+    const qs = [];
+    if (q) qs.push('q=' + encodeURIComponent(q));
+    qs.push('page=' + page, 'size=' + size);
+    return adminRequest('/tags?' + qs.join('&'));
+  },
+  createTag: (name) => adminRequest('/tags', { method: 'POST', body: { name } }),
+  /** 改名：撞名时后端自动合并，响应里 merged=true + mergedInto */
+  renameTag: (id, name) =>
+    adminRequest('/tags/' + encodeURIComponent(id) + '/rename', { method: 'POST', body: { name } }),
+  deleteTag: (id) => adminRequest('/tags/' + encodeURIComponent(id), { method: 'DELETE' }),
   reports: (status, page, size = 20) =>
     adminRequest('/reports?status=' + (status || 'PENDING') + '&page=' + (page || 1) + '&size=' + size),
   report: (reportId) => adminRequest('/reports/' + reportId),

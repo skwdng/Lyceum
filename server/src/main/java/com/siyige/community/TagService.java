@@ -116,8 +116,8 @@ public class TagService {
         return new Normalized(name, name.toLowerCase(java.util.Locale.ROOT));
     }
 
-    /** 去首尾空格 + 连续空白合成一个空格；空串归一为 null。 */
-    static String collapseSpaces(String raw) {
+    /** 去首尾空格 + 连续空白合成一个空格；空串归一为 null（后台搜索也用它）。 */
+    public static String collapseSpaces(String raw) {
         if (raw == null) return null;
         String s = raw.trim().replaceAll("[\\s\\u3000]+", " ");
         return s.isEmpty() ? null : s;

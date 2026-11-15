@@ -47,12 +47,24 @@ public class AuditLogRepo {
     public static final String ACTION_ADMIN_ENABLE = "ADMIN_ENABLE";
     public static final String ACTION_ADMIN_RESET_PWD = "ADMIN_RESET_PWD";
 
+    /**
+     * 标签管理（T3）。四种动作都**不可「恢复」**：canRestore 只认 REPORT_RESOLVE + DELETE，
+     * 这里的 action 对不上，所以处理记录页不会出现能点的「恢复」按钮。
+     */
+    public static final String ACTION_TAG_CREATE = "TAG_CREATE";
+    public static final String ACTION_TAG_RENAME = "TAG_RENAME";
+    /** 改名撞上已有标签 → 自动合并（源并入目标），单独记一个动作，便于事后追"什么时候合过" */
+    public static final String ACTION_TAG_MERGE = "TAG_MERGE";
+    public static final String ACTION_TAG_DELETE = "TAG_DELETE";
+
     /** 目标类型（`target_type` varchar(8)）。 */
     public static final String TARGET_VIDEO = "VIDEO";
     public static final String TARGET_TOPIC = "TOPIC";
     public static final String TARGET_USER = "USER";
     /** 管理员账号（`target_id` = 管理员 id，`target_owner` = 账号）。**不可「恢复」**。 */
     public static final String TARGET_ADMIN = "ADMIN";
+    /** 标签（`target_id` = 标签 id，`target_owner` = 标签名，改名时记旧名）。不可恢复。 */
+    public static final String TARGET_TAG = "TAG";
 
     /** 来源（`source` 列）：REPORT = 从举报处理来的；MANUAL = 管理员在管理台直接操作。 */
     public static final String SOURCE_REPORT = "REPORT";
