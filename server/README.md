@@ -143,6 +143,37 @@ curl -s -XPOST localhost:8080/api/admin/admins -H "Authorization: Bearer $TOKEN"
 - 账号**不能硬删除**，只能停用；处理记录里的 `target_type='ADMIN'` 记录不可恢复。
 - 细节见 `docs/管理接口契约.md` §11 与 `docs/SPEC.md` §28。
 
+## 帖子标签（2026-11-15）
+
+帖子可以打标签（每帖最多 5 个），列表能按标签筛，后台能改名（撞名自动合并）与删除。
+
+```bash
+# 发帖带标签（不带 tags 就是老行为，照旧成功）
+curl -s -XPOST localhost:8080/api/community/posts -H "Authorization: Bearer $USER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"GUIDE","title":"如何用标签整理内容","body":"…","tags":["AI","教育"]}'
+
+# 联想 / 热门 / 按标签筛
+curl -s 'localhost:8080/api/community/tags?q=ai&limit=10'
+curl -s 'localhost:8080/api/community/tags/hot?limit=12'
+curl -s 'localhost:8080/api/community/posts?tagId=3&size=20'
+
+# 后台：列表 / 预置 / 改名（撞名自动合并）/ 删除（要 content:moderate）
+curl -s 'localhost:8080/api/admin/tags?page=1&size=20' -H "Authorization: Bearer $TOKEN"
+curl -s -XPOST localhost:8080/api/admin/tags -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"官方公告"}'
+curl -s -XPOST localhost:8080/api/admin/tags/7/rename -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"AI"}'
+curl -s -XDELETE localhost:8080/api/admin/tags/7 -H "Authorization: Bearer $TOKEN"
+```
+
+- 规则：名称 1-12 **码点**；禁用 `# @ / \`；**命中敏感词直接 400 拒绝（不打码）**；
+  每人每天最多新建 10 个（Redis 计数，Redis 挂了放行）；`AI` / `ai` 归一到同一个标签。
+- `use_count` **变动后重算**（不做 +1/-1）；热门标签 Redis 缓存 60 秒，标签一变动就失效。
+- 帖子**软删不动标签关联**（恢复后标签还在）；标签不合法时整条发帖请求 400，不落半条帖子。
+- 后台三个写操作都进「处理记录」（`target_type='TAG'`）且**不可恢复**。
+- 细节见 `docs/管理接口契约.md` §12 与 `docs/SPEC.md` §29。
+
 ## 已实现 / 未实现
 
 | | 状态 |

@@ -146,12 +146,12 @@ let oneTimePwd = '';
 let viewerId = 0;
 
 // ==================== R1 超管：菜单 + 管理员管理页 ====================
-await check('R1 超管登录：菜单 11 项（含「管理员管理」）+ 顶栏角色 SUPER', async () => {
+await check('R1 超管登录：菜单 12 项（含「管理员管理」「标签管理」）+ 顶栏角色 SUPER', async () => {
   await uiLogin('admin', 'admin123');
   await waitFor(`!!document.querySelector('.adm-nav')`, '管理台挂载', 20000);
   const m = await menus();
   if (!m.includes('管理员管理')) throw new Error('菜单里没有管理员管理：' + JSON.stringify(m));
-  if (m.length !== 11) throw new Error('超管菜单应为 11 项，实际 ' + m.length + '：' + JSON.stringify(m));
+  if (m.length !== 12) throw new Error('超管菜单应为 12 项（含标签管理），实际 ' + m.length + '：' + JSON.stringify(m));
   const role = await ev(`(document.querySelector('.adm-role')||{textContent:''}).textContent.trim()`);
   if (role !== 'SUPER') throw new Error('顶栏角色应为 SUPER，实际 ' + role);
   return m.length + ' 项 · ' + role;

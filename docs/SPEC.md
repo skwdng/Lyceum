@@ -1554,3 +1554,86 @@ web/
 - 账号规则 `AdminAccountServiceTest`（19 条，真 H2）。
 - 界面自检 `server/scripts/selftest_vue_admin_rbac.mjs`（9 项）：建号 → 一次性密码 →
   强制改密 → 菜单/按钮按权限 → 无权限卡片 → VIEWER 零处置按钮 → 改角色即时生效。
+
+---
+
+## 29. 帖子标签（2026-11-15 追加）
+
+> 设计方案《帖子标签系统-设计方案》；分支 `feature-post-tags`。
+> 一句话：**帖子能打标签、能按标签筛、后台能改名合并与删除**，且老客户端不受影响。
+
+### 29.1 表（`schema-tag.sql`，新文件，既有 schema 一个没动）
+
+| 表 | 列 | 说明 |
+|---|---|---|
+| `sy_tag` | `id / name / name_key / scope / use_count / created_by / created_at` | `name` 展示名（保留样子），`name_key` 归一化键（小写去空格），唯一索引 `ux_tag_scope_key(scope, name_key)` |
+| `sy_post_tag` | `post_id / tag_id / created_at` | 复合主键 `(post_id, tag_id)`；`ix_post_tag_tag(tag_id, post_id)` 反向索引 |
+
+- **R-TAG-01** 新表 MUST 只写在 `schema-tag.sql`，MUST NOT 改既有 `schema-*.sql`；
+  `application.yml` 的 `schema-locations` 排在 `schema-community.sql` 之后。
+- **R-TAG-02** `name_key` MUST 存在：不然 `AI` / `ai` / `Ai ` 会变成三个标签。
+- **R-TAG-03** `use_count` MUST 在关联变动后**重算那一行**（`update … set use_count = (select count(*) …)`），
+  MUST NOT 用 +1/-1（四个入口漏一个就永久漂移）。
+
+### 29.2 规则
+
+| 规则 | 取值 | 错误码 |
+|---|---|---|
+| 名称长度 | 1-12 **码点**（emoji 按 1 个算） | 400 `TAG_INVALID` |
+| 禁用字符 | `# @ / \` 与控制字符 | 400 `TAG_INVALID` |
+| 敏感词 | **直接拒绝，不打码**（标签打码没有意义） | 400 `TAG_BLOCKED` |
+| 每帖最多 | 5 个 | 400 `TAG_LIMIT` |
+| 每人每天新建 | 10 个（Redis `tag:new:{yyyyMMdd}:{userId}`） | 429 `TAG_QUOTA` |
+| 归一化 | 去首尾空格、连续空格合一、英文小写做 key | — |
+| 同一帖重复标签 | 按 key 去重，只落一条关联 | — |
+| 标签不存在（后台） | — | 400 `TAG_NOT_FOUND` |
+
+- **R-TAG-04** 发帖请求**不带** `tags` MUST 照旧成功（老客户端兼容），响应里 `tags` 是 `[]` 而不是 null。
+- **R-TAG-05** 标签不合法时 MUST 在**建帖之前**就 400，MUST NOT 落半条帖子。
+- **R-TAG-06** 帖子软删（`status=2`）MUST NOT 动 `sy_post_tag` —— 恢复后标签必须还在。
+- **R-TAG-07** Redis 不可用时：配额检查**放行**、热门缓存**回退查库**（只 warn），MUST NOT 阻塞发帖与列表。
+
+### 29.3 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/community/tags?q=&limit=` | 联想：只返回用过的（`use_count>0`），按使用次数降序 |
+| GET | `/api/community/tags/hot?limit=` | 热门标签（Redis 缓存 60 秒，单 key，变动即失效） |
+| GET | `/api/community/posts?tagId=12` | 按标签筛（`exists` 子查询，与其他筛选叠加，不产生重复行） |
+| POST | `/api/community/posts` | body 加可选 `tags: string[]` |
+| PATCH | `/api/community/posts/{id}` | **不传 `tags` 就不改**；传了（含 `[]`）整组替换 |
+| GET | `/api/admin/tags?q=&page=&size=` | 后台列表（含 `use_count=0`，便于清理） |
+| POST | `/api/admin/tags` | 预置标签；重名幂等返回已有（`created=false`） |
+| POST | `/api/admin/tags/{id}/rename` | 改名；撞名 **自动合并**（`merged=true` + `mergedInto` + `moved`） |
+| DELETE | `/api/admin/tags/{id}` | 断关联 + 删标签（`affected` = 受影响帖子数） |
+
+- **R-TAG-08** 列表与详情的每个帖子 MUST 带 `tags: [{id,name}]`；列表 MUST **一次批量查**
+  （`tagsByPostIds`），MUST NOT 每帖查一次。
+- **R-TAG-09** 后台写操作 MUST 挂 `@Require(Perm.CONTENT_MODERATE)`；VIEWER MUST 403。
+- **R-TAG-10** 后台审计 MUST 写 `target_type='TAG'`、`source='MANUAL'`、`report_id=0`，
+  动作 `TAG_CREATE / TAG_RENAME / TAG_MERGE / TAG_DELETE`，detail 是人读描述（不许出现 SQL 或堆栈）。
+- **R-TAG-11** `target_type='TAG'` 的记录 MUST 不可恢复（`canRestore=false`，
+  `POST /audit/{id}/restore` 返回 409 `NOT_RESTORABLE`）。
+- **R-TAG-12** 合并 MUST 在同一事务里四步：迁关联（**跳过已同时拥有两个标签的帖子**，避免主键冲突）→
+  断源关联 → 删源标签 → 重算目标 `use_count`。
+
+### 29.4 前端
+
+- **R-TAG-13** 发帖/编辑 MUST 有标签选择器：chip + 输入联想（250ms 防抖）+ 回车新建；满 5 个禁用输入。
+- **R-TAG-14** 社区列表 MUST 有热门标签条（`[全部] + 最多 12 个`），点击后 URL MUST 带 `tagId`
+  （可分享、可刷新、可后退）；再点一次 / 点「全部」取消。
+- **R-TAG-15** 卡片 MUST 显示前 3 个标签，多余显示 `+N`；详情 MUST 显示完整标签，点任意一个回列表筛选。
+- **R-TAG-16** 后台改名撞名时 MUST 先弹确认（「「AI」已存在，是否把「人工智能」并入它？将影响 N 篇帖子」），
+  MUST NOT 静默合并；删除 MUST 二次确认并写明受影响帖子数。
+- **R-TAG-17** 前端权限只是体验层：后台接口的 `@Require` 独立强制校验。
+
+### 29.5 测试
+
+- `TagServiceTest`（14 条，真 H2 + mock Redis）：归一/码点长度/禁用字符/敏感词/每帖 5 个/每日 10 个/
+  复用不吃配额/Redis 挂了放行/use_count 重算/同标签去重/编辑替换/软删不动/联想过滤/热门缓存与回退。
+- `TagApiTest`（8 条，`@SpringBootTest` + MockMvc）：不带 tags 照旧成功/带 tags 回显/`ai`≡`AI`/
+  按 tagId 筛 + 关键词叠加/联想与热门/四种错误码且不落半条帖子/编辑替换与不传不动/软删恢复。
+- `AdminTagServiceTest`（10 条，真 H2）：列表含未使用/预置幂等/预置过校验/普通改名/撞名合并
+  （跳过重复、计数相加、帖子改挂）/只改大小写不算撞名/删除只解关联/404/审计动作与文案。
+- 界面自检 `server/scripts/selftest_vue_tags.mjs`（9 项）：热门条 → 卡片标签 → 点标签筛（URL 带 tagId）→
+  刷新仍在筛选 → 取消 → 详情跳回 → 发帖选择器（联想/回车/满 5 禁用）→ 发出去后详情显示 → 零 JS 异常。
