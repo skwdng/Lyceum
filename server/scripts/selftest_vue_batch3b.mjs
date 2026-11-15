@@ -121,18 +121,21 @@ await ev(`localStorage.setItem('sy_jwt', ${JSON.stringify(TOKEN)}); localStorage
 
 // ==================== 视频 ====================
 
-await check('B3-V1 视频信息流：竖滑卡片 / 侧栏三个操作 / 筛选 chip 都在', async () => {
+await check('B3-V1 视频信息流：竖滑卡片 / 侧栏三个操作 / 顶部搜索入口都在', async () => {
   await openV2('video');
   await waitFor(`document.querySelectorAll('.vslide').length > 0`, '视频卡片', 25000);
   const st = await ev(`({n: document.querySelectorAll('.vslide').length,
                         side: document.querySelectorAll('.vslide .vside button').length,
-                        segs: document.querySelectorAll('.vseg').length,
+                        search: [...document.querySelectorAll('.vtop button')].filter(b => (b.textContent || '').includes('搜索')).length,
                         top: !!document.querySelector('.vtop')})`);
   if (!st.n) throw new Error('没有视频');
   if (st.side < 3) throw new Error('侧栏按钮不全：' + st.side);
-  if (st.segs < 5) throw new Error('筛选 chip 太少：' + st.segs);
+  // 2026-11-15：视频页改版（对方 81c9828「搜索收进右上角」）移除了 .vseg 环节 chip，
+  // 原断言 segs >= 5 必然为 0。搜索框本身是 v-if="searchOpen" 收起的，
+  // 所以这里检查顶部栏里的「搜索」按钮（入口存在），不检查输入框。
+  if (!st.search) throw new Error('顶部栏没有「搜索」入口（原 .vseg 筛选已随改版移除）');
   if (!st.top) throw new Error('没有顶部栏');
-  return `卡片 ${st.n} 个，侧栏 ${st.side} 个按钮，筛选 ${st.segs} 个`;
+  return `卡片 ${st.n} 个，侧栏 ${st.side} 个按钮，搜索入口 ${st.search} 个（点击才展开输入框）`;
 });
 
 await check('B3-V2 点赞：数字 +1 且变「已赞」，再点回退', async () => {
