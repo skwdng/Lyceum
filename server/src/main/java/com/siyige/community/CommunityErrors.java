@@ -38,6 +38,10 @@ public class CommunityErrors {
             case "POST_NOT_FOUND", "COMMENT_NOT_FOUND" -> HttpStatus.NOT_FOUND;
             case "ALREADY_REPORTED" -> HttpStatus.CONFLICT;
             case "NOT_AUTHOR" -> HttpStatus.FORBIDDEN;
+            // T1：标签当日新建额度用完 —— 429 让前端能区分"你太快了"和"参数不对"
+            case "TAG_QUOTA" -> HttpStatus.TOO_MANY_REQUESTS;
+            // TAG_INVALID（长度/字符）/ TAG_BLOCKED（敏感词）/ TAG_LIMIT（每帖超 5 个）/ TAG_NOT_FOUND
+            case "TAG_INVALID", "TAG_BLOCKED", "TAG_LIMIT", "TAG_NOT_FOUND" -> HttpStatus.BAD_REQUEST;
             // CONTENT_BLOCKED 已废弃（§18 R-COM-39 / D5：命中敏感词打码放行）
             default -> HttpStatus.BAD_REQUEST;
         };

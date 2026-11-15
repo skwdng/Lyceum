@@ -47,8 +47,13 @@ public class CommunityRepo {
     // ---------- 帖子读 ----------
 
     public long countPosts(String type, String title, String topicId, String range) {
+        return countPosts(type, title, topicId, range, null);
+    }
+
+    /** T1：多了可空的 {@code tagId}（按标签筛帖子，与其它筛选叠加）。 */
+    public long countPosts(String type, String title, String topicId, String range, Long tagId) {
         List<Object> args = new ArrayList<>();
-        String sql = "select count(*) from sy_post p" + where(type, title, topicId, range, args);
+        String sql = "select count(*) from sy_post p" + where(type, title, topicId, range, tagId, args);
         Long n = jdbc.queryForObject(sql, Long.class, args.toArray());
         return n == null ? 0 : n;
     }
@@ -56,8 +61,14 @@ public class CommunityRepo {
     /** R-COM-05：列表不读 body，只读 excerpt。 */
     public List<Map<String, Object>> listPosts(String type, String title, String topicId, String range,
                                                String sort, int offset, int limit) {
+        return listPosts(type, title, topicId, range, sort, offset, limit, null);
+    }
+
+    /** T1：带标签筛选的列表。 */
+    public List<Map<String, Object>> listPosts(String type, String title, String topicId, String range,
+                                               String sort, int offset, int limit, Long tagId) {
         List<Object> args = new ArrayList<>();
-        String sql = "select " + POST_COLUMNS + POST_FROM + where(type, title, topicId, range, args)
+        String sql = "select " + POST_COLUMNS + POST_FROM + where(type, title, topicId, range, tagId, args)
                 + orderBy(sort) + " limit ? offset ?";
         args.add(limit);
         args.add(offset);
@@ -470,11 +481,21 @@ public class CommunityRepo {
     }
 
     private String where(String type, String title, String topicId, String range, List<Object> args) {
+        return where(type, title, topicId, range, null, args);
+    }
+
+    private String where(String type, String title, String topicId, String range, Long tagId, List<Object> args) {
         StringBuilder w = new StringBuilder(" where p.status = 1");
         if (type != null) { w.append(" and p.type = ?"); args.add(type); }
         // R-COM-10：只搜标题，title like '%kw%'
         if (title != null) { w.append(" and p.title like ?"); args.add("%" + title + "%"); }
         if (topicId != null) { w.append(" and p.topic_id = ?"); args.add(topicId); }
+        // T1：按标签筛 —— 用 exists 而不是 join，避免一篇帖子多个标签时出现重复行
+        // （走 ix_post_tag_tag 的 (tag_id, post_id) 反向索引）
+        if (tagId != null) {
+            w.append(" and exists (select 1 from sy_post_tag pt where pt.post_id = p.id and pt.tag_id = ?)");
+            args.add(tagId);
+        }
         // R-COM-11：ALL / 3D / 7D / OLDER（早于 7 天）
         // 用参数传时间点而不是数据库函数，H2 与 MySQL 都能跑（语义与 A 的 date_sub 完全一致）
         if ("3D".equals(range)) { w.append(" and p.created_at >= ?"); args.add(daysAgo(3)); }

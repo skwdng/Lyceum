@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -60,11 +61,13 @@ public class CommunityController {
     private final ReportService reports;
     private final MuteGuard muteGuard;
     private final NotificationService notifications;
+    /** T1：标签联想/热门（前台只读，不需要登录）。 */
+    private final TagService tags;
 
     public CommunityController(CommunityService community, CommentService comments,
                                LikeService likes, CommunityViewService views,
                                ReportService reports, MuteGuard muteGuard,
-                               NotificationService notifications) {
+                               NotificationService notifications, TagService tags) {
         this.community = community;
         this.comments = comments;
         this.likes = likes;
@@ -72,20 +75,52 @@ public class CommunityController {
         this.reports = reports;
         this.muteGuard = muteGuard;
         this.notifications = notifications;
+        this.tags = tags;
     }
 
     // ==================== 帖子 ====================
 
+    /**
+     * 列表。`tagId` 是 T1 新增的可选筛选（与 type / title / range / sort 叠加）。
+     */
     @GetMapping("/posts")
     public Map<String, Object> list(@RequestParam(required = false) String type,
                                     @RequestParam(required = false) String title,
                                     @RequestParam(required = false) String topicId,
                                     @RequestParam(required = false) String range,
                                     @RequestParam(required = false) String sort,
+                                    @RequestParam(required = false) Long tagId,
                                     @RequestParam(defaultValue = "1") int page,
                                     @RequestParam(defaultValue = "20") int size) {
         // 匿名可读：userId 为 null 时 liked 一律 false
-        return community.list(type, title, topicId, range, sort, page, size, UserContext.current());
+        return community.list(type, title, topicId, range, sort, page, size, UserContext.current(), tagId);
+    }
+
+    // ==================== 标签（T1，前台只读） ====================
+
+    /**
+     * 发帖时的标签联想：只返回**用过的**标签，按使用次数降序。
+     *
+     * <pre>GET /api/community/tags?q=ai&limit=10 → { items: [{id,name,useCount}] }</pre>
+     */
+    @GetMapping("/tags")
+    public Map<String, Object> tagSuggest(@RequestParam(required = false) String q,
+                                          @RequestParam(defaultValue = "10") int limit) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("items", tags.suggest(q, limit));
+        return out;
+    }
+
+    /**
+     * 社区页顶部的热门标签（Redis 缓存 60 秒）。
+     *
+     * <pre>GET /api/community/tags/hot?limit=12 → { items: [{id,name,useCount}] }</pre>
+     */
+    @GetMapping("/tags/hot")
+    public Map<String, Object> hotTags(@RequestParam(defaultValue = "12") int limit) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("items", tags.hot(limit));
+        return out;
     }
 
     @GetMapping("/posts/{id}")

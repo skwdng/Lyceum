@@ -29,7 +29,8 @@ class MuteInterceptTest {
 
     private final NotificationService notifications = mock(NotificationService.class);
     private final com.siyige.community.ai.AiQueue aiQueue = mock(com.siyige.community.ai.AiQueue.class);
-    private final CommunityService posts = new CommunityService(repo, masker, views, guard, notifications, aiQueue);
+    private final CommunityService posts = new CommunityService(repo, masker, views, guard, notifications, aiQueue,
+            mock(TagService.class));      // T1：发帖路径多了标签服务依赖
     private final CommentService comments = new CommentService(repo, masker, guard, notifications, aiQueue);
     private final LikeService likes = new LikeService(repo, guard, notifications);
 

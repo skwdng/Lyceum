@@ -157,7 +157,7 @@ class LikeServiceTest {
         CommentService comments = mock(CommentService.class);
         LikeService likes = mock(LikeService.class);
         CommunityViewService views = mock(CommunityViewService.class);
-        MockMvc mvc = MockMvcBuilders.standaloneSetup(new CommunityController(community, comments, likes, views, mock(ReportService.class), mock(com.siyige.community.MuteGuard.class), mock(NotificationService.class))).build();
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new CommunityController(community, comments, likes, views, mock(ReportService.class), mock(com.siyige.community.MuteGuard.class), mock(NotificationService.class), mock(TagService.class))).build();
 
         // 身份改由 UserContext 提供（JwtAuthFilter 在真实链路里填好；这里直接塞）
         com.siyige.auth.UserContext.set("u1");

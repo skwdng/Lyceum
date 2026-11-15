@@ -180,7 +180,8 @@ class CommunityViewServiceTest {
                         mock(CommunityService.class), mock(CommentService.class),
                         mock(LikeService.class), service,
                         mock(ReportService.class), mock(MuteGuard.class),
-                        mock(NotificationService.class)))
+                        mock(NotificationService.class),
+                        mock(TagService.class)))       // T1：控制器多了标签服务依赖
                 .setControllerAdvice(new CommunityErrors())
                 .build();
     }

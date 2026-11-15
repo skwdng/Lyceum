@@ -20,7 +20,10 @@ class CommunityServiceTest {
     private final com.siyige.community.MuteGuard muteGuard = mock(com.siyige.community.MuteGuard.class);
     private final NotificationService notifications = mock(NotificationService.class);
     private final com.siyige.community.ai.AiQueue aiQueue = mock(com.siyige.community.ai.AiQueue.class);
-    private final CommunityService service = new CommunityService(repo, masker, views, muteGuard, notifications, aiQueue);
+    /** T1：标签服务在发帖/编辑路径里被调用；mock 掉即可，标签本身的规则由 TagServiceTest 覆盖。 */
+    private final TagService tags = mock(TagService.class);
+    private final CommunityService service =
+            new CommunityService(repo, masker, views, muteGuard, notifications, aiQueue, tags);
 
     private static Map<String, Object> postRow(String authorId) {
         Map<String, Object> row = new HashMap<>();

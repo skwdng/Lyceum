@@ -45,22 +45,36 @@ public class CommunityService {
     private final NotificationService notifications;
     /** 发帖正文里 @DeepSeek 时把任务丢进 AI 队列（V1 新增，commentId 传 null）。 */
     private final AiQueue aiQueue;
+    /** 帖子标签（T1）：规范化/限额/敏感词校验 + use_count 重算都在它里面。 */
+    private final TagService tags;
 
     public CommunityService(CommunityRepo repo, SensitiveWordMasker masker, CommunityViewService views,
-                            MuteGuard muteGuard, NotificationService notifications, AiQueue aiQueue) {
+                            MuteGuard muteGuard, NotificationService notifications, AiQueue aiQueue,
+                            TagService tags) {
         this.repo = repo;
         this.masker = masker;
         this.views = views;
         this.muteGuard = muteGuard;
         this.notifications = notifications;
         this.aiQueue = aiQueue;
+        this.tags = tags;
     }
 
     // ==================== 读 ====================
 
-    /** 列表：类型 / 标题模糊 / 关联辩题 / 日期范围 四个筛选可任意组合，再按四种排序分页。 */
+    /** 列表：类型 / 标题模糊 / 关联辩题 / 日期范围 / 标签 五个筛选可任意组合，再按四种排序分页。 */
     public Map<String, Object> list(String type, String title, String topicId, String range,
                                     String sort, int page, int size, String userId) {
+        return list(type, title, topicId, range, sort, page, size, userId, null);
+    }
+
+    /**
+     * T1：多了 {@code tagId}（按标签筛帖子，与其它筛选叠加）。
+     *
+     * <p>标签**一次批量查**（{@link TagService#tagsByPostIds}），不在循环里逐帖查（避免 N+1）。
+     */
+    public Map<String, Object> list(String type, String title, String topicId, String range,
+                                    String sort, int page, int size, String userId, Long tagId) {
         String t = enumOrNull(type, TYPES, "INVALID_PARAM: 非法的 type");
         String r = enumOrDefault(range, RANGES, "ALL");
         String s = enumOrDefault(sort, SORTS, "NEW");
@@ -69,10 +83,18 @@ public class CommunityService {
         int p = Math.max(1, page);
         int sz = Math.min(50, Math.max(1, size));
 
-        long total = repo.countPosts(t, kw, topic, r);
-        List<Map<String, Object>> rows = total == 0
-                ? List.of()
-                : repo.listPosts(t, kw, topic, r, s, (p - 1) * sz, sz);
+        // 不带标签筛选时走原来那两条 SQL（老行为一字不改；也避免给单测加桩负担）
+        long total = tagId == null
+                ? repo.countPosts(t, kw, topic, r)
+                : repo.countPosts(t, kw, topic, r, tagId);
+        List<Map<String, Object>> rows;
+        if (total == 0) {
+            rows = List.of();
+        } else {
+            rows = tagId == null
+                    ? repo.listPosts(t, kw, topic, r, s, (p - 1) * sz, sz)
+                    : repo.listPosts(t, kw, topic, r, s, (p - 1) * sz, sz, tagId);
+        }
 
         List<Long> ids = new ArrayList<>(rows.size());
         for (Map<String, Object> row : rows) ids.add(num(row.get("id")));
@@ -80,11 +102,15 @@ public class CommunityService {
         Set<Long> liked = repo.likedPostIds(userId, ids);
         // 浏览数读时叠加：整页只查一次 Redis（严禁在循环里逐条查）
         Map<Long, Long> pendingViews = ids.isEmpty() ? Map.of() : views.pendingCounts(ids);
+        // T1：标签也一次批量查（空页不查库）
+        Map<Long, List<Map<String, Object>>> postTags =
+                ids.isEmpty() ? Map.of() : tags.tagsByPostIds(ids);
+        if (postTags == null) postTags = Map.of();
 
         List<Map<String, Object>> items = new ArrayList<>(rows.size());
         for (Map<String, Object> row : rows) {
             long id = num(row.get("id"));
-            items.add(toItem(row, liked.contains(id), pendingViews));
+            items.add(toItem(row, liked.contains(id), pendingViews, postTags.get(id)));
         }
 
         Map<String, Object> out = new LinkedHashMap<>();
@@ -95,14 +121,15 @@ public class CommunityService {
         return out;
     }
 
-    /** 详情：正文 + 关联辩题标题（R-COM-02 列表与详情都要显示）。 */
+    /** 详情：正文 + 关联辩题标题（R-COM-02 列表与详情都要显示）+ 完整标签。 */
     public Map<String, Object> detail(long id, String userId) {
         Map<String, Object> row = repo.findPost(id);
         if (row == null) throw new IllegalArgumentException("POST_NOT_FOUND: 帖子不存在或已删除");
 
         // 浏览数读时叠加：详情只查这一个 id
         Map<Long, Long> pendingViews = views.pendingCounts(List.of(id));
-        Map<String, Object> out = toItem(row, repo.likedPostIds(userId, List.of(id)).contains(id), pendingViews);
+        Map<String, Object> out = toItem(row, repo.likedPostIds(userId, List.of(id)).contains(id), pendingViews,
+                tags.tagsOfPost(id));
         out.put("body", row.get("body"));
         out.put("updatedAt", millis(row.get("updated_at")));
         return out;
@@ -126,6 +153,10 @@ public class CommunityService {
         String topicId = trimToNull(body.get("topicId"));
         String uid = userId;
 
+        // T1：标签先校验再建帖 —— 标签不合法（太长/含#@/\ /敏感词/超过 5 个）就直接 400，
+        // 不落半条数据。红线 3：**不带 tags 的老请求照旧成功**（tags 缺失 = 不打标签）。
+        List<Long> tagIds = readTagIds(uid, body);
+
         // R-COM-39：标题、正文分别检查、分别替换，不拼在一起；只落库替换后的文本
         SensitiveWordMasker.MaskResult maskedTitle = masker.mask(title);
         SensitiveWordMasker.MaskResult maskedBody = masker.mask(text);
@@ -139,6 +170,9 @@ public class CommunityService {
                 Excerpts.of(maskedBody.text()), topicId,
                 hotScore(0, 0, 0, Instant.now().toEpochMilli()));
 
+        // T1：绑定标签（tagIds 可能为空 —— 老客户端不发 tags 就是这里什么都不做）
+        if (tagIds != null && !tagIds.isEmpty()) tags.applyTagIds(id, tagIds);
+
         // 通知：发帖正文里 @ 了谁（commentId 传 null，link 就只到帖子）
         notifications.onMentions(id, null, uid, body.get("mentions"), text);
         // 社区 AI：发帖正文里 @DeepSeek -> 入队，AI 回来时在这个帖子下回一条楼（决策 3）
@@ -146,6 +180,8 @@ public class CommunityService {
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("postId", id);
+        // 回带最终标签：前端据此立刻把 chip 显示成"已落库"的状态（含后台改名后的样子）
+        out.put("tags", TagService.toView(tags.tagsOfPost(id)));
         return out;
     }
 
@@ -180,14 +216,25 @@ public class CommunityService {
         }
         // topicId 传 null / 空串 = 解绑关联辩题
         if (body.containsKey("topicId")) fields.put("topicId", trimToNull(body.get("topicId")));
-        if (fields.isEmpty()) throw new IllegalArgumentException("INVALID_PARAM: 没有需要更新的字段");
 
-        fields.put("hotScore", hotScore(num(row.get("comment_count")), num(row.get("like_count")),
-                num(row.get("view_count")), millis(row.get("created_at"))));
-        repo.updatePost(id, fields);
+        // T1：标签是 PATCH 语义 —— **不传 tags 就不改**；传了（包括空数组）就整组替换。
+        // 标签同样先校验：不合法直接 400，不会出现"标题改了标签没改"的半更新。
+        List<Long> tagIds = body.containsKey("tags") ? readTagIds(userId, body) : null;
+
+        if (fields.isEmpty() && tagIds == null) {
+            throw new IllegalArgumentException("INVALID_PARAM: 没有需要更新的字段");
+        }
+
+        if (!fields.isEmpty()) {
+            fields.put("hotScore", hotScore(num(row.get("comment_count")), num(row.get("like_count")),
+                    num(row.get("view_count")), millis(row.get("created_at"))));
+            repo.updatePost(id, fields);
+        }
+        if (tagIds != null) tags.applyTagIds(id, tagIds);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("postId", id);
+        out.put("tags", TagService.toView(tags.tagsOfPost(id)));
         return out;
     }
 
@@ -221,6 +268,11 @@ public class CommunityService {
      * view_count 计算（R-COM-13 的口径不变）。
      */
     private Map<String, Object> toItem(Map<String, Object> row, boolean liked, Map<Long, Long> pendingViews) {
+        return toItem(row, liked, pendingViews, null);
+    }
+
+    private Map<String, Object> toItem(Map<String, Object> row, boolean liked, Map<Long, Long> pendingViews,
+                                       List<Map<String, Object>> postTags) {
         long id = num(row.get("id"));
         long pending = pendingViews == null ? 0L : Math.max(0L, pendingViews.getOrDefault(id, 0L));
 
@@ -239,7 +291,25 @@ public class CommunityService {
         m.put("liked", liked);
         m.put("lastCommentAt", millis(row.get("last_comment_at")));
         m.put("createdAt", millis(row.get("created_at")));
+        // T1：标签（列表/详情都有；没打标签就是空数组，前端不用判 null）
+        m.put("tags", postTags == null ? List.of() : TagService.toView(postTags));
         return m;
+    }
+
+    /**
+     * 从请求体读 `tags` 并解析成 tag id（缺的新建）。
+     *
+     * <p>三种形状都接受：`null` / `[]`（不打标签）、`['AI','教育']`、`[{name:'AI'}]`。
+     * 不合法（超 5 个 / 太长 / 禁用字符 / 敏感词 / 当日配额用完）由 {@link TagService} 抛
+     * `TAG_*` 错误码，这里不 try/catch —— 让它直接 400，帖子不会落半条。
+     */
+    private List<Long> readTagIds(String userId, Map<String, Object> body) {
+        Object raw = body == null ? null : body.get("tags");
+        if (raw == null) return List.of();
+        if (!(raw instanceof List<?> list)) {
+            throw new IllegalArgumentException("INVALID_PARAM: tags 必须是数组");
+        }
+        return tags.resolveTagIds(userId, list, true);
     }
 
     /** R-COM-13：hot_score = (评论*4 + 点赞*2 + 浏览*0.05) / POW(小时数+2, 1.5) */
