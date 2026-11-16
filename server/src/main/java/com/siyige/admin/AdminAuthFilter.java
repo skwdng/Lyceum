@@ -42,6 +42,19 @@ public class AdminAuthFilter extends OncePerRequestFilter {
     private static final String LOGIN_PATH = "/api/admin/auth/login";
 
     /**
+     * **唯一**允许用 `?token=` 传令牌的路径（A2）。
+     *
+     * <p>为什么必须开这个口子：浏览器的 `EventSource` **不能设请求头**，
+     * SSE 通道拿不到 `Authorization`；这是前端订阅告警红点的唯一可行方式。
+     * 与社区 `/api/matches/{id}/events?token=` 是同一个套路。
+     *
+     * <p>范围必须**精确到这一条**（精确字符串相等，不用 startsWith）：
+     * 其它任何 `/api/admin/**` 带 `?token=` 仍然 401，
+     * 免得令牌出现在 URL 里被日志/Referer 带出去的范围无谓扩大。
+     */
+    private static final String STREAM_PATH = "/api/admin/alerts/stream";
+
+    /**
      * 首登强制改密时**仍然放行**的入口（执行提示词 1.5）。
      *
      * <p>不放行改密就没法改密，不放行 /me 前端连"我要改密"这个状态都拿不到。
@@ -76,6 +89,10 @@ public class AdminAuthFilter extends OncePerRequestFilter {
 
             try {
                 String token = bearerToken(req);
+                // A2：只有告警 SSE 通道接受 ?token=（EventSource 不能设请求头）
+                if (token == null && STREAM_PATH.equals(path)) {
+                    token = queryToken(req);
+                }
                 if (token == null) throw AuthException.unauthorized();
 
                 JwtService.ParsedToken parsed = jwt.parse(token);
@@ -130,6 +147,14 @@ public class AdminAuthFilter extends OncePerRequestFilter {
         if (v.length() <= BEARER.length() || !v.regionMatches(true, 0, BEARER, 0, BEARER.length())) return null;
         String token = v.substring(BEARER.length()).trim();
         return token.isEmpty() ? null : token;
+    }
+
+    /** `?token=`（只给 SSE 用；调用点已经限定了路径）。 */
+    private static String queryToken(HttpServletRequest req) {
+        String t = req.getParameter("token");
+        if (t == null) return null;
+        String v = t.trim();
+        return v.isEmpty() ? null : v;
     }
 
     private static void writeError(HttpServletResponse res, int status, String code, String message) throws IOException {

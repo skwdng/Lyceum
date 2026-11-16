@@ -38,14 +38,19 @@ public class AlertSse {
         this.json = json;
     }
 
-    /** 订阅：0L 不超时（SSE 长连接），断线由 onCompletion/onError 收尸。 */
-    public SseEmitter subscribe(long adminId) {
+    /**
+     * 订阅：0L 不超时（SSE 长连接），断线由 onCompletion/onError 收尸。
+     *
+     * <p>建连就先推一次当前未处理数：前端不用再多打一次 /unread，
+     * 自检脚本也能"连上就拿到一个事件"而不用等 20 秒心跳。
+     */
+    public SseEmitter subscribe(long adminId, long initialUnread) {
         SseEmitter emitter = new SseEmitter(0L);
         subs.computeIfAbsent(adminId, k -> new CopyOnWriteArrayList<>()).add(emitter);
         emitter.onCompletion(() -> remove(adminId, emitter));
         emitter.onTimeout(() -> { remove(adminId, emitter); emitter.complete(); });
         emitter.onError(e -> remove(adminId, emitter));
-        // 建连先给一次当前值，前端不用再多打一次 /unread
+        push(adminId, emitter, payload(initialUnread));
         return emitter;
     }
 
