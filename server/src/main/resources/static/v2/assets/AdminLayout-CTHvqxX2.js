@@ -1,7 +1,8 @@
-import { _ as _export_sfc, u as useAdminStore, w as watch, o as onMounted, a as openBlock, c as createElementBlock, b as createBaseVNode, t as toDisplayString, F as Fragment, d as createTextVNode, e as createCommentVNode, r as renderList, n as normalizeClass, f as withDirectives, v as vModelSelect, g as normalizeStyle, h as withModifiers, i as ref, j as contentApi, k as errText, l as nextTick, m as toast, p as computed, q as adminApi, s as unref, x as createVNode, y as withCtx, z as resolveComponent, A as onBeforeUnmount, B as createBlock, C as useRouter, D as useRoute, E as menuForCan } from "./index-9ckqbnPu.js";
-import { p as postDrawer } from "./postDrawer-Cr60Haxe.js";
-import { u as userPop } from "./userPop-DU2QldvC.js";
-import { M as ModerationBar } from "./ModerationBar-BTfxhD8A.js";
+import { _ as _export_sfc, u as useAdminStore, w as watch, o as onMounted, a as openBlock, c as createElementBlock, b as createBaseVNode, t as toDisplayString, F as Fragment, d as createTextVNode, e as createCommentVNode, r as renderList, n as normalizeClass, f as withDirectives, v as vModelSelect, g as normalizeStyle, h as withModifiers, i as ref, j as contentApi, k as errText, l as nextTick, m as toast, p as computed, q as adminApi, s as unref, x as createVNode, y as withCtx, z as resolveComponent, A as onBeforeUnmount, B as createBlock, C as useRoute, D as useRouter, E as menuForCan } from "./index-CJJ2LDwG.js";
+import { u as useAlertStore } from "./alert-CiP5H6jx.js";
+import { p as postDrawer } from "./postDrawer-nKc5z80h.js";
+import { u as userPop } from "./userPop-Df4VK_dS.js";
+import { M as ModerationBar } from "./ModerationBar-D_jEH5-V.js";
 const _hoisted_1$4 = { class: "upop-head" };
 const _hoisted_2$4 = {
   key: 0,
@@ -30,8 +31,8 @@ const _hoisted_9$3 = { class: "upop-row" };
 const _hoisted_10$3 = { class: "muted" };
 const _hoisted_11$3 = { class: "upop-stats" };
 const _hoisted_12$3 = { key: 0 };
-const _hoisted_13$2 = { key: 0 };
-const _hoisted_14$1 = {
+const _hoisted_13$3 = { key: 0 };
+const _hoisted_14$2 = {
   key: 0,
   class: "muted upop-empty"
 };
@@ -209,13 +210,13 @@ const _sfc_main$4 = {
                 ]),
                 createBaseVNode("span", null, [
                   createTextVNode("评论 " + toDisplayString(data.value.stats.comments), 1),
-                  data.value.stats.hiddenComments ? (openBlock(), createElementBlock("i", _hoisted_13$2, "（已屏蔽 " + toDisplayString(data.value.stats.hiddenComments) + "）", 1)) : createCommentVNode("", true)
+                  data.value.stats.hiddenComments ? (openBlock(), createElementBlock("i", _hoisted_13$3, "（已屏蔽 " + toDisplayString(data.value.stats.hiddenComments) + "）", 1)) : createCommentVNode("", true)
                 ]),
                 createBaseVNode("span", null, "对局 " + toDisplayString(data.value.stats.matches), 1),
                 createBaseVNode("span", null, "余额 " + toDisplayString(yuan(data.value.stats.walletCents)), 1)
               ]),
               _cache[9] || (_cache[9] = createBaseVNode("div", { class: "upop-sub" }, "禁言记录", -1)),
-              !data.value.moderation.banHistory.length ? (openBlock(), createElementBlock("div", _hoisted_14$1, "没有禁言记录")) : createCommentVNode("", true),
+              !data.value.moderation.banHistory.length ? (openBlock(), createElementBlock("div", _hoisted_14$2, "没有禁言记录")) : createCommentVNode("", true),
               (openBlock(true), createElementBlock(Fragment, null, renderList(data.value.moderation.banHistory, (b, i) => {
                 return openBlock(), createElementBlock("div", {
                   key: i,
@@ -336,7 +337,7 @@ const _hoisted_12$2 = {
   key: 0,
   class: "tag red"
 };
-const _hoisted_13$1 = { class: "muted ct-time" };
+const _hoisted_13$2 = { class: "muted ct-time" };
 const _sfc_main$3 = {
   __name: "CommentTree",
   props: {
@@ -393,7 +394,7 @@ const _sfc_main$3 = {
                   }, toDisplayString(r.authorName || r.authorId), 9, _hoisted_11$2),
                   _cache[3] || (_cache[3] = createBaseVNode("span", { class: "tag" }, "楼中楼", -1)),
                   r.hidden ? (openBlock(), createElementBlock("span", _hoisted_12$2, "已屏蔽")) : createCommentVNode("", true),
-                  createBaseVNode("span", _hoisted_13$1, toDisplayString(fmtTime(r.createdAt)), 1),
+                  createBaseVNode("span", _hoisted_13$2, toDisplayString(fmtTime(r.createdAt)), 1),
                   _cache[4] || (_cache[4] = createBaseVNode("span", { class: "spacer" }, null, -1)),
                   createVNode(ModerationBar, {
                     type: "comment",
@@ -440,8 +441,8 @@ const _hoisted_9$1 = { class: "tag blue" };
 const _hoisted_10$1 = { class: "muted" };
 const _hoisted_11$1 = { class: "pd-stats" };
 const _hoisted_12$1 = { class: "pd-body" };
-const _hoisted_13 = { class: "pd-actions" };
-const _hoisted_14 = { class: "pd-sub" };
+const _hoisted_13$1 = { class: "pd-actions" };
+const _hoisted_14$1 = { class: "pd-sub" };
 const _hoisted_15 = {
   key: 0,
   style: { "text-align": "center", "margin-top": "10px" }
@@ -563,7 +564,7 @@ const _sfc_main$2 = {
                 createBaseVNode("span", null, "浏览 " + toDisplayString(detail.value.stats.views), 1)
               ]),
               createBaseVNode("div", _hoisted_12$1, toDisplayString(detail.value.body), 1),
-              createBaseVNode("div", _hoisted_13, [
+              createBaseVNode("div", _hoisted_13$1, [
                 createVNode(ModerationBar, {
                   type: "post",
                   id: __props.postId,
@@ -572,7 +573,7 @@ const _sfc_main$2 = {
                   onChanged: refresh
                 }, null, 8, ["id", "author-id", "hidden"])
               ]),
-              createBaseVNode("div", _hoisted_14, [
+              createBaseVNode("div", _hoisted_14$1, [
                 createTextVNode(" 评论（" + toDisplayString(total.value) + " 个楼） ", 1),
                 _cache[5] || (_cache[5] = createBaseVNode("span", {
                   class: "muted",
@@ -667,14 +668,21 @@ const _hoisted_7 = {
 const _hoisted_8 = { class: "adm-top" };
 const _hoisted_9 = { class: "adm-title" };
 const _hoisted_10 = ["title"];
-const _hoisted_11 = { class: "adm-who" };
-const _hoisted_12 = { class: "adm-body" };
+const _hoisted_11 = {
+  key: 0,
+  class: "bell-n"
+};
+const _hoisted_12 = ["title"];
+const _hoisted_13 = { class: "adm-who" };
+const _hoisted_14 = { class: "adm-body" };
+const SEEN_TOAST_KEY = "sy_admin_alert_toast";
 const _sfc_main = {
   __name: "AdminLayout",
   setup(__props) {
     const route = useRoute();
     const router = useRouter();
     const admin = useAdminStore();
+    const alerts = useAlertStore();
     const mq = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(max-width: 760px)") : null;
     const isNarrow = ref(mq ? mq.matches : false);
     const drawerOpen = ref(false);
@@ -714,11 +722,27 @@ const _sfc_main = {
     }
     function logout() {
       admin.logout();
+      alerts.stopAll();
       router.replace("/admin/login");
     }
     function handleUnauthorized() {
       admin.onUnauthorized();
+      alerts.stopAll();
       if (route.path !== "/admin/login") router.replace("/admin/login");
+    }
+    function maybeToastOnce() {
+      if (!alerts.unread || alerts.unread <= 0) return;
+      try {
+        if (sessionStorage.getItem(SEEN_TOAST_KEY)) return;
+        sessionStorage.setItem(SEEN_TOAST_KEY, "1");
+      } catch (e) {
+        if (alerts.toasted) return;
+      }
+      alerts.toasted = true;
+      toast("有 " + alerts.unread + " 条未处理告警");
+    }
+    function goAlerts() {
+      if (route.path !== "/admin/alerts") router.push("/admin/alerts");
     }
     function handlePwdRequired() {
       if (route.name !== "admin-change-password") {
@@ -737,7 +761,16 @@ const _sfc_main = {
       if (admin.hasToken()) {
         if (!admin.me) admin.loadMe();
         if (admin.has("analytics:read")) admin.loadStats();
+        if (admin.has("analytics:read")) {
+          alerts.start().then(maybeToastOnce);
+        }
       }
+    });
+    watch(() => alerts.unread, (n, old) => {
+      if (n > 0 && n !== old) maybeToastOnce();
+    });
+    watch(() => route.path, (p) => {
+      if (p === "/admin/login") alerts.stopAll();
     });
     onBeforeUnmount(() => {
       window.removeEventListener("sy:admin-unauthorized", handleUnauthorized);
@@ -803,19 +836,29 @@ const _sfc_main = {
                 onClick: onToggle
               }, "☰"),
               createBaseVNode("h1", _hoisted_9, toDisplayString(title.value), 1),
-              _cache[5] || (_cache[5] = createBaseVNode("span", { class: "spacer" }, null, -1)),
-              unref(admin).role ? (openBlock(), createElementBlock("span", {
+              _cache[6] || (_cache[6] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+              unref(admin).has("analytics:read") ? (openBlock(), createElementBlock("button", {
                 key: 0,
+                class: normalizeClass(["adm-bell", { on: unref(alerts).unread > 0 }]),
+                "data-panel": "alert-bell",
+                title: unref(alerts).unread > 0 ? unref(alerts).unread + " 条未处理告警" : "没有未处理告警",
+                onClick: goAlerts
+              }, [
+                _cache[5] || (_cache[5] = createTextVNode(" 🔔", -1)),
+                unref(alerts).unread > 0 ? (openBlock(), createElementBlock("span", _hoisted_11, toDisplayString(unref(alerts).badge), 1)) : createCommentVNode("", true)
+              ], 10, _hoisted_10)) : createCommentVNode("", true),
+              unref(admin).role ? (openBlock(), createElementBlock("span", {
+                key: 1,
                 class: "adm-role",
                 title: "当前角色：" + unref(admin).role
-              }, toDisplayString(unref(admin).role), 9, _hoisted_10)) : createCommentVNode("", true),
-              createBaseVNode("span", _hoisted_11, toDisplayString(unref(admin).account || "管理员"), 1),
+              }, toDisplayString(unref(admin).role), 9, _hoisted_12)) : createCommentVNode("", true),
+              createBaseVNode("span", _hoisted_13, toDisplayString(unref(admin).account || "管理员"), 1),
               createBaseVNode("button", {
                 class: "btn sm",
                 onClick: logout
               }, "退出登录")
             ]),
-            createBaseVNode("div", _hoisted_12, [
+            createBaseVNode("div", _hoisted_14, [
               missingPerm.value ? (openBlock(), createBlock(ForbiddenCard, {
                 key: 0,
                 perm: missingPerm.value,

@@ -1,4 +1,4 @@
-import { _ as _export_sfc, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, G as vModelText, H as withKeys, F as Fragment, r as renderList, e as createCommentVNode, h as withModifiers, i as ref, m as toast, q as adminApi, R as errText, p as computed, a as openBlock, n as normalizeClass } from "./index-9ckqbnPu.js";
+import { _ as _export_sfc, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, G as vModelText, H as withKeys, F as Fragment, r as renderList, e as createCommentVNode, h as withModifiers, i as ref, m as toast, q as adminApi, R as errText, p as computed, a as openBlock, n as normalizeClass } from "./index-CJJ2LDwG.js";
 const _hoisted_1 = {
   class: "panel",
   "data-panel": "tags"
@@ -318,7 +318,7 @@ const _sfc_main = {
     };
   }
 };
-const TagsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-833c80ef"]]);
+const TagsView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-83a600de"]]);
 export {
   TagsView as default
 };

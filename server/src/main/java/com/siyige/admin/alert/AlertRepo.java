@@ -107,9 +107,15 @@ public class AlertRepo {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /** 去重命中：只更新 metric 与 last_seen（first_seen 不动）。 */
-    public int touch(long id, long metric, Timestamp now) {
-        return jdbc.update("update sy_alert set metric = ?, last_seen = ? where id = ?", metric, now, id);
+    /**
+     * 去重命中：更新 metric / last_seen（first_seen 与 dedup_key 不动）。
+     *
+     * <p>**title / detail 也跟着更新**：它们都是从 metric 派生的人读描述，
+     * 只改数字不改文案会出现「标题说积压 12 条、实际值写 24」这种自相矛盾的一行。
+     */
+    public int touch(long id, long metric, String title, String detail, Timestamp now) {
+        return jdbc.update("update sy_alert set metric = ?, title = ?, detail = ?, last_seen = ? where id = ?",
+                metric, cut(title, 120), cut(detail, 500), now, id);
     }
 
     /**

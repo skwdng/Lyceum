@@ -377,6 +377,18 @@ export const adminApi = {
   renameTag: (id, name) =>
     adminRequest('/tags/' + encodeURIComponent(id) + '/rename', { method: 'POST', body: { name } }),
   deleteTag: (id) => adminRequest('/tags/' + encodeURIComponent(id), { method: 'DELETE' }),
+  /** A3：告警（读需要 analytics:read，写需要 report:resolve） */
+  alerts: (status = 'OPEN', page = 1, size = 20) =>
+    adminRequest('/alerts?status=' + encodeURIComponent(status) + '&page=' + page + '&size=' + size),
+  alertUnread: () => adminRequest('/alerts/unread'),
+  alertAck: (id, note) => adminRequest('/alerts/' + encodeURIComponent(id) + '/ack',
+    { method: 'POST', body: { note: note || null } }),
+  alertReopen: (id) => adminRequest('/alerts/' + encodeURIComponent(id) + '/reopen', { method: 'POST' }),
+  alertMute: (ruleKey, until) => adminRequest('/alerts/mute', { method: 'POST', body: { ruleKey, until } }),
+  alertUnmute: (ruleKey) =>
+    adminRequest('/alerts/mute/' + encodeURIComponent(ruleKey) + '/off', { method: 'POST' }),
+  alertMutes: () => adminRequest('/alerts/mutes'),
+  alertScan: () => adminRequest('/alerts/scan', { method: 'POST' }),
   reports: (status, page, size = 20) =>
     adminRequest('/reports?status=' + (status || 'PENDING') + '&page=' + (page || 1) + '&size=' + size),
   report: (reportId) => adminRequest('/reports/' + reportId),

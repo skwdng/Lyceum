@@ -211,7 +211,7 @@ public class AlertService {
                          String title, String detail, long metric, String dedupKey, Timestamp now) {
         Map<String, Object> open = repo.findOpen(ruleKey, targetType, targetId);
         if (open != null) {
-            repo.touch(num(open.get("id")), metric, now);
+            repo.touch(num(open.get("id")), metric, title, detail, now);
             return Result.TOUCHED;
         }
         long id = repo.insertIfAbsent(ruleKey, targetType, targetId, level, title, detail, metric, dedupKey, now);

@@ -26,6 +26,8 @@ export const ADMIN_MENU = [
   {
     group: '运营',
     items: [
+      // A3：告警排在最前（红点最常看的一页，别让人往下找）
+      { to: '/admin/alerts', label: '告警', icon: '⏰', perm: 'analytics:read' },
       { to: '/admin/reports', label: '举报处理', icon: '⚑', badge: 'pendingReports', perm: 'report:read' },
       { to: '/admin/content/posts', label: '帖子管理', icon: '▤', perm: 'content:read' },
       { to: '/admin/content/comments', label: '评论管理', icon: '☷', perm: 'content:read' },

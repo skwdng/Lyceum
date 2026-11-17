@@ -15,6 +15,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { menuForCan } from '../../adminMenu.js';
 import { useAdminStore } from '../../stores/admin.js';
+import { useAlertStore } from '../../stores/alert.js';
 import { toast } from '../../utils/toast.js';
 import UserProfilePop from './components/UserProfilePop.vue';
 import PostDetailDrawer from './components/PostDetailDrawer.vue';
@@ -26,6 +27,8 @@ import './admin.css';
 const route = useRoute();
 const router = useRouter();
 const admin = useAdminStore();
+/** A3：告警红点（未处理数由 store 统一维护：SSE 秒级 + 60 秒轮询兜底） */
+const alerts = useAlertStore();
 
 /** 断点：<760px 用抽屉（与设计文档 §4.4 一致） */
 const mq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 760px)') : null;
@@ -99,13 +102,39 @@ function onMediaChange(e) {
 
 function logout() {
   admin.logout();
+  alerts.stopAll();          // 断 SSE、停轮询、清红点（别让下一个人看见上一个人的数）
   router.replace('/admin/login');
 }
 
 /** 401 统一出口：清令牌 + 清缓存 + toast（在 store 里），然后回登录页 */
 function handleUnauthorized() {
   admin.onUnauthorized();
+  alerts.stopAll();
   if (route.path !== '/admin/login') router.replace('/admin/login');
+}
+
+/**
+ * A3：进告警页（或点顶栏铃铛）时把「本次会话只弹一次」的标记记下来。
+ *
+ * <p>只弹一次是为了不打扰：红点一直在，反复 toast 就没意义了。
+ * 用 sessionStorage 而不是内存变量 —— 刷新页面算同一个会话，不该再弹。
+ */
+const SEEN_TOAST_KEY = 'sy_admin_alert_toast';
+
+function maybeToastOnce() {
+  if (!alerts.unread || alerts.unread <= 0) return;
+  try {
+    if (sessionStorage.getItem(SEEN_TOAST_KEY)) return;
+    sessionStorage.setItem(SEEN_TOAST_KEY, '1');
+  } catch (e) {
+    if (alerts.toasted) return;
+  }
+  alerts.toasted = true;
+  toast('有 ' + alerts.unread + ' 条未处理告警');
+}
+
+function goAlerts() {
+  if (route.path !== '/admin/alerts') router.push('/admin/alerts');
 }
 
 /**
@@ -135,7 +164,21 @@ onMounted(() => {
   if (admin.hasToken()) {
     if (!admin.me) admin.loadMe();
     if (admin.has('analytics:read')) admin.loadStats();
+    // A3：告警红点（只有能看报表的角色才有告警权限；没权限就别开 SSE 白连）
+    if (admin.has('analytics:read')) {
+      alerts.start().then(maybeToastOnce);
+    }
   }
+});
+
+// 红点从 0 变成 >0（SSE 或轮询带回来的）时也补一次"只弹一次"的判断
+watch(() => alerts.unread, (n, old) => {
+  if (n > 0 && n !== old) maybeToastOnce();
+});
+
+/** 切到登录页（退出/被踢）时把告警连接收掉 */
+watch(() => route.path, (p) => {
+  if (p === '/admin/login') alerts.stopAll();
 });
 
 onBeforeUnmount(() => {
@@ -189,6 +232,17 @@ onBeforeUnmount(() => {
           <button class="adm-iconbtn" aria-label="展开/收起菜单" @click="onToggle">☰</button>
           <h1 class="adm-title">{{ title }}</h1>
           <span class="spacer"></span>
+          <!-- A3：告警铃铛 + 未处理数（点击进告警页；数字永远来自库里的 OPEN 数） -->
+          <button
+            v-if="admin.has('analytics:read')"
+            class="adm-bell"
+            :class="{ on: alerts.unread > 0 }"
+            data-panel="alert-bell"
+            :title="alerts.unread > 0 ? alerts.unread + ' 条未处理告警' : '没有未处理告警'"
+            @click="goAlerts"
+          >
+            🔔<span v-if="alerts.unread > 0" class="bell-n">{{ alerts.badge }}</span>
+          </button>
           <span v-if="admin.role" class="adm-role" :title="'当前角色：' + admin.role">{{ admin.role }}</span>
           <span class="adm-who">{{ admin.account || '管理员' }}</span>
           <button class="btn sm" @click="logout">退出登录</button>
