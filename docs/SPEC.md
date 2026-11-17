@@ -1637,3 +1637,102 @@ web/
   （跳过重复、计数相加、帖子改挂）/只改大小写不算撞名/删除只解关联/404/审计动作与文案。
 - 界面自检 `server/scripts/selftest_vue_tags.mjs`（9 项）：热门条 → 卡片标签 → 点标签筛（URL 带 tagId）→
   刷新仍在筛选 → 取消 → 详情跳回 → 发帖选择器（联想/回车/满 5 禁用）→ 发出去后详情显示 → 零 JS 异常。
+
+---
+
+## 30. 管理台告警（2026-11-17 追加）
+
+> 设计方案《管理台告警-设计方案》；分支 `feature-admin-alerts`。
+> 一句话：**定时扫描业务指标 → 超阈值落库（去重）→ 红点/SSE 提醒 → 列表里处理**。
+
+### 30.1 表（`schema-alert.sql`，新文件）
+
+| 表 | 关键列 | 说明 |
+|---|---|---|
+| `sy_alert` | `rule_key / target_type / target_id / level / title / detail / metric / dedup_key / status / acked_* / resolved_at / first_seen / last_seen` | `dedup_key` 上有**唯一索引**，去重靠它 |
+| `sy_alert_mute` | `rule_key(主键) / muted_until / muted_by` | 静音期间不生成新告警，已存在的照常显示 |
+
+- **R-ALT-01** 去重粒度 MUST 是「规则 + 对象 + 日期」：`USER_REPORT_BURST:u_1029:2026-11-16`、
+  `POST_REPORT_BURST:POST:12:2026-11-16`、`REPORT_BACKLOG:2026-11-16`、`DAU_MISSING:2026-11-15`（缺的那一天）。
+  对象类规则带对象 id，所以处理掉一个对象不影响别的对象。
+- **R-ALT-02** 并发/重复插入 MUST 靠唯一索引 + 捕获 `DuplicateKeyException` 兜住，
+  MUST NOT 用"先查再插"（两个扫描线程会同时查到"没有"）。
+
+### 30.2 四条规则与阈值
+
+- **R-ALT-03** 阈值 MUST 集中在 `AlertRule`（唯一真源），MUST NOT 散落在 SQL 或 Service：
+  `REPORT_THRESHOLD`（**验证期 3，上线改 30**）、`BACKLOG_THRESHOLD = 10`、`WINDOW_HOURS = 24`。
+- **R-ALT-04** 判定口径是「**>** 阈值」不是「>=」：正好等于阈值不报。
+- 规则：`USER_REPORT_BURST`（人，24h 内被举报次数合计）、`POST_REPORT_BURST`（单条内容）、
+  `REPORT_BACKLOG`（全局 PENDING 数，detail 带"最老一条已等 N 小时"）、
+  `DAU_MISSING`（昨天 `sy_daily_active` 一行都没有 → `CRIT`，自己检查自己）。
+- **R-ALT-05** 统计只算 `status in ('PENDING','ACCEPTED')` 的举报；`IGNORED/REJECTED` 是"已判定没事"，不推高指标。
+- **R-ALT-06** 按人聚合 MUST **不用 join**：先单表 `group by target_type,target_id` 出计数，
+  再 `in` 批量查 `sy_post.author_id` / `sy_post_comment.user_id`，最后**应用层累加**。
+  两条规则共用同一次聚合查询（不查两遍）。
+- **R-ALT-07** 按人累加 MUST 统计**全部**举报（不是只累加"单条内容已超标"的那几行），
+  否则 3 篇各被举报 2 次（合计 6 次）的用户会漏报。
+
+### 30.3 状态机
+
+```
+        触发              人点「已处理」              指标回落
+  ───────────→ OPEN ──────────────→ ACKED ─────────────→ 保持 ACKED
+                 │
+                 └──── 指标自己回落 ────→ RESOLVED
+```
+
+- **R-ALT-08** 红点 MUST 现算 `count(*) where status='OPEN'`，不缓存。
+- **R-ALT-09** 指标回落只把该规则下"这次不再超标"的 OPEN 改 RESOLVED；
+  **ACKED 永远不动**（人处理过的不能自己变回未处理，也不能来回跳）。
+- **R-ALT-10** 同一对象当天已有 OPEN 时 MUST 只更新 `metric / title / detail / last_seen`（`first_seen` 不动）；
+  已有 ACKED/RESOLVED 时 MUST NOT 再插新行（撞 dedup_key → 静默跳过）。
+- **R-ALT-11** `reopen`（ACKED → OPEN）MUST 清空 `acked_by/acked_note/acked_at`。
+
+### 30.4 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/admin/alerts?status=OPEN\|ALL&page=&size=` | 列表（默认 OPEN），带 `unread/openTotal/mutes` |
+| GET | `/api/admin/alerts/unread` | 未处理数 |
+| GET | `/api/admin/alerts/stream?token=` | SSE，只推 `{unread}`；建连先推一次 |
+| POST | `/api/admin/alerts/{id}/ack` | 已处理 `{note?}` |
+| POST | `/api/admin/alerts/{id}/reopen` | 撤回 |
+| POST | `/api/admin/alerts/mute` | 静音 `{ruleKey, until}`（epoch 毫秒，最多 30 天） |
+| POST | `/api/admin/alerts/mute/{ruleKey}/off` | 解除静音 |
+| GET | `/api/admin/alerts/mutes` | 生效中的静音 |
+| POST | `/api/admin/alerts/scan` | 手动扫描（验证/补扫） |
+
+- **R-ALT-12** 权限：**读**挂 `analytics:read`、**写**（ack/reopen/mute/scan）挂 `report:resolve`。
+  原因：既有 RBAC 矩阵里 VIEWER 也有 `analytics:read`（只读角色能看所有列表），
+  写操作若也挂它，只读角色就能把告警标记成已处理。
+- **R-ALT-13** 告警的「标记已处理」MUST NOT 写 `sy_audit_log`（处理记录页只放内容处置动作）；
+  `acked_by/acked_at/acked_note` 本身就是留痕。
+- **R-ALT-14** SSE 的令牌 MUST 只能通过 `?token=` 传（EventSource 不能设请求头），
+  且 `AdminAuthFilter` 的例外 MUST **精确到** `/api/admin/alerts/stream` 一条：
+  其它 `/api/admin/**` 带 `?token=` 必须仍然 401。
+
+### 30.5 前端
+
+- **R-ALT-15** 顶栏 MUST 有铃铛 + 未处理数（>99 显示 99+），点击进 `/admin/alerts`；
+  没有 `analytics:read` 的角色不渲染铃铛、也不建 SSE。
+- **R-ALT-16** 未读数 MUST 三路并用：进台拉一次 → SSE 事件即时更新 → 60 秒轮询兜底。
+  处理动作之后重新拉，不做本地 +/-1。
+- **R-ALT-17** 本次会话第一次看到 unread>0 MUST 只弹一次 toast（`sessionStorage` 记标记）。
+- **R-ALT-18** 退出登录 / 401 / 回登录页 MUST 断 SSE + 停轮询 + 清零红点。
+- **R-ALT-19** 告警列表 MUST 有两个视角（未处理 / 全部）、三个动作（已处理含备注 / 撤回 / 去看）；
+  「去看」按 `targetType` 复用**已有**组件：USER → 用户违规浮窗，POST/COMMENT → 内容抽屉，
+  REPORT_BACKLOG → 举报页，DAU_MISSING → 报表页。
+- **R-ALT-20** 部署说明：nginx MUST 关 SSE 缓冲（`proxy_buffering off; add_header X-Accel-Buffering no;`）。
+
+### 30.6 测试
+
+- `AlertServiceTest`（13 条，真 H2 + mock SSE）：阈值边界（=不报 / >报）、25 小时窗口外不算、
+  IGNORED/REJECTED 不算、帖子与评论都能聚合到作者、按人累加（单条不超标合计超标要报）、
+  同对象两次扫描只一条、不同对象各一条、已处理当天不再重复且不翻回、次日换键可再报、
+  回落→RESOLVED、ACKED 保持、撤回与冲突、静音期间不产生/解除后恢复、静音参数校验、
+  积压阈值与等待时长、DAU 缺失 CRIT、未读数与 SSE 推送。
+- `AdminAuthFilterTest`（+3 条）：`/alerts/stream?token=` 放行、其它 `/api/admin/**` 带 `?token=` 仍 401、
+  SSE 带坏令牌 401。
+- 界面自检 `server/scripts/selftest_vue_alerts.mjs`（8 项）：扫描 → 红点 → 告警页 → 已处理 →
+  红点归零 → 同对象不重复 → 另一对象照常触发 → 静音后不产生 → 全部视图可见已处理。

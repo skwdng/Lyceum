@@ -33,6 +33,21 @@ public class AlertSse {
     /** adminId -> 该管理员的连接（同一人开多个标签页会有多条）。 */
     private final Map<Long, List<SseEmitter>> subs = new ConcurrentHashMap<>();
     private final ObjectMapper json;
+    /**
+     * 建连后的第一次推送**必须**晚一点做（放到这个单线程调度器上）。
+     *
+     * <p>在控制器方法返回 emitter 之前直接 {@code send}，等于在 Spring MVC 还没把请求切成
+     * async 的时候就写响应：轻则抛 "response already committed"，重则把这条连接留在
+     * 半开状态 —— 浏览器那侧的连接槽被占住，后续 fetch 全部排队，表现就是
+     * 「页面点开一会儿之后，所有请求都卡住」（自检里表现为"抽屉评论树 timeout"）。
+     * 100ms 足够让容器把 emitter 注册好，用户也感觉不到。
+     */
+    private final java.util.concurrent.ScheduledExecutorService firstPush =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "alert-sse-first-push");
+                t.setDaemon(true);
+                return t;
+            });
 
     public AlertSse(ObjectMapper json) {
         this.json = json;
@@ -45,12 +60,16 @@ public class AlertSse {
      * 自检脚本也能"连上就拿到一个事件"而不用等 20 秒心跳。
      */
     public SseEmitter subscribe(long adminId, long initialUnread) {
-        SseEmitter emitter = new SseEmitter(0L);
+        // 5 分钟强制超时：万一客户端进程被杀/网络断在半路，连接不会**永远**挂着。
+        // 前端会自己重连（带退避），用户完全无感；不设超时的话，
+        // 反复刷新页面会把浏览器的同源连接槽占满（6 个），之后所有请求都排队。
+        SseEmitter emitter = new SseEmitter(5 * 60_000L);
         subs.computeIfAbsent(adminId, k -> new CopyOnWriteArrayList<>()).add(emitter);
         emitter.onCompletion(() -> remove(adminId, emitter));
         emitter.onTimeout(() -> { remove(adminId, emitter); emitter.complete(); });
         emitter.onError(e -> remove(adminId, emitter));
-        push(adminId, emitter, payload(initialUnread));
+        final String data = payload(initialUnread);
+        firstPush.schedule(() -> push(adminId, emitter, data), 100, java.util.concurrent.TimeUnit.MILLISECONDS);
         return emitter;
     }
 
@@ -77,7 +96,9 @@ public class AlertSse {
         subs.forEach((adminId, list) -> list.forEach(e -> {
             try {
                 e.send(SseEmitter.event().comment("hb"));
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
+                // 浏览器关页面/换网络时这里必然抛 IOException，属于正常现象：
+                // 摘掉这条连接就行，**绝不能让异常冒到调度线程**（会把整轮心跳打断）
                 remove(adminId, e);
             }
         }));

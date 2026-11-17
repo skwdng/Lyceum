@@ -146,12 +146,12 @@ let oneTimePwd = '';
 let viewerId = 0;
 
 // ==================== R1 超管：菜单 + 管理员管理页 ====================
-await check('R1 超管登录：菜单 12 项（含「管理员管理」「标签管理」）+ 顶栏角色 SUPER', async () => {
+await check('R1 超管登录：菜单 13 项（含「管理员管理」「标签管理」「告警」）+ 顶栏角色 SUPER', async () => {
   await uiLogin('admin', 'admin123');
   await waitFor(`!!document.querySelector('.adm-nav')`, '管理台挂载', 20000);
   const m = await menus();
   if (!m.includes('管理员管理')) throw new Error('菜单里没有管理员管理：' + JSON.stringify(m));
-  if (m.length !== 12) throw new Error('超管菜单应为 12 项（含标签管理），实际 ' + m.length + '：' + JSON.stringify(m));
+  if (m.length !== 13) throw new Error('超管菜单应为 13 项（含标签管理与告警），实际 ' + m.length + '：' + JSON.stringify(m));
   const role = await ev(`(document.querySelector('.adm-role')||{textContent:''}).textContent.trim()`);
   if (role !== 'SUPER') throw new Error('顶栏角色应为 SUPER，实际 ' + role);
   return m.length + ' 项 · ' + role;
@@ -234,7 +234,7 @@ await check('R4 改密成功 → 回登录页 → 新密码可登录', async () 
 await check('R5 VIEWER 菜单：没有「管理员管理」，只剩读权限项', async () => {
   const m = await menus();
   if (m.includes('管理员管理')) throw new Error('VIEWER 不该看到管理员管理：' + JSON.stringify(m));
-  if (m.length !== 10) throw new Error('VIEWER 菜单应为 10 项，实际 ' + m.length + '：' + JSON.stringify(m));
+  if (m.length !== 11) throw new Error('VIEWER 菜单应为 11 项，实际 ' + m.length + '：' + JSON.stringify(m));
   const role = await ev(`(document.querySelector('.adm-role')||{textContent:''}).textContent.trim()`);
   if (role !== 'VIEWER') throw new Error('顶栏角色应为 VIEWER，实际 ' + role);
   return m.length + ' 项 · ' + role;

@@ -1,4 +1,4 @@
-import { S as defineStore, J as getAdminToken, K as API_BASE, q as adminApi } from "./index-CJJ2LDwG.js";
+import { S as defineStore, J as getAdminToken, K as API_BASE, q as adminApi } from "./index-9hjmagmO.js";
 const useAlertStore = defineStore("alert", {
   state: () => ({
     unread: 0,
@@ -15,6 +15,9 @@ const useAlertStore = defineStore("alert", {
     toasted: false,
     es: null,
     pollTimer: null,
+    /** 断线重连的定时器与退避（别每 5 秒硬撞一次，撞多了会占满浏览器同源连接槽） */
+    reconnectTimer: null,
+    retryMs: 5e3,
     pollMs: 6e4
   }),
   getters: {
@@ -92,18 +95,33 @@ const useAlertStore = defineStore("alert", {
             this.refreshUnread();
           }
         });
+        es.onopen = () => {
+          this.retryMs = 5e3;
+        };
         es.onerror = () => {
           try {
             es.close();
           } catch (e) {
           }
-          this.es = null;
-          setTimeout(() => this.connectSse(), 5e3);
+          if (this.es === es) this.es = null;
+          this.scheduleReconnect();
         };
         this.es = es;
       } catch (e) {
         this.es = null;
+        this.scheduleReconnect();
       }
+    },
+    /** 指数退避重连：5s → 10s → 20s → 30s 封顶（连不上时不至于一直占连接） */
+    scheduleReconnect() {
+      if (this.reconnectTimer) return;
+      if (!getAdminToken()) return;
+      const delay = Math.min(3e4, this.retryMs);
+      this.retryMs = Math.min(3e4, this.retryMs * 2);
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
+        this.connectSse();
+      }, delay);
     },
     disconnectSse() {
       if (this.es) {
@@ -132,10 +150,21 @@ const useAlertStore = defineStore("alert", {
       await this.refreshUnread();
       this.connectSse();
       this.startPolling();
+      if (!this.pagehideBound) {
+        this.pagehideBound = true;
+        const bye = () => this.disconnectSse();
+        window.addEventListener("pagehide", bye);
+        window.addEventListener("beforeunload", bye);
+      }
     },
     /** 退出登录 / 401 时调用：断连接、停轮询、清数字（别让下一个人看见上一个人的红点） */
     stopAll() {
       this.disconnectSse();
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
+      this.retryMs = 5e3;
       this.stopPolling();
       this.unread = 0;
       this.items = [];

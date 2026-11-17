@@ -46,8 +46,14 @@ class AdminAuthFilterTest {
     }
 
     private Capture run(String method, String uri, String bearer) throws Exception {
+        return run(method, uri, bearer, null);
+    }
+
+    /** 带上 `?token=` 的版本（只有告警 SSE 那条路径该认它）。 */
+    private Capture run(String method, String uri, String bearer, String queryToken) throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest(method, uri);
         if (bearer != null) req.addHeader("Authorization", "Bearer " + bearer);
+        if (queryToken != null) req.setParameter("token", queryToken);
         MockHttpServletResponse res = new MockHttpServletResponse();
         Capture cap = new Capture();
         filter.doFilter(req, res, (rq, rs) -> {
@@ -59,11 +65,52 @@ class AdminAuthFilterTest {
     }
 
     private MockHttpServletResponse runForResponse(String method, String uri, String bearer) throws Exception {
+        return runResponse(method, uri, bearer, null);
+    }
+
+    private MockHttpServletResponse runResponse(String method, String uri, String bearer, String queryToken)
+            throws Exception {
         MockHttpServletRequest req = new MockHttpServletRequest(method, uri);
         if (bearer != null) req.addHeader("Authorization", "Bearer " + bearer);
+        if (queryToken != null) req.setParameter("token", queryToken);
         MockHttpServletResponse res = new MockHttpServletResponse();
         filter.doFilter(req, res, (rq, rs) -> { });
         return res;
+    }
+
+    // ---------- A2：告警 SSE 的 ?token= 例外 ----------
+
+    /**
+     * EventSource 不能设请求头，所以**只有** `/api/admin/alerts/stream` 认 `?token=`。
+     *
+     * <p>这条测试锁住"例外范围"：同一条令牌放 header 能进、放 query 只在这条路径能进。
+     */
+    @Test
+    void 告警SSE允许用query传令牌() throws Exception {
+        given(1L, false, null, com.siyige.admin.rbac.AdminRole.SUPER, false);
+        String token = jwt.issueAdmin("1", "admin");
+
+        Capture viaQuery = run("GET", "/api/admin/alerts/stream", null, token);
+        assertTrue(viaQuery.called, "SSE 通道必须能接受 ?token=");
+        assertEquals(1L, viaQuery.adminIdInside);
+    }
+
+    @Test
+    void 其它管理接口带query令牌仍然401() throws Exception {
+        given(1L, false, null, com.siyige.admin.rbac.AdminRole.SUPER, false);
+        String token = jwt.issueAdmin("1", "admin");
+
+        for (String path : new String[]{"/api/admin/alerts/unread", "/api/admin/alerts",
+                "/api/admin/me", "/api/admin/tags", "/api/admin/admins"}) {
+            MockHttpServletResponse res = runResponse("GET", path, null, token);
+            assertEquals(401, res.getStatus(), path + " 不该接受 ?token=（例外只给 stream 一条）");
+        }
+    }
+
+    @Test
+    void 告警SSE用query传坏令牌也401() throws Exception {
+        MockHttpServletResponse res = runResponse("GET", "/api/admin/alerts/stream", null, "this.is.garbage");
+        assertEquals(401, res.getStatus());
     }
 
     // ---------- 登录口放行 ----------

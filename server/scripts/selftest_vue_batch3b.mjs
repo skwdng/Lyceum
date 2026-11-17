@@ -297,8 +297,8 @@ await check('B3-A3 令牌进入 → 侧栏 5 项 + 当前项高亮 + 徽标=待�
   // 「管理员管理」（权限分级 R3）与「标签管理」（帖子标签 T3）→ 超管看到 12 项：
   // 概览 / 报表分析 / 举报处理 / 帖子管理 / 评论管理 / 标签管理 / 视频复核 / 辩题审核 /
   // 用户管理 / 处理记录 / 管理员管理 / 设置
-  if (st.menus.length !== 12) throw new Error('侧栏菜单项应为 12 个（概览/报表分析/举报处理/帖子管理/评论管理/标签管理/视频复核/辩题审核/用户管理/处理记录/管理员管理/设置），实际 ' + st.menus.length + '：' + JSON.stringify(st.menus));
-  for (const need of ['帖子管理', '评论管理', '标签管理', '视频复核', '辩题审核']) {
+  if (st.menus.length !== 13) throw new Error('侧栏菜单项应为 13 个（概览/报表分析/告警/举报处理/帖子管理/评论管理/标签管理/视频复核/辩题审核/用户管理/处理记录/管理员管理/设置），实际 ' + st.menus.length + '：' + JSON.stringify(st.menus));
+  for (const need of ['帖子管理', '评论管理', '标签管理', '告警', '视频复核', '辩题审核']) {
     if (!st.menus.some((m) => m.includes(need))) throw new Error('侧栏缺少「' + need + '」：' + JSON.stringify(st.menus));
   }
   if (st.groups.length !== 3) throw new Error('菜单分组应为 3 组（总览/运营/系统），实际：' + JSON.stringify(st.groups));

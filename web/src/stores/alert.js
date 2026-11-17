@@ -34,6 +34,9 @@ export const useAlertStore = defineStore('alert', {
     toasted: false,
     es: null,
     pollTimer: null,
+    /** 断线重连的定时器与退避（别每 5 秒硬撞一次，撞多了会占满浏览器同源连接槽） */
+    reconnectTimer: null,
+    retryMs: 5000,
     pollMs: 60_000
   }),
 
@@ -121,16 +124,32 @@ export const useAlertStore = defineStore('alert', {
             this.refreshUnread();
           }
         });
+        es.onopen = () => {
+          this.retryMs = 5000;      // 连上了就把退避重置
+        };
         es.onerror = () => {
-          // 断了就关掉：浏览器会自动重连，但重连期间交给轮询，避免"两条腿都断"
+          // 断了就关掉再排一次重连；重连空窗期由 60 秒轮询保证不漏
           try { es.close(); } catch (e) { /* 忽略 */ }
-          this.es = null;
-          setTimeout(() => this.connectSse(), 5000);
+          if (this.es === es) this.es = null;
+          this.scheduleReconnect();
         };
         this.es = es;
       } catch (e) {
         this.es = null;
+        this.scheduleReconnect();
       }
+    },
+
+    /** 指数退避重连：5s → 10s → 20s → 30s 封顶（连不上时不至于一直占连接） */
+    scheduleReconnect() {
+      if (this.reconnectTimer) return;
+      if (!getAdminToken()) return;
+      const delay = Math.min(30_000, this.retryMs);
+      this.retryMs = Math.min(30_000, this.retryMs * 2);
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
+        this.connectSse();
+      }, delay);
     },
 
     disconnectSse() {
@@ -160,11 +179,24 @@ export const useAlertStore = defineStore('alert', {
       await this.refreshUnread();
       this.connectSse();
       this.startPolling();
+      // 页面被卸载/切到后台时主动关掉连接：浏览器对同源只有 6 条连接，
+      // 反复刷新若不关，旧连接会把槽占满，之后所有接口都排队（表现为页面一直"加载中"）
+      if (!this.pagehideBound) {
+        this.pagehideBound = true;
+        const bye = () => this.disconnectSse();
+        window.addEventListener('pagehide', bye);
+        window.addEventListener('beforeunload', bye);
+      }
     },
 
     /** 退出登录 / 401 时调用：断连接、停轮询、清数字（别让下一个人看见上一个人的红点） */
     stopAll() {
       this.disconnectSse();
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
+      this.retryMs = 5000;
       this.stopPolling();
       this.unread = 0;
       this.items = [];

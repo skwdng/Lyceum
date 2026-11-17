@@ -174,6 +174,40 @@ curl -s -XDELETE localhost:8080/api/admin/tags/7 -H "Authorization: Bearer $TOKE
 - 后台三个写操作都进「处理记录」（`target_type='TAG'`）且**不可恢复**。
 - 细节见 `docs/管理接口契约.md` §12 与 `docs/SPEC.md` §29。
 
+## 管理台告警（2026-11-17）
+
+每 5 分钟扫一遍业务指标，超阈值就落一条告警：顶栏 🔔 红点 + SSE 秒级提醒 + 告警页里「已处理」。
+
+```bash
+# 立即扫一次（验证/补扫用，不用等 5 分钟）
+curl -s -XPOST localhost:8080/api/admin/alerts/scan -H "Authorization: Bearer $TOKEN"
+
+# 列表 / 未读数
+curl -s 'localhost:8080/api/admin/alerts?status=OPEN&page=1&size=20' -H "Authorization: Bearer $TOKEN"
+curl -s localhost:8080/api/admin/alerts/unread -H "Authorization: Bearer $TOKEN"
+
+# 已处理（可带备注）/ 撤回 / 静音一小时
+curl -s -XPOST localhost:8080/api/admin/alerts/12/ack -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"note":"已联系当事人"}'
+curl -s -XPOST localhost:8080/api/admin/alerts/12/reopen -H "Authorization: Bearer $TOKEN"
+curl -s -XPOST localhost:8080/api/admin/alerts/mute -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d "{\"ruleKey\":\"REPORT_BACKLOG\",\"until\":$(( $(date +%s) * 1000 + 3600000 ))}"
+
+# SSE（EventSource 不能设请求头，所以令牌只能走 query —— 只有这一条路径认）
+curl -N "localhost:8080/api/admin/alerts/stream?token=$TOKEN"
+```
+
+- 四条规则：人被举报激增 / 内容被举报激增 / 举报积压 / **活跃统计缺失**（CRIT，统计任务没跑）。
+- 阈值只在一处：`admin/alert/AlertRule.java` 的 `REPORT_THRESHOLD`（**验证期 3，上线改 30**）、
+  `BACKLOG_THRESHOLD = 10`；判定口径是「> 阈值」。
+- 去重：`dedup_key = 规则:对象:日期` + 唯一索引，一天一个对象只报一次；
+  已处理的当天不再打扰，指标回落自动 RESOLVED（ACKED 保持不动）。
+- 权限：读 `analytics:read`、写 `report:resolve`（VIEWER 能看列表、按不动按钮）；
+  其它 `/api/admin/**` 带 `?token=` 仍然 401。
+- 「已处理」**不写处理记录页**（那里只放内容处置动作）。
+- 线上 nginx 要关 SSE 缓冲：`proxy_buffering off;` + `add_header X-Accel-Buffering no;`。
+- 细节见 `docs/管理接口契约.md` §13 与 `docs/SPEC.md` §30。
+
 ## 已实现 / 未实现
 
 | | 状态 |
