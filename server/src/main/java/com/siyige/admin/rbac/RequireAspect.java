@@ -60,8 +60,18 @@ public class RequireAspect {
         }
 
         Set<Perm> mine = role.perms();
-        for (Perm p : need) {
-            if (mine.contains(p)) return;      // 任一命中即放行
+
+        // mode=ANY（默认）：任一命中即放行；mode=ALL：必须全部满足
+        if (require != null && require.mode() == Require.Mode.ALL) {
+            boolean all = true;
+            for (Perm p : need) {
+                if (!mine.contains(p)) { all = false; break; }
+            }
+            if (all) return;
+        } else {
+            for (Perm p : need) {
+                if (mine.contains(p)) return;      // 任一命中即放行
+            }
         }
 
         List<String> missing = new ArrayList<>(need.length);

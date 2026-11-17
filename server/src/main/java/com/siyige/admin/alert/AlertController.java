@@ -82,21 +82,21 @@ public class AlertController {
      * 挂 `report:resolve` 后：SUPER / OPS / MOD 能处置，VIEWER 403。
      */
     @PostMapping("/{id}/ack")
-    @Require(Perm.REPORT_RESOLVE)
+    @Require(value = {Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}, mode = Require.Mode.ALL)
     public Map<String, Object> ack(@PathVariable long id, @RequestBody(required = false) AckRequest body) {
         return alerts.ack(id, body == null ? null : body.note(), AdminContext.account());
     }
 
     /** 误点撤回：ACKED -> OPEN。 */
     @PostMapping("/{id}/reopen")
-    @Require(Perm.REPORT_RESOLVE)
+    @Require(value = {Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}, mode = Require.Mode.ALL)
     public Map<String, Object> reopen(@PathVariable long id) {
         return alerts.reopen(id);
     }
 
     /** 静音某规则到某时刻（epoch 毫秒，最多 30 天）。 */
     @PostMapping("/mute")
-    @Require(Perm.REPORT_RESOLVE)
+    @Require(value = {Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}, mode = Require.Mode.ALL)
     public Map<String, Object> mute(@RequestBody MuteRequest body) {
         return alerts.mute(body == null ? null : body.ruleKey(),
                 body == null ? null : body.until(), AdminContext.account());
@@ -104,7 +104,7 @@ public class AlertController {
 
     /** 解除静音。 */
     @PostMapping("/mute/{ruleKey}/off")
-    @Require(Perm.REPORT_RESOLVE)
+    @Require(value = {Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}, mode = Require.Mode.ALL)
     public Map<String, Object> unmute(@PathVariable String ruleKey) {
         int n = alerts.unmute(ruleKey);
         Map<String, Object> out = new LinkedHashMap<>();
@@ -129,7 +129,7 @@ public class AlertController {
      * 返回 `{raised, resolved, touched, skippedRules, unread}`。
      */
     @PostMapping("/scan")
-    @Require(Perm.REPORT_RESOLVE)
+    @Require(value = {Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}, mode = Require.Mode.ALL)
     public Map<String, Object> scan() {
         AlertService.ScanResult r = alerts.scan();
         Map<String, Object> out = new LinkedHashMap<>();
