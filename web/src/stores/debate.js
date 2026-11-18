@@ -115,6 +115,7 @@ export const useDebateStore = defineStore('debate', {
     streamRaw: {},            // 实际收到的完整文本 { seat: text }
     streamShown: {},          // 已经显示了多少字 { seat: n }
     streamDone: {},           // 这个席位是否已经定稿（等显示追平后清掉）
+    streamStep: {},           // 这条预览属于第几步（服务端 step 越过就强制清掉）
     streamTimer: null,
 
     // 打字机
@@ -334,6 +335,7 @@ export const useDebateStore = defineStore('debate', {
       this.streamRaw = {};
       this.streamShown = {};
       this.streamDone = {};
+      this.streamStep = {};
       if (this.streamTimer) { clearInterval(this.streamTimer); this.streamTimer = null; }
       this.flawOffer = null;
       this.review = null;
@@ -400,12 +402,17 @@ export const useDebateStore = defineStore('debate', {
       const next = { ...this.streaming };
       delete next[seat];
       this.streaming = next;
+      if (this.streamStep) delete this.streamStep[seat];
     },
 
     async load(first) {
       if (!this.matchId) return;
+      // 并发保护：SSE 每个事件都会触发一次拉取，慢的响应后到会用旧数据覆盖新数据
+      // （表现为列表突然变空、或者流式气泡停在上一轮不消失）
+      const seq = (this.loadSeq = (this.loadSeq || 0) + 1);
       try {
         const d = await debateApi.match(this.matchId);
+        if (seq !== this.loadSeq) return;      // 已经有更新的请求，这次的结果作废
       // 席位以服务端为准：刷新/从链接进入时本地可能是旧值，不同步会把 AI 席位显示成「你」
       if (d && d.match && d.match.my_seats) {
         const seats = String(d.match.my_seats).split(',').map((x) => x.trim()).filter(Boolean);
@@ -436,6 +443,27 @@ export const useDebateStore = defineStore('debate', {
             this.streamDone = { ...(this.streamDone || {}), [seat]: true };
             this.startStreamTicker();
             if (this.streamedSeats) delete this.streamedSeats[seat];
+          }
+        }
+
+        // 兜底：预览所属的那一步已经过去了，说明它早就定稿（只是没在 turns 里匹配到），
+        // 不能让它一直挂在界面上——这正是"生成的位置不对"的表现。
+        {
+          const serverStep = Number((d.match || {}).step ?? -1);
+          for (const seat of Object.keys(this.streaming || {})) {
+            const at = this.streamStep[seat];
+            if (at == null || serverStep < 0) continue;
+            if (serverStep <= at) continue;
+            const hit = (d.turns || []).filter((x) => x.seat === seat).pop();
+            if (hit) {
+              this.streamedKeys = { ...this.streamedKeys, [keyOf(hit)]: true };
+              this.typed = { ...this.typed, [keyOf(hit)]: true };
+            }
+            this.clearStreamingSeat(seat);
+            delete this.streamRaw[seat];
+            delete this.streamShown[seat];
+            delete this.streamDone[seat];
+            delete this.streamStep[seat];
           }
         }
 
@@ -516,6 +544,9 @@ export const useDebateStore = defineStore('debate', {
               const seat = d.seat || '';
               this.streamedSeats = { ...(this.streamedSeats || {}), [seat]: true };
               this.streamRaw = { ...(this.streamRaw || {}), [seat]: (this.streamRaw[seat] || '') + (d.delta || '') };
+              if (this.streamStep[seat] == null) {
+                this.streamStep = { ...this.streamStep, [seat]: Number((this.match || {}).step ?? 0) };
+              }
               if (!this.streaming[seat]) {
                 this.streaming = { ...this.streaming, [seat]: { seg: d.seg || '', text: '' } };
               } else if (d.seg && this.streaming[seat].seg !== d.seg) {
