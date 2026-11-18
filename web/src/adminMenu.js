@@ -44,6 +44,8 @@ export const ADMIN_MENU = [
     items: [
       // 只有超管看得到：建号、改角色、重置密码
       { to: '/admin/admins', label: '管理员管理', icon: '☗', perm: 'admin:manage' },
+      // 参数管理（第一批 10 项）：与"管理员管理"同一档 —— 改的是钱与功能开关，不给运营
+      { to: '/admin/config', label: '参数管理', icon: '⚒', perm: 'admin:manage' },
       { to: '/admin/settings', label: '设置', icon: '⚙' }
     ]
   }

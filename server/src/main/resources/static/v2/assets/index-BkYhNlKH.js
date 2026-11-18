@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-BTCRKeNV.js","./alert-IVzOBEOc.js","./postDrawer-BSAIp_H6.js","./userPop-1y_3uEjC.js","./ModerationBar-B7gLyBNp.js","./ModerationBar-Ba0e_XKr.css","./AdminLayout-EkF52WF_.css","./ChangePasswordView-RACJ5ONg.js","./ChangePasswordView-SXI_ueQ5.css","./DashboardView-CVi53b0M.js","./LineChart-DSAQDgCd.js","./LineChart-mMQnDcD4.css","./DashboardView-C8pX9Oep.css","./AnalyticsView-BceQF3bq.js","./AnalyticsView-BPxgHatY.css","./ReportsView-DfieH4kT.js","./ReportsView-DUvjuaz0.css","./UsersView-B8UnMZX3.js","./BatchActions-BfTUncDo.js","./BatchActions-BgSqlVNL.css","./ContentPostsView-CZRCwDW-.js","./ContentPostsView-DMyV4z6b.css","./ContentCommentsView-6ShSi8nV.js","./ContentCommentsView-C89bjsk9.css","./TagsView-DPlelsst.js","./TagsView-DGoZO6mk.css","./AlertsView-BrRIpTbF.js","./AlertsView-cnSsL2K_.css","./VideoAuditView-DSzuNSMO.js","./VideoAuditView-CkpK9tY3.css","./TopicReviewView-C8wbOs6D.js","./TopicReviewView-Db8JN_kD.css","./AuditView-C6YD5qYj.js","./AuditView-CmhiUEr9.css","./AdminsView-jpJWR6Dx.js","./AdminsView-Chp5U9KR.css","./SettingsView-gTDxSzes.js","./SettingsView-CmzjfufL.css"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-CU8vi8ee.js","./alert-ByuMkNpT.js","./postDrawer-BMBLIh6z.js","./userPop-8f7Xk5-R.js","./ModerationBar-Bm8GPt8K.js","./ModerationBar-Ba0e_XKr.css","./AdminLayout-EkF52WF_.css","./ChangePasswordView-KJ0j8PAw.js","./ChangePasswordView-SXI_ueQ5.css","./DashboardView-DWrtjIae.js","./LineChart-DcDPQ9vQ.js","./LineChart-mMQnDcD4.css","./DashboardView-C8pX9Oep.css","./AnalyticsView-DIHU50fB.js","./AnalyticsView-BPxgHatY.css","./ReportsView-2JELjK7x.js","./ReportsView-DUvjuaz0.css","./UsersView-DrfsGZvJ.js","./BatchActions-BV87wnLu.js","./BatchActions-BgSqlVNL.css","./ContentPostsView-zKZvN22a.js","./ContentPostsView-DMyV4z6b.css","./ContentCommentsView-Bdk_JMAu.js","./ContentCommentsView-C89bjsk9.css","./TagsView-0iwv0eWW.js","./TagsView-DGoZO6mk.css","./AlertsView-CFxaCl7_.js","./AlertsView-7inEvoxm.css","./VideoAuditView-vsNZx0Wv.js","./VideoAuditView-CkpK9tY3.css","./TopicReviewView-C9x5jpPF.js","./TopicReviewView-Db8JN_kD.css","./AuditView-CkiW5nZK.js","./AuditView-CmhiUEr9.css","./AdminsView-BXqs6Z6m.js","./AdminsView-Chp5U9KR.css","./ConfigView-B5YCodAq.js","./ConfigView-58tzuM2W.css","./SettingsView-CyvRQMnu.js","./SettingsView-CmzjfufL.css"])))=>i.map(i=>d[i]);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -9355,6 +9355,12 @@ const adminApi = {
   unban: (id) => adminRequest("/users/" + encodeURIComponent(id) + "/unban", { method: "POST" }),
   setStatus: (id, status) => adminRequest("/users/" + encodeURIComponent(id) + "/status", { method: "POST", body: { status } })
 };
+const configApi = {
+  list: () => adminRequest("/config"),
+  set: (key, value) => adminRequest("/config", { method: "POST", body: { key, value } }),
+  log: (key, limit = 20) => adminRequest("/config/log?" + toQuery({ key, limit })),
+  rollback: (logId) => adminRequest("/config/rollback", { method: "POST", body: { logId } })
+};
 function toQuery(params) {
   return Object.keys(params || {}).filter((k) => params[k] !== void 0 && params[k] !== null && params[k] !== "").map((k) => k + "=" + encodeURIComponent(params[k])).join("&");
 }
@@ -9411,6 +9417,7 @@ const api = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty(
   baseApi,
   chatApi,
   communityApi,
+  configApi,
   contentApi,
   debateApi,
   getAdminToken,
@@ -11144,6 +11151,8 @@ const ADMIN_MENU = [
     items: [
       // 只有超管看得到：建号、改角色、重置密码
       { to: "/admin/admins", label: "管理员管理", icon: "☗", perm: "admin:manage" },
+      // 参数管理（第一批 10 项）：与"管理员管理"同一档 —— 改的是钱与功能开关，不给运营
+      { to: "/admin/config", label: "参数管理", icon: "⚒", perm: "admin:manage" },
       { to: "/admin/settings", label: "设置", icon: "⚙" }
     ]
   }
@@ -18770,35 +18779,37 @@ const routes = [
   {
     path: "/admin",
     meta: { bare: true },
-    component: () => __vitePreload(() => import("./AdminLayout-BTCRKeNV.js"), true ? __vite__mapDeps([0,1,2,3,4,5,6]) : void 0, import.meta.url),
+    component: () => __vitePreload(() => import("./AdminLayout-CU8vi8ee.js"), true ? __vite__mapDeps([0,1,2,3,4,5,6]) : void 0, import.meta.url),
     children: [
       { path: "", redirect: "/admin/dashboard" },
-      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-Bh5agWJ1.js"), true ? [] : void 0, import.meta.url), meta: { guest: true } },
+      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-iBaDtqyQ.js"), true ? [] : void 0, import.meta.url), meta: { guest: true } },
       // 首登 / 重置密码后强制改密：这条路由**不受 mustChangePwd 拦截**（否则就是死锁）
       {
         path: "change-password",
         name: "admin-change-password",
-        component: () => __vitePreload(() => import("./ChangePasswordView-RACJ5ONg.js"), true ? __vite__mapDeps([7,8]) : void 0, import.meta.url),
+        component: () => __vitePreload(() => import("./ChangePasswordView-KJ0j8PAw.js"), true ? __vite__mapDeps([7,8]) : void 0, import.meta.url),
         meta: { title: "修改密码", pwdChangeAllowed: true }
       },
-      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-CVi53b0M.js"), true ? __vite__mapDeps([9,10,11,12]) : void 0, import.meta.url), meta: { title: "概览", perm: "analytics:read" } },
-      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-BceQF3bq.js"), true ? __vite__mapDeps([13,10,11,14]) : void 0, import.meta.url), meta: { title: "报表分析", perm: "analytics:read" } },
+      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-DWrtjIae.js"), true ? __vite__mapDeps([9,10,11,12]) : void 0, import.meta.url), meta: { title: "概览", perm: "analytics:read" } },
+      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-DIHU50fB.js"), true ? __vite__mapDeps([13,10,11,14]) : void 0, import.meta.url), meta: { title: "报表分析", perm: "analytics:read" } },
       {
         path: "reports",
         name: "admin-reports",
-        component: () => __vitePreload(() => import("./ReportsView-DfieH4kT.js"), true ? __vite__mapDeps([15,3,2,16]) : void 0, import.meta.url),
+        component: () => __vitePreload(() => import("./ReportsView-2JELjK7x.js"), true ? __vite__mapDeps([15,3,2,16]) : void 0, import.meta.url),
         meta: { title: "举报处理", badge: "pendingReports", perm: "report:read" }
       },
-      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-B8UnMZX3.js"), true ? __vite__mapDeps([17,3,18,19]) : void 0, import.meta.url), meta: { title: "用户管理", perm: "user:read" } },
-      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-CZRCwDW-.js"), true ? __vite__mapDeps([20,4,5,18,19,3,2,21]) : void 0, import.meta.url), meta: { title: "帖子管理", perm: "content:read" } },
-      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-6ShSi8nV.js"), true ? __vite__mapDeps([22,4,5,18,19,3,2,23]) : void 0, import.meta.url), meta: { title: "评论管理", perm: "content:read" } },
-      { path: "tags", name: "admin-tags", component: () => __vitePreload(() => import("./TagsView-DPlelsst.js"), true ? __vite__mapDeps([24,25]) : void 0, import.meta.url), meta: { title: "标签管理", perm: "content:moderate" } },
-      { path: "alerts", name: "admin-alerts", component: () => __vitePreload(() => import("./AlertsView-BrRIpTbF.js"), true ? __vite__mapDeps([26,1,3,2,27]) : void 0, import.meta.url), meta: { title: "告警", perm: "analytics:read" } },
-      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-DSzuNSMO.js"), true ? __vite__mapDeps([28,3,29]) : void 0, import.meta.url), meta: { title: "视频复核", perm: "video:read" } },
-      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-C8wbOs6D.js"), true ? __vite__mapDeps([30,31]) : void 0, import.meta.url), meta: { title: "辩题审核", perm: "topic:read" } },
-      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-C6YD5qYj.js"), true ? __vite__mapDeps([32,3,2,33]) : void 0, import.meta.url), meta: { title: "处理记录", perm: "audit:read" } },
-      { path: "admins", name: "admin-admins", component: () => __vitePreload(() => import("./AdminsView-jpJWR6Dx.js"), true ? __vite__mapDeps([34,35]) : void 0, import.meta.url), meta: { title: "管理员管理", perm: "admin:manage" } },
-      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-gTDxSzes.js"), true ? __vite__mapDeps([36,37]) : void 0, import.meta.url), meta: { title: "设置" } }
+      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-DrfsGZvJ.js"), true ? __vite__mapDeps([17,3,18,19]) : void 0, import.meta.url), meta: { title: "用户管理", perm: "user:read" } },
+      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-zKZvN22a.js"), true ? __vite__mapDeps([20,4,5,18,19,3,2,21]) : void 0, import.meta.url), meta: { title: "帖子管理", perm: "content:read" } },
+      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-Bdk_JMAu.js"), true ? __vite__mapDeps([22,4,5,18,19,3,2,23]) : void 0, import.meta.url), meta: { title: "评论管理", perm: "content:read" } },
+      { path: "tags", name: "admin-tags", component: () => __vitePreload(() => import("./TagsView-0iwv0eWW.js"), true ? __vite__mapDeps([24,25]) : void 0, import.meta.url), meta: { title: "标签管理", perm: "content:moderate" } },
+      { path: "alerts", name: "admin-alerts", component: () => __vitePreload(() => import("./AlertsView-CFxaCl7_.js"), true ? __vite__mapDeps([26,1,3,2,27]) : void 0, import.meta.url), meta: { title: "告警", perm: "analytics:read" } },
+      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-vsNZx0Wv.js"), true ? __vite__mapDeps([28,3,29]) : void 0, import.meta.url), meta: { title: "视频复核", perm: "video:read" } },
+      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-C9x5jpPF.js"), true ? __vite__mapDeps([30,31]) : void 0, import.meta.url), meta: { title: "辩题审核", perm: "topic:read" } },
+      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-CkiW5nZK.js"), true ? __vite__mapDeps([32,3,2,33]) : void 0, import.meta.url), meta: { title: "处理记录", perm: "audit:read" } },
+      { path: "admins", name: "admin-admins", component: () => __vitePreload(() => import("./AdminsView-BXqs6Z6m.js"), true ? __vite__mapDeps([34,35]) : void 0, import.meta.url), meta: { title: "管理员管理", perm: "admin:manage" } },
+      // 参数管理（第一批 10 项）：与管理员管理同一档权限 —— 参数影响钱与功能开关，只给超管
+      { path: "config", name: "admin-config", component: () => __vitePreload(() => import("./ConfigView-B5YCodAq.js"), true ? __vite__mapDeps([36,37]) : void 0, import.meta.url), meta: { title: "参数管理", perm: "admin:manage" } },
+      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-CyvRQMnu.js"), true ? __vite__mapDeps([38,39]) : void 0, import.meta.url), meta: { title: "设置" } }
     ]
   },
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）
@@ -18864,6 +18875,7 @@ export {
   videoAuditApi as T,
   topicAdminApi as U,
   reactive as V,
+  configApi as W,
   _export_sfc as _,
   openBlock as a,
   createBaseVNode as b,

@@ -103,6 +103,8 @@ const routes = [
       { path: 'topics', name: 'admin-topics', component: () => import('./views/admin/TopicReviewView.vue'), meta: { title: '辩题审核', perm: 'topic:read' } },
       { path: 'audit', name: 'admin-audit', component: () => import('./views/admin/AuditView.vue'), meta: { title: '处理记录', perm: 'audit:read' } },
       { path: 'admins', name: 'admin-admins', component: () => import('./views/admin/AdminsView.vue'), meta: { title: '管理员管理', perm: 'admin:manage' } },
+      // 参数管理（第一批 10 项）：与管理员管理同一档权限 —— 参数影响钱与功能开关，只给超管
+      { path: 'config', name: 'admin-config', component: () => import('./views/admin/ConfigView.vue'), meta: { title: '参数管理', perm: 'admin:manage' } },
       { path: 'settings', name: 'admin-settings', component: () => import('./views/admin/SettingsView.vue'), meta: { title: '设置' } }
     ]
   },

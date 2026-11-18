@@ -406,6 +406,23 @@ export const adminApi = {
     adminRequest('/users/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { status } })
 };
 
+// ==================== 参数管理（仅超管 admin:manage） ====================
+
+/**
+ * 后台参数：第一批 10 项（告警阈值 / 复核台 / AI / 计费 / 标签）。
+ *
+ * 全部走 {@link adminRequest}（独立令牌 + 401 统一广播）；后端每个接口都挂了
+ * `@Require(Perm.ADMIN_MANAGE)`，非超管拿到的是 403 FORBIDDEN_PERM，前端只是少一次白跑。
+ *
+ * `value` 一律按**字符串**传（后端按 ConfigKey 声明的类型校验并统一存字符串）。
+ */
+export const configApi = {
+  list: () => adminRequest('/config'),
+  set: (key, value) => adminRequest('/config', { method: 'POST', body: { key, value } }),
+  log: (key, limit = 20) => adminRequest('/config/log?' + toQuery({ key, limit })),
+  rollback: (logId) => adminRequest('/config/rollback', { method: 'POST', body: { logId } })
+};
+
 // ==================== 管理台报表（P3 接口 / P4 页面） ====================
 
 /** 把参数对象拼成 query（空值不拼）。与 communityApi 里那套写法保持一致。 */

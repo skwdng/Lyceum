@@ -122,6 +122,14 @@ class AdminPermissionMatrixTest {
                     new Perm[]{Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}),
             new Endpoint("POST", "/api/admin/alerts/scan", null, null,
                     new Perm[]{Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}),
+            // ---- 参数管理（第一批 10 项，仅超管）----
+            // 写接口的 body 用**等于默认值**的合法值：SUPER 会真的写成功，
+            // 但不能因此改变其它用例看到的参数（tag.max-new-per-day 写 10 = 原值）
+            new Endpoint("GET", "/api/admin/config", null, Perm.ADMIN_MANAGE),
+            new Endpoint("GET", "/api/admin/config/log", null, Perm.ADMIN_MANAGE),
+            new Endpoint("POST", "/api/admin/config",
+                    "{\"key\":\"tag.max-new-per-day\",\"value\":\"10\"}", Perm.ADMIN_MANAGE),
+            new Endpoint("POST", "/api/admin/config/rollback", "{\"logId\":999999}", Perm.ADMIN_MANAGE),
             // ---- 任何已登录管理员 ----
             new Endpoint("GET", "/api/admin/me", null, null)
     );
