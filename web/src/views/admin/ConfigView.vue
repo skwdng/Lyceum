@@ -50,7 +50,8 @@ function rangeText(it) {
   return it.min !== null ? '不小于 ' + it.min : '不大于 ' + it.max;
 }
 
-async function load(keepDrafts) {
+/** 拉列表：每次拉完把编辑值重置成库里的当前值（保存是"改一行存一行"，不存在未提交的批量改动） */
+async function load() {
   loading.value = true;
   error.value = '';
   try {
@@ -59,7 +60,7 @@ async function load(keepDrafts) {
     groups.value = (r && r.groups) || [];
     const next = {};
     for (const it of items.value) next[it.key] = it.value;
-    drafts.value = keepDrafts ? { ...next, ...pickDirty() } : next;
+    drafts.value = next;
   } catch (e) {
     error.value = errText(e);
   } finally {
@@ -67,17 +68,7 @@ async function load(keepDrafts) {
   }
 }
 
-/** 重新拉取时保留用户已经改了一半的行（只保留确实改脏了的） */
-function pickDirty() {
-  const out = {};
-  for (const it of items.value) {
-    const d = drafts.value[it.key];
-    if (d !== undefined && d !== it.value) out[it.key] = d;
-  }
-  return out;
-}
-
-onMounted(() => load(false));
+onMounted(load);
 
 // ==================== 校验（后端还会再校验一次） ====================
 
@@ -203,7 +194,7 @@ const overridden = computed(() => items.value.filter((it) => it.source === 'DB')
 
       <div v-if="error" class="adm-error">
         <b>加载失败</b><span class="msg">{{ error }}</span>
-        <button class="btn sm" @click="load(false)">重试</button>
+        <button class="btn sm" @click="load">重试</button>
       </div>
       <div v-else-if="loading" class="muted" style="padding: 18px 0">加载中…</div>
 

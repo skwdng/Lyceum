@@ -91,7 +91,11 @@ public class ConfigRepo {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    /** 历史（倒序）。{@code key} 为空 = 全部参数的最近若干条。 */
+    /**
+     * 历史（倒序）。{@code key} 为空 = 全部参数的最近若干条。
+     *
+     * <p>这里的 200 只是 SQL 层兜底，真正的上限是 {@link ConfigService#HISTORY_MAX}（同值）。
+     */
     public List<Map<String, Object>> logs(String key, int limit) {
         int n = Math.min(200, Math.max(1, limit));
         return key == null || key.isBlank()

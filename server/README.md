@@ -198,8 +198,10 @@ curl -N "localhost:8080/api/admin/alerts/stream?token=$TOKEN"
 ```
 
 - 四条规则：人被举报激增 / 内容被举报激增 / 举报积压 / **活跃统计缺失**（CRIT，统计任务没跑）。
-- 阈值只在一处：`admin/alert/AlertRule.java` 的 `REPORT_THRESHOLD`（**验证期 3，上线改 30**）、
-  `BACKLOG_THRESHOLD = 10`；判定口径是「> 阈值」。
+- 阈值**已搬到后台参数**（2026-11-18 参数管理第一批）：`alert.report.threshold`（默认 **3**）、
+  `alert.backlog.threshold`（默认 10），在管理台「系统 → 参数管理」里改，**下次扫描生效**；
+  判定口径仍是「> 阈值」（正好等于不报）。上线要 30 就在后台改成 30，不用改代码、不用重启。
+  `AlertRule` 里只留 `WINDOW_HOURS`（聚合窗口，不让人随手改）。
 - 去重：`dedup_key = 规则:对象:日期` + 唯一索引，一天一个对象只报一次；
   已处理的当天不再打扰，指标回落自动 RESOLVED（ACKED 保持不动）。
 - 权限：读 `analytics:read`、写 `report:resolve`（VIEWER 能看列表、按不动按钮）；
@@ -207,6 +209,48 @@ curl -N "localhost:8080/api/admin/alerts/stream?token=$TOKEN"
 - 「已处理」**不写处理记录页**（那里只放内容处置动作）。
 - 线上 nginx 要关 SSE 缓冲：`proxy_buffering off;` + `add_header X-Accel-Buffering no;`。
 - 细节见 `docs/管理接口契约.md` §13 与 `docs/SPEC.md` §30。
+
+## 后台参数（2026-11-18 · 第一批 10 项）
+
+把 10 个"启动时定死"的配置改成**后台可改、不用重启**。管理台「系统 → 参数管理」（仅超管）。
+
+```bash
+# 全部参数（带当前值 / 默认值 / 来源 DB|DEFAULT / 生效时机）
+curl -s localhost:8080/api/admin/config -H "Authorization: Bearer $TOKEN"
+
+# 改一个：改完立刻生效（告警阈值是"下次扫描生效"）
+curl -s -XPOST localhost:8080/api/admin/config -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"key":"tag.max-per-post","value":"2"}'
+
+# 历史 / 回滚（回滚到"原本没有那一行"= 删行回默认值）
+curl -s 'localhost:8080/api/admin/config/log?key=tag.max-per-post' -H "Authorization: Bearer $TOKEN"
+curl -s -XPOST localhost:8080/api/admin/config/rollback -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"logId":12}'
+```
+
+| 键 | 默认值 | 现在是 | 生效 |
+|---|---|---|---|
+| `alert.report.threshold` | 3 | `AlertService`（每轮扫描读一次） | 下次扫描 |
+| `alert.backlog.threshold` | 10 | 同上 | 下次扫描 |
+| `video.audit.console-enabled` | true | `AdminVideoAuditService`（每次现读） | 立即 |
+| `ai.tiers.basic.enabled` | false | `AiTier.basicEnabled()` | 立即 |
+| `ai.tiers.basic.base-url` | http://127.0.0.1:11434/v1 | `AiTier.basicBaseUrl()` | 立即 |
+| `ai.daily-limit` | 5 | `AiUsageGuard`（每次 tryAcquire 读，作 Lua 参数） | 立即 |
+| `billing.service-fee-cents` | 30 | `WalletService.serviceFeeCents()` | 立即 |
+| `billing.welcome-grant-cents` | 100 | `WalletService.welcomeGrantCents()` | 立即 |
+| `tag.max-per-post` | 5 | `TagService.maxPerPost()` | 立即 |
+| `tag.max-new-per-day` | 10 | `TagService.maxNewPerDay()` | 立即 |
+
+- **库里没有行 = 用枚举默认值**，而默认值就是改造前的 yml / 常量值 —— 所以行为零变化，
+  可以逐项灰度；出问题删掉 `sy_config` 那一行、重启即回到原值（参数页也能一键回滚）。
+- 白名单在 `admin/config/ConfigKey.java`：未声明的键后台写不进去（400）。
+- 写库与读缓存：内存 Map -> `sy_config` -> 枚举默认值；写操作**立刻失效缓存**，
+  另有 30 秒 TTL 只为多实例兜底（本期单实例）。
+- 审计写自己的 `sy_config_log`（参数页历史里看），**不写** `sy_audit_log`。
+- 本期**不改**任何密钥与基础设施（JWT / 支付 / LLM Key / 数据源 / Redis / 端口），
+  也不碰"构造 bean 时读一次"的东西（那种改了对运行中的进程没用）。
+- 自检：`node scripts/selftest_vue_config.mjs 9482 http://localhost:8080`（12 项，见 §冒烟测试）。
+- 细节见 `docs/管理接口契约.md` §14。
 
 ## 已实现 / 未实现
 
@@ -232,6 +276,15 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1
 ```
 
 跑完会打印：审核三态、开局、12 步推进（含我的 3 次发言）、复盘分数、热辩榜前 5、记录与画像。
+
+前端自检（要一个开着的浏览器 + CDP 端口；管理台那几条要种子账号 admin/admin123）：
+
+```bash
+node scripts/selftest_vue_config.mjs 9482 http://localhost:8080   # 参数管理 12 项（改参数不重启就生效）
+```
+
+它**不会重启后端**：改 `tag.max-per-post` 为 2 → 发带 3 个标签的帖子被拒 → 改回 5 → 同样请求通过
+→ 改成 `abc` 被拒 → OPS 账号 403 → 参数页「来源=数据库」。跑完自动回滚到默认值。
 
 ## 房间接口（多人辩论）
 

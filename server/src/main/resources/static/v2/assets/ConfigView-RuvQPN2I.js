@@ -1,4 +1,4 @@
-import { _ as _export_sfc, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, F as Fragment, r as renderList, p as computed, i as ref, W as configApi, R as errText, a as openBlock, e as createCommentVNode, f as withDirectives, v as vModelSelect, G as vModelText, n as normalizeClass, m as toast } from "./index-BkYhNlKH.js";
+import { _ as _export_sfc, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, F as Fragment, r as renderList, p as computed, i as ref, W as configApi, R as errText, a as openBlock, e as createCommentVNode, f as withDirectives, v as vModelSelect, G as vModelText, n as normalizeClass, m as toast } from "./index-C2dek0WT.js";
 const _hoisted_1 = {
   class: "panel",
   "data-panel": "config"
@@ -89,7 +89,7 @@ const _sfc_main = {
       if (it.min !== null && it.max !== null) return "范围 " + it.min + " - " + it.max;
       return it.min !== null ? "不小于 " + it.min : "不大于 " + it.max;
     }
-    async function load(keepDrafts) {
+    async function load() {
       loading.value = true;
       error.value = "";
       try {
@@ -98,22 +98,14 @@ const _sfc_main = {
         groups.value = r && r.groups || [];
         const next = {};
         for (const it of items.value) next[it.key] = it.value;
-        drafts.value = keepDrafts ? { ...next, ...pickDirty() } : next;
+        drafts.value = next;
       } catch (e) {
         error.value = errText(e);
       } finally {
         loading.value = false;
       }
     }
-    function pickDirty() {
-      const out = {};
-      for (const it of items.value) {
-        const d = drafts.value[it.key];
-        if (d !== void 0 && d !== it.value) out[it.key] = d;
-      }
-      return out;
-    }
-    onMounted(() => load(false));
+    onMounted(load);
     function localError(it, raw) {
       const v = String(raw === void 0 || raw === null ? "" : raw).trim();
       if (it.type === "BOOL") {
@@ -201,22 +193,22 @@ const _sfc_main = {
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock("div", _hoisted_1, [
         createBaseVNode("h2", null, [
-          _cache[1] || (_cache[1] = createTextVNode(" 参数管理 ", -1)),
-          _cache[2] || (_cache[2] = createBaseVNode("span", { class: "spacer" }, null, -1)),
+          _cache[0] || (_cache[0] = createTextVNode(" 参数管理 ", -1)),
+          _cache[1] || (_cache[1] = createBaseVNode("span", { class: "spacer" }, null, -1)),
           createBaseVNode("span", _hoisted_2, " 仅超管 · " + toDisplayString(overridden.value) + " / " + toDisplayString(items.value.length) + " 项已改过 ", 1)
         ]),
         createBaseVNode("div", _hoisted_3, [
-          _cache[8] || (_cache[8] = createBaseVNode("p", { class: "muted cfg-intro" }, [
+          _cache[7] || (_cache[7] = createBaseVNode("p", { class: "muted cfg-intro" }, [
             createTextVNode(" 改完不用重启：标「立即生效」的下一次请求就按新值算；标「下次扫描生效」的要等下一次告警扫描 （或点一次告警页的「立即扫描」）。「来源」写"),
             createBaseVNode("b", null, "默认值"),
             createTextVNode("表示这一项还没被改过， 删掉库里的那行也会回到默认值。 ")
           ], -1)),
           error.value ? (openBlock(), createElementBlock("div", _hoisted_4, [
-            _cache[3] || (_cache[3] = createBaseVNode("b", null, "加载失败", -1)),
+            _cache[2] || (_cache[2] = createBaseVNode("b", null, "加载失败", -1)),
             createBaseVNode("span", _hoisted_5, toDisplayString(error.value), 1),
             createBaseVNode("button", {
               class: "btn sm",
-              onClick: _cache[0] || (_cache[0] = ($event) => load(false))
+              onClick: load
             }, "重试")
           ])) : loading.value ? (openBlock(), createElementBlock("div", _hoisted_6, "加载中…")) : (openBlock(true), createElementBlock(Fragment, { key: 2 }, renderList(groups.value, (g) => {
             return openBlock(), createElementBlock("section", {
@@ -227,7 +219,7 @@ const _sfc_main = {
               createBaseVNode("h3", null, toDisplayString(g), 1),
               createBaseVNode("div", _hoisted_8, [
                 createBaseVNode("table", null, [
-                  _cache[7] || (_cache[7] = createBaseVNode("thead", null, [
+                  _cache[6] || (_cache[6] = createBaseVNode("thead", null, [
                     createBaseVNode("tr", null, [
                       createBaseVNode("th", { style: { "width": "34%" } }, "参数"),
                       createBaseVNode("th", { style: { "width": "26%" } }, "值"),
@@ -257,7 +249,7 @@ const _sfc_main = {
                               "onUpdate:modelValue": ($event) => drafts.value[it.key] = $event,
                               class: "cfg-input",
                               "data-cfg-input": ""
-                            }, [..._cache[4] || (_cache[4] = [
+                            }, [..._cache[3] || (_cache[3] = [
                               createBaseVNode("option", { value: "true" }, "开", -1),
                               createBaseVNode("option", { value: "false" }, "关", -1)
                             ])], 8, _hoisted_13)), [
@@ -317,7 +309,7 @@ const _sfc_main = {
                               "data-cfg-hist": it.key
                             }, [
                               histories.value[it.key].loading ? (openBlock(), createElementBlock("div", _hoisted_26, "加载历史…")) : !histories.value[it.key].items.length ? (openBlock(), createElementBlock("div", _hoisted_27, " 还没有改过这一项（默认值 " + toDisplayString(it.defaultValue) + "）。 ", 1)) : (openBlock(), createElementBlock("table", _hoisted_28, [
-                                _cache[6] || (_cache[6] = createBaseVNode("thead", null, [
+                                _cache[5] || (_cache[5] = createBaseVNode("thead", null, [
                                   createBaseVNode("tr", null, [
                                     createBaseVNode("th", { style: { "width": "150px" } }, "时间"),
                                     createBaseVNode("th", { style: { "width": "120px" } }, "谁"),
@@ -335,7 +327,7 @@ const _sfc_main = {
                                       createBaseVNode("td", _hoisted_31, toDisplayString(row.operator || "—"), 1),
                                       createBaseVNode("td", null, [
                                         createBaseVNode("code", null, toDisplayString(oldText(it, row)), 1),
-                                        _cache[5] || (_cache[5] = createBaseVNode("span", { class: "muted" }, " → ", -1)),
+                                        _cache[4] || (_cache[4] = createBaseVNode("span", { class: "muted" }, " → ", -1)),
                                         createBaseVNode("code", null, toDisplayString(row.newValue), 1)
                                       ]),
                                       createBaseVNode("td", null, [
@@ -364,7 +356,7 @@ const _sfc_main = {
     };
   }
 };
-const ConfigView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-ab4d8eca"]]);
+const ConfigView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-8908019b"]]);
 export {
   ConfigView as default
 };

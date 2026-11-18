@@ -225,10 +225,5 @@ public class ConfigService {
         loadedAt.remove(k);
     }
 
-    void invalidateAll() {
-        cache.clear();
-        loadedAt.clear();
-    }
-
     private static String str(Object v) { return v == null ? null : String.valueOf(v); }
 }
