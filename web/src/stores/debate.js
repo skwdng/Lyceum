@@ -205,19 +205,8 @@ export const useDebateStore = defineStore('debate', {
             (t, idx) => s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded
               || firstUntyped === -1 || idx <= firstUntyped
           );
-      // 流式预览作为列表中的一项（位置和正式发言一致，定稿时不会"跳上去"）
-      const streamItems = Object.entries(s.streaming || {}).map(([seat, x]) => ({
-        __stream: true,
-        seat,
-        seg: x.seg || '',
-        content: x.text || '',
-        status: 'STREAM',
-        step: Number((s.match || {}).step ?? 0)
-      }));
-      const withStream = list.concat(streamItems);
-
-      return withStream.map((t) => {
-        const isStream = !!t.__stream;
+      return list.map((t) => {
+        const isStream = false;   // 列表里不再有合成项（流式渲染已停用，统一走打字机）
         const me = !isStream && s.mySeats.includes(t.seat);
         const timeout = !isStream && t.status === 'TIMEOUT';
         const text = isStream ? (t.content || '') : ((t.content || '').trim() || '（这一轮没有说出内容）');
@@ -228,6 +217,7 @@ export const useDebateStore = defineStore('debate', {
         const shown = typing ? s.shown[key] || 0 : text.length;
         return {
           key,
+          step: t.step,          // 漏洞卡要按 step 找"那句话打完没有"，必须带上
           seat: t.seat,
           seg: t.seg,
           timeout,
@@ -460,7 +450,7 @@ export const useDebateStore = defineStore('debate', {
             this.typed = { ...this.typed, [keyOf(hit)]: true };
             // 定稿：不再接收新字，但让显示把缓冲吐完再换成正式气泡，避免"跳变"
             this.streamDone = { ...(this.streamDone || {}), [seat]: true };
-            this.startStreamTicker();
+            /* 流式预览已停用：交给打字机 */
             if (this.streamedSeats) delete this.streamedSeats[seat];
           }
         }
@@ -485,7 +475,7 @@ export const useDebateStore = defineStore('debate', {
               this.clearStreamingSeat(seat);
               delete this.streamStep[seat];
             }
-            this.startStreamTicker();
+            /* 流式预览已停用：交给打字机 */
           }
         }
 
@@ -554,7 +544,7 @@ export const useDebateStore = defineStore('debate', {
           try {
             const d = JSON.parse(e.data);
             if (d.type === 'flaw') {
-              this.flawOffer = { step: d.step, options: d.options || [] };
+              this.flawOffer = { step: d.step, seat: d.seat || '', options: d.options || [] };
               toast('对方这轮发言埋了一处漏洞，指出来');
               return;
             }
@@ -563,20 +553,10 @@ export const useDebateStore = defineStore('debate', {
             // 才不会因为 key 拼错而漏标（漏标的后果是落库后被打字机重打一遍）。
             // 流式增量：只更新预览，**不触发 load**（一块一条要拉几十次接口）
             if (d.type === 'token') {
-              const seat = d.seat || '';
-              this.streamedSeats = { ...(this.streamedSeats || {}), [seat]: true };
-              this.streamRaw = { ...(this.streamRaw || {}), [seat]: (this.streamRaw[seat] || '') + (d.delta || '') };
-              if (this.streamStep[seat] == null) {
-                this.streamStep = { ...this.streamStep, [seat]: Number((this.match || {}).step ?? 0) };
-              }
-              if (!this.streaming[seat]) {
-                this.streaming = { ...this.streaming, [seat]: { seg: d.seg || '', text: '' } };
-              } else if (d.seg && this.streaming[seat].seg !== d.seg) {
-                this.streaming = { ...this.streaming, [seat]: { ...this.streaming[seat], seg: d.seg } };
-              }
-              this.startStreamTicker();
+              // 前端不再渲染流式增量：统一走打字机（服务端仍然流式生成，只是界面按自己的节奏播）
               return;
             }
+
           } catch (err) {
             /* 非 JSON 帧直接忽略 */
           }

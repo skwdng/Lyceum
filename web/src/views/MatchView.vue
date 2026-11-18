@@ -200,6 +200,27 @@ function insertCard(c) {
   toast(c.verified ? '已插入（可信来源）' : '已插入，注意这条标了「需核实」');
 }
 
+/**
+ * 漏洞卡什么时候出现：
+ * 服务端在 AI 说完的同时就把"埋了漏洞"推过来了，但界面上那句话还在打字。
+ * 直接弹卡会让人觉得"对方还没说完就让我抓"——所以等那一条打完再显示。
+ */
+const flawReady = computed(() => {
+  const o = debate.flawOffer;
+  if (!o) return false;
+  const t = (debate.turnsView || []).find((x) => Number(x.step) === Number(o.step));
+  if (!t) return false;          // 那句话还没到
+  return !t.typing;              // 打完才让抓
+});
+
+/** 漏洞针对的那一句（席位 + 环节） */
+const flawTarget = computed(() => {
+  const o = debate.flawOffer;
+  if (!o) return '';
+  const t = (debate.turnsView || []).find((x) => Number(x.step) === Number(o.step));
+  return t ? t.seat + ' · ' + t.seg : '';
+});
+
 async function answerFlaw(opt) {
   // 判定由后端在下一轮计分里体现；这里只需要把用户的选择记下并关闭面板
   toast('已记录你的判断：「' + opt + '」');
@@ -368,12 +389,12 @@ const verdictOf = (t) => (t.typing ? '' : '');
 
         <!-- 抓漏洞 -->
         <div
-          v-if="debate.flawOffer"
+          v-if="flawReady"
           class="card"
           style="margin-top: 12px; border-color: #e3c08a; background: #fff9f0"
         >
           <div class="row" style="justify-content: space-between">
-            <b style="font-size: 12.5px">这一轮对方发言有逻辑问题 —— 你抓到了吗？</b>
+            <b style="font-size: 12.5px">对方那句有逻辑问题 —— 你抓到了吗？<span v-if="flawTarget" class="tag" style="margin-left:8px">{{ flawTarget }}</span></b>
             <span class="tag o">抓对 +3</span>
           </div>
           <div class="row" style="gap: 8px; margin-top: 10px; flex-wrap: wrap">
