@@ -66,7 +66,21 @@ const cdColor = computed(() => {
 onMounted(async () => {
   // 支持深链 #/match?match=<id>：多人房里队友刷新页面、或从房间/消息点进来时，
   // 内存里没有 matchId，但后端允许 owner 与同房间席位成员读这一场（MatchAccess）。
-  if (!debate.matchId && route.query.match) debate.matchId = String(route.query.match);
+  if (!debate.matchId && route.query.match) debate.rememberMatch(route.query.match);
+
+  // 刷新页面：地址栏没有 ?match= 时，从本地记住的那场接回来
+
+  if (!debate.matchId) {
+
+    try {
+
+      const saved = localStorage.getItem('sy_match');
+
+      if (saved) debate.rememberMatch(saved);
+
+    } catch (e) { /* 忽略 */ }
+
+  }
   // 直接刷新/从别处进来：matchId 可能不在内存里
   if (!debate.matchId) {
     router.replace({ name: 'solo' });

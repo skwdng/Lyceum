@@ -17,7 +17,8 @@ export const SEATS = [
 ];
 
 const LS = {
-  seats: 'sy_seats', mode: 'sy_mode', pace: 'sy_pace', diff: 'sy_diff', tier: 'sy_tier'
+  seats: 'sy_seats', mode: 'sy_mode', pace: 'sy_pace', diff: 'sy_diff', tier: 'sy_tier',
+  match: 'sy_match'
 };
 
 function readSeats() {
@@ -110,7 +111,11 @@ export const useDebateStore = defineStore('debate', {
      * 模型一边生成，服务端一边推 token，这里攒起来直接渲染；
      * 收到正式 turn 时清掉对应席位（以落库文本为准，避免校验过的文本和原始流不一致）。
      */
-    streaming: {},
+    streaming: {},            // 给界面看的：{ seat: { seg, text(已显示的部分) } }
+    streamRaw: {},            // 实际收到的完整文本 { seat: text }
+    streamShown: {},          // 已经显示了多少字 { seat: n }
+    streamDone: {},           // 这个席位是否已经定稿（等显示追平后清掉）
+    streamTimer: null,
 
     // 打字机
     shown: {},
@@ -178,18 +183,34 @@ export const useDebateStore = defineStore('debate', {
       sorted.forEach((t, i) => {
         if (s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded) return;
         if (i < lastMine) return;
-        if (!s.typed[keyOf(t)] && firstUntyped < 0) firstUntyped = i;
+        if (!s.typed[keyOf(t)] && !s.streamedKeys[keyOf(t)] && firstUntyped < 0) firstUntyped = i;
       });
-      const list = sorted.filter(
-        (t, idx) => s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded
-          || firstUntyped === -1 || idx <= firstUntyped
+      // 打字机一次只放一条，会把还没"轮到打字"的发言藏起来。
+      // 有流式气泡在时不能藏——否则会出现 A1 → A2流式，B1 凭空消失。
+      const streaming = Object.keys(s.streaming || {}).length > 0;
+      // 预览还在吐字的席位：它对应的正式发言先别显示，避免同一句话出现两次
+      const hiddenByPreview = new Set(
+        Object.keys(s.streaming || {})
+          .filter((seat) => s.streamDone && s.streamDone[seat])
+          .map((seat) => {
+            const last = sorted.filter((x) => x.seat === seat).pop();
+            return last ? keyOf(last) : '';
+          })
+          .filter(Boolean)
       );
+      const list = streaming
+        ? sorted.filter((x) => !hiddenByPreview.has(keyOf(x)))
+        : sorted.filter(
+            (t, idx) => s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded
+              || firstUntyped === -1 || idx <= firstUntyped
+          );
       return list.map((t) => {
         const me = s.mySeats.includes(t.seat);
         const timeout = t.status === 'TIMEOUT';
         const text = (t.content || '').trim() || '（这一轮没有说出内容）';
         const key = keyOf(t);
         const streamed = !!s.streamedKeys[key];      // 流式已经显示过：直接全文，别再打一遍
+        const alreadyTyped = streamed || !!s.typed[key];
         const typing = !me && !timeout && !streamed && !s.typed[key] && !forceFull.has(key);
         const shown = typing ? s.shown[key] || 0 : text.length;
         return {
@@ -283,7 +304,7 @@ export const useDebateStore = defineStore('debate', {
       if (!payload.topicId && this.pendingTitle) payload.title = this.pendingTitle;
       try {
         const r = await debateApi.createMatch(payload);
-        this.matchId = r.matchId;
+        this.rememberMatch(r.matchId);
         this.pendingTitle = null;
         return r.matchId;
       } catch (e) {
@@ -293,14 +314,27 @@ export const useDebateStore = defineStore('debate', {
     },
 
     /** 进入对局页时调用：拉一次 + 起轮询 + 连 SSE */
+    /** 记住当前对局 id（刷新后能接回来） */
+    rememberMatch(id) {
+      this.matchId = id ? String(id) : null;
+      try {
+        if (id) localStorage.setItem('sy_match', String(id));
+        else localStorage.removeItem('sy_match');
+      } catch (e) { /* 隐私模式等，忽略 */ }
+    },
+
     async start(matchId) {
-      this.matchId = String(matchId);   // 对局 id 是字符串（m9324a4c326），不能当数字
+      this.rememberMatch(matchId);   // 对局 id 是字符串（m9324a4c326），不能当数字；同时落盘，刷新能接回来
       this.turns = [];
       this.match = null;
       this.typed = {};
       this.shown = {};
       this.streamedKeys = {};
       this.streamedSeats = {};
+      this.streamRaw = {};
+      this.streamShown = {};
+      this.streamDone = {};
+      if (this.streamTimer) { clearInterval(this.streamTimer); this.streamTimer = null; }
       this.flawOffer = null;
       this.review = null;
       this.panel = null;
@@ -310,6 +344,57 @@ export const useDebateStore = defineStore('debate', {
     },
 
     /** 流式预览转正：正式发言落库后，把该席位的预览清掉 */
+    /**
+     * 流式渲染节流：模型吐字很快（1.5 秒 200 多块），直接贴上去会"唰一下全出来"。
+     * 这里按固定速度消费缓冲，视觉上才是正常的逐字输出。
+     *
+     * 速度：每 60ms 2 个字 ≈ 33 字/秒，接近正常阅读速度；
+     * 落后太多（比如整段已经收完）时加速，最多 10 字/次，别让人干等。
+     */
+    startStreamTicker() {
+      if (this.streamTimer) return;
+      // 速度：每 50ms 2 字 ≈ 40 字/秒（300 字约 7.5 秒，接近发言语速）；
+      // 落后过多（整段已收完）才加速追帧，最多 6 字/次。
+      this.streamTimer = setInterval(() => {
+        const seats = Object.keys(this.streamRaw || {});
+        let active = false;
+        const nextText = { ...this.streaming };
+        const nextShown = { ...this.streamShown };
+
+        for (const seat of seats) {
+          const raw = this.streamRaw[seat] || '';
+          const shown = this.streamShown[seat] || 0;
+          if (shown >= raw.length) {
+            // 显示追平了：定稿的直接清掉预览（由 turns 渲染），未定稿的留着等更多字
+            if (this.streamDone[seat]) {
+              delete nextText[seat];
+              delete this.streamRaw[seat];
+              delete nextShown[seat];
+              delete this.streamDone[seat];
+            }
+            continue;
+          }
+          const remain = raw.length - shown;
+          // 稳定 2 字/50ms ≈ 40 字/秒（380 字约 9.5 秒）。
+          // 不做"前快后慢"的追帧——那样看起来还是一口气吐完。
+          const step = remain > 200 ? 3 : 2;
+          nextShown[seat] = Math.min(raw.length, shown + step);
+          nextText[seat] = {
+            seg: (this.streaming[seat] || {}).seg || '',
+            text: raw.slice(0, nextShown[seat])
+          };
+          active = true;
+        }
+
+        this.streaming = nextText;
+        this.streamShown = nextShown;
+        if (!active && !Object.keys(this.streamRaw || {}).length) {
+          clearInterval(this.streamTimer);
+          this.streamTimer = null;
+        }
+      }, 50);
+    },
+
     clearStreamingSeat(seat) {
       if (!seat || !this.streaming[seat]) return;
       const next = { ...this.streaming };
@@ -345,7 +430,11 @@ export const useDebateStore = defineStore('debate', {
             const hit = (d.turns || []).filter((x) => x.seat === seat).pop();
             if (!hit) continue;
             this.streamedKeys = { ...this.streamedKeys, [keyOf(hit)]: true };
-            this.clearStreamingSeat(seat);
+            // 同步标 typed：打字机截断用的是 typed，不标的话下一句会被截掉（实测少一条）
+            this.typed = { ...this.typed, [keyOf(hit)]: true };
+            // 定稿：不再接收新字，但让显示把缓冲吐完再换成正式气泡，避免"跳变"
+            this.streamDone = { ...(this.streamDone || {}), [seat]: true };
+            this.startStreamTicker();
             if (this.streamedSeats) delete this.streamedSeats[seat];
           }
         }
@@ -426,10 +515,13 @@ export const useDebateStore = defineStore('debate', {
             if (d.type === 'token') {
               const seat = d.seat || '';
               this.streamedSeats = { ...(this.streamedSeats || {}), [seat]: true };
-              const cur = this.streaming[seat] || { seg: d.seg || '', text: '' };
-              cur.text += d.delta || '';
-              cur.seg = d.seg || cur.seg;
-              this.streaming = { ...this.streaming, [seat]: cur };
+              this.streamRaw = { ...(this.streamRaw || {}), [seat]: (this.streamRaw[seat] || '') + (d.delta || '') };
+              if (!this.streaming[seat]) {
+                this.streaming = { ...this.streaming, [seat]: { seg: d.seg || '', text: '' } };
+              } else if (d.seg && this.streaming[seat].seg !== d.seg) {
+                this.streaming = { ...this.streaming, [seat]: { ...this.streaming[seat], seg: d.seg } };
+              }
+              this.startStreamTicker();
               return;
             }
           } catch (err) {
@@ -701,7 +793,7 @@ export const useDebateStore = defineStore('debate', {
       this.stopPoll();
       this.stopTyping();
       this.stopClock();
-      this.matchId = null;
+      this.rememberMatch(null);
       this.match = null;
       this.turns = [];
       this.remaining = 0;
