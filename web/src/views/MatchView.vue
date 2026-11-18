@@ -331,23 +331,13 @@ const verdictOf = (t) => (t.typing ? '' : '');
                   <span>{{ t.seg }}</span>
                   <span v-if="t.timeout" class="tag r">超时</span>
                   <span v-if="t.degraded" class="tag o" title="模板降级或本地离线草稿，不计入正式评分">离线草稿</span>
+                  <span v-if="t.stream" class="tag blue" title="模型正在生成，先显示已收到的部分">生成中…</span>
                 </div>
                 <div class="bub">
                   <span v-if="t.typing && !t.shown" class="pending">…</span>
-                  <template v-else>{{ t.typing ? t.text.slice(0, t.shown) : t.text }}</template>
+                  <template v-else>{{ t.text.slice(0, t.shown) }}</template><span v-if="t.stream" class="caret">▍</span>
                 </div>
               </div>
-            </div>
-          </div>
-
-          <!-- 流式气泡：模型还在说，先把已有的字显示出来 -->
-          <div v-for="s in streamList" :key="s.key" class="msg" :class="s.seat.startsWith('A') ? 'a' : 'b'">
-            <div class="ava" :class="s.seat.startsWith('A') ? 'a' : 'b'">{{ s.seat.startsWith('A') ? '正' : '反' }}</div>
-            <div class="bd">
-              <div class="hd"><b>AI 辩手</b><span>{{ s.seat }}</span><span>·</span><span>{{ s.seg }}</span>
-                <span class="tag blue" title="模型正在生成，先显示已收到的部分">生成中…</span>
-              </div>
-              <div class="bub">{{ s.text }}<span class="caret">▍</span></div>
             </div>
           </div>
 

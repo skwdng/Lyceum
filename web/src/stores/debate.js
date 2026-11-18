@@ -205,14 +205,26 @@ export const useDebateStore = defineStore('debate', {
             (t, idx) => s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded
               || firstUntyped === -1 || idx <= firstUntyped
           );
-      return list.map((t) => {
-        const me = s.mySeats.includes(t.seat);
-        const timeout = t.status === 'TIMEOUT';
-        const text = (t.content || '').trim() || '（这一轮没有说出内容）';
-        const key = keyOf(t);
-        const streamed = !!s.streamedKeys[key];      // 流式已经显示过：直接全文，别再打一遍
-        const alreadyTyped = streamed || !!s.typed[key];
-        const typing = !me && !timeout && !streamed && !s.typed[key] && !forceFull.has(key);
+      // 流式预览作为列表中的一项（位置和正式发言一致，定稿时不会"跳上去"）
+      const streamItems = Object.entries(s.streaming || {}).map(([seat, x]) => ({
+        __stream: true,
+        seat,
+        seg: x.seg || '',
+        content: x.text || '',
+        status: 'STREAM',
+        step: Number((s.match || {}).step ?? 0)
+      }));
+      const withStream = list.concat(streamItems);
+
+      return withStream.map((t) => {
+        const isStream = !!t.__stream;
+        const me = !isStream && s.mySeats.includes(t.seat);
+        const timeout = !isStream && t.status === 'TIMEOUT';
+        const text = isStream ? (t.content || '') : ((t.content || '').trim() || '（这一轮没有说出内容）');
+        const key = isStream ? 'stream|' + t.seat : keyOf(t);
+        const streamed = !isStream && !!s.streamedKeys[key];
+        const alreadyTyped = streamed || (!isStream && !!s.typed[key]);
+        const typing = !isStream && !me && !timeout && !streamed && !s.typed[key] && !forceFull.has(key);
         const shown = typing ? s.shown[key] || 0 : text.length;
         return {
           key,
@@ -220,7 +232,9 @@ export const useDebateStore = defineStore('debate', {
           seg: t.seg,
           timeout,
           /** 这一条是模板降级（服务端 TEMPLATE）或本地离线草稿 —— 界面要标出来 */
-          degraded: !!t.degraded || t.status === 'TEMPLATE',
+          degraded: !isStream && (!!t.degraded || t.status === 'TEMPLATE'),
+          /** 这一条是"正在生成"的预览（界面标「生成中…」并显示光标） */
+          stream: isStream,
           me,
           side: String(t.seat).startsWith('A') ? 'a' : 'b',
           text,
@@ -379,7 +393,12 @@ export const useDebateStore = defineStore('debate', {
           const remain = raw.length - shown;
           // 稳定 2 字/50ms ≈ 40 字/秒（380 字约 9.5 秒）。
           // 不做"前快后慢"的追帧——那样看起来还是一口气吐完。
-          const step = remain > 200 ? 3 : 2;
+          const hidden = (typeof document !== 'undefined') && document.hidden;
+          const done = !!this.streamDone[seat];
+          // 已定稿 / 页面在后台：快速收尾，避免"上一句还在打字"或回前台看到半句话
+          const step = hidden ? remain
+            : done ? Math.max(6, Math.ceil(remain / 3))
+            : remain > 200 ? 3 : 2;
           nextShown[seat] = Math.min(raw.length, shown + step);
           nextText[seat] = {
             seg: (this.streaming[seat] || {}).seg || '',
@@ -459,11 +478,14 @@ export const useDebateStore = defineStore('debate', {
               this.streamedKeys = { ...this.streamedKeys, [keyOf(hit)]: true };
               this.typed = { ...this.typed, [keyOf(hit)]: true };
             }
-            this.clearStreamingSeat(seat);
-            delete this.streamRaw[seat];
-            delete this.streamShown[seat];
-            delete this.streamDone[seat];
-            delete this.streamStep[seat];
+            // 不直接删：标成"定稿"，匀速显示把剩下的字吐完，ticker 再换成正式发言。
+            // 直接删会让剩下的字一次性补齐 —— 就是用户说的"啪一下全出来"。
+            this.streamDone = { ...this.streamDone, [seat]: true };
+            if (!this.streamRaw[seat]) {          // 一点都没收到才直接清
+              this.clearStreamingSeat(seat);
+              delete this.streamStep[seat];
+            }
+            this.startStreamTicker();
           }
         }
 
