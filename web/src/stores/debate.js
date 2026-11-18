@@ -114,6 +114,8 @@ export const useDebateStore = defineStore('debate', {
 
     // 打字机
     shown: {},
+    /** 已经通过流式显示过的轮次（keyOf）——这些不再走打字机 */
+    streamedKeys: {},
     typed: {},
     stickBottom: true,
     /** 用户最后一次手动滚动的时间戳：打字机 600ms 内不自动滚（旧版同款防拽） */
@@ -187,7 +189,8 @@ export const useDebateStore = defineStore('debate', {
         const timeout = t.status === 'TIMEOUT';
         const text = (t.content || '').trim() || '（这一轮没有说出内容）';
         const key = keyOf(t);
-        const typing = !me && !timeout && !s.typed[key] && !forceFull.has(key);
+        const streamed = !!s.streamedKeys[key];      // 流式已经显示过：直接全文，别再打一遍
+        const typing = !me && !timeout && !streamed && !s.typed[key] && !forceFull.has(key);
         const shown = typing ? s.shown[key] || 0 : text.length;
         return {
           key,
@@ -296,6 +299,8 @@ export const useDebateStore = defineStore('debate', {
       this.match = null;
       this.typed = {};
       this.shown = {};
+      this.streamedKeys = {};
+      this.streamedSeats = {};
       this.flawOffer = null;
       this.review = null;
       this.panel = null;
@@ -326,6 +331,25 @@ export const useDebateStore = defineStore('debate', {
         const prevPhase = this.phase;
         this.match = d.match;
         this.turns = d.turns || [];
+
+        // 流式收尾：这个席位是"边生成边显示"过来的，落库后
+        //   · 立刻清掉「生成中…」预览
+        //   · 用落库那条 turn 的 keyOf 标成已显示，跳过打字机
+        //     （不标的话，用户会看到字缩回去、从头再打一遍——实测 6 → 100）
+        {
+          const seats = new Set([
+            ...Object.keys(this.streaming || {}),
+            ...Object.keys(this.streamedSeats || {})
+          ]);
+          for (const seat of seats) {
+            const hit = (d.turns || []).filter((x) => x.seat === seat).pop();
+            if (!hit) continue;
+            this.streamedKeys = { ...this.streamedKeys, [keyOf(hit)]: true };
+            this.clearStreamingSeat(seat);
+            if (this.streamedSeats) delete this.streamedSeats[seat];
+          }
+        }
+
         this.remaining = d.remainingSec || 0;
         this.extendUsed = d.extendUsed || 0;
         this.phase = d.phase || 'STEP';
@@ -395,9 +419,13 @@ export const useDebateStore = defineStore('debate', {
               toast('对方这轮发言埋了一处漏洞，指出来');
               return;
             }
+            // 正式发言到了：这里**只记下"这个席位是流式显示过的"**，
+            // 真正的清理放在 load() 里做——那里能拿到真实的 step/seat 拼出 keyOf，
+            // 才不会因为 key 拼错而漏标（漏标的后果是落库后被打字机重打一遍）。
             // 流式增量：只更新预览，**不触发 load**（一块一条要拉几十次接口）
             if (d.type === 'token') {
               const seat = d.seat || '';
+              this.streamedSeats = { ...(this.streamedSeats || {}), [seat]: true };
               const cur = this.streaming[seat] || { seg: d.seg || '', text: '' };
               cur.text += d.delta || '';
               cur.seg = d.seg || cur.seg;
