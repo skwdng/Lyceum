@@ -1,5 +1,7 @@
 package com.siyige.billing;
 
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigService;
 import com.siyige.ai.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,10 @@ import java.util.Map;
  *   服务费   = 固定一小笔（默认 0.30 元）
  * </pre>
  *
+ * <p><b>服务费与赠送金后台可改</b>（参数管理第一批）：{@code billing.service-fee-cents} /
+ * {@code billing.welcome-grant-cents} 改成每次现读，后台改完**下一场**就按新价算，不用重启。
+ * 每千 token 单价与预估 token 本期不搬（属第二批）。
+ *
  * <p>流程：开局**预扣**（按预估 token 冻结）→ 结束**结算**（按实际用量多退少补）。
  * 单人本地运行时每个进程只有一个用户在对局，token 归属用「开局/结束时的全局计数差值」，
  * 多用户并发时应改为按请求线程打标（见 settle 的注释）。
@@ -34,29 +40,40 @@ public class WalletService {
 
     /** 每千 token 收多少钱（分）。默认 3 分/千 token ≈ 0.03 元，比官方价略高一点作为毛利。 */
     private final long centsPer1kTokens;
-    /** 每场固定服务费（分）。默认 30 分 = 0.30 元。 */
-    private final long serviceFeeCents;
     /** 开局预扣的预估 token（一场约 9k，留点余量）。 */
     private final long estimateTokens;
-    /** 新用户赠送（分）。 */
-    private final long welcomeGrantCents;
+    /**
+     * 服务费 / 新用户赠送从后台参数读（参数管理第一批）。
+     *
+     * <p>这两个字段原来也是 {@code @Value} 冻在构造期，改完必须重启才生效 ——
+     * 而现在它们直接影响**钱**，后台改完必须立刻按新值算。
+     */
+    private final ConfigService cfg;
 
     public WalletService(WalletRepo repo, LlmClient llm,
                          @Value("${siyige.billing.cents-per-1k-tokens:3}") long centsPer1kTokens,
-                         @Value("${siyige.billing.service-fee-cents:30}") long serviceFeeCents,
                          @Value("${siyige.billing.estimate-tokens:9000}") long estimateTokens,
-                         @Value("${siyige.billing.welcome-grant-cents:100}") long welcomeGrantCents) {
+                         ConfigService cfg) {
         this.repo = repo;
         this.llm = llm;
         this.centsPer1kTokens = centsPer1kTokens;
-        this.serviceFeeCents = serviceFeeCents;
         this.estimateTokens = estimateTokens;
-        this.welcomeGrantCents = welcomeGrantCents;
+        this.cfg = cfg;
+    }
+
+    /** 每场固定服务费（分）。默认 30 分 = 0.30 元，后台可改。 */
+    private long serviceFeeCents() {
+        return cfg.getInt(ConfigKey.BILLING_SERVICE_FEE);
+    }
+
+    /** 新用户赠送（分）。默认 100 分 = 1 元，后台可改。 */
+    private long welcomeGrantCents() {
+        return cfg.getInt(ConfigKey.BILLING_WELCOME_GRANT);
     }
 
     /** 一场的预估费用 = 预估 token 成本 + 服务费。 */
     public long estimateCents() {
-        return costOf(estimateTokens) + serviceFeeCents;
+        return costOf(estimateTokens) + serviceFeeCents();
     }
 
     private long costOf(long tokens) {
@@ -70,9 +87,10 @@ public class WalletService {
         long bal = repo.balance(userId);
         List<Map<String, Object>> h = repo.history(userId, 5);
         if (h.isEmpty()) {
-            repo.add(userId, welcomeGrantCents);
+            long grant = welcomeGrantCents();
+            repo.add(userId, grant);
             bal = repo.balance(userId);
-            repo.log(userId, "GRANT", welcomeGrantCents, bal, null, "新用户体验金");
+            repo.log(userId, "GRANT", grant, bal, null, "新用户体验金");
         }
         return bal;
     }
@@ -113,13 +131,14 @@ public class WalletService {
     public Map<String, Object> settle(String userId, String matchId, long actualTokens) {
         ensureWallet(userId);
         long used = Math.max(0, actualTokens);
-        long should = costOf(used) + serviceFeeCents;
+        long fee = serviceFeeCents();
+        long should = costOf(used) + fee;
 
         // 已预扣
         long held = -repo.matchNet(userId, matchId);   // 净支出（正数）
         long delta = held - should;                     // >0 应退，<0 应补
         String note = "结算：本场 " + used + " token，模型成本 " + costOf(used)
-                + " 分 + 服务费 " + serviceFeeCents + " 分";
+                + " 分 + 服务费 " + fee + " 分";
         if (delta > 0) {
             repo.add(userId, delta);
             repo.log(userId, "REFUND", delta, repo.balance(userId), matchId, note + "（退差额）");
@@ -133,7 +152,7 @@ public class WalletService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("tokens", used);
         out.put("modelCostCents", costOf(used));
-        out.put("serviceFeeCents", serviceFeeCents);
+        out.put("serviceFeeCents", fee);
         out.put("totalCents", should);
         out.put("refundCents", Math.max(0, delta));
         out.put("extraCents", Math.max(0, -delta));
@@ -166,7 +185,7 @@ public class WalletService {
         out.put("ownKey", true);
         out.put("tokens", 0);
         out.put("modelCostCents", 0);
-        out.put("serviceFeeCents", serviceFeeCents);
+        out.put("serviceFeeCents", serviceFeeCents());
         out.put("totalCents", should);
         out.put("refundCents", Math.max(0, delta));
         out.put("extraCents", Math.max(0, -delta));
@@ -183,9 +202,9 @@ public class WalletService {
         out.put("balanceCents", repo.balance(userId));
         out.put("estimateCents", estimateCents());
         out.put("centsPer1kTokens", centsPer1kTokens);
-        out.put("serviceFeeCents", serviceFeeCents);
+        out.put("serviceFeeCents", serviceFeeCents());
         out.put("estimateTokens", estimateTokens);
-        out.put("welcomeGrantCents", welcomeGrantCents);
+        out.put("welcomeGrantCents", welcomeGrantCents());
         return out;
     }
 

@@ -2,6 +2,8 @@ package com.siyige.community;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -26,7 +28,8 @@ import java.util.concurrent.TimeUnit;
  * <ol>
  *   <li><b>规范化</b>：`name`（展示用，保留样子）+ `name_key`（小写去空格，唯一性用）</li>
  *   <li><b>校验</b>：长度按**码点**算 1-12、禁用字符、敏感词（命中直接拒，不打码）</li>
- *   <li><b>限额</b>：每帖 ≤5、每人每天新建 ≤10（Redis 计数，Redis 挂了就放行）</li>
+ *   <li><b>限额</b>：每帖 ≤5、每人每天新建 ≤10（Redis 计数，Redis 挂了就放行）；
+ *       这两个数**后台可改**（{@code tag.max-per-post} / {@code tag.max-new-per-day}），改完立刻生效</li>
  *   <li><b>use_count 重算</b>：任何关联变动后重算受影响标签（禁止 +1/-1）</li>
  * </ol>
  *
@@ -39,10 +42,6 @@ public class TagService {
 
     /** 目前只有帖子标签（表里留了 scope，将来加辩题标签不用改表）。 */
     public static final String SCOPE_POST = "POST";
-    /** 每帖最多 5 个。 */
-    public static final int MAX_PER_POST = 5;
-    /** 每人每天最多新建 10 个。 */
-    public static final int MAX_NEW_PER_DAY = 10;
     /** 名称长度：按码点算（中文/emoji 用 length() 会算错）。 */
     public static final int NAME_MIN_CP = 1;
     public static final int NAME_MAX_CP = 12;
@@ -68,13 +67,22 @@ public class TagService {
     private final SensitiveWordMasker masker;
     /** 热门标签缓存 + 每日新建配额；Redis 不可用时全部降级放行（社区其它功能也是这个原则）。 */
     private final StringRedisTemplate redis;
+    /** 两个限额从后台参数读（参数管理第一批）：不再写常量，改完立刻生效。 */
+    private final ConfigService cfg;
     private final ObjectMapper json = new ObjectMapper();
 
-    public TagService(TagRepo repo, SensitiveWordMasker masker, StringRedisTemplate redis) {
+    public TagService(TagRepo repo, SensitiveWordMasker masker, StringRedisTemplate redis, ConfigService cfg) {
         this.repo = repo;
         this.masker = masker;
         this.redis = redis;
+        this.cfg = cfg;
     }
+
+    /** 每帖最多几个标签（每次现读后台参数）。 */
+    private int maxPerPost() { return cfg.getInt(ConfigKey.TAG_MAX_PER_POST); }
+
+    /** 每人每天最多新建几个标签（每次现读后台参数）。 */
+    private int maxNewPerDay() { return cfg.getInt(ConfigKey.TAG_MAX_NEW_PER_DAY); }
 
     // ==================== 规范化 / 校验 ====================
 
@@ -201,7 +209,8 @@ public class TagService {
      *
      * @param createdBy 谁创建的（用户 id；后台预置时是管理员账号）
      * @param rawNames  用户传的标签名（可空 = 不打标签，老客户端兼容）
-     * @throws IllegalArgumentException `TAG_LIMIT`（超过 5 个）/ `TAG_INVALID` / `TAG_BLOCKED` / `TAG_QUOTA`
+     * @throws IllegalArgumentException `TAG_LIMIT`（超过当前上限，默认 5 个）/
+     *     `TAG_INVALID` / `TAG_BLOCKED` / `TAG_QUOTA`
      */
     @Transactional
     public List<Map<String, Object>> bindPostTags(long postId, String createdBy, List<?> rawNames) {
@@ -231,8 +240,10 @@ public class TagService {
     public List<Long> resolveTagIds(String createdBy, List<?> rawNames, boolean enforceQuota) {
         List<String> names = readNames(rawNames);
         if (names.isEmpty()) return List.of();
-        if (names.size() > MAX_PER_POST) {
-            throw new IllegalArgumentException("TAG_LIMIT: 每篇帖子最多 " + MAX_PER_POST + " 个标签");
+        int max = maxPerPost();
+        if (names.size() > max) {
+            // 文案里用**当前**上限：后台改成 2 之后，报错要写 2 而不是写死的 5
+            throw new IllegalArgumentException("TAG_LIMIT: 每篇帖子最多 " + max + " 个标签");
         }
 
         List<Long> ids = new ArrayList<>(names.size());
@@ -295,9 +306,10 @@ public class TagService {
         try {
             String v = redis.opsForValue().get(quotaKey(createdBy));
             int used = v == null ? 0 : Integer.parseInt(v);
-            if (used >= MAX_NEW_PER_DAY) {
+            int maxNew = maxNewPerDay();
+            if (used >= maxNew) {
                 throw new IllegalArgumentException(
-                        "TAG_QUOTA: 今天最多新建 " + MAX_NEW_PER_DAY + " 个标签，明天再来");
+                        "TAG_QUOTA: 今天最多新建 " + maxNew + " 个标签，明天再来");
             }
         } catch (IllegalArgumentException e) {
             throw e;                                   // 配额超限要原样抛出去

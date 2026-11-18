@@ -1,5 +1,8 @@
 package com.siyige.community;
 
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigRepo;
+import com.siyige.admin.config.ConfigService;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +37,8 @@ class TagServiceTest {
     private ValueOperations<String, String> ops;
     private TagService service;
     private CommunityRepo community;
+    /** 参数管理的读写入口（限额从它读，测试里可以直接改） */
+    private ConfigService cfg;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -44,7 +49,7 @@ class TagServiceTest {
         ds.setPassword("");
         try (Connection c = ds.getConnection()) {
             for (String f : new String[]{"schema.sql", "schema-community.sql", "schema-tag.sql",
-                    "schema-auth.sql", "schema-admin.sql", "schema-security.sql"}) {
+                    "schema-auth.sql", "schema-admin.sql", "schema-security.sql", "schema-config.sql"}) {
                 ScriptUtils.executeSqlScript(c, new ClassPathResource(f));
             }
         }
@@ -55,7 +60,8 @@ class TagServiceTest {
         redis = mock(StringRedisTemplate.class);
         ops = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(ops);
-        service = new TagService(repo, new SensitiveWordMasker(List.of("加微信")), redis);
+        cfg = new ConfigService(new ConfigRepo(jdbc));
+        service = new TagService(repo, new SensitiveWordMasker(List.of("加微信")), redis, cfg);
     }
 
     private long post(String author) {
@@ -132,6 +138,38 @@ class TagServiceTest {
         when(ops.get(anyString())).thenReturn("9");
         assertDoesNotThrow(() -> service.resolveTagIds("u3", List.of("另一个新标签"), true));
         verify(ops, atLeastOnce()).increment(contains("tag:new:"));   // 用掉一个额度要记账
+    }
+
+    // ==================== 限额来自后台参数（参数管理第一批） ====================
+
+    @Test
+    void 后台把每帖上限改成2_3个标签立刻被拒_改回5又通过() {
+        cfg.set(ConfigKey.TAG_MAX_PER_POST, "2", "admin");
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.resolveTagIds("u-cfg1", List.of("b1", "b2", "b3"), true));
+        assertTrue(e.getMessage().startsWith("TAG_LIMIT"), e.getMessage());
+        assertTrue(e.getMessage().contains("最多 2 个"), "报错文案要用当前上限，不能是写死的 5：" + e.getMessage());
+
+        // 改回 5（同一个 service 实例、不重启）
+        cfg.set(ConfigKey.TAG_MAX_PER_POST, "5", "admin");
+        List<Long> ids = service.resolveTagIds("u-cfg1", List.of("b1", "b2", "b3"), true);
+        assertEquals(3, ids.size(), "改回 5 之后同样这 3 个标签就该通过");
+    }
+
+    @Test
+    void 后台把每日新建上限改成1_第二个新标签立刻被拒() {
+        cfg.set(ConfigKey.TAG_MAX_NEW_PER_DAY, "1", "admin");
+        when(ops.get(anyString())).thenReturn("1");       // 今天已经新建过 1 个
+
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.resolveTagIds("u-cfg2", List.of("只此一个"), true));
+        assertTrue(e.getMessage().startsWith("TAG_QUOTA"), e.getMessage());
+        assertTrue(e.getMessage().contains("最多新建 1 个"), e.getMessage());
+
+        cfg.set(ConfigKey.TAG_MAX_NEW_PER_DAY, "10", "admin");
+        when(ops.get(anyString())).thenReturn("1");
+        assertDoesNotThrow(() -> service.resolveTagIds("u-cfg2", List.of("第二个新标签"), true));
     }
 
     @Test

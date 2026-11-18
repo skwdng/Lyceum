@@ -1,5 +1,8 @@
 package com.siyige.admin.alert;
 
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigRepo;
+import com.siyige.admin.config.ConfigService;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,16 +28,20 @@ import static org.mockito.Mockito.*;
  * <p>为什么连真 H2：去重靠**唯一索引**、回落靠 `update ... where status='OPEN'`，
  * mock 掉 repo 这些都没测到。SSE 只负责"推一下未读数"，mock 掉不影响结论。
  *
- * <p>阈值取 {@link AlertRule#REPORT_THRESHOLD}（验证期 3）而不是写死 3：
- * 以后上线改成 30，这个测试跟着走，不用改断言。
+ * <p>阈值走参数管理的默认值（{@link ConfigKey#ALERT_REPORT_THRESHOLD} = 3，与改造前的常量一致）：
+ * 断言里从不写死数字，"上线在后台改成 30"之后这些测试照样成立。
  */
 class AlertServiceTest {
 
-    private static final int T = AlertRule.REPORT_THRESHOLD;
+    /** 默认阈值（参数管理的默认值 = 改造前的常量值）；"改阈值"的用例在下面单独造。 */
+    private static final int T = Integer.parseInt(ConfigKey.ALERT_REPORT_THRESHOLD.def());
+    /** 默认积压阈值。 */
+    private static final int BACKLOG = Integer.parseInt(ConfigKey.ALERT_BACKLOG_THRESHOLD.def());
 
     private JdbcTemplate jdbc;
     private AlertRepo repo;
     private AlertSse sse;
+    private ConfigService cfg;
     private AlertService service;
 
     @BeforeEach
@@ -45,14 +52,15 @@ class AlertServiceTest {
         ds.setPassword("");
         try (Connection c = ds.getConnection()) {
             for (String f : new String[]{"schema.sql", "schema-community.sql", "schema-auth.sql",
-                    "schema-admin.sql", "schema-analytics.sql", "schema-alert.sql"}) {
+                    "schema-admin.sql", "schema-analytics.sql", "schema-alert.sql", "schema-config.sql"}) {
                 ScriptUtils.executeSqlScript(c, new ClassPathResource(f));
             }
         }
         jdbc = new JdbcTemplate(ds);
         repo = new AlertRepo(jdbc);
         sse = mock(AlertSse.class);
-        service = new AlertService(repo, sse);
+        cfg = new ConfigService(new ConfigRepo(jdbc));
+        service = new AlertService(repo, sse, cfg);
 
         // 让 DAU 规则不干扰：昨天的活跃统计补一行
         jdbc.update("insert into sy_daily_active(day_key, dau, new_users) values (?, 1, 0)",
@@ -108,6 +116,68 @@ class AlertServiceTest {
         assertEquals(1, alerts(AlertRule.POST_REPORT_BURST).size());
         assertEquals(String.valueOf(p2), alertOf(AlertRule.POST_REPORT_BURST, String.valueOf(p2)).get("target_id"));
         assertEquals((long) (T + 1), num(alertOf(AlertRule.POST_REPORT_BURST, String.valueOf(p2)).get("metric")));
+    }
+
+    // ==================== 阈值来自后台参数（参数管理第一批） ====================
+
+    @Test
+    void 后台把举报阈值改成30_4条举报不再报警_且不用重启() {
+        long p = post("u-th30");
+        reports("POST", p, 4, "PENDING", Instant.now());
+
+        // 默认阈值 3：4 条 > 3，会报
+        service.scan();
+        assertEquals(1, alerts(AlertRule.POST_REPORT_BURST).size(), "默认阈值下 4 条就该报");
+
+        // 后台改成 30（同一个进程、同一个 service 实例，不重启）
+        cfg.set(ConfigKey.ALERT_REPORT_THRESHOLD, "30", "admin");
+        service.scan();
+        assertEquals(AlertRule.STATUS_RESOLVED,
+                alerts(AlertRule.POST_REPORT_BURST).get(0).get("status"),
+                "阈值提到 30 之后，4 条的告警要回落成 RESOLVED");
+    }
+
+    @Test
+    void 后台把举报阈值改成2_仍是正好等于不报_超过才报() {
+        cfg.set(ConfigKey.ALERT_REPORT_THRESHOLD, "2", "admin");
+        long p1 = post("u-th2a");
+        reports("POST", p1, 2, "PENDING", Instant.now());
+        service.scan();
+        assertTrue(alerts(AlertRule.POST_REPORT_BURST).isEmpty(), "改成 2 之后，正好 2 条仍不报（口径不变）");
+
+        long p2 = post("u-th2b");
+        reports("POST", p2, 3, "PENDING", Instant.now());
+        service.scan();
+        assertEquals(1, alerts(AlertRule.POST_REPORT_BURST).size(), "3 条 > 2，要报");
+    }
+
+    @Test
+    void 后台把举报阈值改成2_3条举报报警_标题里的窗口时长仍来自常量() {
+        cfg.set(ConfigKey.ALERT_REPORT_THRESHOLD, "2", "admin");
+        long p = post("u-th2b");
+        reports("POST", p, 3, "PENDING", Instant.now());
+        service.scan();
+        List<Map<String, Object>> rows = alerts(AlertRule.POST_REPORT_BURST);
+        assertEquals(1, rows.size());
+        String title = String.valueOf(rows.get(0).get("title"));
+        assertTrue(title.contains(AlertRule.WINDOW_HOURS + " 小时"), "标题里的窗口时长要走常量：" + title);
+    }
+
+    @Test
+    void 后台把积压阈值改成50_20条积压不再报警_提示里写当前阈值() {
+        for (int i = 0; i < 20; i++) {
+            jdbc.update("insert into sy_report(target_type, target_id, reporter_id, reason, status, created_at) "
+                    + "values('POST', ?, ?, 'SPAM', 'PENDING', ?)", 7000 + i, "c" + i,
+                    Timestamp.from(Instant.now().minusSeconds(3 * 3600)));
+        }
+        service.scan();
+        assertEquals(1, alerts(AlertRule.REPORT_BACKLOG).size(), "默认阈值 10：20 条要报");
+        assertTrue(String.valueOf(alerts(AlertRule.REPORT_BACKLOG).get(0).get("detail")).contains("小时"));
+
+        cfg.set(ConfigKey.ALERT_BACKLOG_THRESHOLD, "50", "admin");
+        service.scan();
+        assertEquals(AlertRule.STATUS_RESOLVED,
+                alerts(AlertRule.REPORT_BACKLOG).get(0).get("status"), "阈值提到 50 之后不该再报");
     }
 
     @Test
@@ -271,7 +341,7 @@ class AlertServiceTest {
 
     @Test
     void 举报积压超阈值才报_并带等待时长() {
-        for (int i = 0; i < AlertRule.BACKLOG_THRESHOLD; i++) {
+        for (int i = 0; i < BACKLOG; i++) {
             jdbc.update("insert into sy_report(target_type, target_id, reporter_id, reason, status, created_at) "
                     + "values('POST', ?, ?, 'SPAM', 'PENDING', ?)", 9000 + i, "b" + i,
                     Timestamp.from(Instant.now().minusSeconds(3 * 3600)));

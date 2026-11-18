@@ -1,5 +1,7 @@
 package com.siyige.admin;
 
+import com.siyige.admin.config.ConfigRepo;
+import com.siyige.admin.config.ConfigService;
 import com.siyige.community.SensitiveWordMasker;
 import com.siyige.community.TagRepo;
 import com.siyige.community.TagService;
@@ -47,7 +49,7 @@ class AdminTagServiceTest {
         ds.setPassword("");
         try (Connection c = ds.getConnection()) {
             for (String f : new String[]{"schema.sql", "schema-community.sql", "schema-tag.sql",
-                    "schema-auth.sql", "schema-admin.sql", "schema-security.sql"}) {
+                    "schema-auth.sql", "schema-admin.sql", "schema-security.sql", "schema-config.sql"}) {
                 ScriptUtils.executeSqlScript(c, new ClassPathResource(f));
             }
         }
@@ -57,7 +59,8 @@ class AdminTagServiceTest {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         ValueOperations<String, String> ops = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(ops);
-        tags = new TagService(tagRepo, new SensitiveWordMasker(List.of("加微信")), redis);
+        tags = new TagService(tagRepo, new SensitiveWordMasker(List.of("加微信")), redis,
+                new ConfigService(new ConfigRepo(jdbc)));
 
         audit = mock(AuditLog.class);
         service = new AdminTagService(tagRepo, tags, audit);

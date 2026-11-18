@@ -1,5 +1,7 @@
 package com.siyige.admin.alert;
 
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,10 @@ import java.util.Set;
  *
  * <p>指标回落：本规则下"这次不再超标"的 OPEN 转 RESOLVED；**ACKED 永远不动**
  * （人点过「已处理」，不该因为指标掉下去又自己变回未处理，设计 §4）。
+ *
+ * <p><b>两个阈值来自后台参数</b>（{@link ConfigKey#ALERT_REPORT_THRESHOLD} /
+ * {@link ConfigKey#ALERT_BACKLOG_THRESHOLD}），每轮扫描开始时读一次：
+ * 后台改完、下次扫描（或手动点一次扫描）即生效，不用重启。
  */
 @Service
 public class AlertService {
@@ -44,10 +50,13 @@ public class AlertService {
 
     private final AlertRepo repo;
     private final AlertSse sse;
+    /** 阈值从后台参数读（参数管理第一批）：改完**下次扫描**生效，不用重启。 */
+    private final ConfigService cfg;
 
-    public AlertService(AlertRepo repo, AlertSse sse) {
+    public AlertService(AlertRepo repo, AlertSse sse, ConfigService cfg) {
         this.repo = repo;
         this.sse = sse;
+        this.cfg = cfg;
     }
 
     // ==================== 扫描 ====================
@@ -64,6 +73,9 @@ public class AlertService {
     public ScanResult scan() {
         Timestamp now = Timestamp.from(Instant.now());
         LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        // 阈值一次扫描只读一遍：同一轮里前后口径必须一致（扫到一半改参数，不该出现半新半旧）
+        int reportThreshold = cfg.getInt(ConfigKey.ALERT_REPORT_THRESHOLD);
+        int backlogThreshold = cfg.getInt(ConfigKey.ALERT_BACKLOG_THRESHOLD);
         List<String> skipped = new ArrayList<>();
         int raised = 0;
         int resolved = 0;
@@ -83,7 +95,7 @@ public class AlertService {
                 String targetType = str(row.get("target_type"));
                 String targetId = str(row.get("target_id"));
                 long cnt = num(row.get("cnt"));
-                if (cnt <= AlertRule.REPORT_THRESHOLD) continue;      // 正好等于阈值不报
+                if (cnt <= reportThreshold) continue;                 // 正好等于阈值不报
 
                 stillHot.add(targetKey(targetType, targetId));
                 String key = AlertRule.contentKey(targetType, targetId, today);
@@ -106,7 +118,7 @@ public class AlertService {
             for (Map.Entry<String, Long> e : perUser.entrySet()) {
                 String userId = e.getKey();
                 long total = e.getValue();
-                if (total <= AlertRule.REPORT_THRESHOLD) continue;
+                if (total <= reportThreshold) continue;
 
                 stillHot.add(targetKey("USER", userId));      // 与 resolveStale 里的键拼法必须一致
                 String key = AlertRule.userKey(userId, today);
@@ -124,13 +136,13 @@ public class AlertService {
             log.debug("跳过积压告警：规则被静音");
         } else {
             long pending = repo.countPendingReports();
-            if (pending > AlertRule.BACKLOG_THRESHOLD) {
+            if (pending > backlogThreshold) {
                 Timestamp oldest = repo.oldestPendingAt();
                 long hours = oldest == null ? 0
                         : Math.max(0, Duration.between(oldest.toInstant(), Instant.now()).toHours());
                 String key = AlertRule.backlogKey(today);
                 Result r = raise(AlertRule.REPORT_BACKLOG, null, null, AlertRule.LEVEL_WARN,
-                        "举报积压 " + pending + " 条（阈值 " + AlertRule.BACKLOG_THRESHOLD + "）",
+                        "举报积压 " + pending + " 条（阈值 " + backlogThreshold + "）",
                         "最老一条已等待 " + hours + " 小时", pending, key, now);
                 if (r == Result.RAISED) raised++;
                 else if (r == Result.TOUCHED) touched++;
