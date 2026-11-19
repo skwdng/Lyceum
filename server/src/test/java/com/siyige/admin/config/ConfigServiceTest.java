@@ -52,6 +52,36 @@ class ConfigServiceTest {
         return n == null ? 0 : n;
     }
 
+    // ==================== 改回默认值 = 删行（"恢复出厂"） ====================
+
+    @Test
+    void 改回默认值会删掉那一行_来源回到默认值且计数准确() {
+        ConfigKey k = ConfigKey.TAG_MAX_PER_POST;
+        assertEquals(0, rows(k.key()), "一开始库里没有行");
+
+        cfg.set(k, "2", "admin");
+        assertEquals(1, rows(k.key()), "改了非默认值 -> 落一行");
+        assertEquals("DB", cfg.view(k).get("source"));
+        assertEquals("2", cfg.view(k).get("value"));
+
+        Map<String, Object> after = cfg.set(k, "5", "admin");   // 5 = 默认值
+        assertEquals(0, rows(k.key()), "改回默认值 -> 那一行被删掉，不能留一条和默认相同的覆盖值");
+        assertEquals("DEFAULT", after.get("source"), "来源要回到默认值");
+        assertEquals("默认值", after.get("sourceLabel"));
+        assertEquals(5, cfg.getInt(k), "读到的仍然是 5");
+
+        // 历史要留两笔：2 和 5（谁改的、从什么改到什么）
+        assertEquals(2, logs(k.key()));
+    }
+
+    @Test
+    void 本来就是默认值时再存一次默认值_什么都不做也不记历史() {
+        ConfigKey k = ConfigKey.ALERT_BACKLOG_THRESHOLD;
+        cfg.set(k, "10", "admin");       // 10 = 默认值，且库里本来没有行
+        assertEquals(0, rows(k.key()), "不该凭空写一行");
+        assertEquals(0, logs(k.key()), "什么都没变，不该记历史");
+    }
+
     // ==================== 红线 3：默认值 = 原值 ====================
 
     @Test
@@ -118,12 +148,14 @@ class ConfigServiceTest {
     }
 
     @Test
-    void 改回默认值也记历史_但值仍然是从库读的() {
+    void 改回默认值等于恢复出厂_行被删掉但读到的值仍然正确() {
         cfg.set(ConfigKey.BILLING_SERVICE_FEE, "50", "admin");
-        cfg.set(ConfigKey.BILLING_SERVICE_FEE, "30", "admin");
-        assertEquals(30, cfg.getInt(ConfigKey.BILLING_SERVICE_FEE));
-        assertEquals(1, rows(ConfigKey.BILLING_SERVICE_FEE.key()), "改回 30 只是值等于默认，行还在");
-        assertEquals("DB", cfg.view(ConfigKey.BILLING_SERVICE_FEE).get("source"));
+        cfg.set(ConfigKey.BILLING_SERVICE_FEE, "30", "admin");   // 30 = 默认值
+        assertEquals(30, cfg.getInt(ConfigKey.BILLING_SERVICE_FEE), "读到的值仍然正确");
+        assertEquals(0, rows(ConfigKey.BILLING_SERVICE_FEE.key()),
+                "改回默认值 -> 删掉那一行（留一行等于默认的覆盖值会让「来源」和「已改过 N 项」失真）");
+        assertEquals("DEFAULT", cfg.view(ConfigKey.BILLING_SERVICE_FEE).get("source"));
+        assertEquals(2, cfg.history(ConfigKey.BILLING_SERVICE_FEE.key(), 10).size(), "两次改动都要留痕");
     }
 
     // ==================== 校验：坏值进不了库 ====================

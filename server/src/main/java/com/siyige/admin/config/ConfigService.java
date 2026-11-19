@@ -170,6 +170,18 @@ public class ConfigService {
     public Map<String, Object> set(ConfigKey k, String rawValue, String operator) {
         String value = k.normalize(rawValue);
         String old = repo.find(k.key());
+
+        // 改回默认值 = 恢复出厂：**删掉那一行**，而不是留一行和默认相同的值。
+        // 这样「来源」会回到默认值、「N 项已改过」的计数也准，且「删掉库里的行就回默认」这句话才自洽。
+        if (value.equals(k.def())) {
+            if (old == null) return view(k);          // 本来就是默认值：什么都不用做，也不记历史
+            repo.delete(k.key());
+            invalidate(k);
+            repo.addLog(k.key(), old, value, operator);
+            log.info("参数已恢复默认（删行） key={} {} -> {} by={}", k.key(), old, value, operator);
+            return view(k);
+        }
+
         repo.upsert(k.key(), value, k.type().name(), operator);
         invalidate(k);
         repo.addLog(k.key(), old, value, operator);

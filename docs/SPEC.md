@@ -1736,3 +1736,121 @@ web/
   SSE 带坏令牌 401。
 - 界面自检 `server/scripts/selftest_vue_alerts.mjs`（8 项）：扫描 → 红点 → 告警页 → 已处理 →
   红点归零 → 同对象不重复 → 另一对象照常触发 → 静音后不产生 → 全部视图可见已处理。
+
+---
+
+## 31. 参数管理（第一批 10 项）（2026-11-19 追加）
+
+> 设计方案《参数管理-设计方案》；分支 `feature-admin-config`。
+> 一句话：**把「启动时读死」的配置改成「每次用到时现读」，后台改了立刻生效，不用重启。**
+
+### 31.1 为什么能热更（机制）
+
+```text
+业务代码 ──> ConfigService.getInt(KEY)
+                 ├─ ① 内存 Map（命中即返回）
+                 ├─ ② sy_config 表（缓存没有才查）
+                 └─ ③ ConfigKey 枚举的默认值（= 改造前的原值）
+```
+
+**Spring 单例冻结的是「对象引用」，不是「对象内部读到的数据」**：所以不再把值存进
+`@Value` 字段，而是每次调用 `ConfigService` 去读（它的字段是 JdbcTemplate + 缓存 Map，引用不变、值可变）。
+
+判断某个配置能不能热更，只看一件事：**这个值是不是每次请求/计算时才被用到**。
+
+| 用到的时机 | 能否热更 | 本期处理 |
+|---|---|---|
+| 每次请求 / 每次计算 | 能 | 改成现读，立即生效 |
+| 构造 bean 时一次（如 `LlmClient` 的 base-url + 已 build 的 HttpClient） | 不能 | 不搬，或搬了标「需重启」 |
+| 启动时一次（数据源 / Redis / 端口 / JWT 密钥） | 不能 | 永远不进后台 |
+
+### 31.2 表（`schema-config.sql`，新文件）
+
+| 表 | 关键列 | 说明 |
+|---|---|---|
+| `sy_config` | `k(主键) / v / type / updated_by / updated_at` | **只存被改过的值**；没有行 = 用默认值 |
+| `sy_config_log` | `k / old_v / new_v / operator / created_at` | 修改历史，可回滚 |
+
+### 31.3 白名单：`ConfigKey` 枚举
+
+后台**不能**写任意 key —— 只有枚举里声明的 10 项可改，键名/类型/范围/默认值/生效方式全在枚举里：
+
+| # | 键 | 类型 | 默认 | 生效 |
+|---|---|---|---|---|
+| 1 | `alert.report.threshold` | INT | 3 | 下次扫描 |
+| 2 | `alert.backlog.threshold` | INT | 10 | 下次扫描 |
+| 3 | `video.audit.console-enabled` | BOOL | true | 立即 |
+| 4 | `ai.tiers.basic.enabled` | BOOL | false | 立即 |
+| 5 | `ai.tiers.basic.base-url` | STRING | `http://127.0.0.1:11434/v1` | 立即 |
+| 6 | `ai.daily-limit` | INT | 5 | 立即 |
+| 7 | `billing.service-fee-cents` | INT | 30 | 立即 |
+| 8 | `billing.welcome-grant-cents` | INT | 100 | 立即 |
+| 9 | `tag.max-per-post` | INT | 5 | 立即 |
+| 10 | `tag.max-new-per-day` | INT | 10 | 立即 |
+
+> 默认值必须等于改造前的原值（yml 里的值 / 代码里的常量）。这是「不启动也零行为变化」的前提，
+> 有单测 `库里没有行时_10项默认值与改造前逐位一致` 守着，谁想顺手改 30 就会红。
+
+### 31.4 写流程
+
+```text
+① 校验（类型 / 范围 / 格式）—— 不合法抛 INVALID_PARAM，库里一个字节都不动
+② 新值等于默认值？ 是 -> 删掉那一行（恢复出厂），记一条历史
+                  否 -> update；影响 0 行则 insert
+③ 失效缓存
+④ 记 sy_config_log(k, old_v, new_v, operator)
+```
+
+第 ② 步的「改回默认值就删行」是为了让三件事同时成立：
+来源显示回「默认值」、「N 项已改过」的计数准确、「删掉库里的行就回默认」这句话自洽。
+
+### 31.5 接口与权限
+
+| 方法 | 路径 | 权限 |
+|---|---|---|
+| GET | `/api/admin/config` | `ADMIN_MANAGE` |
+| POST | `/api/admin/config` | `ADMIN_MANAGE` |
+| GET | `/api/admin/config/log` | `ADMIN_MANAGE` |
+| POST | `/api/admin/config/rollback` | `ADMIN_MANAGE` |
+
+**只有超管**：这些参数直接影响钱（服务费、赠送）与功能开关（复核台、基础版），
+OPS / MOD / VIEWER 一律 403，菜单也看不到。
+
+### 31.6 改造了哪 6 处
+
+| 文件 | 原来 | 现在 |
+|---|---|---|
+| `AlertService` | `AlertRule.REPORT_THRESHOLD` / `BACKLOG_THRESHOLD` 常量 | `cfg.getInt(...)`（每轮扫描开始读一次） |
+| `AdminVideoAuditService` | `@Value` 字段 `consoleEnabled` | `consoleEnabled()` 方法内现读 |
+| `AiTier` | 构造器存 `basicEnabled` / `basicBaseUrl` | 两个方法内现读（model / key 仍留在 yml） |
+| `AiUsageGuard` | `static final DAILY_LIMIT = 5` | 每次 `tryAcquire` 现读后传给 Lua |
+| `WalletService` | 4 个 `@Value` 字段 | 服务费 / 赠送改成现读方法（单价与预扣估算属第二批） |
+| `TagService` | `MAX_PER_POST` / `MAX_NEW_PER_DAY` 常量 | 现读；**报错文案里的数字也跟着变** |
+
+### 31.7 不搬的东西（有意为之）
+
+```text
+x 密钥：SIYIGE_JWT_SECRET / billing.pay-secret / llm.api-key / ai-tier.basic.api-key
+x 基础设施：数据源 / Redis / 端口 / schema-locations / 日志级别
+x 构造期固化：llm.base-url / llm.model（要热更就得每次重建 HttpClient，不值）
+x 词表类：社区敏感词、视频审核词（数据形态是一串词，以后单独做词表管理）
+x 技术性上限：分页 SIZE_MAX / 密码最大长度 / 报表最大跨度（配错会打挂，不开放）
+```
+
+### 31.8 验收（机器化的部分）
+
+```text
+单测 ConfigServiceTest
+  默认值逐位一致 / 读顺序 / 坏值被拒且库不变 / 历史 / 回滚 / 改回默认值删行
+  本来就是默认值再存一次默认值 -> 不写行、不记历史
+回归单测
+  TagServiceTest：上限 2 时 3 个标签被拒、2 个通过（文案带 2）
+  AiTierConfigTest / WalletServiceConfigTest / AiUsageGuardTest
+界面自检 server/scripts/selftest_vue_config.mjs（12 项）
+  改上限 -> 不重启 -> 被拒 -> 改回 -> 通过 -> 坏值被拒 -> 非超管 403 -> 来源徽标正确
+```
+
+### 31.9 多实例的升级路径
+
+现在是单实例：写操作 `cache.remove(key)` 立刻生效，另有 30 秒 TTL 兜底。
+多实例时 A 机改库、B 机缓存仍是旧值，要么接受最长 30 秒延迟，要么上 Redis pub/sub 广播失效（接口不用改）。
