@@ -802,9 +802,16 @@ export const useDebateStore = defineStore('debate', {
      * 所以两种阶段都要给按钮，只有"轮到我说"的时候不给。
      */
     canSkip() {
+      // 只有单人模式、且这一轮是 AI 在说时才给（多人房间/抢拍阶段没有这个概念）
       if (this.kind !== 'solo') return false;
       if (this.waiting) return false;            // 轮到我说，没什么可催
-      return !this.skipBusy;
+      if (this.skipBusy) return false;
+      const step = Number((this.match && this.match.step) || 0);
+      // 这一小阶段已经催过一次 → 先藏起来，进入下一步再出现
+      if (this.skipStep === step) return false;
+      // 刚催完、上一轮的字还在吐：也先别弹，等这段说完（避免"刚点完又冒出来"）
+      if (this.skipStep === step - 1 && this.hasTyping()) return false;
+      return true;
     },
 
     /**
@@ -814,6 +821,9 @@ export const useDebateStore = defineStore('debate', {
      */
     async nudge() {
       if (this.skipBusy) return;
+      const step = Number((this.match && this.match.step) || 0);
+      // 一点下去就先藏按钮：这一小阶段不再给第二次（避免连点/刷）
+      this.skipStep = step;
       if (this.hasTyping()) {
         // 把还没打的字一次性补齐：标 typed + shown 拉满，打字机自然停下
         const typing = (this.turnsView || []).filter((t) => t.typing);
