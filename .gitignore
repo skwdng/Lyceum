@@ -1,4 +1,4 @@
-# ---- 构建产物 ----
+﻿# ---- 构建产物 ----
 server/target/
 *.jar
 *.class
@@ -44,3 +44,4 @@ server/_*.err
 web/node_modules/
 web/.vite/
 web/dist/
+_remote/
