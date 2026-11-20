@@ -97,10 +97,14 @@ const routes = [
       { path: 'users', name: 'admin-users', component: () => import('./views/admin/UsersView.vue'), meta: { title: '用户管理', perm: 'user:read' } },
       { path: 'content/posts', name: 'admin-content-posts', component: () => import('./views/admin/ContentPostsView.vue'), meta: { title: '帖子管理', perm: 'content:read' } },
       { path: 'content/comments', name: 'admin-content-comments', component: () => import('./views/admin/ContentCommentsView.vue'), meta: { title: '评论管理', perm: 'content:read' } },
+      { path: 'tags', name: 'admin-tags', component: () => import('./views/admin/TagsView.vue'), meta: { title: '标签管理', perm: 'content:moderate' } },
+      { path: 'alerts', name: 'admin-alerts', component: () => import('./views/admin/AlertsView.vue'), meta: { title: '告警', perm: 'analytics:read' } },
       { path: 'video-audit', name: 'admin-video-audit', component: () => import('./views/admin/VideoAuditView.vue'), meta: { title: '视频复核', perm: 'video:read' } },
       { path: 'topics', name: 'admin-topics', component: () => import('./views/admin/TopicReviewView.vue'), meta: { title: '辩题审核', perm: 'topic:read' } },
       { path: 'audit', name: 'admin-audit', component: () => import('./views/admin/AuditView.vue'), meta: { title: '处理记录', perm: 'audit:read' } },
       { path: 'admins', name: 'admin-admins', component: () => import('./views/admin/AdminsView.vue'), meta: { title: '管理员管理', perm: 'admin:manage' } },
+      // 参数管理（第一批 10 项）：与管理员管理同一档权限 —— 参数影响钱与功能开关，只给超管
+      { path: 'config', name: 'admin-config', component: () => import('./views/admin/ConfigView.vue'), meta: { title: '参数管理', perm: 'admin:manage' } },
       { path: 'settings', name: 'admin-settings', component: () => import('./views/admin/SettingsView.vue'), meta: { title: '设置' } }
     ]
   },

@@ -21,7 +21,8 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:schema.sql,classpath:schema-community.sql,classpath:schema-video.sql,classpath:schema-auth.sql,classpath:schema-admin.sql,classpath:schema-security.sql,classpath:schema-pay.sql,classpath:schema-userllm.sql,classpath:schema-notify.sql,classpath:schema-ai.sql,classpath:schema-social.sql,classpath:schema-analytics.sql
+      # schema-config.sql 排最后：sy_config / sy_config_log 不引用任何别的表，放末尾不改变既有执行顺序
+      schema-locations: classpath:schema.sql,classpath:schema-community.sql,classpath:schema-tag.sql,classpath:schema-video.sql,classpath:schema-auth.sql,classpath:schema-admin.sql,classpath:schema-security.sql,classpath:schema-pay.sql,classpath:schema-userllm.sql,classpath:schema-notify.sql,classpath:schema-ai.sql,classpath:schema-social.sql,classpath:schema-analytics.sql,classpath:schema-alert.sql,classpath:schema-config.sql
   mvc:
     async:
       request-timeout: 1800000

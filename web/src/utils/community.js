@@ -134,8 +134,18 @@ export function normalizePost(raw) {
     createdAt: timeOf(r.createdAt),
     updatedAt: timeOf(r.updatedAt),
     liked: !!r.liked,
-    status: r.status
+    status: r.status,
+    // T2：标签（后端恒定返回数组；老接口没有这个字段时兜成空数组，模板里不用判 null）
+    tags: Array.isArray(r.tags)
+      ? r.tags.filter((t) => t && t.id != null && t.name).map((t) => ({ id: t.id, name: String(t.name) }))
+      : []
   };
+}
+
+/** T2：卡片上只显示前 n 个标签，其余折叠成 +N（设计方案 §4.2） */
+export function tagsHead(tags, n = 3) {
+  const list = Array.isArray(tags) ? tags : [];
+  return { shown: list.slice(0, n), more: Math.max(0, list.length - n) };
 }
 
 export function normalizeComment(raw) {

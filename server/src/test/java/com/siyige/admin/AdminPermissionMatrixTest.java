@@ -52,8 +52,17 @@ class AdminPermissionMatrixTest {
     @Autowired
     private JwtService jwt;
 
-    /** 每行 = 一个管理接口 + 它要求的权限点（null = 任何已登录管理员都能调）。 */
-    private record Endpoint(String method, String path, String body, Perm need) { }
+    /**
+     * 每行 = 一个管理接口 + 它要求的权限点（null = 任何已登录管理员都能调）。
+     *
+     * <p>{@code allOf} 非空表示"必须**同时**具备这几个权限点"（@Require mode=ALL），
+     * 例如告警的处理接口：既要能看告警（analytics:read），又要能处置（report:resolve）。
+     */
+    private record Endpoint(String method, String path, String body, Perm need, Perm[] allOf) {
+        Endpoint(String method, String path, String body, Perm need) {
+            this(method, path, body, need, null);
+        }
+    }
 
     private static final List<Endpoint> ENDPOINTS = List.of(
             // ---- 举报 ----
@@ -99,6 +108,28 @@ class AdminPermissionMatrixTest {
             new Endpoint("POST", "/api/admin/admins/1/status", "{\"enabled\":true}", Perm.ADMIN_MANAGE),
             new Endpoint("POST", "/api/admin/admins/1/role", "{\"role\":\"SUPER\"}", Perm.ADMIN_MANAGE),
             new Endpoint("POST", "/api/admin/admins/1/reset-pwd", null, Perm.ADMIN_MANAGE),
+            // ---- 告警（A1-A3）----
+            new Endpoint("GET", "/api/admin/alerts", null, Perm.ANALYTICS_READ),
+            new Endpoint("GET", "/api/admin/alerts/unread", null, Perm.ANALYTICS_READ),
+            new Endpoint("GET", "/api/admin/alerts/mutes", null, Perm.ANALYTICS_READ),
+            // 处理类接口「两个都要」：MOD 有 report:resolve 但没有 analytics:read，VIEWER 相反，都不该通过
+            new Endpoint("POST", "/api/admin/alerts/999999/ack", "{}", null,
+                    new Perm[]{Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}),
+            new Endpoint("POST", "/api/admin/alerts/999999/reopen", "{}", null,
+                    new Perm[]{Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}),
+            new Endpoint("POST", "/api/admin/alerts/mute",
+                    "{\"ruleKey\":\"DAU_MISSING\",\"until\":0}", null,
+                    new Perm[]{Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}),
+            new Endpoint("POST", "/api/admin/alerts/scan", null, null,
+                    new Perm[]{Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE}),
+            // ---- 参数管理（第一批 10 项，仅超管）----
+            // 写接口的 body 用**等于默认值**的合法值：SUPER 会真的写成功，
+            // 但不能因此改变其它用例看到的参数（tag.max-new-per-day 写 10 = 原值）
+            new Endpoint("GET", "/api/admin/config", null, Perm.ADMIN_MANAGE),
+            new Endpoint("GET", "/api/admin/config/log", null, Perm.ADMIN_MANAGE),
+            new Endpoint("POST", "/api/admin/config",
+                    "{\"key\":\"tag.max-new-per-day\",\"value\":\"10\"}", Perm.ADMIN_MANAGE),
+            new Endpoint("POST", "/api/admin/config/rollback", "{\"logId\":999999}", Perm.ADMIN_MANAGE),
             // ---- 任何已登录管理员 ----
             new Endpoint("GET", "/api/admin/me", null, null)
     );
@@ -111,7 +142,8 @@ class AdminPermissionMatrixTest {
         // 四个角色各造一个管理员（种子 admin 是 SUPER，这里另建，避免动到它）
         long seq = 0;
         for (AdminRole r : AdminRole.values()) {
-            String acc = "mx-" + r.name().toLowerCase() + "-" + System.nanoTime() % 100000;
+            // 用完整 nanoTime + 角色名：取模会让同一个类里多次 @BeforeEach 撞上同一个账号
+            String acc = "mx-" + r.name().toLowerCase() + "-" + System.nanoTime();
             jdbc.update("insert into sy_admin(account, password_hash, role, status, must_change_pwd) "
                     + "values(?, 'x', ?, 1, false)", acc, r.name());
             Long id = jdbc.queryForObject("select id from sy_admin where account = ?", Long.class, acc);
@@ -120,6 +152,12 @@ class AdminPermissionMatrixTest {
             seq = id;
         }
         assertTrue(seq > 0);
+    }
+
+    /** 这个角色能不能调这个接口（need=null 且 allOf=null 表示"任何已登录管理员"）。 */
+    private static boolean allows(AdminRole role, Endpoint e) {
+        if (e.allOf() != null) return role.perms().containsAll(java.util.Arrays.asList(e.allOf()));
+        return e.need() == null || role.has(e.need());
     }
 
     private MockHttpServletRequestBuilder req(Endpoint e, String token) throws Exception {
@@ -144,7 +182,7 @@ class AdminPermissionMatrixTest {
         for (AdminRole role : AdminRole.values()) {
             String token = tokens.get(role);
             for (Endpoint e : ENDPOINTS) {
-                boolean allowed = e.need() == null || role.has(e.need());
+                boolean allowed = allows(role, e);
                 int status = mvc.perform(req(e, token)).andReturn().getResponse().getStatus();
                 String code = codeOf(mvc.perform(req(e, token)).andReturn().getResponse().getContentAsString());
 
@@ -180,10 +218,11 @@ class AdminPermissionMatrixTest {
     @DisplayName("各角色可调接口数量与矩阵一致（防漏挂注解）")
     void 可调接口数量符合矩阵() {
         for (AdminRole role : AdminRole.values()) {
-            long allowed = ENDPOINTS.stream().filter(e -> e.need() == null || role.has(e.need())).count();
-            long expected = ENDPOINTS.stream().filter(e -> e.need() == null).count()
-                    + ENDPOINTS.stream().filter(e -> e.need() != null && role.has(e.need())).count();
-            assertEquals(expected, allowed);
+            long allowed = ENDPOINTS.stream().filter(e -> allows(role, e)).count();
+            // 反向再算一遍：不该调的 + 该调的 == 全部
+            long denied = ENDPOINTS.stream().filter(e -> !allows(role, e)).count();
+            assertEquals(ENDPOINTS.size(), allowed + denied, role + " 的可调/不可调数量对不上");
+            assertTrue(allowed > 0, role + " 一个接口都调不了，矩阵或注解有问题");
             // 只读角色必须"读全过、写全挡"
             if (role == AdminRole.VIEWER) {
                 long writes = ENDPOINTS.stream().filter(e -> "POST".equals(e.method())).count();

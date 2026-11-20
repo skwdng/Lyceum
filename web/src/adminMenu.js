@@ -26,9 +26,13 @@ export const ADMIN_MENU = [
   {
     group: '运营',
     items: [
+      // A3：告警排在最前（红点最常看的一页，别让人往下找）
+      { to: '/admin/alerts', label: '告警', icon: '⏰', perm: 'analytics:read' },
       { to: '/admin/reports', label: '举报处理', icon: '⚑', badge: 'pendingReports', perm: 'report:read' },
       { to: '/admin/content/posts', label: '帖子管理', icon: '▤', perm: 'content:read' },
       { to: '/admin/content/comments', label: '评论管理', icon: '☷', perm: 'content:read' },
+      // T3：标签管理挂在「运营」组、帖子管理下面（改标签属于内容运营的活）
+      { to: '/admin/tags', label: '标签管理', icon: '⚿', perm: 'content:moderate' },
       { to: '/admin/video-audit', label: '视频复核', icon: '▷', perm: 'video:read' },
       { to: '/admin/topics', label: '辩题审核', icon: '❓', perm: 'topic:read' },
       { to: '/admin/users', label: '用户管理', icon: '☰', perm: 'user:read' },
@@ -40,6 +44,8 @@ export const ADMIN_MENU = [
     items: [
       // 只有超管看得到：建号、改角色、重置密码
       { to: '/admin/admins', label: '管理员管理', icon: '☗', perm: 'admin:manage' },
+      // 参数管理（第一批 10 项）：与"管理员管理"同一档 —— 改的是钱与功能开关，不给运营
+      { to: '/admin/config', label: '参数管理', icon: '⚒', perm: 'admin:manage' },
       { to: '/admin/settings', label: '设置', icon: '⚙' }
     ]
   }

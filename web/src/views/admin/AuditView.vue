@@ -60,7 +60,7 @@ const VERDICTS = [
   ['UNBAN', '解封']
 ];
 const TARGETS = [['', '全部对象'], ['POST', '帖子'], ['COMMENT', '评论'], ['USER', '用户'],
-  ['VIDEO', '视频'], ['TOPIC', '辩题'], ['ADMIN', '管理员']];
+  ['VIDEO', '视频'], ['TOPIC', '辩题'], ['ADMIN', '管理员'], ['TAG', '标签']];
 const SOURCES = [['', '全部来源'], ['REPORT', '举报'], ['MANUAL', '管理台']];
 
 onMounted(() => loadAudit(1));

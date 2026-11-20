@@ -145,6 +145,11 @@ export const communityApi = {
     return http.get('/api/community/posts' + (qs ? '?' + qs : ''));
   },
   post: (id) => http.get('/api/community/posts/' + id),
+  /** T2：发帖时的标签联想（只返回用过的，按使用次数降序） */
+  tagSuggest: (q, limit = 10) =>
+    http.get('/api/community/tags?q=' + encodeURIComponent(q || '') + '&limit=' + limit),
+  /** T2：社区页顶部热门标签（后端 Redis 缓存 60 秒） */
+  tagHot: (limit = 12) => http.get('/api/community/tags/hot?limit=' + limit),
   /** 进详情先计数（旧版 B3 的顺序：先 view 再拉详情，否则每次都少算一次） */
   markView: (id) => http.post('/api/community/posts/' + id + '/view', {}),
   likePost: (id, on) => (on ? http.post('/api/community/posts/' + id + '/like', {}) : http.del('/api/community/posts/' + id + '/like')),
@@ -360,6 +365,30 @@ export const adminApi = {
     adminRequest('/admins/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { enabled } }),
   resetAdminPwd: (id) =>
     adminRequest('/admins/' + encodeURIComponent(id) + '/reset-pwd', { method: 'POST' }),
+  /** T3：标签管理（content:moderate） */
+  tags: (q, page = 1, size = 20) => {
+    const qs = [];
+    if (q) qs.push('q=' + encodeURIComponent(q));
+    qs.push('page=' + page, 'size=' + size);
+    return adminRequest('/tags?' + qs.join('&'));
+  },
+  createTag: (name) => adminRequest('/tags', { method: 'POST', body: { name } }),
+  /** 改名：撞名时后端自动合并，响应里 merged=true + mergedInto */
+  renameTag: (id, name) =>
+    adminRequest('/tags/' + encodeURIComponent(id) + '/rename', { method: 'POST', body: { name } }),
+  deleteTag: (id) => adminRequest('/tags/' + encodeURIComponent(id), { method: 'DELETE' }),
+  /** A3：告警（读需要 analytics:read，写需要 report:resolve） */
+  alerts: (status = 'OPEN', page = 1, size = 20) =>
+    adminRequest('/alerts?status=' + encodeURIComponent(status) + '&page=' + page + '&size=' + size),
+  alertUnread: () => adminRequest('/alerts/unread'),
+  alertAck: (id, note) => adminRequest('/alerts/' + encodeURIComponent(id) + '/ack',
+    { method: 'POST', body: { note: note || null } }),
+  alertReopen: (id) => adminRequest('/alerts/' + encodeURIComponent(id) + '/reopen', { method: 'POST' }),
+  alertMute: (ruleKey, until) => adminRequest('/alerts/mute', { method: 'POST', body: { ruleKey, until } }),
+  alertUnmute: (ruleKey) =>
+    adminRequest('/alerts/mute/' + encodeURIComponent(ruleKey) + '/off', { method: 'POST' }),
+  alertMutes: () => adminRequest('/alerts/mutes'),
+  alertScan: () => adminRequest('/alerts/scan', { method: 'POST' }),
   reports: (status, page, size = 20) =>
     adminRequest('/reports?status=' + (status || 'PENDING') + '&page=' + (page || 1) + '&size=' + size),
   report: (reportId) => adminRequest('/reports/' + reportId),
@@ -375,6 +404,23 @@ export const adminApi = {
   unban: (id) => adminRequest('/users/' + encodeURIComponent(id) + '/unban', { method: 'POST' }),
   setStatus: (id, status) =>
     adminRequest('/users/' + encodeURIComponent(id) + '/status', { method: 'POST', body: { status } })
+};
+
+// ==================== 参数管理（仅超管 admin:manage） ====================
+
+/**
+ * 后台参数：第一批 10 项（告警阈值 / 复核台 / AI / 计费 / 标签）。
+ *
+ * 全部走 {@link adminRequest}（独立令牌 + 401 统一广播）；后端每个接口都挂了
+ * `@Require(Perm.ADMIN_MANAGE)`，非超管拿到的是 403 FORBIDDEN_PERM，前端只是少一次白跑。
+ *
+ * `value` 一律按**字符串**传（后端按 ConfigKey 声明的类型校验并统一存字符串）。
+ */
+export const configApi = {
+  list: () => adminRequest('/config'),
+  set: (key, value) => adminRequest('/config', { method: 'POST', body: { key, value } }),
+  log: (key, limit = 20) => adminRequest('/config/log?' + toQuery({ key, limit })),
+  rollback: (logId) => adminRequest('/config/rollback', { method: 'POST', body: { logId } })
 };
 
 // ==================== 管理台报表（P3 接口 / P4 页面） ====================

@@ -121,10 +121,24 @@ class AdminRbacTest {
     }
 
     private static Require requireOf(Perm... perms) {
+        return requireOf(Require.Mode.ANY, perms);
+    }
+
+    /** mode = ALL：几个权限点必须**同时**具备（告警处理类接口用）。 */
+    private static Require requireAllOf(Perm... perms) {
+        return requireOf(Require.Mode.ALL, perms);
+    }
+
+    private static Require requireOf(Require.Mode mode, Perm... perms) {
         return new Require() {
             @Override
             public Perm[] value() {
                 return perms;
+            }
+
+            @Override
+            public Require.Mode mode() {
+                return mode;
             }
 
             @Override
@@ -168,6 +182,35 @@ class AdminRbacTest {
         // OPS 有 CONTENT_MODERATE、没有 USER_BAN，写在一起应该放行
         assertDoesNotThrow(() -> RequireAspect.check(
                 requireOf(Perm.USER_BAN, Perm.CONTENT_MODERATE), fakeJoinPoint()));
+    }
+
+    // ---------- mode = ALL（告警处理类接口用：既能看又能处置） ----------
+
+    @Test
+    void mode为ALL时_只具备其中一个权限点也必须403() {
+        // MOD：有 REPORT_RESOLVE，没有 ANALYTICS_READ
+        AdminContext.set(5L, "mod2", AdminRole.MOD, false);
+        RbacException e = assertThrows(RbacException.class, () -> RequireAspect.check(
+                requireAllOf(Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE), fakeJoinPoint()));
+        assertEquals("FORBIDDEN_PERM", e.code());
+        assertTrue(e.getMessage().contains("analytics:read"), e.getMessage());
+
+        // VIEWER：有 ANALYTICS_READ，没有 REPORT_RESOLVE
+        AdminContext.set(6L, "viewer2", AdminRole.VIEWER, false);
+        RbacException e2 = assertThrows(RbacException.class, () -> RequireAspect.check(
+                requireAllOf(Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE), fakeJoinPoint()));
+        assertEquals("FORBIDDEN_PERM", e2.code());
+        assertTrue(e2.getMessage().contains("report:resolve"), e2.getMessage());
+    }
+
+    @Test
+    void mode为ALL时_两个都具备才放行() {
+        for (AdminRole r : new AdminRole[]{AdminRole.SUPER, AdminRole.OPS}) {
+            AdminContext.set(7L, "x", r, false);
+            assertDoesNotThrow(() -> RequireAspect.check(
+                    requireAllOf(Perm.ANALYTICS_READ, Perm.REPORT_RESOLVE), fakeJoinPoint()),
+                    r + " 两个权限都有，应该放行");
+        }
     }
 
     // ---------- /api/admin/me ----------

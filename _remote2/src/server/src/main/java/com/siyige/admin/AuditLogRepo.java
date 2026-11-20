@@ -1,0 +1,221 @@
+package com.siyige.admin;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 处理记录（`sy_audit_log`）的读写。
+ *
+ * <p>`action` 有两类：举报处置链路（{@link #ACTION_RESOLVE} / {@link #ACTION_RESTORE}）
+ * 和管理台其它动作（视频复核 / 辩题审核 / 封禁解封，见下方 ACTION_* 常量）。
+ * 这里**只存业务描述**，绝不允许出现密码、令牌或任何凭据。
+ */
+@Repository
+public class AuditLogRepo {
+
+    /** 内容处置：屏蔽/禁言（从内容管理直接处置）/ 解除屏蔽，都归到这两个动作下。 */
+    public static final String ACTION_RESOLVE = "REPORT_RESOLVE";
+    public static final String ACTION_RESTORE = "RESTORE";
+
+    /**
+     * 视频复核 / 辩题审核 / 用户封禁的动作值。
+     *
+     * <p>为什么复用同一张表而不是各建一张：处理记录页就是"管理员做过什么"的唯一入口，
+     * 分散成 4 张表以后"这个人今天干了啥"要 UNION 四次。`action` 列 varchar(24) 装得下，
+     * `target_type` varchar(8) 也够（VIDEO / TOPIC / USER）。
+     * 这些都是**不可"一键恢复"**的行（`canRestore` 只认 REPORT_RESOLVE + DELETE 类），
+     * 各自的恢复在各自页面里（视频有「恢复」，辩题可改回「通过」，内容可「解除屏蔽」）。
+     */
+    public static final String ACTION_VIDEO_DECIDE = "VIDEO_DECIDE";
+    public static final String ACTION_VIDEO_RESTORE = "VIDEO_RESTORE";
+    public static final String ACTION_TOPIC_APPROVE = "TOPIC_APPROVE";
+    public static final String ACTION_TOPIC_REJECT = "TOPIC_REJECT";
+    public static final String ACTION_TOPIC_OFFLINE = "TOPIC_OFFLINE";
+    public static final String ACTION_USER_BAN = "USER_BAN";
+    public static final String ACTION_USER_UNBAN = "USER_UNBAN";
+    // R2：管理员账号管理（处理记录里能看到谁建了号、谁改了角色、谁重置了密码）
+    public static final String ACTION_ADMIN_CREATE = "ADMIN_CREATE";
+    public static final String ACTION_ADMIN_ROLE = "ADMIN_ROLE";
+    public static final String ACTION_ADMIN_DISABLE = "ADMIN_DISABLE";
+    public static final String ACTION_ADMIN_ENABLE = "ADMIN_ENABLE";
+    public static final String ACTION_ADMIN_RESET_PWD = "ADMIN_RESET_PWD";
+
+    /**
+     * 标签管理（T3）。四种动作都**不可「恢复」**：canRestore 只认 REPORT_RESOLVE + DELETE，
+     * 这里的 action 对不上，所以处理记录页不会出现能点的「恢复」按钮。
+     */
+    public static final String ACTION_TAG_CREATE = "TAG_CREATE";
+    public static final String ACTION_TAG_RENAME = "TAG_RENAME";
+    /** 改名撞上已有标签 → 自动合并（源并入目标），单独记一个动作，便于事后追"什么时候合过" */
+    public static final String ACTION_TAG_MERGE = "TAG_MERGE";
+    public static final String ACTION_TAG_DELETE = "TAG_DELETE";
+
+    /** 目标类型（`target_type` varchar(8)）。 */
+    public static final String TARGET_VIDEO = "VIDEO";
+    public static final String TARGET_TOPIC = "TOPIC";
+    public static final String TARGET_USER = "USER";
+    /** 管理员账号（`target_id` = 管理员 id，`target_owner` = 账号）。**不可「恢复」**。 */
+    public static final String TARGET_ADMIN = "ADMIN";
+    /** 标签（`target_id` = 标签 id，`target_owner` = 标签名，改名时记旧名）。不可恢复。 */
+    public static final String TARGET_TAG = "TAG";
+
+    /** 来源（`source` 列）：REPORT = 从举报处理来的；MANUAL = 管理员在管理台直接操作。 */
+    public static final String SOURCE_REPORT = "REPORT";
+    public static final String SOURCE_MANUAL = "MANUAL";
+
+    /**
+     * 管理员主动处置时的 `report_id`。
+     *
+     * <p>列是 `not null`，而"从内容管理直接屏蔽"没有举报来源，所以约定用 0 表示"非举报来源"。
+     * {@link RestoreService} 见到 `report_id <= 0` 会跳过"把关联举报改回 REOPENED"那一步。
+     */
+    public static final long MANUAL_REPORT_ID = 0L;
+
+    private final JdbcTemplate jdbc;
+
+    public AuditLogRepo(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    /** 写一条处理记录。调用方（{@link AuditLog}）负责吞掉异常，不让审计影响主流程。 */
+    public void insert(long reportId, long adminId, String adminName, String action, String verdict,
+                       String targetType, Long targetId, String detail, String ip) {
+        insert(reportId, adminId, adminName, action, verdict, targetType, targetId, detail, ip,
+                SOURCE_REPORT, null);
+    }
+
+    /**
+     * 写一条处理记录（带来源与内容作者）。
+     *
+     * @param source       {@link #SOURCE_REPORT} / {@link #SOURCE_MANUAL}
+     * @param targetOwner  内容作者的用户 id（用户浮窗按人查违规历史用）；禁言这类"目标是用户"的记录也填它
+     */
+    public void insert(long reportId, long adminId, String adminName, String action, String verdict,
+                       String targetType, Long targetId, String detail, String ip,
+                       String source, String targetOwner) {
+        jdbc.update("insert into sy_audit_log(report_id, admin_id, admin_name, action, verdict, " +
+                        "target_type, target_id, detail, ip, source, target_owner) values(?,?,?,?,?,?,?,?,?,?,?)",
+                reportId, adminId, adminName, action, verdict, targetType, targetId, detail, ip,
+                source == null ? SOURCE_REPORT : source, targetOwner);
+    }
+
+    /** 标记已撤销（哪一次处理在什么时候被谁撤销）。 */
+    public int markUndone(long id, long undoBy) {
+        return jdbc.update("update sy_audit_log set undo_at = ?, undo_by = ? where id = ? and undo_at is null",
+                Timestamp.from(Instant.now()), undoBy, id);
+    }
+
+    /**
+     * 取一行。
+     *
+     * <p><b>不要</b>把返回值再包一层 {@code new LinkedHashMap<>(...)}：Spring 的
+     * {@code queryForList} 返回的是**忽略大小写**的 map，包成普通 LinkedHashMap 后
+     * H2 给出的 `VERDICT` 键就查不到小写的 `verdict`，表现是"读到的字段全是 null"。
+     */
+    public Map<String, Object> findById(long id) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "select * from sy_audit_log where id = ?", id);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public long count() {
+        return count(null, null, null, null, null, null, null, null);
+    }
+
+    /**
+     * 带筛选的计数。
+     *
+     * <p>参数语义（全部可空）：`q` 关键词（详情/管理员账号/内容作者，模糊）、
+     * `admin` 操作人（纯数字按 admin_id 精确，否则按 admin_name 模糊）、
+     * `action` / `verdict` / `targetType` / `source` 精确匹配（大写），
+     * `from` / `toExcl` 时间左闭右开。
+     */
+    public long count(String q, String admin, String action, String verdict, String targetType,
+                      String source, Timestamp from, Timestamp toExcl) {
+        StringBuilder sql = new StringBuilder("select count(*) from sy_audit_log");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, q, admin, action, verdict, targetType, source, from, toExcl);
+        Long n = jdbc.queryForObject(sql.toString(), Long.class, args.toArray());
+        return n == null ? 0 : n;
+    }
+
+    /** 倒序分页（新的在前）。 */
+    public List<Map<String, Object>> list(int page, int size) {
+        return list(null, null, null, null, null, null, null, null, page, size);
+    }
+
+    public List<Map<String, Object>> list(String q, String admin, String action, String verdict, String targetType,
+                                          String source, Timestamp from, Timestamp toExcl, int page, int size) {
+        int offset = (Math.max(1, page) - 1) * size;
+        // post_id：前端点「对象」要能直接打开帖子详情抽屉并定位评论。
+        // 用标量子查询而不是 join —— join 会让 created_at / id 这些列名有歧义，
+        // 而 appendFilters 里的条件是共享的（count 也在用同一个方法）。
+        StringBuilder sql = new StringBuilder(
+                "select a.*, case when a.target_type = 'POST' then a.target_id "
+                        + "            when a.target_type = 'COMMENT' then "
+                        + "                 (select c.post_id from sy_post_comment c where c.id = a.target_id) "
+                        + "       end as post_id "
+                        + "from sy_audit_log a");
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, q, admin, action, verdict, targetType, source, from, toExcl);
+        sql.append(" order by created_at desc, id desc limit ? offset ?");
+        args.add(size);
+        args.add(offset);
+        return jdbc.queryForList(sql.toString(), args.toArray());
+    }
+
+    private void appendFilters(StringBuilder sql, List<Object> args, String q, String admin, String action,
+                               String verdict, String targetType, String source,
+                               Timestamp from, Timestamp toExcl) {
+        sql.append(" where 1 = 1");
+        if (from != null) {
+            sql.append(" and created_at >= ?");
+            args.add(from);
+        }
+        if (toExcl != null) {
+            sql.append(" and created_at < ?");
+            args.add(toExcl);
+        }
+        if (admin != null && !admin.isBlank()) {
+            String a = admin.trim();
+            if (a.matches("\\d+")) {
+                sql.append(" and admin_id = ?");
+                args.add(Long.parseLong(a));
+            } else {
+                sql.append(" and admin_name like ? escape '!'");
+                args.add("%" + a.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%");
+            }
+        }
+        if (action != null && !action.isBlank()) {
+            sql.append(" and action = ?");
+            args.add(action.trim().toUpperCase());
+        }
+        if (verdict != null && !verdict.isBlank()) {
+            sql.append(" and verdict = ?");
+            args.add(verdict.trim().toUpperCase());
+        }
+        if (targetType != null && !targetType.isBlank()) {
+            sql.append(" and target_type = ?");
+            args.add(targetType.trim().toUpperCase());
+        }
+        if (source != null && !source.isBlank()) {
+            sql.append(" and coalesce(source, 'REPORT') = ?");
+            args.add(source.trim().toUpperCase());
+        }
+        if (q != null && !q.isBlank()) {
+            String like = "%" + q.trim().replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+            sql.append(" and (detail like ? escape '!' or admin_name like ? escape '!'"
+                    + " or target_owner like ? escape '!')");
+            args.add(like);
+            args.add(like);
+            args.add(like);
+        }
+    }
+}

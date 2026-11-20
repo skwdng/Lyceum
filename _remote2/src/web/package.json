@@ -1,0 +1,22 @@
+{
+  "name": "siyige-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "思弈阁前端（Vue 3 + Vite 6），与旧版原生 JS 前端并存迁移中",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:local": "node scripts/build-local.mjs",
+    "serve:prod": "node scripts/dev-proxy.mjs"
+  },
+  "dependencies": {
+    "pinia": "^2.3.1",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "vite": "^6.4.6"
+  }
+}

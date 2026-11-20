@@ -1,5 +1,7 @@
 package com.siyige.community.ai;
 
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
@@ -23,7 +25,7 @@ import java.util.List;
  * field  userId
  * value  当天已用次数
  * TTL    24 小时（首次写入时设置，纯清理用）
- * 上限    5 次/天
+ * 上限    5 次/天（**后台可改**：ai.daily-limit，改完下一次询问立刻按新值算）
  * </pre>
  *
  * <p>「判断是否超限」和「计数 +1」在 **Lua 里一次做完**（{@code resources/lua/ai_usage.lua}）：
@@ -37,16 +39,17 @@ public class AiUsageGuard {
 
     private static final Logger log = LoggerFactory.getLogger(AiUsageGuard.class);
 
-    /** 每个账号每个自然日的上限（决策 9）。 */
-    static final int DAILY_LIMIT = 5;
     /** key 的 TTL：24 小时。跨天换 key，TTL 只是清理兜底。 */
     private static final int TTL_SECONDS = 24 * 60 * 60;
 
     private final StringRedisTemplate redis;
     private final RedisScript<Long> script;
+    /** 每日上限从后台参数读（参数管理第一批）：不再写成常量，改完立刻生效。 */
+    private final ConfigService cfg;
 
-    public AiUsageGuard(StringRedisTemplate redis) {
+    public AiUsageGuard(StringRedisTemplate redis, ConfigService cfg) {
         this.redis = redis;
+        this.cfg = cfg;
         this.script = new DefaultRedisScript<>(read("lua/ai_usage.lua"), Long.class);
     }
 
@@ -58,12 +61,14 @@ public class AiUsageGuard {
     public boolean tryAcquire(String userId) {
         if (userId == null || userId.isBlank()) return false;
         String key = keyFor(LocalDate.now());
+        // 上限每次都现读：后台把 5 改成 8，下一次询问就按 8 算（Lua 里判断，不用改脚本）
+        int limit = cfg.getInt(ConfigKey.AI_DAILY_LIMIT);
         try {
             Long r = redis.execute(script, List.of(key),
-                    String.valueOf(DAILY_LIMIT), userId, String.valueOf(TTL_SECONDS));
+                    String.valueOf(limit), userId, String.valueOf(TTL_SECONDS));
             if (r == null) return false;
             if (r < 0) {
-                log.info("AI 今日额度已用完 userId={} key={}", userId, key);
+                log.info("AI 今日额度已用完 userId={} key={} limit={}", userId, key, limit);
                 return false;
             }
             log.debug("AI 额度 userId={} 今日第 {} 次", userId, r);

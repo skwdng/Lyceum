@@ -1,10 +1,19 @@
 package com.siyige.community.ai;
 
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigRepo;
+import com.siyige.admin.config.ConfigService;
+import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
 
+import java.sql.Connection;
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -20,7 +29,24 @@ import static org.mockito.Mockito.*;
 class AiUsageGuardTest {
 
     private final StringRedisTemplate redis = mock(StringRedisTemplate.class);
-    private final AiUsageGuard guard = new AiUsageGuard(redis);
+    /** 上限现在从后台参数读：真 H2（只有参数表），默认值 5 = 改造前的常量。 */
+    private final ConfigService cfg = newCfg();
+    private final AiUsageGuard guard = new AiUsageGuard(redis, cfg);
+
+    private static ConfigService newCfg() {
+        try {
+            JdbcDataSource ds = new JdbcDataSource();
+            ds.setURL("jdbc:h2:mem:aiusage" + UUID.randomUUID().toString().replace("-", "") + ";DB_CLOSE_DELAY=-1");
+            ds.setUser("sa");
+            ds.setPassword("");
+            try (Connection c = ds.getConnection()) {
+                ScriptUtils.executeSqlScript(c, new ClassPathResource("schema-config.sql"));
+            }
+            return new ConfigService(new ConfigRepo(new JdbcTemplate(ds)));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
 
     /** 让 Lua 返回指定值（脚本、key、三个参数：上限 / userId / TTL）。 */
     @SuppressWarnings("unchecked")
@@ -68,11 +94,22 @@ class AiUsageGuardTest {
     }
 
     @Test
-    void 调用时传的是上限5与24小时TTL() {
+    void 调用时传的是默认上限5与24小时TTL() {
         luaReturns(1L);
         guard.tryAcquire("u-bob");
 
         verify(redis).execute(any(RedisScript.class), anyList(),
-                eq("5"), eq("u-bob"), eq(String.valueOf(24 * 60 * 60)));
+                eq(ConfigKey.AI_DAILY_LIMIT.def()), eq("u-bob"), eq(String.valueOf(24 * 60 * 60)));
+    }
+
+    @Test
+    void 后台改了每日上限_下一次询问就按新值算() {
+        luaReturns(1L);
+        cfg.set(ConfigKey.AI_DAILY_LIMIT, "8", "admin");
+        guard.tryAcquire("u-bob");
+
+        // Lua 收到的第二个参数就是新的上限：同一进程、同一个 guard 实例，没有重启
+        verify(redis).execute(any(RedisScript.class), anyList(),
+                eq("8"), eq("u-bob"), eq(String.valueOf(24 * 60 * 60)));
     }
 }

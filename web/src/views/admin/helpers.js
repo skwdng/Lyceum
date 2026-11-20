@@ -43,6 +43,9 @@ export function actionName(k) {
     ADMIN_CREATE: '创建管理员', ADMIN_ROLE: '改管理员角色',
     ADMIN_DISABLE: '停用管理员', ADMIN_ENABLE: '启用管理员',
     ADMIN_RESET_PWD: '重置管理员密码',
+    // T3：标签管理（改名撞名 = 合并，单独一个动作便于追"什么时候合过"）
+    TAG_CREATE: '预置标签', TAG_RENAME: '标签改名',
+    TAG_MERGE: '标签合并', TAG_DELETE: '删除标签',
     PASS: '通过', REJECT: '驳回', UNBAN: '解封'
   };
   return m[k] || k;
