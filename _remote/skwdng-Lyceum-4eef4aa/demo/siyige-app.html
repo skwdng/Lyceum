@@ -1,0 +1,1140 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>思弈阁 · AI 辩论训练</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --ink:#1A1D24;--sub:#6B7280;--line:#E6E3DC;--bg:#F6F4EF;--card:#fff;
+    --blue:#2F5BEA;--blue-w:#EDF1FE;--org:#C2671E;--org-w:#FDF0E6;
+    --grn:#0E9F6E;--grn-w:#E8F8F2;--red:#C0392B;--red-w:#FDECEA;
+  }
+  body{font:14px/1.65 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink)}
+  button{font:inherit;border:none;cursor:pointer;background:none;color:inherit}
+  input,textarea,select{font:inherit;color:inherit}
+  .app{display:flex;min-height:100vh}
+  /* 侧栏 */
+  .sb{width:196px;flex-shrink:0;background:#fff;border-right:1px solid var(--line);padding:18px 12px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+  .logo{display:flex;align-items:center;gap:9px;padding:0 8px 16px}
+  .logo .m{width:30px;height:30px;border-radius:9px;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+  .logo b{font-size:15px;letter-spacing:.5px}
+  .logo span{font-size:10px;color:var(--sub);display:block;line-height:1}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .nav a{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;color:#4A5568;font-size:13px;cursor:pointer;text-decoration:none}
+  .nav a:hover{background:#F6F4EF}
+  .nav a.on{background:var(--blue-w);color:var(--blue);font-weight:600}
+  .nav .g{font-size:10.5px;color:#A8ADB8;padding:12px 10px 4px;letter-spacing:.5px}
+  .sb .me{margin-top:auto;display:flex;align-items:center;gap:8px;padding:9px 10px;border-top:1px solid var(--line);font-size:12.5px}
+  .sb .me .av{width:26px;height:26px;border-radius:7px;background:#2A2F3A;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px}
+  /* 主区 */
+  main{flex:1;min-width:0;padding:24px 28px 60px}
+  h1.pg{font-size:20px;margin-bottom:4px}
+  p.sub{font-size:12.5px;color:var(--sub);margin-bottom:18px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{border-radius:9px;padding:9px 16px;font-size:13.5px;border:1px solid transparent}
+  .btn.primary{background:var(--blue);color:#fff}
+  .btn.primary:hover{background:#244BCF}
+  .btn.ghost{background:#fff;border-color:var(--line);color:#4A5568}
+  .btn.ghost:hover{border-color:#9DB4F5;color:var(--blue)}
+  .btn.sm{padding:5px 11px;font-size:12px;border-radius:7px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:1fr 320px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .gauto{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  .tag{font-size:11px;padding:2px 8px;border-radius:5px;background:#F1EFE9;color:#6B7280}
+  .tag.b{background:var(--blue-w);color:var(--blue)} .tag.o{background:var(--org-w);color:var(--org)}
+  .tag.g{background:var(--grn-w);color:var(--grn)} .tag.r{background:var(--red-w);color:var(--red)}
+  table.t{width:100%;border-collapse:collapse;font-size:13px}
+  table.t th{text-align:left;font-weight:600;color:var(--sub);font-size:12px;padding:8px 6px;border-bottom:1px solid var(--line)}
+  table.t td{padding:9px 6px;border-bottom:1px solid #F3F1EB}
+  table.t tr:last-child td{border-bottom:none}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  /* 辩题卡 */
+  .topic{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;transition:.15s}
+  .topic:hover{border-color:#9DB4F5;box-shadow:0 8px 22px rgba(47,91,234,.1);transform:translateY(-2px)}
+  .topic h3{font-size:14.5px;line-height:1.5;margin-bottom:9px;min-height:44px}
+  .topic .meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--sub);margin-top:10px}
+  .topic .go{color:var(--blue);font-weight:600}
+  /* 热辩榜 */
+  .hot{display:flex;flex-direction:column;gap:6px}
+  .hitem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;background:#FBFAF7;border:1px solid transparent;cursor:pointer}
+  .hitem:hover{border-color:#9DB4F5;background:#fff}
+  .hitem .rk{width:22px;height:22px;border-radius:6px;background:#F1EFE9;color:#6B7280;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .hitem.top1 .rk{background:#FFF3D6;color:#B7791F} .hitem.top2 .rk{background:#EEF1F5;color:#5A6472} .hitem.top3 .rk{background:#FAEDE3;color:#A15C2A}
+  .hitem .tt{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hitem .sc{font:12px ui-monospace,monospace;color:var(--blue);font-weight:600}
+  .hitem .dl{font-size:11px;width:34px;text-align:right}
+  .up{color:var(--grn)} .down{color:var(--red)} .flat{color:#A8ADB8}
+  .heatbar{height:4px;background:#F1EFE9;border-radius:3px;overflow:hidden;margin-top:6px}
+  .heatbar i{display:block;height:100%;background:linear-gradient(90deg,#2F5BEA,#7C97FF)}
+  /* 对局 */
+  .strip{display:flex;gap:6px;overflow-x:auto;padding:10px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
+  .sp{display:flex;gap:6px;align-items:center;padding:5px 9px;border-radius:8px;background:#F6F4EF;flex-shrink:0;border:1px solid transparent}
+  .sp.me{background:var(--blue-w);border-color:#B9C9F7} .sp.cur{box-shadow:0 0 0 2px var(--blue) inset}
+  .sp .av{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+  .sp .av.a{background:var(--blue)} .sp .av.b{background:var(--org)}
+  .sp .nm{font-size:11.5px;font-weight:600;line-height:1.2} .sp .rl{font-size:10px;color:var(--sub);line-height:1.2}
+  .stage{display:grid;grid-template-columns:1fr 288px;gap:14px}
+  .chat{background:#FBFAF7;border:1px solid var(--line);border-radius:12px;height:460px;overflow-y:auto;padding:16px 16px 8px}
+  .msg{display:flex;gap:9px;margin-bottom:13px;animation:in .22s ease}
+  @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .msg.b{flex-direction:row-reverse}
+  .msg .ava{width:28px;height:28px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+  .msg .ava.a{background:var(--blue)} .msg .ava.b{background:var(--org)} .msg .ava.me{background:#2A2F3A}
+  .msg .bd{max-width:76%} .msg.b .bd{text-align:right}
+  .msg .hd{font-size:11px;color:var(--sub);margin-bottom:3px;display:flex;gap:6px}
+  .msg.b .hd{justify-content:flex-end} .msg .hd b{color:#3A4150}
+  .bub{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 13px;font-size:13.5px;line-height:1.75;display:inline-block;text-align:left;white-space:pre-wrap}
+  .msg.me .bub{background:#2A2F3A;color:#fff;border-color:#2A2F3A}
+  .msg.b:not(.me) .bub{background:#FFF8F2;border-color:#F3DFCC}
+  .sys{text-align:center;margin:9px 0 13px} .sys span{font-size:11.5px;color:var(--sub);background:#fff;border:1px dashed var(--line);border-radius:6px;padding:4px 12px}
+  .caret{display:inline-block;width:2px;height:13px;background:var(--blue);vertical-align:-2px;animation:bl .8s infinite}
+  @keyframes bl{0%,100%{opacity:.25}50%{opacity:1}}
+  .composer{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px}
+  .composer .hint{font-size:11.5px;color:var(--sub);margin-bottom:8px;display:flex;justify-content:space-between}
+  .composer textarea{width:100%;min-height:66px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:9px 11px;outline:none;background:#FCFBF8}
+  .composer textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,91,234,.1)}
+  .waiting{text-align:center;padding:14px;color:var(--sub);font-size:13px}
+  .steps{font-size:12px;max-height:230px;overflow:auto}
+  .st{display:flex;gap:8px;padding:3px 0;color:#8A909C}
+  .st .no{width:16px;text-align:right;font-family:ui-monospace,monospace;font-size:11px}
+  .st.done{color:#4A5568} .st.cur{color:var(--blue);font-weight:600}
+  .kv{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#4A5568}
+  .kv b{color:var(--ink)}
+  /* 雷达 */
+  .radar{width:100%;max-width:340px}
+  /* 结算 */
+  .hero{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 24px}
+  .big{font-size:48px;font-weight:800;letter-spacing:-2px;line-height:1}
+  .big small{font-size:13px;font-weight:500;color:var(--sub);letter-spacing:0}
+  .dim{display:flex;align-items:center;gap:10px;font-size:12.5px;margin:6px 0}
+  .dim .lb{width:40px;color:#4A5568}
+  .dim .dbar{flex:1;height:6px;background:#F1EFE9;border-radius:4px;overflow:hidden}
+  .dim .dbar i{display:block;height:100%;background:var(--blue);border-radius:4px}
+  .ev{background:#FBFAF7;border:1px solid var(--line);border-radius:10px;padding:13px 15px;font-size:13px;line-height:1.85;margin-top:14px}
+  .ev .k{color:var(--sub);font-size:11.5px;margin-bottom:2px}
+  /* 模态 */
+  .mask{position:fixed;inset:0;background:rgba(20,22,28,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:80}
+  .panel{background:#fff;border-radius:16px;width:min(760px,100%);padding:22px;max-height:88vh;overflow:auto;box-shadow:0 24px 60px rgba(0,0,0,.2)}
+  .panel h2{font-size:17px;margin-bottom:6px} .panel .desc{font-size:12.5px;color:var(--sub);margin-bottom:16px}
+  .seats{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .seat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+  .seat{border:1px solid var(--line);border-radius:9px;padding:9px 6px;text-align:center;cursor:pointer;background:#FCFBF8}
+  .seat:hover{border-color:#9DB4F5}
+  .seat.on{background:var(--blue-w);border-color:var(--blue);box-shadow:0 0 0 2px rgba(47,91,234,.12)}
+  .seat .k{font:10.5px ui-monospace,monospace;color:var(--sub)} .seat .r{font-size:12.5px;font-weight:600} .seat .n{font-size:10.5px;color:var(--sub)}
+  .presets{display:flex;gap:7px;margin:14px 0 2px;flex-wrap:wrap}
+  .preset{font-size:12px;border:1px solid var(--line);border-radius:20px;padding:4px 12px;color:var(--sub)}
+  .preset:hover{border-color:var(--blue);color:var(--blue)}
+  .sum{margin-top:14px;background:#FBFAF7;border:1px dashed var(--line);border-radius:9px;padding:11px 13px;font-size:12.5px}
+  .sum b{color:var(--blue)}
+  /* toast */
+  #toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:99;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .tst{background:#20242C;color:#fff;border-radius:8px;padding:9px 16px;font-size:13px;box-shadow:0 8px 22px rgba(0,0,0,.2);animation:in .2s}
+  .codebox{background:#1E222B;color:#D6DEEB;border-radius:9px;padding:12px 14px;font:12px/1.8 ui-monospace,Menlo,monospace;overflow:auto;white-space:pre}
+  .codebox .c{color:#7A869A} .codebox .s{color:#9AD0A0} .codebox .k{color:#8FB8FF}
+  .empty{color:#A8ADB8;font-size:12.5px;padding:22px 0;text-align:center}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sb">
+    <div class="logo"><div class="m">思</div><div><b>思弈阁</b><span>AI 辩论训练</span></div></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="me"><div class="av">演</div><div><div>演示用户</div><div style="font-size:11px;color:#A8ADB8">练习第 6 天</div></div></div>
+  </aside>
+  <main id="main"></main>
+</div>
+<div id="modalHost"></div>
+<div id="toast"></div>
+
+<script>
+/* ================= 工具 ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const fmt = s => { s=Math.max(0,s|0); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); };
+function toast(msg){ const d=document.createElement('div'); d.className='tst'; d.textContent=msg; $('#toast').appendChild(d); setTimeout(()=>d.remove(),2200); }
+const LS = {
+  get(k,d){ try{ const v=localStorage.getItem('sy_'+k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem('sy_'+k, JSON.stringify(v)); }catch(e){} }
+};
+
+const setEl = (sel, prop, val) => { const e = document.querySelector(sel); if (e) e[prop] = val; };
+
+/* ================= Redis ZSET 模拟 =================
+   真实实现（后端 Go / Java）：
+     ZINCRBY hot:debate:2026-11-01 2 topic:3
+     ZREVRANGE hot:debate:2026-11-01 0 9 WITHSCORES
+     ZINCRBY hot:debate:2026-11-01 -0.5 topic:3    # 衰减，定时任务每 10 分钟一次
+     EXPIRE  hot:debate:2026-11-01 172800          # 保留 2 天，跨日靠合并
+   本演示用内存 Map + localStorage 复刻同一套语义。 */
+class ZSet {
+  constructor(name){ this.name = name; this.m = new Map(LS.get('zset_'+name, [])); }
+  zadd(member, score){ this.m.set(member, score); this._save(); return 1; }
+  zincrby(member, delta){ const v = (this.m.get(member)||0) + delta; this.m.set(member, v); this._save(); return v; }
+  zscore(member){ return this.m.get(member) || 0; }
+  zcard(){ return this.m.size; }
+  zrevrange(start, stop){
+    const arr = [...this.m.entries()].sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0]));
+    return arr.slice(start, stop < 0 ? undefined : stop+1);
+  }
+  zrank(member){ const arr = this.zrevrange(0,-1); return arr.findIndex(x=>x[0]===member); }
+  _save(){ LS.set('zset_'+this.name, [...this.m.entries()]); }
+}
+const TODAY = new Date().toISOString().slice(0,10);
+const HOTKEY = 'debate:' + TODAY;
+const hot = new ZSet(HOTKEY);
+const HOT_DELTA = { open:1, speech:2, finish:5, like:1, fav:3, watch:0.5 };
+
+/* ================= 静态数据 ================= */
+const SEATS = [
+  {k:'A1',side:'A',role:'一辩',turns:1},{k:'A2',side:'A',role:'二辩',turns:2},
+  {k:'A3',side:'A',role:'三辩',turns:2},{k:'A4',side:'A',role:'四辩',turns:1},
+  {k:'B1',side:'B',role:'一辩',turns:1},{k:'B2',side:'B',role:'二辩',turns:2},
+  {k:'B3',side:'B',role:'三辩',turns:2},{k:'B4',side:'B',role:'四辩',turns:1}
+];
+const STEPS = [
+  {seg:'立论',seat:'A1',sec:180},{seg:'立论',seat:'B1',sec:180},
+  {seg:'驳立论',seat:'A2',sec:120},{seg:'驳立论',seat:'B2',sec:120},
+  {seg:'质询',seat:'A3',sec:120},{seg:'质询',seat:'B3',sec:120},
+  {seg:'自由辩',seat:'A2',sec:120},{seg:'自由辩',seat:'B2',sec:120},
+  {seg:'自由辩',seat:'A3',sec:120},{seg:'自由辩',seat:'B3',sec:120},
+  {seg:'总结',seat:'B4',sec:180},{seg:'总结',seat:'A4',sec:180}
+];
+const AI = {A1:['沈亦舟','硬框架'],A2:['苏晚','快攻'],A3:['梁未','守中转'],A4:['许晏清','质询压迫'],
+            B1:['何书言','慢热'],B2:['路知远','举例型'],B3:['陆见微','定义控'],B4:['周砚','反打']};
+
+const TOPICS = LS.get('topics', [
+  {id:1,title:'人工智能生成内容是否应当享有著作权',cat:'科技',diff:'进阶',plays:128},
+  {id:2,title:'应不应该全面推行远程办公',cat:'社会',diff:'新手',plays:96},
+  {id:3,title:'大数据算法推荐是否加剧了信息茧房',cat:'科技',diff:'竞赛',plays:214},
+  {id:4,title:'高校是否应当取消期末考试',cat:'教育',diff:'新手',plays:302},
+  {id:5,title:'公平与效率哪一个更应优先',cat:'价值',diff:'竞赛',plays:77},
+  {id:6,title:'短视频对青少年的影响利大于弊',cat:'社会',diff:'进阶',plays:188},
+  {id:7,title:'是否应当立法限制未成年人使用社交媒体',cat:'社会',diff:'进阶',plays:141},
+  {id:8,title:'大学教育应以就业为导向还是以通识为本',cat:'教育',diff:'进阶',plays:65},
+  {id:9,title:'人类是否应当主动与外星文明接触',cat:'价值',diff:'竞赛',plays:52},
+  {id:10,title:'自动驾驶应当优先于公共交通发展吗',cat:'科技',diff:'竞赛',plays:88},
+  {id:11,title:'考研热是理性选择还是盲目跟风',cat:'教育',diff:'新手',plays:233},
+  {id:12,title:'人工智能应当拥有法律人格吗',cat:'科技',diff:'进阶',plays:167}
+]);
+
+const LINES = {
+  '立论':{A:['我方立论：判断这道题要先立一个标准——可执行、可监督、可追责，三条缺一不可。',
+             '我方核心主张：这件事收益是公共的，成本却集中在少数主体，整体值得推进。'],
+          B:['我方先把议题拉回现实：今天讨论的不是理想状态该不该，而是此时此刻能不能。',
+             '我方立场明确：这一命题在现实层面缺乏可行性，成本与收益结构性错配。']},
+  '驳立论':{A:['对方一辩把「技术可行」直接推成了「制度应当」，这是从实然跳到应然。',
+              '对方始终没说清成本由谁承担，只谈收益不谈分摊，论证不完整。'],
+            B:['对方立的标准太宽——按它的说法，任何有试错成本的政策都不该做。',
+               '对方举的例子只能说明个别地区可行，推不出普遍可复制。']},
+  '质询':{A:['我请教对方：你方说的「成本过高」，具体高在哪个科目？没有口径，这就只是印象。',
+             '我想追问：按你方的标准，现有制度里有几项能通过？'],
+          B:['我请教对方一辩：你说的「可行」，是实验室可行还是大规模推行可行？',
+             '对方一直在谈原则，我想问：执行主体是谁？出了问题向谁追责？']},
+  '自由辩':{A:['对方把风险直接推成了禁止——风险存在只支持「应当规范」，支撑不到「不应推进」。',
+               '对方至今没有回应成本分摊的问题，我请对方正面回答。'],
+            B:['对方说我方只会否定，但我方给了替代路径：先试点、再评估、后铺开。',
+               '对方刚才那句是循环论证——用结论来证明结论。']},
+  '总结':{A:['整场下来，对方始终回避成本由谁承担。我方结论：值得做，但要按可监督的路径做。',
+             '三个分歧收一下：标准、成本、执行。前两个对方没答，第三个答错了。'],
+          B:['我方结辩：对方没有拿出任何一期执行评估。在评估缺位时不应全面推进。',
+             '真正的分歧不在该不该，而在能不能——这一点我方从立论守到现在。']}
+};
+
+/* 初始热度：模拟历史累积 */
+if (hot.zcard() === 0) {
+  hot.zadd('1', 86); hot.zadd('4', 152); hot.zadd('11', 121);
+  hot.zadd('3', 178); hot.zadd('6', 97); hot.zadd('12', 64);
+  hot.zadd('7', 73); hot.zadd('2', 41); hot.zadd('10', 55); hot.zadd('5', 33);
+}
+
+/* ================= 全局状态 ================= */
+const S = {
+  view:'lobby', mySeats: LS.get('seats',['A1']), topic:null, pace:1,
+  step:0, running:false, turns:0, skipped:0, myLines:[], readonly:false,
+  timerId:null, _resolve:null, room:null, cat:'全部', kw:'',
+  diag: LS.get('diag', {dims:{立论:68,论证:62,表达:71,应变:55,论据:49}, flaws:{未证明前提:12,'以偏概全':5,'滑坡谬误':3}, streak:6}),
+  records: LS.get('records', []),
+  posts: LS.get('posts', [
+    {id:'p1',u:'林深',t:'一辩立论怎么建框架？',c:'教程',body:'我总结了一个三步法：先定判断标准，再给两到三个分论点，最后把对方可能的攻击点提前堵住。',likes:23,replies:8},
+    {id:'p2',u:'阿橘',t:'自由辩一直被带走怎么办',c:'求助',body:'每次自由辩都被对方牵着走，打完发现自己的点一个都没打出去。有什么办法？',likes:11,replies:15},
+    {id:'p3',u:'周砚',t:'AI 评委给的分数偏低是为什么',c:'闲聊',body:'我发现用口语化的表达分数会掉，写成书面结构分就高。可能是提示词里对结构权重放得高。',likes:34,replies:6}
+  ])
+};
+const persist = () => { LS.set('seats',S.mySeats); LS.set('records',S.records); LS.set('diag',S.diag); };
+
+/* ================= 路由 ================= */
+const NAV = [
+  {g:'训练'},
+  {k:'lobby',n:'单人辩论'},{k:'room',n:'多人辩论'},{k:'hot',n:'热辩榜'},
+  {g:'我的'},
+  {k:'diag',n:'能力诊断'},{k:'records',n:'辩论记录'},
+  {g:'社区'},
+  {k:'community',n:'讨论社区'}
+];
+function renderNav(){
+  $('#nav').innerHTML = NAV.map(n => n.g
+    ? `<div class="g">${n.g}</div>`
+    : `<a class="${S.view===n.k?'on':''}" onclick="go('${n.k}')">${n.n}</a>`).join('');
+}
+function go(v){
+  if (S.running && v!=='match') { if(!confirm('对局进行中，离开会中断本场，确定吗？')) return; stopMatch(); }
+  S.view = v; render();
+}
+function render(){
+  renderNav();
+  const m = $('#main');
+  const v = { lobby:viewLobby, hot:viewHot, room:viewRoom, diag:viewDiag,
+              records:viewRecords, community:viewCommunity, match:viewMatch, review:viewReview }[S.view];
+  m.innerHTML = v ? v() : viewLobby();
+  if (S.view==='match') afterMatchRender();
+}
+
+/* ================= 1. 大厅 ================= */
+function viewLobby(){
+  const cats = ['全部','科技','社会','教育','价值'];
+  let list = TOPICS.filter(t => (S.cat==='全部'||t.cat===S.cat) && (!S.kw || t.title.includes(S.kw)));
+  const top = hot.zrevrange(0,4);
+  return `
+  <h1 class="pg">单人辩论</h1>
+  <p class="sub">选一道题（或自己填一道）→ 选位置 → 直接开打。不建房、不等人，缺的席位由 AI 补齐。</p>
+
+  <div class="grid g2" style="margin-bottom:16px">
+    <div class="card" style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:240px">
+        <b style="font-size:13px">自己出一个辩题</b>
+        <div style="font-size:11.5px;color:#8A909C;margin:4px 0 8px">写一句你关心的问题，系统会按 4v4 赛制展开</div>
+        <input id="customTopic" class="btn ghost" style="width:100%;text-align:left;padding:8px 12px"
+               placeholder="例如：该不该把 AI 生成内容算作学术不端"
+               onkeydown="if(event.key==='Enter')useCustomTopic()">
+      </div>
+      <button class="btn primary" onclick="useCustomTopic()">用这个题开练</button>
+    </div>
+    <div class="card" style="display:flex;gap:14px;align-items:center">
+      <div style="flex:1">
+        <b style="font-size:13px">想和真人打？</b>
+        <div style="font-size:11.5px;color:#8A909C;margin:4px 0 8px;line-height:1.7">
+          开一间 4v4 房间，把房间号发给队友；人不够时开局自动补 AI。
+        </div>
+        <button class="btn ghost" style="width:100%" onclick="go('room')">去「多人辩论」→</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div>
+      <div class="row" style="margin-bottom:10px">
+        <b style="font-size:13px;margin-right:6px">或者从题库里挑</b>
+        <input class="btn ghost" style="border-radius:8px;padding:7px 11px;min-width:190px;text-align:left"
+          placeholder="搜索辩题…" value="${esc(S.kw)}" oninput="S.kw=this.value;render()">
+        ${cats.map(c=>`<button class="btn sm ${S.cat===c?'primary':'ghost'}" onclick="S.cat='${c}';render()">${c}</button>`).join('')}
+        <span style="margin-left:auto;font-size:12px;color:#8A909C">${list.length} 道</span>
+      </div>
+      <div class="grid gauto">
+        ${list.map(t=>`
+          <div class="topic" onclick="openSeatPanel(${t.id})">
+            <h3>${esc(t.title)}</h3>
+            <div class="row"><span class="tag">${t.cat}</span><span class="tag ${t.diff==='竞赛'?'o':t.diff==='进阶'?'b':'g'}">${t.diff}</span>
+              <span class="tag">🔥 ${Math.round(hot.zscore(String(t.id)))}</span></div>
+            <div class="meta"><span>已辩 ${t.plays} 场</span><span class="go">开练 →</span></div>
+          </div>`).join('') || '<div class="empty">没有匹配的辩题</div>'}
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:10px">
+          <b style="font-size:13px">🔥 热辩榜</b>
+          <a style="font-size:12px;color:#2F5BEA;cursor:pointer" onclick="go('hot')">完整榜单 →</a>
+        </div>
+        <div class="hot">${top.map(([id,sc],i)=>hotRow(id,sc,i,null)).join('')}</div>
+        <div style="font-size:11px;color:#A8ADB8;margin-top:10px">Redis <span class="mono">ZSET · ${HOTKEY}</span></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <b style="font-size:13px">当前席位</b>
+        <div style="font-size:12.5px;color:#4A5568;margin-top:6px;line-height:1.8">
+          <b style="color:#2F5BEA">${S.mySeats.join('、')}</b> · 本场发言
+          <b style="color:#2F5BEA">${STEPS.filter(st=>S.mySeats.includes(st.seat)).length}</b> 次
+        </div>
+        <button class="btn ghost" style="width:100%;margin-top:10px" onclick="openSeatPanel(${TOPICS[0].id})">改席位</button>
+        <button class="btn ghost" style="width:100%;margin-top:8px" onclick="quickStart()">随机抽一题开练</button>
+      </div>
+    </div>
+  </div>`;
+}
+/* ---------- 辩题 AI 审核 ---------- */
+const AUDIT_CACHE = new Map(Object.entries(LS.get('audit', {})));
+const AUDIT_BLACK = /(傻|智障|去死|色情|裸|辱骂|恶心|滚)/;
+const AUDIT_ABSOLUTE = /(绝对|永远|一定|所有|必然)/;
+const AUDIT_STANCE = /(是否|该不该|应不应该|应当|利大于弊|弊大于利|优于|取代|取消|禁止|合法|值得)/;
+
+function judgeTopic(t){
+  const s = t.trim();
+  if (s.length < 6) return {result:'NEED_EDIT', reason:'少于 6 个字，凑不成一个可判断的命题',
+    suggestions:['应不应该全面推行远程办公','高校是否应当取消期末考试']};
+  if (AUDIT_BLACK.test(s)) return {result:'REJECT', reason:'含人身攻击或违规表述，不能作为辩题',
+    suggestions:['网络匿名是否应当被限制','平台对极端言论的责任边界在哪']};
+  if (!AUDIT_STANCE.test(s)) return {result:'NEED_EDIT', reason:'没有明确的正反立场，无法分正反方',
+    suggestions:[s+'是否应当被推广', s+'利大于弊还是弊大于利']};
+  if (AUDIT_ABSOLUTE.test(s)) return {result:'NEED_EDIT', reason:'含「所有/永远/一定」这类绝对表述，正反方无法公平论证',
+    suggestions:[s.replace(AUDIT_ABSOLUTE,'通常'), s+'在现实条件下是否可行']};
+  return {result:'PASS', reason:'存在正反两种合理立场，边界清晰，可以开辩', suggestions:[]};
+}
+function auditTopic(title){
+  const key = title.trim();
+  if (AUDIT_CACHE.has(key)) return Promise.resolve({...AUDIT_CACHE.get(key), cached:true});
+  return new Promise(res=>{
+    setTimeout(()=>{
+      const r = judgeTopic(key);
+      AUDIT_CACHE.set(key, r);
+      LS.set('audit', Object.fromEntries(AUDIT_CACHE));
+      res({...r, cached:false});
+    }, 700 + Math.random()*600);   // 模拟模型往返；真实实现 ≤3s
+  });
+}
+async function useCustomTopic(){
+  const el = $('#customTopic');
+  const title = (el?.value || '').trim();
+  if (!title) return toast('先写一个辩题');
+  showAudit(title, {state:'checking'});
+  const r = await auditTopic(title);
+  showAudit(title, {state:'done', ...r});
+}
+function showAudit(title, r){
+  document.querySelectorAll('#auditMask').forEach(m=>m.remove());
+  const m = document.createElement('div');
+  m.className = 'mask'; m.id = 'auditMask';
+  const checking = r.state === 'checking';
+  const pass = r.result === 'PASS';
+  const icon = checking ? '⏳' : pass ? '✅' : r.result === 'REJECT' ? '⛔' : '✏️';
+  const color = checking ? '#8A909C' : pass ? '#0E9F6E' : r.result === 'REJECT' ? '#C0392B' : '#C2671E';
+  m.innerHTML = `
+    <div class="panel" style="width:min(560px,100%)">
+      <div class="row" style="gap:10px;margin-bottom:6px">
+        <span style="font-size:22px">${icon}</span>
+        <h2 style="margin:0;color:${color}">${checking?'AI 审核中…': pass?'审核通过':'需要修改'}</h2>
+        ${r.cached?'<span class="tag">命中缓存</span>':''}
+      </div>
+      <div class="desc" style="margin-bottom:12px">「${esc(title)}」</div>
+      ${checking ? `
+        <div class="sum">正在判断：是否可辩 · 正反是否平衡 · 边界是否清晰 · 是否合规</div>
+        <div class="row" style="justify-content:flex-end;margin-top:16px">
+          <button class="btn ghost" onclick="document.querySelectorAll('#auditMask').forEach(m=>m.remove())">取消</button>
+        </div>` : `
+        <div class="sum" style="background:${pass?'#E8F8F2':'#FBFAF7'};border-style:solid;border-color:${pass?'#BFE9D8':'#E6E3DC'}">
+          <b>结论：</b>${esc(r.reason)}
+        </div>
+        ${r.suggestions && r.suggestions.length ? `
+          <div style="margin-top:12px;font-size:12.5px;color:#6B7280">试试这些改写：</div>
+          ${r.suggestions.map(s=>`<div class="row" style="margin-top:6px">
+            <span style="flex:1;font-size:13px">${esc(s)}</span>
+            <button class="btn sm ghost" onclick="adoptTopic('${esc(s).replace(/'/g,'')}')">用这个</button>
+          </div>`).join('')}` : ''}
+        <div class="row" style="justify-content:flex-end;margin-top:16px">
+          <button class="btn ghost" onclick="document.querySelectorAll('#auditMask').forEach(m=>m.remove())">关闭</button>
+          ${pass ? `<button class="btn primary" onclick="confirmCustomTopic()">选位置 →</button>`
+                 : `<button class="btn primary" onclick="document.querySelectorAll('#auditMask').forEach(m=>m.remove());document.querySelector('#customTopic').focus()">修改后再审</button>`}
+        </div>`}
+    </div>`;
+  $('#modalHost').appendChild(m);
+  S.pendingTopic = title;
+}
+function adoptTopic(t){ const el=$('#customTopic'); if(el) el.value=t; useCustomTopic(); }
+function confirmCustomTopic(){
+  document.querySelectorAll('#auditMask').forEach(m=>m.remove());
+  const t = {id:'c'+Date.now(), title:S.pendingTopic, cat:'自定义', diff:'进阶', plays:0, custom:true, audited:true};
+  S.topic = t;
+  openSeatPanel(t);
+}
+function hotRow(id, sc, i, delta){
+  const t = TOPICS.find(x=>String(x.id)===String(id)) || {title:'（已删除）'};
+  const cls = i===0?'top1':i===1?'top2':i===2?'top3':'';
+  const d = delta===null ? '<span class="flat">—</span>'
+          : delta>0 ? `<span class="up">▲${delta}</span>`
+          : delta<0 ? `<span class="down">▼${Math.abs(delta)}</span>` : '<span class="flat">—</span>';
+  return `<div class="hitem ${cls}" onclick="openSeatPanel(${t.id||0})">
+    <div class="rk">${i+1}</div>
+    <div style="flex:1;min-width:0">
+      <div class="tt">${esc(t.title)}</div>
+      <div class="heatbar"><i style="width:${Math.min(100, sc/2)}%"></i></div>
+    </div>
+    <div class="sc">${sc.toFixed(1)}</div><div class="dl">${d}</div>
+  </div>`;
+}
+
+/* ================= 2. 热辩榜 ================= */
+function viewHot(){
+  const all = hot.zrevrange(0,11);
+  const max = all.length ? all[0][1] : 1;
+  return `
+  <h1 class="pg">热辩榜</h1>
+  <p class="sub">按热度实时排序，数据存在 Redis ZSET 里；热度会随时间衰减，避免旧题长期霸榜。</p>
+  <div class="grid g2">
+    <div class="card">
+      <table class="t">
+        <tr><th style="width:44px">排名</th><th>辩题</th><th style="width:120px">热度条</th><th style="width:70px">分数</th><th style="width:60px">操作</th></tr>
+        ${all.map(([id,sc],i)=>{
+          const t = TOPICS.find(x=>String(x.id)===String(id)) || {title:'（已删除）',cat:'—',diff:'—'};
+          return `<tr>
+            <td><b style="color:${i<3?'#B7791F':'#6B7280'}">${i+1}</b></td>
+            <td><div style="font-size:13px">${esc(t.title)}</div>
+                <div style="font-size:11px;color:#8A909C">${t.cat} · ${t.diff}</div></td>
+            <td><div class="heatbar"><i style="width:${Math.round(sc/max*100)}%"></i></div></td>
+            <td class="mono" style="color:#2F5BEA;font-weight:600">${sc.toFixed(1)}</td>
+            <td><button class="btn sm ghost" onclick="openSeatPanel(${t.id||0})">开辩</button></td>
+          </tr>`;
+        }).join('')}
+      </table>
+    </div>
+    <div>
+      <div class="card">
+        <b style="font-size:13px">热度怎么来的</b>
+        <table class="t" style="margin-top:8px">
+          <tr><td>开一场辩</td><td class="mono" style="text-align:right">+${HOT_DELTA.open}</td></tr>
+          <tr><td>完成一次发言</td><td class="mono" style="text-align:right">+${HOT_DELTA.speech}</td></tr>
+          <tr><td>打完一整场</td><td class="mono" style="text-align:right">+${HOT_DELTA.finish}</td></tr>
+          <tr><td>点赞</td><td class="mono" style="text-align:right">+${HOT_DELTA.like}</td></tr>
+          <tr><td>收藏</td><td class="mono" style="text-align:right">+${HOT_DELTA.fav}</td></tr>
+          <tr><td>观战停留 1 分钟</td><td class="mono" style="text-align:right">+${HOT_DELTA.watch}</td></tr>
+        </table>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <b style="font-size:13px">Redis 里的真实写法</b>
+        <div class="codebox" style="margin-top:8px">
+<span class="c"># 开辩 / 发言 / 完成，写入当日榜单</span>
+<span class="k">ZINCRBY</span> hot:debate:${TODAY} 2 topic:3
+<span class="c"># 取前 10 名（带分数）</span>
+<span class="k">ZREVRANGE</span> hot:debate:${TODAY} 0 9 <span class="k">WITHSCORES</span>
+<span class="c"># 查某一题的名次（从 0 开始）</span>
+<span class="k">ZREVRANK</span> hot:debate:${TODAY} topic:3
+<span class="c"># 每 10 分钟衰减，防旧题霸榜</span>
+<span class="k">ZINCRBY</span> hot:debate:${TODAY} -0.5 topic:3
+<span class="c"># 榜单保留 2 天，跨日合并靠定时任务</span>
+<span class="k">EXPIRE</span> hot:debate:${TODAY} 172800
+        </div>
+        <div style="font-size:11.5px;color:#8A909C;margin-top:10px;line-height:1.7">
+          当前榜单 <span class="mono">${HOTKEY}</span> 共 ${hot.zcard()} 个成员；本页是内存复刻，语义与上面命令一致。
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ================= 3. 4v4 房间 ================= */
+function viewRoom(){
+  if (!S.room) {
+    return `
+    <h1 class="pg">多人辩论</h1>
+    <p class="sub">建一间 4v4 房，把房间号发给队友。房主开局；真人要点准备，空位开局自动补 AI。</p>
+    <div class="grid g3" style="max-width:980px">
+      <div class="card">
+        <b style="font-size:13px">① 创建房间</b>
+        <p style="font-size:12px;color:#8A909C;margin:8px 0 12px;line-height:1.7">随机抽一道辩题，你坐 A1，房间默认公开。</p>
+        <button class="btn primary" style="width:100%" onclick="createRoom()">＋ 建房</button>
+      </div>
+      <div class="card">
+        <b style="font-size:13px">② 房间号加入</b>
+        <input id="joinCode" class="btn ghost" style="width:100%;margin:10px 0;text-align:left;padding:8px 12px"
+               placeholder="SY-XXXX" value="SY-7K2D">
+        <button class="btn ghost" style="width:100%" onclick="joinRoom()">加入</button>
+      </div>
+      <div class="card">
+        <b style="font-size:13px">③ 公开房间</b>
+        <div style="font-size:12.5px;color:#4A5568;line-height:2;margin-top:8px">
+          <div class="row" style="justify-content:space-between"><span>SY-7K2D · 3/8</span><a style="color:#2F5BEA;cursor:pointer" onclick="joinRoom('SY-7K2D')">加入</a></div>
+          <div class="row" style="justify-content:space-between"><span>SY-9QW1 · 6/8</span><a style="color:#2F5BEA;cursor:pointer" onclick="joinRoom('SY-9QW1')">加入</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px;max-width:980px">
+      <b style="font-size:13px">和单人辩论的区别</b>
+      <table class="t" style="margin-top:8px">
+        <tr><th></th><th>单人辩论</th><th>多人辩论</th></tr>
+        <tr><td>入口</td><td>选题 / 自己填题 → 选位置</td><td>建房 → 拉人 → 准备 → 房主开局</td></tr>
+        <tr><td>席位</td><td>你占 1–8 个，其余 AI</td><td>真人优先，空位补 AI</td></tr>
+        <tr><td>通道</td><td>只用 SSE</td><td>SSE + WebSocket（座次/准备/开局广播）</td></tr>
+        <tr><td>断线</td><td>重新拉一次对局</td><td>靠房间快照补齐</td></tr>
+      </table>
+    </div>`;
+  }
+  const r = S.room;
+  const filled = r.seats.filter(s=>s.who!=='empty').length;
+  return `
+  <div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <div>
+      <h1 class="pg">${esc(r.topic.title)}</h1>
+      <p class="sub" style="margin:0">房间 <span class="mono">${r.code}</span> · ${r.vis==='public'?'公开':'私密'} · 席位 ${filled}/8${r.host?' · 你是房主':''}</p>
+    </div>
+    <div class="row">
+      <button class="btn ghost" onclick="inviteFriend()">邀请好友</button>
+      <button class="btn ghost" onclick="toggleRoomVis()">改为${r.vis==='public'?'私密':'公开'}</button>
+      <button class="btn ghost" onclick="leaveRoom()">退出房间</button>
+      ${r.host
+        ? `<button class="btn primary" onclick="startRoomMatch()">开始辩论</button>`
+        : `<button class="btn primary" onclick="toggleReady()">${S.ready?'取消准备':'准备'}</button>`}
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <b style="font-size:12.5px">房间号</b>
+    <span class="mono" style="font-size:15px;letter-spacing:2px;color:#2F5BEA;background:#EDF1FE;border-radius:7px;padding:3px 10px">${r.code}</span>
+    <span style="font-size:11.5px;color:#8A909C">把这一串发给队友，他在「多人辩论 → 房间号加入」里输入就能进来</span>
+    <button class="btn sm ghost" style="margin-left:auto" onclick="copyCode()">复制</button>
+  </div>
+  <div class="strip">${SEATS.map(s=>{
+    const seat = r.seats.find(x=>x.k===s.k);
+    const me = seat.who==='me';
+    const who = me?'你':seat.who==='ai'?AI[s.k][0]:(seat.who==='bot'?seat.name:'空位');
+    return `<div class="sp ${me?'me':''}">
+      <div class="av ${s.side.toLowerCase()}">${seat.who==='ai'||seat.who==='bot'?who[0]:me?'我':'＋'}</div>
+      <div><div class="nm">${who}</div><div class="rl">${s.side==='A'?'正方':'反方'}${s.role}${seat.ready?' · 已准备':''}</div></div>
+    </div>`;}).join('')}</div>
+  <div class="card">
+    <b style="font-size:13px">席位</b>
+    <table class="t" style="margin-top:8px">
+      <tr><th>席位</th><th>辩位</th><th>占位</th><th>发言次数</th><th>准备</th></tr>
+      ${SEATS.map(s=>{
+        const seat = r.seats.find(x=>x.k===s.k);
+        const me = seat.who==='me';
+        const nm = me?'你':seat.who==='ai'?('AI · '+AI[s.k][0]):seat.who==='bot'?('真人 · '+seat.name):'空位';
+        return `<tr><td class="mono">${s.k}</td><td>${s.role}</td><td>${nm}</td>
+          <td class="mono">${s.turns} 次</td>
+          <td>${me? (r.host?'房主·无需准备':(S.ready?'<span class="tag g">已准备</span>':'<span class="tag">未准备</span>')) : seat.who==='empty'?'<span class="tag">空</span>':'<span class="tag g">就绪</span>'}</td></tr>`;
+      }).join('')}
+    </table>
+    <div style="font-size:11.5px;color:#8A909C;margin-top:10px">
+      开局时空位自动补 AI；你是房主，不需要点准备。
+    </div>
+  </div>`;
+}
+function createRoom(){
+  const t = TOPICS[Math.floor(Math.random()*TOPICS.length)];
+  S.room = {code:'SY-'+Math.random().toString(36).slice(2,6).toUpperCase(), topic:t, vis:'public', host:true,
+    seats: SEATS.map(s=>({k:s.k, who: s.k==='A1'?'me':'empty', name:'', ready: s.k==='A1'}))};
+  S.ready = true;
+  render();
+  hot.zincrby(String(t.id), HOT_DELTA.open);
+  toast('房间已创建：' + S.room.code);
+  // 模拟其它玩家加入
+  let i = 0;
+  const fill = setInterval(()=>{
+    if (!S.room || S.view!=='room') { clearInterval(fill); return; }
+    const empties = S.room.seats.filter(s=>s.who==='empty');
+    if (!empties.length || i>=3) { clearInterval(fill); return; }
+    const seat = empties[Math.floor(Math.random()*empties.length)];
+    seat.who = 'bot';
+    seat.name = ['林深','阿橘','许晏清','沈亦舟'][i%4];
+    seat.ready = true;
+    i++; render();
+  }, 1500);
+}
+function joinRoom(code){
+  const c = code || ($('#joinCode')?.value || 'SY-7K2D');
+  const t = TOPICS[1];
+  S.room = {code:c, topic:t, vis:'public', host:false,
+    seats: SEATS.map(s=>({k:s.k, who: s.k==='A1'?'bot':'empty', name: s.k==='A1'?'林深':'', ready: s.k==='A1'}))};
+  const first = S.room.seats.find(s=>s.who==='empty');
+  if (first) { first.who='me'; first.name='你'; }
+  S.ready = false;
+  render();
+  hot.zincrby(String(t.id), HOT_DELTA.open);
+  toast('已加入 ' + c);
+}
+function inviteFriend(){
+  if (!S.room) return;
+  const empties = S.room.seats.filter(s=>s.who==='empty');
+  if (!empties.length) return toast('房间已满 8 人');
+  const seat = empties[0];
+  seat.who = 'bot';
+  seat.name = ['林深','阿橘','许晏清','沈亦舟','温与安','方叙白'][Math.floor(Math.random()*6)];
+  seat.ready = true;
+  toast(`${seat.name} 已通过房间号加入，坐在 ${seat.k}`);
+  render();
+}
+function copyCode(){
+  if (!S.room) return;
+  try { navigator.clipboard?.writeText(S.room.code)?.catch(()=>{}); } catch(e){}
+  toast('房间号已复制：' + S.room.code);
+}
+function toggleReady(){ S.ready = !S.ready; toast(S.ready?'已准备':'取消准备'); render(); }
+function toggleRoomVis(){ S.room.vis = S.room.vis==='public'?'private':'public'; render(); }
+function leaveRoom(){ S.room = null; render(); }
+function startRoomMatch(){
+  const mine = S.room.seats.find(s=>s.who==='me');
+  const seats = S.room.seats.map(s=> s.who==='empty' ? 'AI' : s.k);
+  startMatch(S.room.topic, [mine.k], false);
+  toast('开局：空位已补 AI');
+}
+
+/* ================= 4. 席位面板 & 开局 ================= */
+function openSeatPanel(topicOrId){
+  const t = (topicOrId && typeof topicOrId === 'object')
+    ? topicOrId
+    : (TOPICS.find(x=>x.id===topicOrId) || S.topic || TOPICS[0]);
+  S.topic = t;
+  document.querySelectorAll('#seatMask').forEach(m=>m.remove());
+  const box = document.createElement('div');
+  box.className = 'mask';
+  box.id = 'seatMask';
+  const seatHTML = side => SEATS.filter(s=>s.side===side).map(s=>`
+    <div class="seat ${S.mySeats.includes(s.k)?'on':''}" data-k="${s.k}">
+      <div class="k">${s.k}</div><div class="r">${s.role}</div><div class="n">${s.turns} 次</div>
+    </div>`).join('');
+  box.innerHTML = `
+    <div class="panel">
+      <h2>${esc(t.title)}</h2>
+      <div class="desc">选你要坐的位置（可多选），其余自动由 AI 占满。多个位置 = 一个人分饰多角。${t.custom ? '<span class="tag g" style="margin-left:6px">AI 已审核通过</span>' : ''}</div>
+      <div class="seats">
+        <div><div class="row" style="margin-bottom:7px"><span class="tag b">正方</span><span style="font-size:11.5px;color:#8A909C">一辩 · 二辩 · 三辩 · 四辩</span></div>
+          <div class="seat-grid">${seatHTML('A')}</div></div>
+        <div><div class="row" style="margin-bottom:7px"><span class="tag o">反方</span><span style="font-size:11.5px;color:#8A909C">一辩 · 二辩 · 三辩 · 四辩</span></div>
+          <div class="seat-grid">${seatHTML('B')}</div></div>
+      </div>
+      <div class="presets">
+        <button class="preset" data-p="A1">只练一辩</button>
+        <button class="preset" data-p="A2">只练二辩</button>
+        <button class="preset" data-p="A1,A2">一辩 + 二辩</button>
+        <button class="preset" data-p="A1,A2,A3,A4">己方四人</button>
+        <button class="preset" data-p="ALL">正反全占</button>
+      </div>
+      <div class="sum" id="sumBox"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:16px">
+        <button class="btn ghost" onclick="closeSeatPanel()">取消</button>
+        <button class="btn primary" onclick="startFromPanel()">进入对局</button>
+      </div>
+    </div>`;
+  $('#modalHost').appendChild(box);
+  box.querySelectorAll('.seat').forEach(el=>el.onclick=()=>{
+    const k = el.dataset.k;
+    const i = S.mySeats.indexOf(k);
+    if (i>=0) { if (S.mySeats.length===1) return toast('至少保留一个席位'); S.mySeats.splice(i,1); }
+    else S.mySeats.push(k);
+    openSeatPanel(t.id);
+  });
+  box.querySelectorAll('.preset').forEach(el=>el.onclick=()=>{
+    const p = el.dataset.p;
+    S.mySeats = p==='ALL' ? SEATS.map(s=>s.k) : p.split(',');
+    openSeatPanel(t.id);
+  });
+  syncSum();
+}
+function syncSum(){
+  const n = STEPS.filter(st=>S.mySeats.includes(st.seat)).length;
+  const cross = S.mySeats.some(k=>k[0]==='A') && S.mySeats.some(k=>k[0]==='B');
+  const box = $('#sumBox');
+  if (box) box.innerHTML = `已选：<b>${[...S.mySeats].sort().join(' ')}</b> · 本场你将发言 <b>${n}</b> 次` +
+    (cross?' · <span style="color:#C0392B">跨阵营自辩演练（不判胜负）</span>':'');
+}
+function closeSeatPanel(){ const m=$('#seatMask'); if(m) m.remove(); }
+function startFromPanel(){ closeSeatPanel(); quickStart(S.topic); }
+function quickStart(topic){
+  const t = topic || TOPICS[Math.floor(Math.random()*TOPICS.length)];
+  startMatch(t, S.mySeats, false);
+}
+
+/* ================= 5. 对局 ================= */
+function startMatch(topic, mySeats, readonly){
+  persist();
+  S.topic = topic; S.mySeats = mySeats; S.readonly = !!readonly;
+  S.step = 0; S.turns = 0; S.skipped = 0; S.myLines = []; S.running = true;
+  S.view = 'match';
+  hot.zincrby(String(topic.id), HOT_DELTA.open);
+  render();
+  runMatch();
+}
+function viewMatch(){
+  const t = S.topic || TOPICS[0];
+  return `
+  <div class="row" style="justify-content:space-between;margin-bottom:10px">
+    <div><h1 class="pg">${esc(t.title)}</h1>
+      <p class="sub" style="margin:0">标准版 · 12 步 · 你占 ${S.mySeats.join('、')}${S.readonly?' · 观战模式':''}</p></div>
+    <div class="row">
+      <span class="tag mono" id="mStep">1 / 12</span>
+      <span class="tag mono" id="mTimer">--:--</span>
+      <button class="btn sm ghost" onclick="togglePace()">节奏 ×${S.pace}</button>
+      <button class="btn sm ghost" onclick="finishMatch(true)">结束</button>
+    </div>
+  </div>
+  <div class="strip" id="strip"></div>
+  <div class="stage">
+    <div>
+      <div class="chat" id="chat"></div>
+      <div class="composer">
+        <div class="hint"><span id="cHint">准备中…</span><span id="cRight"></span></div>
+        <div id="composerBody"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <b style="font-size:12.5px">赛制进度</b><span style="font-size:11.5px;color:#8A909C" id="progTxt">0/12</span></div>
+        <div class="steps" id="steps"></div></div>
+      <div class="card" style="margin-top:12px">
+        <b style="font-size:12.5px">本场</b>
+        <div style="margin-top:8px">
+          <div class="kv"><span>你的席位</span><b>${S.mySeats.join(' ')}</b></div>
+          <div class="kv"><span>你的发言</span><b id="sTurns">0</b></div>
+          <div class="kv"><span>跳过 AI</span><b id="sSkip">0</b></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function afterMatchRender(){ renderStrip(null); renderSteps(); }
+async function runMatch(){
+  sys(`辩题：${S.topic.title} · 你占 ${S.mySeats.join('、')}`);
+  const n = STEPS.filter(st=>S.mySeats.includes(st.seat)).length;
+  sys(`本场你共发言 ${n} 次 · 其余席位由 AI 补齐`);
+  await preparePhase();
+  for (S.step=0; S.step<STEPS.length; S.step++){
+    if (!S.running) return;
+    const st = STEPS[S.step], seat = SEATS.find(s=>s.k===st.seat);
+    renderStrip(st.seat); renderSteps();
+    setEl('#mStep','textContent',`${S.step+1} / 12`);
+    if (S.readonly || !S.mySeats.includes(st.seat)) await aiTurn(st, seat);
+    else await myTurn(st, seat);
+    if (!S.running) return;
+  }
+  finishMatch(false);
+}
+async function preparePhase(){
+  setEl('#composerBody','innerHTML',`<div class="waiting">10 秒准备期 · 请整理你的<b style="color:#2F5BEA">立论</b></div>`);
+  for (let i=10;i>0;i--){
+    if (!S.running) return;
+    setEl('#cHint','textContent',`准备期 ${i}s`);
+    setEl('#mTimer','textContent',fmt(i));
+    await sleep(1000/S.pace);
+  }
+  setEl('#composerBody','innerHTML','');
+}
+async function aiTurn(st, seat){
+  const name = AI[st.seat][0];
+  sys(`${seat.role} ${name} 正在思考…`);
+  setEl('#cHint','textContent',`${name} 正在思考…`);
+  setEl('#composerBody','innerHTML',`<div class="waiting">对方正在思考…</div>`);
+  setEl('#cRight','innerHTML',`<button class="btn sm ghost" onclick="skipAI()">跳过这段</button>`);
+  S._skip = false;
+  const think = (1800 + Math.random()*1400) / S.pace;
+  const t0 = Date.now();
+  while (Date.now()-t0 < think) { if (S._skip) break; await sleep(50); }
+  if (S._skip) { addMsg(st.seat,name,st.seg,seat.role,'（已跳过，摘要：'+LINES[st.seg][seat.side][0].slice(0,26)+'…）',true); }
+  else {
+    const pool = LINES[st.seg][seat.side];
+    await typeOut(st.seat,name,st.seg,seat.role,pool[Math.floor(Math.random()*pool.length)]);
+  }
+  setEl('#cRight','innerHTML',''); setEl('#composerBody','innerHTML','');
+  await sleep(2500/S.pace);
+}
+function skipAI(){ S._skip = true; S.skipped++; const e=$('#sSkip'); if(e) e.textContent=S.skipped; }
+async function typeOut(k,name,seg,role,text){
+  const el = addMsg(k,name,seg,role,'',false,true);
+  setEl('#cHint','textContent',`${name} 正在发言…`);
+  const cps = (8+Math.random()*4)*S.pace;
+  for (let i=1;i<=text.length;i++){
+    const t = el.querySelector('.txt'); if(t) t.textContent = text.slice(0,i);
+    if ('。！？'.includes(text[i-1])) await sleep(360/S.pace);
+    await sleep(1000/cps);
+    const c=$('#chat'); if(c) c.scrollTop = c.scrollHeight;
+  }
+}
+async function myTurn(st, seat){
+  setEl('#cHint','textContent',`轮到你（${seat.role}）· ${st.seg}`);
+  setEl('#cRight','textContent','');
+  setEl('#composerBody','innerHTML',`
+    <textarea id="inp" placeholder="写下你的${st.seg}…（也可点录音看转写）"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sm ghost" id="micBtn">🎙 按住说话</button>
+      <span style="flex:1"></span>
+      <button class="btn sm ghost" onclick="mySend('[演示跳过]本轮从略，请对方继续。')">跳过（演示）</button>
+      <button class="btn sm primary" onclick="mySend()">发送</button>
+    </div>`);
+  $('#inp').focus();
+  $('#micBtn').onclick = () => simulateAsr();
+  let left = 45;
+  setEl('#mTimer','textContent',fmt(left));
+  await new Promise(res=>{
+    S._resolve = res;
+    S.timerId = setInterval(()=>{
+      left--; setEl('#mTimer','textContent',fmt(left));
+      if (left<=0){ clearInterval(S.timerId); mySend('（超时未发言，记 TIMEOUT）'); }
+    },1000);
+  });
+}
+function mySend(text){
+  if (S._resolve){ clearInterval(S.timerId); const r=S._resolve; S._resolve=null; r(); }
+  const seg = STEPS[S.step], seat = SEATS.find(s=>s.k===seg.seat);
+  const v = text || ($('#inp')?.value || '（未输入）');
+  S.turns++; S.myLines.push(v);
+  const e=$('#sTurns'); if(e) e.textContent=S.turns;
+  addMsg(seg.seat,'你',seg.seg,seat.role+'（你）',v,false,false,true);
+  hot.zincrby(String(S.topic.id), HOT_DELTA.speech);
+  setEl('#composerBody','innerHTML',`<div class="waiting">已提交，等待下一环节…</div>`);
+  setEl('#mTimer','textContent',fmt(seg.sec));
+}
+function simulateAsr(){
+  const btn = $('#micBtn');
+  btn.textContent = '● 录音中…'; btn.style.color='#C0392B';
+  setTimeout(()=>{
+    const inp = $('#inp');
+    if (inp) inp.value = '就是说这个东西它其实吧……我觉得对方那个说法有点问题，因为大家都知道的嘛';
+    btn.textContent = '🎙 按住说话'; btn.style.color='';
+    const body = $('#composerBody');
+    const bar = document.createElement('div');
+    bar.className='sum'; bar.style.marginTop='8px';
+    bar.innerHTML = `识别结果已填入（原始转写）。<button class="preset" style="margin-left:8px" onclick="polish()">一键规整</button>`;
+    body.appendChild(bar);
+  }, 900);
+}
+function polish(){
+  const inp = $('#inp');
+  if (inp) inp.value = '我方认为对方论证存在跳跃：他用「存在风险」直接推出「应当禁止」，但风险只支持「需要规范」。请对方补充中间环节的依据。';
+  toast('已规整成论辩结构，可继续编辑');
+}
+function togglePace(){ S.pace = S.pace===1?4:1; render(); }
+function renderStrip(cur){
+  const box = $('#strip'); if(!box) return;
+  box.innerHTML = SEATS.map(s=>{
+    const me = S.mySeats.includes(s.k);
+    return `<div class="sp ${me?'me':''} ${cur===s.k?'cur':''}">
+      <div class="av ${s.side.toLowerCase()}">${me?'我':AI[s.k][0][0]}</div>
+      <div><div class="nm">${me?'你':AI[s.k][0]}</div><div class="rl">${s.side==='A'?'正方':'反方'}${s.role}</div></div>
+    </div>`;}).join('');
+}
+function renderSteps(){
+  const box = $('#steps'); if(!box) return;
+  box.innerHTML = STEPS.map((st,i)=>`<div class="st ${i<S.step?'done':''} ${i===S.step?'cur':''}">
+    <span class="no">${i+1}</span><span>${st.seg} · ${st.seat}${S.mySeats.includes(st.seat)?' · 你':''}</span></div>`).join('');
+  const p=$('#progTxt'); if(p) p.textContent = `${Math.min(S.step+1,12)}/12`;
+}
+function sys(text){
+  const c=$('#chat'); if(!c) return;
+  const d=document.createElement('div'); d.className='sys'; d.innerHTML=`<span>${esc(text)}</span>`;
+  c.appendChild(d); c.scrollTop=c.scrollHeight;
+}
+function addMsg(k,name,seg,role,text,dim,typing,me){
+  const c=$('#chat'); if(!c) return document.createElement('div');
+  const side = k[0]==='A'?'a':'b';
+  const d=document.createElement('div');
+  d.className='msg '+(me?'me ':'')+(k[0]==='B'?'b':'a');
+  d.innerHTML=`<div class="ava ${me?'me':side}">${me?'我':name[0]}</div>
+    <div class="bd"><div class="hd"><b>${esc(name)}</b><span>${k} · ${role}</span><span>·</span><span>${seg}</span></div>
+    <div class="bub"><span class="txt">${esc(text)}</span>${typing?'<span class="caret"></span>':''}</div></div>`;
+  if (dim) d.style.opacity='.62';
+  c.appendChild(d); c.scrollTop=c.scrollHeight;
+  return d;
+}
+function stopMatch(){ S.running=false; clearInterval(S.timerId); S._resolve=null; }
+
+/* ================= 6. 结算 / 复盘 ================= */
+function finishMatch(manual){
+  stopMatch();
+  const len = S.myLines.join('').replace(/\s/g,'').length;
+  const dims = {
+    立论: Math.max(45, Math.min(92, 55+Math.round(len/12))),
+    论证: Math.max(42, Math.min(90, 52+Math.round(len/14))),
+    表达: Math.max(50, Math.min(90, 60+Math.round(len/20))),
+    应变: Math.max(40, Math.min(88, 48+Math.round(len/18))),
+    论据: Math.max(40, Math.min(88, 45+Math.round(len/22)))
+  };
+  const total = Math.round(dims.立论*0.4 + dims.论证*0.35 + dims.表达*0.25);
+  S.lastReview = {total, dims, turns:S.turns, skipped:S.skipped, lines:S.myLines.slice(), topic:S.topic, seats:[...S.mySeats]};
+
+  // 写记录
+  S.records.unshift({
+    id:'r'+Date.now(), topic:S.topic.title, seats:[...S.mySeats], side:S.mySeats[0][0]==='A'?'正方':'反方',
+    total, turns:S.turns, date:new Date().toLocaleString('zh-CN',{hour12:false}).slice(0,16), dims
+  });
+  if (S.records.length>50) S.records.pop();
+  // 合并到画像
+  Object.keys(dims).forEach(k=>{
+    S.diag.dims[k] = Math.round((S.diag.dims[k]*0.8) + (dims[k]*0.2));
+  });
+  persist();
+  hot.zincrby(String(S.topic.id), HOT_DELTA.finish + HOT_DELTA.speech*S.turns);
+
+  S.view='review'; render();
+}
+function viewReview(){
+  const r = S.lastReview;
+  if (!r) return `<h1 class="pg">复盘</h1><p class="sub">还没有完成的场次。<a style="color:#2F5BEA;cursor:pointer" onclick="go('lobby')">去开一场 →</a></p>`;
+  const q = r.lines[0] || '（本轮未发言）';
+  return `
+  <h1 class="pg">本场复盘</h1>
+  <p class="sub">${esc(r.topic.title)} · 你占 ${r.seats.join('、')} · 发言 ${r.turns} 次 · 跳过 AI ${r.skipped} 次</p>
+  <div class="hero">
+    <div class="row" style="align-items:flex-end;gap:30px;flex-wrap:wrap">
+      <div><div class="big">${r.total}<small>分</small></div>
+        <div style="font-size:12px;color:#8A909C;margin-top:4px">三维加权 · 已计入记录</div></div>
+      <div style="flex:1;min-width:240px">
+        ${['立论','论证','表达'].map(k=>`<div class="dim"><span class="lb">${k}</span>
+          <div class="dbar"><i style="width:${r.dims[k]}%"></i></div><b>${r.dims[k]}</b></div>`).join('')}
+      </div>
+    </div>
+    <div class="ev">
+      <div class="k">论证 ${r.dims.论证} ↓ · 证据</div>
+      <div>${esc(q.slice(0,46))}${q.length>46?'…':''}</div>
+      <div class="k" style="margin-top:10px">问题</div>
+      <div style="color:#C0392B">这句是态度陈述，没有给出可被检验的判断；对方可以直接用「凭什么」反问。</div>
+      <div class="k" style="margin-top:10px">改成这样</div>
+      <div style="color:#0E9F6E">该政策有三处硬伤：成本被低估、执行主体不明、收益周期过长——任一条都能被单独检验。</div>
+    </div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn primary" onclick="go('lobby')">换席位再来</button>
+      <button class="btn ghost" onclick="startMatch(S.topic, S.mySeats, false)">同题重打</button>
+      <button class="btn ghost" onclick="go('diag')">看能力画像</button>
+      <button class="btn ghost" onclick="go('records')">辩论记录</button>
+    </div>
+  </div>`;
+}
+
+/* ================= 7. 能力诊断 ================= */
+function radarSVG(dims){
+  const keys = Object.keys(dims), n = keys.length, R = 84, cx = 120, cy = 120;
+  const pts = keys.map((k,i)=>{
+    const a = -Math.PI/2 + i*2*Math.PI/n;
+    const r = R * (dims[k]/100);
+    return [cx + r*Math.cos(a), cy + r*Math.sin(a)];
+  });
+  const outer = keys.map((k,i)=>{
+    const a = -Math.PI/2 + i*2*Math.PI/n;
+    return [cx + R*Math.cos(a), cy + R*Math.sin(a)];
+  });
+  const poly = pts.map(p=>p.join(',')).join(' ');
+  return `<svg class="radar" viewBox="0 0 240 240">
+    ${[0.25,0.5,0.75,1].map(f=>`<polygon points="${outer.map(([x,y])=>[cx+(x-cx)*f, cy+(y-cy)*f].join(',')).join(' ')}"
+        fill="none" stroke="#EDEAE3"/>`).join('')}
+    ${outer.map(([x,y])=>`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#EDEAE3"/>`).join('')}
+    <polygon points="${poly}" fill="rgba(47,91,234,.18)" stroke="#2F5BEA" stroke-width="2"/>
+    ${pts.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="3" fill="#2F5BEA"/>`).join('')}
+    ${keys.map((k,i)=>{
+      const a = -Math.PI/2 + i*2*Math.PI/n;
+      const x = cx + (R+20)*Math.cos(a), y = cy + (R+20)*Math.sin(a);
+      return `<text x="${x}" y="${y}" font-size="10" fill="#6B7280" text-anchor="middle" dominant-baseline="middle">${k}</text>`;
+    }).join('')}
+  </svg>`;
+}
+function viewDiag(){
+  const d = S.diag;
+  const flaws = Object.entries(d.flaws).sort((a,b)=>b[1]-a[1]);
+  return `
+  <h1 class="pg">能力诊断</h1>
+  <p class="sub">只和你自己比：看趋势、看漏洞频次，没有段位，也没有排名。</p>
+  <div class="grid g2">
+    <div class="card">
+      <b style="font-size:13px">五维画像</b>
+      <div class="row" style="align-items:center;margin-top:6px">
+        <div style="flex:1;min-width:240px">${radarSVG(d.dims)}</div>
+        <div style="flex:1;min-width:180px">
+          ${Object.entries(d.dims).map(([k,v])=>`<div class="dim"><span class="lb">${k}</span>
+            <div class="dbar"><i style="width:${v}%"></i></div><b>${v}</b></div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between"><b style="font-size:13px">练习连续性</b>
+          <span class="tag g">连续 ${d.streak} 天</span></div>
+        <div style="font-size:12px;color:#8A909C;margin-top:8px">中断即归零，不和别人比。</div>
+        <div class="row" style="margin-top:10px">
+          ${Array.from({length:14},(_,i)=>`<div style="width:14px;height:14px;border-radius:3px;background:${i<d.streak?'#2F5BEA':'#EDEAE3'}"></div>`).join('')}
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <b style="font-size:13px">漏洞统计（错题本）</b>
+        <table class="t" style="margin-top:6px">
+          ${flaws.map(([k,v])=>`<tr><td>${k}</td><td class="mono" style="text-align:right">${v} 次</td>
+            <td style="width:70px"><button class="btn sm ghost" onclick="go('room')">去练</button></td></tr>`).join('')}
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <b style="font-size:13px">建议下一步</b>
+    <div style="font-size:13px;color:#4A5568;line-height:1.9;margin-top:6px">
+      你的 <b>论据</b> 维度最低（${d.dims.论据}）。建议做 3 轮「质询」专练：每轮逼对方给出可核查口径，
+      并在自己发言里至少引用 1 条带出处的论据。
+    </div>
+    <button class="btn primary" style="margin-top:10px" onclick="toast('专练已排入队列（演示）')">开始专练</button>
+  </div>`;
+}
+
+/* ================= 8. 辩论记录 ================= */
+function viewRecords(){
+  const rs = S.records;
+  return `
+  <h1 class="pg">辩论记录</h1>
+  <p class="sub">没有段位、没有排名。只记录你打过什么。</p>
+  <div class="grid g3" style="margin-bottom:14px">
+    <div class="card"><div style="font-size:12px;color:#8A909C">总场次</div><div class="big" style="font-size:30px">${rs.length}</div></div>
+    <div class="card"><div style="font-size:12px;color:#8A909C">平均分</div><div class="big" style="font-size:30px">${rs.length?Math.round(rs.reduce((a,b)=>a+b.total,0)/rs.length):'—'}</div></div>
+    <div class="card"><div style="font-size:12px;color:#8A909C">总发言回合</div><div class="big" style="font-size:30px">${rs.reduce((a,b)=>a+b.turns,0)}</div></div>
+  </div>
+  <div class="card">
+    ${rs.length ? `<table class="t">
+      <tr><th>时间</th><th>辩题</th><th>席位</th><th>发言</th><th>得分</th><th></th></tr>
+      ${rs.map(r=>`<tr>
+        <td style="font-size:12px;color:#8A909C">${r.date}</td>
+        <td>${esc(r.topic)}</td><td class="mono">${r.seats.join(' ')}</td>
+        <td class="mono">${r.turns}</td><td><b>${r.total}</b></td>
+        <td><button class="btn sm ghost" onclick="replayReview('${r.id}')">看复盘</button></td>
+      </tr>`).join('')}
+    </table>` : `<div class="empty">还没有记录，去大厅开一场吧</div>`}
+  </div>`;
+}
+function replayReview(id){
+  const r = S.records.find(x=>x.id===id); if(!r) return;
+  S.lastReview = {total:r.total, dims:r.dims, turns:r.turns, skipped:0, lines:['（历史记录，仅存分数）'], topic:{title:r.topic}, seats:r.seats};
+  S.view='review'; render();
+}
+
+/* ================= 9. 社区 ================= */
+function viewCommunity(){
+  return `
+  <h1 class="pg">讨论社区</h1>
+  <p class="sub">发帖讨论打法；点赞只影响「热度」，不进入任何评分。</p>
+  <div class="grid g2">
+    <div class="card">
+      ${S.posts.map(p=>`
+        <div style="padding:12px 0;border-bottom:1px solid #F3F1EB">
+          <div class="row" style="justify-content:space-between">
+            <b style="font-size:13.5px">${esc(p.t)}</b>
+            <span class="tag ${p.c==='教程'?'g':p.c==='求助'?'o':''}">${p.c}</span>
+          </div>
+          <div style="font-size:12.5px;color:#6B7280;margin:5px 0 7px;line-height:1.7">${esc(p.body.slice(0,72))}…</div>
+          <div class="row" style="font-size:11.5px;color:#8A909C">
+            <span>@${esc(p.u)}</span><span>·</span><span>👍 ${p.likes}</span><span>·</span><span>💬 ${p.replies}</span>
+            <span style="margin-left:auto"><button class="btn sm ghost" onclick="likePost('${p.id}')">点赞 +热度</button></span>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="card">
+      <b style="font-size:13px">发新帖</b>
+      <input class="btn ghost" id="pTitle" style="width:100%;margin:10px 0;text-align:left;padding:8px 12px" placeholder="标题">
+      <textarea class="btn ghost" id="pBody" style="width:100%;height:90px;text-align:left;padding:9px 12px;resize:vertical" placeholder="正文…"></textarea>
+      <button class="btn primary" style="width:100%;margin-top:10px" onclick="newPost()">发布</button>
+      <div style="font-size:11.5px;color:#8A909C;margin-top:10px;line-height:1.7">
+        点赞会让帖子的热度上升，但 <b>不会</b> 影响任何人的辩论分数（规格 R-TECH-17）。
+      </div>
+    </div>
+  </div>`;
+}
+function likePost(id){
+  const p = S.posts.find(x=>x.id===id); if(!p) return;
+  p.likes++; LS.set('posts',S.posts); toast('已点赞（热度 +1）'); render();
+}
+function newPost(){
+  const t = $('#pTitle').value.trim(), b = $('#pBody').value.trim();
+  if (!t || !b) return toast('标题和正文都要写');
+  S.posts.unshift({id:'p'+Date.now(), u:'演示用户', t, c:'闲聊', body:b, likes:0, replies:0});
+  LS.set('posts',S.posts); toast('已发布'); render();
+}
+
+/* ================= 启动 ================= */
+render();
+window.APP = { go, openSeatPanel, startMatch, finishMatch, S, hot, HOTKEY };
+</script>
+</body>
+</html>

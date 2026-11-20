@@ -1,0 +1,35 @@
+<view class="wrap">
+  <view class="card">
+    <view class="row">
+      <view style="width:44px;height:44px;border-radius:22px;background:#eef3ff;color:#2f5bea;
+                   display:flex;align-items:center;justify-content:center;font-weight:600">
+        {{user ? (user.name || user.account || '?')[0] : '?'}}
+      </view>
+      <view class="grow" style="margin-left:10px">
+        <view style="font-weight:600">{{user ? (user.name || user.account) : '未登录'}}</view>
+        <view class="sub">{{user ? '@' + user.account : ''}}</view>
+      </view>
+      <view class="tag blue">¥{{walletText}}</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="row" style="justify-content:space-between;margin-bottom:8px">
+      <view style="font-weight:600">最近战绩</view>
+      <view class="tag">{{records.length}} 场</view>
+    </view>
+    <view wx:for="{{records}}" wx:key="id" class="row" style="justify-content:space-between;padding:8px 0;border-top:1px solid #f3f1eb">
+      <view class="grow" style="font-size:13.5px">{{item.topic_title || item.topicTitle}}</view>
+      <view style="font-weight:600;color:#2f5bea">{{item.total}} 分</view>
+    </view>
+    <view wx:if="{{!records.length}}" class="empty">还没有记录，去打一场</view>
+  </view>
+
+  <button class="btn primary" bindtap="goSolo">去开一局</button>
+  <button class="btn ghost" style="margin-top:10px" bindtap="logout">退出登录</button>
+
+  <view class="sub" style="margin-top:16px;text-align:center">
+    小程序端为精简版：单人辩论 / 对局 / 复盘。<br/>
+    社区、视频、多人房间请用 Web 端。
+  </view>
+</view>
