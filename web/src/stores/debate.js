@@ -186,7 +186,17 @@ export const useDebateStore = defineStore('debate', {
     },
 
     turnsView: (s) => {
-      const sorted = (s.turns || []).concat(s.localTurns || []).slice().sort(
+      // 先按 step|seat 去重（保留最后一条）：服务端万一出现重复行，
+      // v-for 的 :key 撞车会让 Vue 复用 DOM，气泡里就会把同一段话叠很多遍
+      const seen = new Set();
+      const dedup = [];
+      for (const t of (s.turns || []).concat(s.localTurns || []).slice().reverse()) {
+        const k = t.step + '|' + t.seat;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        dedup.push(t);
+      }
+      const sorted = dedup.reverse().sort(
         (a, b) =>
           (Number(a.step) - Number(b.step)) ||
           ((SEAT_ORDER[a.seat] || 99) - (SEAT_ORDER[b.seat] || 99))

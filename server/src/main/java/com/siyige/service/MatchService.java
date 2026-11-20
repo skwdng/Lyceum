@@ -346,8 +346,13 @@ public class MatchService {
                 String line = sp.text();
                 FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
                 line = planted.text();
-                store.insertTurn(id, step + 1, seat, cur.seg(), line,
-                        sp.degraded() ? "TEMPLATE" : "OK", "ai");
+                // 这一步已经有发言了就别再插一条（重试/并发会造成一步多条，
+                // 前端 key 撞车 → 气泡里同一段话叠很多遍）
+                boolean already = store.hasTurn(id, step + 1);
+                if (!already) {
+                    store.insertTurn(id, step + 1, seat, cur.seg(), line,
+                            sp.degraded() ? "TEMPLATE" : "OK", "ai");
+                }
                 if (buzzed) store.setPhase(id, "STEP");
                 java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
                 payload.put("seat", seat);

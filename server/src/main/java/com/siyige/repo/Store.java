@@ -167,6 +167,13 @@ public class Store {
                 matchId, step, seat, seg, content, status, inputType);
     }
 
+    /** 这一步是否已经有发言了（防重复插入：重试/并发都靠它兜底）。 */
+    public boolean hasTurn(String matchId, int step) {
+        Integer n = jdbc.queryForObject(
+                "select count(*) from sy_turn where match_id=? and step=?", Integer.class, matchId, step);
+        return n != null && n > 0;
+    }
+
     public List<Map<String, Object>> turns(String matchId) {
         return lowerAll(jdbc.queryForList(
                 "select step,seat,seg,content,status,input_type,created_at from sy_turn where match_id=? order by id", matchId));
