@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 可以在后台改的参数（第一批 10 项）—— **白名单 + 类型 + 默认值**的唯一真源。
+ * 可以在后台改的参数（第一批 10 项 + 第二批 7 项）—— **白名单 + 类型 + 默认值**的唯一真源。
  *
  * <p>为什么用枚举而不是纯表驱动（设计方案 §3）：
  * <ul>
@@ -55,6 +55,10 @@ public enum ConfigKey {
     AI_DAILY_LIMIT("ai.daily-limit", Type.INT, "5", Group.AI,
             "社区 @AI 每日次数", "每人每天最多问几次（0 = 一次都不给）", 0, 100, Effect.NOW),
 
+    AI_SPEECH_ENABLED("ai.speech-enabled", Type.BOOL, "true", Group.AI,
+            "AI 语音/模型通道开关", "关掉后 llmEnabled=false：AI 发言退回模板兜底（前端语音输入也用不了）",
+            null, null, Effect.NOW),
+
     // ==================== 计费 ====================
 
     BILLING_SERVICE_FEE("billing.service-fee-cents", Type.INT, "30", Group.BILLING,
@@ -62,6 +66,26 @@ public enum ConfigKey {
 
     BILLING_WELCOME_GRANT("billing.welcome-grant-cents", Type.INT, "100", Group.BILLING,
             "新用户赠送（分）", "100 = 1 元；只影响之后第一次开钱包的用户", 0, 100000, Effect.NOW),
+
+    BILLING_CENTS_PER_1K("billing.cents-per-1k-tokens", Type.INT, "3", Group.BILLING,
+            "模型成本单价（分/千 token）", "3 = 每千 token 收 0.03 元；下一次计价按新值算", 0, 100000, Effect.NOW),
+
+    BILLING_ESTIMATE_TOKENS("billing.estimate-tokens", Type.INT, "9000", Group.BILLING,
+            "开局预扣估算 token", "按这个数预扣，结算时多退少补", 0, 1000000, Effect.NOW),
+
+    // ==================== 对局节奏（第二批） ====================
+
+    PACE_TIME_SCALE("pace.time-scale", Type.DOUBLE, "0.05", Group.BATTLE,
+            "对局节奏倍速", "0.05 = 演示压缩；正式环境用 1.0。只影响新算出的 deadline", 0.05, 3.0, Effect.NOW),
+
+    PACE_TURN_SECONDS("pace.turn-seconds", Type.INT, "300", Group.BATTLE,
+            "每步发言时长（秒）", "0 = 不限时；用户显式指定时长时，恰好等于这个值视为\"没指定\"", 0, 3600, Effect.NOW),
+
+    PACE_AI_THINK_MS("pace.ai-think-ms", Type.INT, "700", Group.BATTLE,
+            "AI 思考停顿下限（毫秒）", "会被倍速缩放（压到 400ms 下限）", 0, 60000, Effect.NOW),
+
+    PACE_AI_DELAY_SCALE("pace.ai-delay-scale", Type.DOUBLE, "1.0", Group.BATTLE,
+            "AI 回应间隔倍率", "1.0 = 正常；不跟 time-scale 压缩", 0.05, 5.0, Effect.NOW),
 
     // ==================== 社区 ====================
 
@@ -71,8 +95,8 @@ public enum ConfigKey {
     TAG_MAX_NEW_PER_DAY("tag.max-new-per-day", Type.INT, "10", Group.COMMUNITY,
             "每人每天最多新建标签数", "0 = 只允许用已有标签", 0, 100, Effect.NOW);
 
-    /** 参数类型（决定校验与前端控件）。 */
-    public enum Type { BOOL, INT, STRING }
+    /** 参数类型（决定校验与前端控件）。DOUBLE 是第二批加的（pace.time-scale 这类小数）。 */
+    public enum Type { BOOL, INT, DOUBLE, STRING }
 
     /**
      * 分组（前端按这个分组渲染，顺序 = 枚举里的出场顺序）。
@@ -119,12 +143,13 @@ public enum ConfigKey {
     private final Group group;
     private final String label;
     private final String hint;
-    private final Integer min;
-    private final Integer max;
+    /** 下界：INT 传整数、DOUBLE 传小数（用 Number 才不用在 17 个常量里到处写 0d / 0.05d）。 */
+    private final Number min;
+    private final Number max;
     private final Effect effect;
 
     ConfigKey(String key, Type type, String def, Group group, String label, String hint,
-              Integer min, Integer max, Effect effect) {
+              Number min, Number max, Effect effect) {
         this.key = key;
         this.type = type;
         this.def = def;
@@ -150,11 +175,11 @@ public enum ConfigKey {
 
     public String hint() { return hint; }
 
-    /** 整数下界（仅 INT；null = 不限制）。 */
-    public Integer min() { return min; }
+    /** 下界（INT 是整数、DOUBLE 是小数；null = 不限制）。 */
+    public Number min() { return min; }
 
-    /** 整数上界（仅 INT；null = 不限制）。 */
-    public Integer max() { return max; }
+    /** 上界（同上）。 */
+    public Number max() { return max; }
 
     public Effect effect() { return effect; }
 
@@ -187,13 +212,33 @@ public enum ConfigKey {
                 } catch (NumberFormatException e) {
                     throw new IllegalArgumentException(bad + "必须是整数");
                 }
-                if (min != null && n < min) {
+                if (min != null && n < min.intValue()) {
                     throw new IllegalArgumentException(bad + "不能小于 " + min);
                 }
-                if (max != null && n > max) {
+                if (max != null && n > max.intValue()) {
                     throw new IllegalArgumentException(bad + "不能大于 " + max);
                 }
                 return String.valueOf(n);
+            }
+            case DOUBLE -> {
+                double d;
+                try {
+                    d = Double.parseDouble(v);
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException(bad + "必须是数字");
+                }
+                if (Double.isNaN(d) || Double.isInfinite(d)) {
+                    throw new IllegalArgumentException(bad + "必须是有限的数字");
+                }
+                if (min != null && d < min.doubleValue()) {
+                    throw new IllegalArgumentException(bad + "不能小于 " + min);
+                }
+                if (max != null && d > max.doubleValue()) {
+                    throw new IllegalArgumentException(bad + "不能大于 " + max);
+                }
+                // 存 trim 后的原样字符串：**不**把 1 改写成 1.0（用户写的什么样，库里就是什么样）。
+                // 代价：写 1 与默认值 1.0 字符串不相等，会被当成"改过"——值相同、语义相同，不值得改写输入。
+                return v;
             }
             default -> {
                 if (v.isEmpty()) {

@@ -110,7 +110,8 @@ class ConfigServiceTest {
             assertNotNull(it.get("effectLabel"));
             assertEquals(ConfigKey.of(String.valueOf(it.get("key"))).label(), it.get("label"));
         }
-        assertEquals(List.of("告警", "审核", "AI", "计费", "社区"), cfg.groups());
+        // 第二批加入「对局」分组（4 个 pace.*），顺序 = 枚举出场顺序
+        assertEquals(List.of("告警", "审核", "AI", "计费", "对局", "社区"), cfg.groups());
         // 告警两项是"下次扫描生效"，其余是"立即生效"
         assertEquals("NEXT_SCAN", ConfigKey.ALERT_REPORT_THRESHOLD.effect().name());
         assertEquals("NOW", ConfigKey.TAG_MAX_PER_POST.effect().name());
@@ -254,6 +255,78 @@ class ConfigServiceTest {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> cfg.rollback(999999L, "super"));
         assertTrue(e.getMessage().startsWith("CONFIG_LOG_NOT_FOUND:"), e.getMessage());
+    }
+
+    // ==================== 第二批：7 项默认值 + DOUBLE 类型 ====================
+
+    @Test
+    void 第二批7项默认值与线上行为一致() {
+        // 3 / 9000 / 0.05 / 300 / **700** / 1.0 / true
+        assertEquals(3, cfg.getInt(ConfigKey.BILLING_CENTS_PER_1K));
+        assertEquals(9000, cfg.getInt(ConfigKey.BILLING_ESTIMATE_TOKENS));
+        assertEquals(0.05, cfg.getDouble(ConfigKey.PACE_TIME_SCALE), 1e-9);
+        assertEquals(300, cfg.getInt(ConfigKey.PACE_TURN_SECONDS));
+        // ai-think-ms：yml 写 700，代码里的 @Value 默认是 1800 —— 线上真正生效的一直是 700
+        assertEquals(700, cfg.getInt(ConfigKey.PACE_AI_THINK_MS), "默认值必须对齐 yml 的 700，不是代码里的 1800");
+        assertEquals(1.0, cfg.getDouble(ConfigKey.PACE_AI_DELAY_SCALE), 1e-9);
+        assertTrue(cfg.getBool(ConfigKey.AI_SPEECH_ENABLED));
+        assertEquals(0, rows(ConfigKey.PACE_TIME_SCALE.key()), "默认值不落库");
+    }
+
+    @Test
+    void DOUBLE能读能写_改完立刻生效() {
+        assertEquals(0.05, cfg.getDouble(ConfigKey.PACE_TIME_SCALE), 1e-9);
+        cfg.set(ConfigKey.PACE_TIME_SCALE, "1.0", "admin");
+        assertEquals(1.0, cfg.getDouble(ConfigKey.PACE_TIME_SCALE), 1e-9);
+        assertEquals("1.0", jdbc.queryForObject("select v from sy_config where k = ?", String.class,
+                ConfigKey.PACE_TIME_SCALE.key()));
+        cfg.set(ConfigKey.PACE_AI_DELAY_SCALE, "2.5", "admin");
+        assertEquals(2.5, cfg.getDouble(ConfigKey.PACE_AI_DELAY_SCALE), 1e-9);
+    }
+
+    @Test
+    void DOUBLE存原样_1不会被改写成1点0() {
+        cfg.set(ConfigKey.PACE_AI_DELAY_SCALE, "1", "admin");
+        assertEquals("1", jdbc.queryForObject("select v from sy_config where k = ?", String.class,
+                ConfigKey.PACE_AI_DELAY_SCALE.key()), "按执行提示词：存 trim 后的原样");
+        assertEquals(1.0, cfg.getDouble(ConfigKey.PACE_AI_DELAY_SCALE), 1e-9, "读出来仍是 1.0");
+    }
+
+    @Test
+    void DOUBLE坏值被拒且库里不变() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> cfg.set(ConfigKey.PACE_TIME_SCALE, "abc", "admin"));
+        assertTrue(e.getMessage().startsWith("INVALID_PARAM:"), e.getMessage());
+        assertTrue(e.getMessage().contains("必须是数字"), e.getMessage());
+        assertEquals(0, rows(ConfigKey.PACE_TIME_SCALE.key()));
+        assertEquals(0.05, cfg.getDouble(ConfigKey.PACE_TIME_SCALE), 1e-9);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> cfg.set(ConfigKey.PACE_TIME_SCALE, "NaN", "admin"));
+        assertThrows(IllegalArgumentException.class,
+                () -> cfg.set(ConfigKey.PACE_TIME_SCALE, "", "admin"));
+    }
+
+    @Test
+    void DOUBLE超范围被拒_端点能写() {
+        // pace.time-scale: [0.05, 3.0]
+        assertThrows(IllegalArgumentException.class, () -> cfg.set(ConfigKey.PACE_TIME_SCALE, "0.01", "admin"));
+        assertThrows(IllegalArgumentException.class, () -> cfg.set(ConfigKey.PACE_TIME_SCALE, "5.0", "admin"));
+        cfg.set(ConfigKey.PACE_TIME_SCALE, "0.05", "admin");
+        assertEquals(0.05, cfg.getDouble(ConfigKey.PACE_TIME_SCALE), 1e-9);
+        cfg.set(ConfigKey.PACE_TIME_SCALE, "3.0", "admin");
+        assertEquals(3.0, cfg.getDouble(ConfigKey.PACE_TIME_SCALE), 1e-9);
+
+        // pace.ai-delay-scale: [0.05, 5.0]
+        assertThrows(IllegalArgumentException.class, () -> cfg.set(ConfigKey.PACE_AI_DELAY_SCALE, "0.01", "admin"));
+        assertThrows(IllegalArgumentException.class, () -> cfg.set(ConfigKey.PACE_AI_DELAY_SCALE, "5.5", "admin"));
+    }
+
+    @Test
+    void 库里DOUBLE是坏值时回落默认值不打崩接口() {
+        jdbc.update("insert into sy_config(k, v, type, updated_by) values(?, 'abc', 'DOUBLE', 'dba')",
+                ConfigKey.PACE_TIME_SCALE.key());
+        assertEquals(0.05, cfg.getDouble(ConfigKey.PACE_TIME_SCALE), 1e-9);
     }
 
     // ==================== 缓存 ====================

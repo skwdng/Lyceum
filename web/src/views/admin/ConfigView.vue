@@ -42,12 +42,13 @@ function fmt(ms) {
   return (d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes());
 }
 
-/** 整数字段的范围提示（INT 才显示；与后端 ConfigKey 里的 min/max 同源） */
+/** 数值字段的范围提示（INT / DOUBLE 才显示；与后端 ConfigKey 里的 min/max 同源） */
 function rangeText(it) {
-  if (it.type !== 'INT') return '';
+  if (it.type !== 'INT' && it.type !== 'DOUBLE') return '';
   if (it.min === null && it.max === null) return '';
-  if (it.min !== null && it.max !== null) return '范围 ' + it.min + ' - ' + it.max;
-  return it.min !== null ? '不小于 ' + it.min : '不大于 ' + it.max;
+  const kind = it.type === 'DOUBLE' ? '小数，' : '';
+  if (it.min !== null && it.max !== null) return kind + '范围 ' + it.min + ' - ' + it.max;
+  return kind + (it.min !== null ? '不小于 ' + it.min : '不大于 ' + it.max);
 }
 
 /** 拉列表：每次拉完把编辑值重置成库里的当前值（保存是"改一行存一行"，不存在未提交的批量改动） */
@@ -80,6 +81,15 @@ function localError(it, raw) {
   if (it.type === 'INT') {
     if (!/^-?\d+$/.test(v)) return '必须是整数';
     const n = Number(v);
+    if (it.min !== null && it.min !== undefined && n < it.min) return '不能小于 ' + it.min;
+    if (it.max !== null && it.max !== undefined && n > it.max) return '不能大于 ' + it.max;
+    return '';
+  }
+  if (it.type === 'DOUBLE') {
+    // 只收十进制小数（NaN / Infinity / 十六进制都挡在前面；后端还会再拦一次）
+    if (!/^-?(\d+\.?\d*|\.\d+)$/.test(v)) return '必须是数字（可带小数）';
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '必须是有限的数字';
     if (it.min !== null && it.min !== undefined && n < it.min) return '不能小于 ' + it.min;
     if (it.max !== null && it.max !== undefined && n > it.max) return '不能大于 ' + it.max;
     return '';
@@ -231,6 +241,17 @@ const overridden = computed(() => items.value.filter((it) => it.source === 'DB')
                         v-model="drafts[it.key]"
                         class="cfg-input"
                         type="number"
+                        step="1"
+                        :min="it.min"
+                        :max="it.max"
+                        data-cfg-input
+                      >
+                      <input
+                        v-else-if="it.type === 'DOUBLE'"
+                        v-model="drafts[it.key]"
+                        class="cfg-input"
+                        type="number"
+                        step="0.05"
                         :min="it.min"
                         :max="it.max"
                         data-cfg-input

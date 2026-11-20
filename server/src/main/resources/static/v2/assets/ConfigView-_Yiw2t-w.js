@@ -1,4 +1,4 @@
-import { _ as _export_sfc, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, F as Fragment, r as renderList, p as computed, i as ref, W as configApi, R as errText, a as openBlock, e as createCommentVNode, f as withDirectives, v as vModelSelect, G as vModelText, n as normalizeClass, m as toast } from "./index-C2dek0WT.js";
+import { _ as _export_sfc, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, F as Fragment, r as renderList, p as computed, i as ref, W as configApi, R as errText, a as openBlock, e as createCommentVNode, f as withDirectives, v as vModelSelect, G as vModelText, n as normalizeClass, m as toast } from "./index-BVG9sIcp.js";
 const _hoisted_1 = {
   class: "panel",
   "data-panel": "config"
@@ -29,40 +29,41 @@ const _hoisted_11 = {
 const _hoisted_12 = { class: "cfg-key" };
 const _hoisted_13 = ["onUpdate:modelValue"];
 const _hoisted_14 = ["onUpdate:modelValue", "min", "max"];
-const _hoisted_15 = ["onUpdate:modelValue"];
-const _hoisted_16 = {
-  key: 3,
-  class: "cfg-hint"
-};
+const _hoisted_15 = ["onUpdate:modelValue", "min", "max"];
+const _hoisted_16 = ["onUpdate:modelValue"];
 const _hoisted_17 = {
   key: 4,
+  class: "cfg-hint"
+};
+const _hoisted_18 = {
+  key: 5,
   class: "cfg-err",
   "data-cfg-error": ""
 };
-const _hoisted_18 = ["data-source"];
-const _hoisted_19 = { class: "muted" };
-const _hoisted_20 = { class: "cfg-ops" };
-const _hoisted_21 = ["disabled", "onClick"];
-const _hoisted_22 = ["onClick"];
-const _hoisted_23 = {
+const _hoisted_19 = ["data-source"];
+const _hoisted_20 = { class: "muted" };
+const _hoisted_21 = { class: "cfg-ops" };
+const _hoisted_22 = ["disabled", "onClick"];
+const _hoisted_23 = ["onClick"];
+const _hoisted_24 = {
   key: 0,
   class: "cfg-histrow"
 };
-const _hoisted_24 = { colspan: "6" };
-const _hoisted_25 = ["data-cfg-hist"];
-const _hoisted_26 = {
+const _hoisted_25 = { colspan: "6" };
+const _hoisted_26 = ["data-cfg-hist"];
+const _hoisted_27 = {
   key: 0,
   class: "muted"
 };
-const _hoisted_27 = {
+const _hoisted_28 = {
   key: 1,
   class: "muted"
 };
-const _hoisted_28 = { key: 2 };
-const _hoisted_29 = ["data-cfg-log"];
-const _hoisted_30 = { class: "muted" };
+const _hoisted_29 = { key: 2 };
+const _hoisted_30 = ["data-cfg-log"];
 const _hoisted_31 = { class: "muted" };
-const _hoisted_32 = ["disabled", "onClick"];
+const _hoisted_32 = { class: "muted" };
+const _hoisted_33 = ["disabled", "onClick"];
 const _sfc_main = {
   __name: "ConfigView",
   setup(__props) {
@@ -84,10 +85,11 @@ const _sfc_main = {
       return d.getMonth() + 1 + "-" + p2(d.getDate()) + " " + p2(d.getHours()) + ":" + p2(d.getMinutes());
     }
     function rangeText(it) {
-      if (it.type !== "INT") return "";
+      if (it.type !== "INT" && it.type !== "DOUBLE") return "";
       if (it.min === null && it.max === null) return "";
-      if (it.min !== null && it.max !== null) return "范围 " + it.min + " - " + it.max;
-      return it.min !== null ? "不小于 " + it.min : "不大于 " + it.max;
+      const kind = it.type === "DOUBLE" ? "小数，" : "";
+      if (it.min !== null && it.max !== null) return kind + "范围 " + it.min + " - " + it.max;
+      return kind + (it.min !== null ? "不小于 " + it.min : "不大于 " + it.max);
     }
     async function load() {
       loading.value = true;
@@ -114,6 +116,14 @@ const _sfc_main = {
       if (it.type === "INT") {
         if (!/^-?\d+$/.test(v)) return "必须是整数";
         const n = Number(v);
+        if (it.min !== null && it.min !== void 0 && n < it.min) return "不能小于 " + it.min;
+        if (it.max !== null && it.max !== void 0 && n > it.max) return "不能大于 " + it.max;
+        return "";
+      }
+      if (it.type === "DOUBLE") {
+        if (!/^-?(\d+\.?\d*|\.\d+)$/.test(v)) return "必须是数字（可带小数）";
+        const n = Number(v);
+        if (!Number.isFinite(n)) return "必须是有限的数字";
         if (it.min !== null && it.min !== void 0 && n < it.min) return "不能小于 " + it.min;
         if (it.max !== null && it.max !== void 0 && n > it.max) return "不能大于 " + it.max;
         return "";
@@ -259,22 +269,34 @@ const _sfc_main = {
                               "onUpdate:modelValue": ($event) => drafts.value[it.key] = $event,
                               class: "cfg-input",
                               type: "number",
+                              step: "1",
                               min: it.min,
                               max: it.max,
                               "data-cfg-input": ""
                             }, null, 8, _hoisted_14)), [
                               [vModelText, drafts.value[it.key]]
-                            ]) : withDirectives((openBlock(), createElementBlock("input", {
+                            ]) : it.type === "DOUBLE" ? withDirectives((openBlock(), createElementBlock("input", {
                               key: 2,
+                              "onUpdate:modelValue": ($event) => drafts.value[it.key] = $event,
+                              class: "cfg-input",
+                              type: "number",
+                              step: "0.05",
+                              min: it.min,
+                              max: it.max,
+                              "data-cfg-input": ""
+                            }, null, 8, _hoisted_15)), [
+                              [vModelText, drafts.value[it.key]]
+                            ]) : withDirectives((openBlock(), createElementBlock("input", {
+                              key: 3,
                               "onUpdate:modelValue": ($event) => drafts.value[it.key] = $event,
                               class: "cfg-input",
                               type: "text",
                               "data-cfg-input": ""
-                            }, null, 8, _hoisted_15)), [
+                            }, null, 8, _hoisted_16)), [
                               [vModelText, drafts.value[it.key]]
                             ]),
-                            rangeText(it) ? (openBlock(), createElementBlock("div", _hoisted_16, toDisplayString(rangeText(it)), 1)) : createCommentVNode("", true),
-                            rowErrors.value[it.key] ? (openBlock(), createElementBlock("div", _hoisted_17, toDisplayString(rowErrors.value[it.key]), 1)) : createCommentVNode("", true)
+                            rangeText(it) ? (openBlock(), createElementBlock("div", _hoisted_17, toDisplayString(rangeText(it)), 1)) : createCommentVNode("", true),
+                            rowErrors.value[it.key] ? (openBlock(), createElementBlock("div", _hoisted_18, toDisplayString(rowErrors.value[it.key]), 1)) : createCommentVNode("", true)
                           ]),
                           createBaseVNode("td", null, [
                             createBaseVNode("span", {
@@ -285,30 +307,30 @@ const _sfc_main = {
                             createBaseVNode("span", {
                               class: normalizeClass(["cfg-src", { db: it.source === "DB" }]),
                               "data-source": it.source
-                            }, toDisplayString(it.sourceLabel), 11, _hoisted_18)
+                            }, toDisplayString(it.sourceLabel), 11, _hoisted_19)
                           ]),
-                          createBaseVNode("td", _hoisted_19, toDisplayString(it.updatedBy ? it.updatedBy + " · " + fmt(it.updatedAt) : "—"), 1),
-                          createBaseVNode("td", _hoisted_20, [
+                          createBaseVNode("td", _hoisted_20, toDisplayString(it.updatedBy ? it.updatedBy + " · " + fmt(it.updatedAt) : "—"), 1),
+                          createBaseVNode("td", _hoisted_21, [
                             createBaseVNode("button", {
                               class: "btn sm primary",
                               "data-cfg-save": "",
                               disabled: busy.value === it.key || !dirty(it),
                               onClick: ($event) => save(it)
-                            }, toDisplayString(busy.value === it.key ? "保存中…" : "保存"), 9, _hoisted_21),
+                            }, toDisplayString(busy.value === it.key ? "保存中…" : "保存"), 9, _hoisted_22),
                             createBaseVNode("button", {
                               class: "btn sm",
                               "data-cfg-history": "",
                               onClick: ($event) => toggleHistory(it)
-                            }, toDisplayString(histories.value[it.key] && histories.value[it.key].open ? "收起" : "历史"), 9, _hoisted_22)
+                            }, toDisplayString(histories.value[it.key] && histories.value[it.key].open ? "收起" : "历史"), 9, _hoisted_23)
                           ])
                         ], 8, _hoisted_9),
-                        histories.value[it.key] && histories.value[it.key].open ? (openBlock(), createElementBlock("tr", _hoisted_23, [
-                          createBaseVNode("td", _hoisted_24, [
+                        histories.value[it.key] && histories.value[it.key].open ? (openBlock(), createElementBlock("tr", _hoisted_24, [
+                          createBaseVNode("td", _hoisted_25, [
                             createBaseVNode("div", {
                               class: "cfg-hist",
                               "data-cfg-hist": it.key
                             }, [
-                              histories.value[it.key].loading ? (openBlock(), createElementBlock("div", _hoisted_26, "加载历史…")) : !histories.value[it.key].items.length ? (openBlock(), createElementBlock("div", _hoisted_27, " 还没有改过这一项（默认值 " + toDisplayString(it.defaultValue) + "）。 ", 1)) : (openBlock(), createElementBlock("table", _hoisted_28, [
+                              histories.value[it.key].loading ? (openBlock(), createElementBlock("div", _hoisted_27, "加载历史…")) : !histories.value[it.key].items.length ? (openBlock(), createElementBlock("div", _hoisted_28, " 还没有改过这一项（默认值 " + toDisplayString(it.defaultValue) + "）。 ", 1)) : (openBlock(), createElementBlock("table", _hoisted_29, [
                                 _cache[5] || (_cache[5] = createBaseVNode("thead", null, [
                                   createBaseVNode("tr", null, [
                                     createBaseVNode("th", { style: { "width": "150px" } }, "时间"),
@@ -323,8 +345,8 @@ const _sfc_main = {
                                       key: row.id,
                                       "data-cfg-log": row.id
                                     }, [
-                                      createBaseVNode("td", _hoisted_30, toDisplayString(fmt(row.createdAt)), 1),
-                                      createBaseVNode("td", _hoisted_31, toDisplayString(row.operator || "—"), 1),
+                                      createBaseVNode("td", _hoisted_31, toDisplayString(fmt(row.createdAt)), 1),
+                                      createBaseVNode("td", _hoisted_32, toDisplayString(row.operator || "—"), 1),
                                       createBaseVNode("td", null, [
                                         createBaseVNode("code", null, toDisplayString(oldText(it, row)), 1),
                                         _cache[4] || (_cache[4] = createBaseVNode("span", { class: "muted" }, " → ", -1)),
@@ -335,13 +357,13 @@ const _sfc_main = {
                                           class: "btn sm",
                                           disabled: busy.value === it.key,
                                           onClick: ($event) => rollback(it, row)
-                                        }, " 回滚 ", 8, _hoisted_32)
+                                        }, " 回滚 ", 8, _hoisted_33)
                                       ])
-                                    ], 8, _hoisted_29);
+                                    ], 8, _hoisted_30);
                                   }), 128))
                                 ])
                               ]))
-                            ], 8, _hoisted_25)
+                            ], 8, _hoisted_26)
                           ])
                         ])) : createCommentVNode("", true)
                       ], 64);
@@ -356,7 +378,7 @@ const _sfc_main = {
     };
   }
 };
-const ConfigView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-8908019b"]]);
+const ConfigView = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-1319c0b3"]]);
 export {
   ConfigView as default
 };

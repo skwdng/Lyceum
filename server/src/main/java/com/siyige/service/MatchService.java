@@ -2,6 +2,8 @@ package com.siyige.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.siyige.admin.analytics.Active;
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigService;
 import com.siyige.ai.AiService;
 import com.siyige.api.SseHub;
 import com.siyige.domain.Format;
@@ -10,7 +12,6 @@ import com.siyige.hot.HotRank;
 import com.siyige.repo.Store;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -44,32 +45,47 @@ public class MatchService {
     private final SseHub hub;
     private final FlawService flaw;
     private final ObjectMapper json;
-    private final double timeScale;
-    private final long aiThinkMs;
-    private final int defaultTurnSeconds;
-    private final double aiDelayScale;
+    /**
+     * 四个节奏参数（参数管理第二批）从后台读，每次现读。
+     *
+     * <p>默认值与**当前线上行为**一致：time-scale 0.05 / turn-seconds 300 /
+     * ai-think-ms **700** / ai-delay-scale 1.0。
+     * 注意 ai-think-ms 的 yml 是 700、原来代码里的 {@code @Value} 默认是 1800，
+     * 真正生效的一直是 yml 的 700 —— 所以默认值取 700，不能照抄 1800。
+     */
+    private final ConfigService cfg;
 
     public MatchService(Store store, AiService ai, ScoreService scorer, HotRank hot, SseHub hub, FlawService flaw,
                         ObjectMapper json,
-                        @Value("${siyige.pace.time-scale:1.0}") double timeScale,
-                        @Value("${siyige.pace.ai-think-ms:1800}") long aiThinkMs,
-                        @Value("${siyige.pace.turn-seconds:300}") int defaultTurnSeconds,
-                        @Value("${siyige.pace.ai-delay-scale:1.0}") double aiDelayScale,
+                        ConfigService cfg,
                         UtteranceCheck utterance,
                         com.siyige.billing.WalletService wallet,
                         com.siyige.billing.UserLlmService userLlm,
                         com.siyige.ai.AiTier aiTier,
                         com.siyige.repo.RoomStore roomStore) {
         this.store = store; this.ai = ai; this.scorer = scorer; this.hot = hot; this.hub = hub;
-        this.flaw = flaw; this.json = json; this.timeScale = timeScale; this.aiThinkMs = aiThinkMs;
-        this.defaultTurnSeconds = defaultTurnSeconds;
-        this.aiDelayScale = aiDelayScale;
+        this.flaw = flaw; this.json = json;
+        this.cfg = cfg;
         this.utterance = utterance;
         this.wallet = wallet;
         this.userLlm = userLlm;
         this.aiTier = aiTier;
         this.roomStore = roomStore;
     }
+
+    // ---------- 节奏参数（每次现读，后台改完不用重启） ----------
+
+    /** 演示压缩倍速。只影响**新算出来**的 deadline，已经写进库的不追改。 */
+    private double timeScale() { return cfg.getDouble(ConfigKey.PACE_TIME_SCALE); }
+
+    /** AI 思考停顿下限（毫秒），还会被 timeScale 缩放。 */
+    private long aiThinkMs() { return cfg.getInt(ConfigKey.PACE_AI_THINK_MS); }
+
+    /** 每步默认发言时长（秒）。用户显式指定且不等于它时才算"指定"。 */
+    private int turnSeconds() { return cfg.getInt(ConfigKey.PACE_TURN_SECONDS); }
+
+    /** AI 回应间隔倍率（**不**跟 timeScale 压缩）。 */
+    private double aiDelayScale() { return cfg.getDouble(ConfigKey.PACE_AI_DELAY_SCALE); }
 
     // ---------- 开局 ----------
 
@@ -401,7 +417,7 @@ public class MatchService {
 
     /** 自由辩抢拍窗口：真实自由辩就是抢话，给 6 秒窗口。 */
     private long buzzWindowMs() {
-        return Math.max(3000, (long) (8 * 1000 * Math.max(0.05, timeScale)));
+        return Math.max(3000, (long) (8 * 1000 * Math.max(0.05, timeScale())));
     }
 
     /** 玩家点「抢」：抢到就拿到这一步的发言权。 */
@@ -424,7 +440,7 @@ public class MatchService {
     private long aiDeadline(String seat) {
         // 一方说完，另一方至少隔 10 秒再回；区间 10–15 秒（按压缩系数缩放）
         long pick = 10_000L + (long) (5_000L * Math.random());
-        long ms = Math.max(400, (long) (pick * Math.max(0.05, aiDelayScale)));
+        long ms = Math.max(400, (long) (pick * Math.max(0.05, aiDelayScale())));
         return System.currentTimeMillis() + ms;
     }
 
@@ -432,7 +448,7 @@ public class MatchService {
 
     /** 开场第一句：不等 10–15 秒，1.2 秒就开口。 */
     private long openingDelay() {
-        return Math.max(300, (long) (1200 * Math.max(0.05, aiDelayScale)));
+        return Math.max(300, (long) (1200 * Math.max(0.05, aiDelayScale())));
     }
 
     /** 在同侧里挑一个不是玩家的席位，用来"抢到话筒"。 */
@@ -703,7 +719,7 @@ public class MatchService {
         out.put("buzzSeat", buzzSeat);
         out.put("waitingForMe", running && speaker != null && TurnEngine.isMine(mine, speaker));
         out.put("waitingSeat", running && cur != null ? cur.seat() : null);
-        out.put("turnSec", num(m.get("turn_sec")) > 0 ? num(m.get("turn_sec")) : defaultTurnSeconds);
+        out.put("turnSec", num(m.get("turn_sec")) > 0 ? num(m.get("turn_sec")) : turnSeconds());
         out.put("pace", str(m.get("pace")));
         out.put("phase", str(m.get("phase")));
         out.put("kind", str(m.get("kind")));
@@ -747,20 +763,22 @@ public class MatchService {
     /** seconds <= 0 表示不限时，返回 null（库里的 deadline_at 为空）。 */
     private Long deadlineFor(int seconds) {
         if (seconds <= 0) return null;
-        long ms = Math.max(3000, (long) (seconds * 1000 * timeScale));
+        long ms = Math.max(3000, (long) (seconds * 1000 * timeScale()));
         return System.currentTimeMillis() + ms;
     }
     /** 单人 0（不限时），多人上限 600 秒。 */
     private int stepSeconds(Format.Step s, int overrideSec, String pace, String kind) {
         if ("solo".equalsIgnoreCase(kind)) return 0;
-        if (overrideSec > 0 && overrideSec != defaultTurnSeconds) return overrideSec;
+        // 「用户指定的时长恰好等于配置里的默认值 = 视为没指定」——比较对象也要现读配置。
+        // 默认值 300 时行为与改造前逐位一致（用户传 300 仍然落到赛制表的口径）。
+        if (overrideSec > 0 && overrideSec != turnSeconds()) return overrideSec;
         return Math.min(600, com.siyige.domain.Pace.secondsFor(s.seg(), pace));
     }
     private static String str(Object o) { return o == null ? "" : String.valueOf(o); }
     private static int num(Object o) { return o instanceof Number n ? n.intValue() : 0; }
 
     /** AI 思考停顿（R-PACE-01），按压缩系数缩放。 */
-    public long thinkMs() { return Math.max(400, (long) (aiThinkMs * Math.max(0.05, timeScale))); }
+    public long thinkMs() { return Math.max(400, (long) (aiThinkMs() * Math.max(0.05, timeScale()))); }
 
-    public Duration prepareDuration() { return Duration.ofMillis(Math.max(2000, (long) (10_000 * timeScale))); }
+    public Duration prepareDuration() { return Duration.ofMillis(Math.max(2000, (long) (10_000 * timeScale()))); }
 }
