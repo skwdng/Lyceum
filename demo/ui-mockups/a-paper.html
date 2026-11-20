@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>方案 A · 学院纸感</title>
+<style>
+  :root{
+    --bg:#f6f3ec; --card:#fffdf9; --ink:#1c1a16; --sub:#8b8578; --line:#e6e0d2;
+    --pro:#2f5bea; --con:#c2571f; --gold:#b08a3e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:15px;line-height:1.8}
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 30px 40px}
+  .top{display:flex;align-items:flex-end;justify-content:space-between;
+    border-bottom:2px solid var(--ink);padding-bottom:10px}
+  h1{margin:0;font-size:25px;letter-spacing:.5px;font-weight:600}
+  .meta{font-size:12.5px;color:var(--sub);font-family:system-ui;letter-spacing:.4px}
+  .body{display:grid;grid-template-columns:1fr 300px;gap:26px;margin-top:20px}
+  .seats{display:flex;gap:6px;margin:14px 0 18px}
+  .seat{flex:1;border:1px solid var(--line);background:var(--card);border-radius:4px;
+    padding:6px 8px;font-family:system-ui;font-size:11.5px;color:var(--sub);text-align:center}
+  .seat.pro{border-color:#c9d5f7;color:var(--pro)}
+  .seat.con{border-color:#eed3c2;color:var(--con)}
+  .seat.me{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .turn{margin:0 0 22px;padding-left:16px;border-left:2px solid var(--line)}
+  .turn.pro{border-color:#c9d5f7}
+  .turn.con{border-color:#eed3c2}
+  .who{font-family:system-ui;font-size:11.5px;color:var(--sub);letter-spacing:.6px;margin-bottom:6px;text-transform:uppercase}
+  .turn p{margin:0 0 8px;text-indent:2em}
+  .turn p:last-child{margin-bottom:0}
+  .flaw{border:1px solid #e8d9bd;background:#fdf8ee;border-radius:6px;padding:14px 16px;margin-top:8px}
+  .flaw b{font-size:14px}
+  .chips{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .chip{border:1px solid #ddd3bf;background:#fff;border-radius:20px;padding:5px 14px;font-size:12.5px;font-family:system-ui}
+  .aside{font-family:system-ui;font-size:12.5px;color:#4a463d}
+  .panel{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:14px 16px;margin-bottom:16px}
+  .panel h3{margin:0 0 10px;font-size:12px;letter-spacing:1.2px;color:var(--sub);font-weight:600}
+  .plan{list-style:none;margin:0;padding:0;font-size:12.5px}
+  .plan li{padding:4px 0;color:#6d685c;display:flex;justify-content:space-between}
+  .plan li.on{color:var(--pro);font-weight:700}
+  .card-e{border-left:3px solid var(--gold);padding:8px 0 8px 10px;margin-bottom:10px;font-size:12.5px;line-height:1.6}
+  .card-e i{display:block;color:var(--sub);font-style:normal;font-size:11px;margin-top:4px}
+  .input{border:1px solid var(--line);background:#fff;border-radius:6px;padding:14px;min-height:88px;color:#b3ada0}
+  .send{float:right;background:var(--ink);color:#fff;border:none;border-radius:5px;padding:9px 22px;font-family:system-ui;font-size:13px;margin-top:10px}
+</style></head>
+<body><div class="wrap">
+  <div class="top">
+    <div>
+      <h1>大数据算法推荐是否加剧了信息茧房</h1>
+      <div class="meta">标准赛制 · 12 步 · 你占 B2 · 第 4 步 驳立论</div>
+    </div>
+    <div class="meta">18:20</div>
+  </div>
+
+  <div class="body">
+    <div>
+      <div class="seats">
+        <div class="seat pro">A1 正一</div><div class="seat pro">A2 正二</div>
+        <div class="seat pro">A3 正三</div><div class="seat pro">A4 正四</div>
+        <div class="seat con">B1 反一</div><div class="seat con me">B2 你</div>
+        <div class="seat con">B3 反三</div><div class="seat con">B4 反四</div>
+      </div>
+
+      <div class="turn pro">
+        <div class="who">正方一辩 · 立论</div>
+        <p>判断先立在「加剧」二字上：算法推荐是否在既有偏好之上，进一步收窄了信息接触面，并削弱纠偏能力。</p>
+        <p>我方判准有三条，缺一不可：一看机制是否系统性偏向强化既有偏好；二看用户能否低成本退出或纠偏；三看后果是否使信息接触面持续收窄。</p>
+      </div>
+
+      <div class="turn con">
+        <div class="who">反方一辩 · 立论</div>
+        <p>我方判断：算法推荐并未在可检验意义上加剧信息茧房。题目里最关键的是「信息茧房」，我把它界定为用户信息接触范围被系统性收窄、且缺乏自主校正手段的状态。</p>
+        <p>我方判准有二：其一，须证明推荐机制与接触面收窄之间存在稳定因果，而非仅机制倾向；其二，须证明用户校正手段在事实上失效。</p>
+      </div>
+
+      <div class="flaw">
+        <b>对方那句有逻辑问题 —— 你抓到了吗？</b>
+        <div class="chips">
+          <span class="chip">诉诸权威</span><span class="chip">以偏概全</span>
+          <span class="chip">循环论证</span><span class="chip">跳过</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="aside">
+      <div class="panel">
+        <h3>赛制进度</h3>
+        <ul class="plan">
+          <li><span>1 立论 · A1</span><span>4/12</span></li>
+          <li><span>2 立论 · B1</span></li>
+          <li><span>3 驳立论 · A2</span></li>
+          <li class="on"><span>4 驳立论 · B2 · 你</span><span>←</span></li>
+          <li><span>5 质询 · A3</span></li>
+          <li><span>6 质询 · B3</span></li>
+          <li><span>7 自由辩 · A2</span></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>论据卡</h3>
+        <div class="card-e">推荐系统的优化目标是停留时长与转化率，机制上天然偏向强化既有偏好<i>各平台公开的推荐机制说明（需核实）· 2023</i></div>
+        <div class="card-e">平台必须提供关闭算法推荐的选项，并允许用户便捷删除个人标签<i>《互联网信息服务算法推荐管理规定》· 2021</i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input">写下你的发言…</div>
+  <button class="send">发送</button>
+</div></body></html>

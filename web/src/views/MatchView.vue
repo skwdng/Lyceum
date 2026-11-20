@@ -38,7 +38,7 @@ const payerLabel = computed(() => {
   if (!payer || !me) return '';
   return String(payer) === String(me) ? '' : '房主';
 });
-const activeSeat = computed(() => SEAT_OF[debate.stepNo] || '');
+const activeSeat = computed(() => debate.seatAt(debate.stepNo) || '');
 
 /** 正在流式输出的气泡（模型一边生成一边显示，不用等整段） */
 const streamList = computed(() =>
@@ -246,7 +246,7 @@ const verdictOf = (t) => (t.typing ? '' : '');
       <div>
         <h1 class="pg">{{ m.topic_title }}</h1>
         <p class="sub" style="margin: 0">
-          {{ m.mode === 'SPRINT' ? '快速 8 步' : '标准版 12 步' }} · 你占 {{ m.my_seats }} ·
+          {{ m.mode === 'SPRINT' ? '快速' : '标准' }} {{ debate.totalSteps || '—' }} 步 · 你占 {{ m.my_seats }} ·
           <span class="dot"></span>{{ m.status === 'RUNNING' ? '进行中' : m.status }}
         </p>
       </div>
@@ -449,17 +449,17 @@ const verdictOf = (t) => (t.typing ? '' : '');
         <div class="card">
           <div class="row" style="justify-content: space-between; margin-bottom: 8px">
             <b style="font-size: 12.5px">赛制进度</b>
-            <span style="font-size: 11.5px; color: #8a909c">{{ debate.stepNo }}/{{ debate.steps.length }}</span>
+            <span style="font-size: 11.5px; color: #8a909c">{{ debate.stepNo }}/{{ debate.totalSteps }}</span>
           </div>
           <div class="steps">
             <div
-              v-for="(n, i) in debate.steps"
+              v-for="(step, i) in (debate.plan && debate.plan.length ? debate.plan : [])"
               :key="n"
               class="st"
               :class="{ done: i + 1 < debate.stepNo, cur: i + 1 === debate.stepNo }"
             >
               <span class="no">{{ i + 1 }}</span>
-              <span>{{ SEG_OF[n] }} · {{ SEAT_OF[n] }}{{ debate.mySeats.includes(SEAT_OF[n]) ? ' · 你' : '' }}</span>
+              <span>{{ step.seg }} · {{ step.seat }}{{ debate.mySeats.includes(step.seat) ? ' · 你' : '' }}</span>
             </div>
           </div>
         </div>

@@ -285,7 +285,7 @@ public class MatchService {
             applyTier(m);
             AiService.Speech sp;
             try {
-                sp = aiLineFor(m, aiSeat, cur.seg());
+                sp = aiLineFor(m, aiSeat, cur.seg(), cur.duty());
             } finally {
                 ai.clearOwnProfile();
                 ai.unbind();
@@ -317,7 +317,7 @@ public class MatchService {
             applyTier(m);
             AiService.Speech sp;
             try {
-                sp = aiLineFor(m, cur.seat(), cur.seg());
+                sp = aiLineFor(m, cur.seat(), cur.seg(), cur.duty());
             } finally {
                 ai.clearOwnProfile();
                 ai.unbind();
@@ -435,9 +435,12 @@ public class MatchService {
         return Math.max(300, (long) (1200 * Math.max(0.05, aiDelayScale)));
     }
 
-    /** 在同侧里挑一个不是玩家的席位，用来"抢到话筒"。 */
+    /** 这一轮由谁开口：正常就是赛制写的那个席位，玩家缺席才由同侧 AI 顶上。 */
     private String pickAiSeat(Map<String, Object> m, Format.Step cur) {
         Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
+        // ① 该席位不是玩家 → 就是它本人发言（之前错在这里：一律换成了同侧第一个空位）
+        if (!mine.contains(cur.seat())) return cur.seat();
+        // ② 该席位是玩家但没接（超时/抢拍）→ 同侧找个 AI 顶上
         String side = Format.side(cur.seat());
         for (String s : Format.SEATS) {
             if (Format.side(s).equals(side) && !mine.contains(s)) return s;
@@ -498,26 +501,26 @@ public class MatchService {
      * <p>前端收到 {@code token} 事件就开始渲染，不用等整段生成完再"假装打字"。
      * 首发延迟从「等模型说完（约 8 秒）」降到「模型说出第一个字（约 1 秒）」。
      */
-    private AiService.Speech aiLineStream(Map<String, Object> m, String seat, String seg) throws Exception {
+    private AiService.Speech aiLineStream(Map<String, Object> m, String seat, String seg, String duty) throws Exception {
         String id = str(m.get("id"));
-        return ai.speakForSoloStream(seat, seg, str(m.get("topic_title")),
+        return ai.speakForSoloStream(seat, seg, duty, str(m.get("topic_title")),
                 str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id),
                 delta -> hub.emit(id, "token", Map.of("seat", seat, "seg", seg, "delta", delta)));
     }
 
     /** 单人 → 流式；多人房间 → 整段（广播给多个人，增量推太碎没意义） */
-    private AiService.Speech aiLineFor(Map<String, Object> m, String seat, String seg) throws Exception {
-        if ("solo".equalsIgnoreCase(str(m.get("kind")))) return aiLineStream(m, seat, seg);
-        return aiLine(m, seat, seg);
+    private AiService.Speech aiLineFor(Map<String, Object> m, String seat, String seg, String duty) throws Exception {
+        if ("solo".equalsIgnoreCase(str(m.get("kind")))) return aiLineStream(m, seat, seg, duty);
+        return aiLine(m, seat, seg, duty);
     }
 
-    private AiService.Speech aiLine(Map<String, Object> m, String seat, String seg) throws Exception {
+    private AiService.Speech aiLine(Map<String, Object> m, String seat, String seg, String duty) throws Exception {
         String id = str(m.get("id"));
         if ("solo".equals(str(m.get("kind")))) {
-            return ai.speakForSolo(seat, seg, str(m.get("topic_title")),
+            return ai.speakForSolo(seat, seg, duty, str(m.get("topic_title")),
                     str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
         }
-        String line = ai.speak(seat, seg, str(m.get("topic_title")),
+        String line = ai.speak(seat, seg, duty, str(m.get("topic_title")),
                 str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
         return new AiService.Speech(line, false, "");
     }

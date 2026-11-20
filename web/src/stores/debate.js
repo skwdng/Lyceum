@@ -80,6 +80,7 @@ export const useDebateStore = defineStore('debate', {
 
     // 对局
     matchId: null,
+    plan: [],            // 服务端返回的真实赛制（每步的 seg/seat/duty）
     match: null,
     turns: [],
     /**
@@ -141,14 +142,30 @@ export const useDebateStore = defineStore('debate', {
   }),
 
   getters: {
-    steps: (s) => (s.mode === 'SPRINT' ? [1, 2, 7, 8, 9, 10, 11, 12] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+    /** 赛制编号（以服务端为准，不再写死 12 步） */
+    steps: (s) => (s.plan && s.plan.length ? s.plan.map((x) => x.no) : [1, 2, 3, 4]),
+    /** 第 n 步的席位 / 环节（没有 plan 时退回旧常量） */
+    seatAt: (s) => (n) => {
+      const p = (s.plan || []).find((x) => Number(x.no) === Number(n));
+      return p ? p.seat : SEAT_OF[n] || '';
+    },
+    segAt: (s) => (n) => {
+      const p = (s.plan || []).find((x) => Number(x.no) === Number(n));
+      return p ? p.seg : SEG_OF[n] || '';
+    },
+    dutyAt: (s) => (n) => {
+      const p = (s.plan || []).find((x) => Number(x.no) === Number(n));
+      return p ? (p.duty || '') : '';
+    },
+    totalSteps: (s) => (s.plan && s.plan.length ? s.plan.length : (s.mode === 'SPRINT' ? 10 : 12)),
     stepNo: (s) => Number((s.match && s.match.step) || 0) + 1,
     /** 本场我要发言几次 */
-    myTurnCount: (s) => s.steps.filter((n) => s.mySeats.includes(SEAT_OF[n])).length,
+    myTurnCount: (s) => (s.plan || []).filter((x) => s.mySeats.includes(x.seat)).length,
 
     /** 条状席位：谁是当前发言人 */
     stripSeats: (s) => {
-      const curSeat = SEAT_OF[s.stepNo];
+      const st = (s.plan || []).find((x) => Number(x.no) === Number(s.stepNo));
+      const curSeat = st ? st.seat : SEAT_OF[s.stepNo];
       return SEATS.map((x) => ({ ...x, me: s.mySeats.includes(x.k), cur: curSeat === x.k }));
     },
 
@@ -431,6 +448,7 @@ export const useDebateStore = defineStore('debate', {
         const prevWaiting = this.waiting;
         const prevPhase = this.phase;
         this.match = d.match;
+        if (Array.isArray(d.steps) && d.steps.length) this.plan = d.steps;
         this.turns = d.turns || [];
 
         // 流式收尾：这个席位是"边生成边显示"过来的，落库后

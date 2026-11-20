@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>方案 C · 编辑排版</title>
+<style>
+  :root{
+    --bg:#fbfaf7; --ink:#111; --sub:#6f6a60; --line:#111; --hair:#e3e0d8;
+    --red:#c02b1d; --pro:#111; --con:#c02b1d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Songti SC","Noto Serif SC","STSong",serif;font-size:15.5px;line-height:1.85}
+  .wrap{max-width:1120px;margin:0 auto;padding:30px 32px 48px}
+  .masthead{display:flex;justify-content:space-between;align-items:baseline;
+    border-bottom:3px double var(--line);padding-bottom:8px;font-family:system-ui,sans-serif;font-size:11.5px;
+    letter-spacing:2px;text-transform:uppercase;color:var(--sub)}
+  h1{font-size:38px;line-height:1.24;margin:20px 0 10px;letter-spacing:-.5px;font-weight:700}
+  .dek{font-size:15px;color:var(--sub);margin:0 0 18px;max-width:760px}
+  .byline{display:flex;gap:16px;font-family:system-ui;font-size:11.5px;color:var(--sub);
+    border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);padding:8px 0;letter-spacing:.6px}
+  .cols{display:grid;grid-template-columns:1.62fr 1fr;gap:0;margin-top:22px}
+  .main{padding-right:28px;border-right:1px solid var(--hair)}
+  .aside{padding-left:24px}
+  .turn{margin-bottom:26px}
+  .kicker{font-family:system-ui;font-size:11px;letter-spacing:2px;text-transform:uppercase;
+    color:var(--red);margin-bottom:6px}
+  .turn.con .kicker{color:#111}
+  .turn h2{font-size:17px;margin:0 0 8px;font-weight:700;letter-spacing:.3px}
+  .turn p{margin:0 0 10px}
+  .pull{font-size:19px;line-height:1.6;border-left:3px solid var(--red);padding:2px 0 2px 14px;margin:16px 0;color:#1b1b1b}
+  .flaw{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;margin-top:18px}
+  .flaw b{font-size:14px;letter-spacing:.5px}
+  .chips{display:flex;gap:10px;margin-top:9px;font-family:system-ui;font-size:12px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line);padding:4px 12px;border-radius:0}
+  .chip.on{background:var(--ink);color:#fff}
+  .box{border:1px solid var(--hair);padding:14px 16px;margin-bottom:18px}
+  .box h3{font-family:system-ui;font-size:10.5px;letter-spacing:2px;text-transform:uppercase;color:var(--sub);margin:0 0 10px}
+  .plan{list-style:none;margin:0;padding:0;font-family:system-ui;font-size:12.5px;color:#4a463d}
+  .plan li{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dotted #ddd9d0}
+  .plan li:last-child{border:0}
+  .plan li.on{color:var(--red);font-weight:700}
+  .ev{font-size:13.5px;line-height:1.7;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--hair)}
+  .ev i{display:block;font-family:system-ui;font-style:normal;font-size:11px;color:var(--sub);margin-top:4px;letter-spacing:.4px}
+  .composer{margin-top:24px;border:1px solid var(--line);padding:16px}
+  .composer .ph{color:#a9a49a;font-size:14.5px}
+  .foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-family:system-ui;font-size:11.5px;color:var(--sub)}
+  .send{background:var(--ink);color:#fff;border:0;padding:10px 26px;font-family:system-ui;font-size:12.5px;letter-spacing:1px}
+</style></head>
+<body><div class="wrap">
+  <div class="masthead"><span>思弈阁 · 对局</span><span>标准赛制 / 十二步 / 第 4 步</span></div>
+
+  <h1>大数据算法推荐是否加剧了信息茧房</h1>
+  <p class="dek">正方主张算法在既有偏好之上进一步收窄接触面；反方主张因果尚未确立、校正手段仍然有效。本场由 AI 补齐空位，你坐反方二辩。</p>
+
+  <div class="byline"><span>B2 · 你</span><span>已记录发言 2 次</span><span>高级版 · 13725 token</span></div>
+
+  <div class="cols">
+    <div class="main">
+      <div class="turn">
+        <div class="kicker">正方一辩 · 立论</div>
+        <h2>判准先立在「加剧」二字上</h2>
+        <p>算法推荐是否在既有偏好之上，进一步收窄了信息接触面，并削弱纠偏能力。</p>
+        <div class="pull">我方判准有三条，缺一不可：机制是否系统性偏向强化既有偏好；用户能否低成本退出或纠偏；后果是否使接触面持续收窄。</div>
+      </div>
+
+      <div class="turn con">
+        <div class="kicker">反方一辩 · 立论</div>
+        <h2>因果尚未确立，校正手段仍然有效</h2>
+        <p>题目里最关键的是「信息茧房」，我把它界定为用户信息接触范围被系统性收窄、且缺乏自主校正手段的状态。</p>
+        <p>我方判准有二：其一，须证明推荐机制与接触面收窄之间存在稳定因果，而非仅机制倾向；其二，须证明用户校正手段在事实上失效。</p>
+      </div>
+
+      <div class="flaw">
+        <b>对方那句有逻辑问题 —— 你抓到了吗？</b>
+        <div class="chips"><span class="chip">诉诸权威</span><span class="chip on">以偏概全</span><span class="chip">循环论证</span><span class="chip">跳过</span></div>
+      </div>
+    </div>
+
+    <div class="aside">
+      <div class="box">
+        <h3>赛制进度</h3>
+        <ul class="plan">
+          <li><span>立论 · A1</span><span>done</span></li>
+          <li><span>立论 · B1</span><span>done</span></li>
+          <li><span>驳立论 · A2</span><span>done</span></li>
+          <li class="on"><span>驳立论 · B2 · 你</span><span>now</span></li>
+          <li><span>质询 · A3</span><span></span></li>
+          <li><span>质询 · B3</span><span></span></li>
+        </ul>
+      </div>
+      <div class="box">
+        <h3>论据卡</h3>
+        <div class="ev">推荐系统的优化目标是停留时长与转化率，机制上天然偏向强化既有偏好<i>各平台公开说明 · 2023</i></div>
+        <div class="ev">平台必须提供关闭算法推荐的选项，并允许用户便捷删除个人标签<i>《算法推荐管理规定》 · 2021</i></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="composer">
+    <div class="ph">写下你的发言……</div>
+    <div class="foot"><span>打字时自动续时</span><button class="send">发送</button></div>
+  </div>
+</div></body></html>

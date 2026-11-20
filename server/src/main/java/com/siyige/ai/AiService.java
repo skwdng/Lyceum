@@ -243,6 +243,12 @@ public class AiService {
 
     public String speak(String seat, String seg, String topicTitle, String topicId, String difficulty,
                         List<Map<String, Object>> history) {
+        return speak(seat, seg, "", topicTitle, topicId, difficulty, history);
+    }
+
+    /** 带环节职责（质询·问 / 质询·答）的版本。 */
+    public String speak(String seat, String seg, String duty, String topicTitle, String topicId, String difficulty,
+                        List<Map<String, Object>> history) {
         Personas.Persona p = Personas.of(seat);
         String mateLast = lastSameSide(history, seat);
         String oppLast = lastOpposite(history, seat);
@@ -251,7 +257,7 @@ public class AiService {
         String text;
         if (llmEnabled()) {
             try {
-                text = llm.chat(SYSTEM, buildPrompt(seat, seg, topicTitle, topicId, difficulty, p, mateLast, oppLast, mine, history), p.temperature(), 25);
+                text = llm.chat(SYSTEM, buildPrompt(seat, seg, duty, topicTitle, topicId, difficulty, p, mateLast, oppLast, mine, history, ""), p.temperature(), 25);
             } catch (Exception e) {
                 log.warn("LLM 发言失败，降级模板：{}", e.toString());
                 text = template(seat, seg, mateLast, history);
@@ -287,6 +293,12 @@ public class AiService {
      */
     public Speech speakForSolo(String seat, String seg, String topicTitle, String topicId, String difficulty,
                                List<Map<String, Object>> history) {
+        return speakForSolo(seat, seg, "", topicTitle, topicId, difficulty, history);
+    }
+
+    /** 带环节职责的版本（质询·答 时会强制"先回答再补"）。 */
+    public Speech speakForSolo(String seat, String seg, String duty, String topicTitle, String topicId, String difficulty,
+                               List<Map<String, Object>> history) {
         Personas.Persona p = Personas.of(seat);
         String mateLast = lastSameSide(history, seat);
         String oppLast = lastOpposite(history, seat);
@@ -306,7 +318,7 @@ public class AiService {
         String text;
         if (llmEnabled()) {
             try {
-                text = llm.chat(SYSTEM, buildPrompt(seat, seg, topicTitle, topicId, difficulty, p,
+                text = llm.chat(SYSTEM, buildPrompt(seat, seg, duty, topicTitle, topicId, difficulty, p,
                         mateLast, oppLast, mine, history, analysis), p.temperature(), 25);
             } catch (Exception e) {
                 log.warn("LLM 发言失败，降级模板：{}", e.toString());
@@ -331,6 +343,13 @@ public class AiService {
     public Speech speakForSoloStream(String seat, String seg, String topicTitle, String topicId,
                                       String difficulty, List<Map<String, Object>> history,
                                       java.util.function.Consumer<String> onDelta) {
+        return speakForSoloStream(seat, seg, "", topicTitle, topicId, difficulty, history, onDelta);
+    }
+
+    /** 带环节职责的流式版本。 */
+    public Speech speakForSoloStream(String seat, String seg, String duty, String topicTitle, String topicId,
+                                      String difficulty, List<Map<String, Object>> history,
+                                      java.util.function.Consumer<String> onDelta) {
         Personas.Persona p = Personas.of(seat);
         String mateLast = lastSameSide(history, seat);
         String oppLast = lastOpposite(history, seat);
@@ -350,13 +369,13 @@ public class AiService {
         String text;
         if (llmEnabled()) {
             try {
-                text = llm.chatStream(SYSTEM, buildPrompt(seat, seg, topicTitle, topicId, difficulty, p,
+                text = llm.chatStream(SYSTEM, buildPrompt(seat, seg, duty, topicTitle, topicId, difficulty, p,
                         mateLast, oppLast, mine, history, analysis), p.temperature(), 25, onDelta);
             } catch (Exception e) {
                 // 流式失败：整段重来一次（不走流式），再不行才降级模板
                 log.warn("流式生成失败，回落整段：{}", e.toString());
                 try {
-                    text = llm.chat(SYSTEM, buildPrompt(seat, seg, topicTitle, topicId, difficulty, p,
+                    text = llm.chat(SYSTEM, buildPrompt(seat, seg, duty, topicTitle, topicId, difficulty, p,
                             mateLast, oppLast, mine, history, analysis), p.temperature(), 25);
                 } catch (Exception e2) {
                     log.warn("LLM 发言失败，降级模板：{}", e2.toString());
@@ -377,6 +396,28 @@ public class AiService {
                 + "\n当前环节：" + (seg == null ? "" : seg)
                 + "\n对方刚说：「" + shorten(oppText, 400) + "」";
         return llm.chat(ANALYST, prompt, 0.2, 12);
+    }
+
+    /**
+     * 剥掉"对方刚才说「…」"这类引用外壳（可能套了好几层）。
+     *
+     * <p>为什么必须剥：prompt 里把对方原话包成「对方刚才说：「…」」，
+     * 模型下一轮会把这个包装当成对方的话原样抄走，一轮套一层，
+     * 十几轮后就成了「对方刚才说「对方刚才说「对方刚才说「…」」」。
+     */
+    private static String stripQuoteFrames(String src) {
+        if (src == null) return "";
+        String s = src.trim();
+        String[] openers = {"对方刚才说「", "对方刚才说：", "对方说「", "对方说：", "顺着我方刚才那句「", "顺着我方刚才那句："};
+        for (int round = 0; round < 4; round++) {
+            boolean changed = false;
+            for (String op : openers) {
+                if (s.startsWith(op)) { s = s.substring(op.length()).trim(); changed = true; }
+            }
+            if (s.endsWith("」")) { s = s.substring(0, s.length() - 1).trim(); changed = true; }
+            if (!changed) break;
+        }
+        return s;
     }
 
     // ---------------------------------------------------------------- 上下文
@@ -429,11 +470,11 @@ public class AiService {
     private String buildPrompt(String seat, String seg, String topic, String topicId, String difficulty, Personas.Persona p,
                                String mateLast, String oppLast, String mine,
                                List<Map<String, Object>> history) {
-        return buildPrompt(seat, seg, topic, topicId, difficulty, p, mateLast, oppLast, mine, history, "");
+        return buildPrompt(seat, seg, "", topic, topicId, difficulty, p, mateLast, oppLast, mine, history, "");
     }
 
-    private String buildPrompt(String seat, String seg, String topic, String topicId, String difficulty, Personas.Persona p,
-                               String mateLast, String oppLast, String mine,
+    private String buildPrompt(String seat, String seg, String duty, String topic, String topicId, String difficulty,
+                               Personas.Persona p, String mateLast, String oppLast, String mine,
                                List<Map<String, Object>> history, String analysis) {
         StringBuilder sb = new StringBuilder();
         sb.append("【身份】").append(Personas.side(seat)).append(Personas.role(seat))
@@ -441,6 +482,22 @@ public class AiService {
           .append("，语气：").append(p.tone()).append("。习惯：").append(p.habit()).append("\n");
         sb.append("【辩题】").append(topic).append("\n");
         sb.append("【当前环节】").append(seg).append("\n");
+        // 环节职责：质询是"一问一答"，答方必须先正面回答；之前没有这条约束，
+        // AI 会在"答"的位置继续自问自答（实跑时 step 6/8 都是这样）。
+        if (duty != null && !duty.isBlank()) {
+            sb.append("【这一轮你的任务】").append(duty).append("\n");
+            if (duty.contains("答")) {
+                sb.append("硬性要求：第一句必须**正面回答**对方刚才提出的问题（给出明确结论或口径），")
+                  .append("不要用「先问定义」「我方认为这个问题……」这类话延后；回答完最多补一条理由，")
+                  .append("需要的话最后可以反问一句。总长控制在 120 字内。\n");
+            } else if (duty.contains("问")) {
+                sb.append("硬性要求：只提 1–2 个**可核查**的具体问题（问事实、问口径、问边界），"
+                        + "不要长篇论证自己的立场；总长控制在 100 字内。\n");
+            }
+        }
+
+        sb.append("【表达要求】直接回应内容本身：**不要用**「对方刚才说……」「顺着我方刚才那句……」这类复述套话开头；")
+          .append("引用对方原话不超过一次、且只引关键词。同一句话不要在相邻两轮里重复讲。\n");
         sb.append("【你的推理方式】").append(p.strategy()).append("\n");
         sb.append("【陪练强度】").append(switch (difficulty == null ? "pro" : difficulty.toLowerCase()) {
             case "novice" -> "新手：语气友好，先接住对方再给台阶，不主动抓对方漏洞";
@@ -448,16 +505,22 @@ public class AiService {
             default -> "进阶：正常对抗，点出主要分歧，遇到明显错误会当场反驳";
         }).append("\n");
         if (!mine.isBlank()) sb.append("【我方已说过】").append(mine).append("\n");
+        // 同一个席位连续两轮开口（质询里 答完接着问）→ 明确提示别复述
+        String lastSeat = history == null || history.isEmpty() ? "" : String.valueOf(history.get(history.size() - 1).get("seat"));
+        if (seat.equals(lastSeat)) {
+            sb.append("【注意】你上一轮刚说过话，这一轮要**推进**：换一个角度或直接提问，不要重复上一轮的说法。\n");
+        }
         if (!mateLast.isBlank())
             sb.append("【同侧队友刚才说】").append(shorten(mateLast, 150)).append("\n");
-        if (!oppLast.isBlank()) {
-            if (utterance != null && utterance.vacuous(oppLast)) {
+        String oppClean = stripQuoteFrames(oppLast);
+        if (!oppClean.isBlank()) {
+            if (utterance != null && utterance.vacuous(oppClean)) {
                 // 关键：一个字都不给模型看。给了它就会照着引述。
                 sb.append("【对方最近说】（对方这一轮只发出极短内容，没有可引述的主张）\n");
                 sb.append("【注意】").append(utterance.vacuousHint(oppLast)).append("\n");
             } else {
-                sb.append("【对方最近说】").append(shorten(oppLast, 200)).append("\n");
-                sb.append("【必须回应的具体主张】").append(coreClaim(oppLast)).append("\n");
+                sb.append("【对方最近说】").append(shorten(oppClean, 200)).append("\n");
+                sb.append("【必须回应的具体主张】").append(coreClaim(oppClean)).append("\n");
             }
         }
         if (topicId != null && evidence != null) {
@@ -664,23 +727,30 @@ public class AiService {
              .trim();
         if (t.isEmpty()) t = LINES.get("A自由辩").get(0);
 
+        // 模型自己可能已经写了「对方刚才说「…」」这种开头 —— 先剥掉，避免和下面的前缀叠成两层
+        t = stripLeadingTemplate(t);
+
         // 优先级：先针对对方（用户最在意这点），再谈承接队友
         boolean hitsOpponent = t.matches("(?s).*(对方|你方|反方|正方).*");
-        if (!oppLast.isBlank() && !hitsOpponent) {
-            if (utterance != null && utterance.vacuous(oppLast)) {
+        String oppClean = stripQuoteFrames(oppLast);
+        if (!oppClean.isBlank() && !hitsOpponent) {
+            if (utterance != null && utterance.vacuous(oppClean)) {
                 // 对方这轮只回了「11」这类内容：不能编出一句引文，直接点破。
-                // 模型自己已经说了就不要重复（否则会出现「没有回答问题。没有回答问题。」）
                 if (!t.contains("没有回答")) t = "你这一轮没有回答问题。" + t;
             } else {
-                String claim = coreClaim(oppLast);
-                if (!claim.isBlank()) t = "对方刚才说「" + claim + "」，这个判断我不同意：" + t;
+                // claim 从"剥掉壳之后"的文本里取，长度收到 24 字以内
+                String claim = shorten(coreClaim(oppClean), 24);
+                // 最近 4 轮已经引用过同一句 → 不再重复引用，直接说自己的（避免"复读机"）
+                boolean quoted = !claim.isBlank() && alreadyQuoted(history, claim, claim);
+                if (!claim.isBlank() && !quoted) t = "对方刚才说「" + claim + "」，这一点我不认同：" + t;
             }
         }
         boolean hasLink = t.matches("(?s).*(顺着|接着|接住|补充|回应|刚才.*说的|讲了|这一条我认|我方[一二三四]辩|「).*");
-        if (!mateLast.isBlank() && !hasLink) {
-            String hook = hookOf(mateLast);
-            if (!hook.isBlank() && !alreadyQuoted(history, hook, mateLast)) {
-                // 这是队友的话，不能标成「对方说」
+        String mateClean = stripQuoteFrames(mateLast);
+        if (!mateClean.isBlank() && !hasLink) {
+            String hook = hookOf(mateClean).replaceAll("[「」『』]", "").trim();
+            if (hook.length() > 4 && !hook.isBlank() && !alreadyQuoted(history, hook, mateLast)) {
+                // 这是队友的话，不能标成「对方说」；hook 里残留的引号先清掉，避免「X」」」
                 String lead = "顺着我方刚才那句「" + hook + "」，再补一层：";
                 t = lead + t;
             }
@@ -691,6 +761,24 @@ public class AiService {
             t = cut > cap * 0.6 ? t.substring(0, cut + 1) : t.substring(0, cap) + '。';
         }
         return t;
+    }
+
+    /**
+     * 剥掉模型输出开头的"复述模板"，保证同一层引用不会一轮一轮往上套。
+     * 例：『对方刚才说「X」，这个判断我不同意：<正文>』→『<正文>』
+     */
+    private static String stripLeadingTemplate(String src) {
+        if (src == null) return "";
+        String s = src.trim();
+        for (int i = 0; i < 3; i++) {
+            String before = s;
+            s = s.replaceFirst("^对方刚才说「[^」]{0,60}」，(这个判断我不同意|这一点我不认同|这个说法不成立)[：:]", "");
+            s = s.replaceFirst("^顺着我方刚才那句「[^」]{0,60}」，?(再补一层|再补充一点)[：:]", "");
+            s = s.replaceFirst("^「[^」]{0,60}」，(这个判断我不同意|这一点我不认同)[：:]", "");
+            s = s.trim();
+            if (s.equals(before)) break;
+        }
+        return s.isEmpty() ? src : s;
     }
 
     private static String shorten(String s, int n) {

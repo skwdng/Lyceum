@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>方案 D · 柔性玻璃</title>
+<style>
+  :root{
+    --ink:#1b1f2a; --sub:#717a8c; --line:rgba(27,31,42,.08);
+    --pro:#4f6bff; --con:#ff6b57; --violet:#8b5cf6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;color:var(--ink);font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:14.5px;line-height:1.75;
+    background:
+      radial-gradient(1000px 600px at 8% 0%, #e8eeff 0%, transparent 55%),
+      radial-gradient(900px 560px at 96% 6%, #ffeae6 0%, transparent 55%),
+      radial-gradient(800px 600px at 50% 105%, #efe8ff 0%, transparent 60%),
+      #f4f5f9;
+    min-height:100vh}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 26px 40px}
+  .glass{background:rgba(255,255,255,.72);backdrop-filter:blur(18px) saturate(160%);
+    border:1px solid rgba(255,255,255,.9);box-shadow:0 12px 34px rgba(31,41,70,.07);border-radius:20px}
+  .top{padding:16px 20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  h1{margin:0;font-size:21px;font-weight:650;letter-spacing:.2px}
+  .meta{font-size:12px;color:var(--sub)}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11.5px;
+    background:linear-gradient(120deg,rgba(79,107,255,.14),rgba(139,92,246,.14));color:#3d4bd0;margin-left:10px}
+  .grid{display:grid;grid-template-columns:1fr 288px;gap:16px}
+  .card{padding:16px 18px}
+  .seats{display:flex;gap:8px;margin-bottom:16px}
+  .seat{flex:1;text-align:center;padding:8px 4px;border-radius:12px;font-size:11.5px;color:var(--sub);
+    background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.9)}
+  .seat.pro{color:#3d4bd0;background:rgba(79,107,255,.10)}
+  .seat.con{color:#c2412f;background:rgba(255,107,87,.10)}
+  .seat.me{color:#fff;background:linear-gradient(120deg,#5b76ff,#8b5cf6);box-shadow:0 8px 20px rgba(91,118,255,.28)}
+  .msg{display:flex;gap:11px;margin-bottom:15px}
+  .ava{width:30px;height:30px;border-radius:10px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+    font-size:12px;font-weight:700;color:#fff}
+  .ava.pro{background:linear-gradient(135deg,#5b76ff,#7c8cff)}
+  .ava.con{background:linear-gradient(135deg,#ff7a5f,#ff9e7a)}
+  .bub{background:rgba(255,255,255,.86);border:1px solid rgba(255,255,255,.95);border-radius:16px;
+    padding:12px 15px;max-width:88%;box-shadow:0 6px 18px rgba(31,41,70,.05)}
+  .hd{font-size:11.5px;color:var(--sub);margin-bottom:5px;display:flex;gap:8px}
+  .hd b{color:#2b3345;font-weight:650}
+  .flaw{padding:14px 16px;border-radius:16px;
+    background:linear-gradient(120deg,rgba(255,196,87,.18),rgba(255,255,255,.7));
+    border:1px solid rgba(255,196,87,.5)}
+  .flaw b{font-size:14px}
+  .chips{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .chip{padding:5px 14px;border-radius:20px;font-size:12.5px;background:rgba(255,255,255,.85);
+    border:1px solid rgba(27,31,42,.08);color:#4a5265}
+  .chip.on{background:linear-gradient(120deg,#5b76ff,#8b5cf6);color:#fff;border-color:transparent}
+  h3{margin:0 0 10px;font-size:11.5px;letter-spacing:1.1px;color:var(--sub);font-weight:650}
+  .plan{list-style:none;margin:0;padding:0;font-size:12.5px;color:#5d667a}
+  .plan li{display:flex;justify-content:space-between;padding:5px 0}
+  .plan li.on{color:#3d4bd0;font-weight:700}
+  .ev{border-radius:12px;padding:9px 11px;margin-bottom:9px;font-size:12.5px;color:#48506212;
+    color:#485062;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.9)}
+  .ev i{display:block;font-style:normal;color:var(--sub);font-size:11px;margin-top:3px}
+  .composer{padding:14px 16px;margin-top:16px}
+  .ph{color:#9aa1b1}
+  .bar{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  .send{border:0;border-radius:12px;padding:10px 24px;color:#fff;font-size:13.5px;font-weight:600;
+    background:linear-gradient(120deg,#5b76ff,#8b5cf6);box-shadow:0 10px 24px rgba(91,118,255,.3)}
+</style></head>
+<body><div class="wrap">
+  <div class="glass top">
+    <div style="display:flex;align-items:center">
+      <h1>大数据算法推荐是否加剧了信息茧房</h1>
+      <span class="pill">第 4 步 · 驳立论 · 你</span>
+    </div>
+    <div class="meta">标准 12 步 · B2 · 余额 ¥10.00</div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="seats">
+        <div class="seat pro">A1</div><div class="seat pro">A2</div><div class="seat pro">A3</div><div class="seat pro">A4</div>
+        <div class="seat con">B1</div><div class="seat con me">你 B2</div><div class="seat con">B3</div><div class="seat con">B4</div>
+      </div>
+
+      <div class="msg">
+        <div class="ava pro">正</div>
+        <div class="bub">
+          <div class="hd"><b>正方一辩</b><span>A1</span><span>·</span><span>立论</span></div>
+          判断先立在「加剧」二字上：算法推荐是否在既有偏好之上，进一步收窄了信息接触面，并削弱纠偏能力。<br><br>
+          我方判准有三条，缺一不可：一看机制是否系统性偏向强化既有偏好；二看用户能否低成本退出或纠偏；三看后果是否使信息接触面持续收窄。
+        </div>
+      </div>
+
+      <div class="msg">
+        <div class="ava con">反</div>
+        <div class="bub">
+          <div class="hd"><b>反方一辩</b><span>B1</span><span>·</span><span>立论</span></div>
+          我方判断：算法推荐并未在可检验意义上加剧信息茧房。题目里最关键的是「信息茧房」，我把它界定为用户信息接触范围被系统性收窄、且缺乏自主校正手段的状态。<br><br>
+          我方判准有二：其一，须证明推荐机制与接触面收窄之间存在稳定因果；其二，须证明用户校正手段在事实上失效。
+        </div>
+      </div>
+
+      <div class="glass flaw">
+        <b>对方那句有逻辑问题 —— 你抓到了吗？</b>
+        <div class="chips"><span class="chip">诉诸权威</span><span class="chip on">以偏概全</span><span class="chip">循环论证</span><span class="chip">跳过</span></div>
+      </div>
+
+      <div class="glass composer">
+        <div class="ph">写下你的发言…</div>
+        <div class="bar"><span class="meta">打字时会自动续时</span><button class="send">发送</button></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="glass card">
+        <h3>赛制进度</h3>
+        <ul class="plan">
+          <li><span>立论 · A1</span><span>✓</span></li>
+          <li><span>立论 · B1</span><span>✓</span></li>
+          <li><span>驳立论 · A2</span><span>✓</span></li>
+          <li class="on"><span>驳立论 · B2 · 你</span><span>←</span></li>
+          <li><span>质询 · A3</span></li>
+          <li><span>质询 · B3</span></li>
+        </ul>
+      </div>
+      <div class="glass card">
+        <h3>论据卡</h3>
+        <div class="ev">推荐系统的优化目标是停留时长与转化率，机制上天然偏向强化既有偏好<i>各平台公开说明 · 2023</i></div>
+        <div class="ev">平台必须提供关闭算法推荐的选项，并允许用户便捷删除个人标签<i>《算法推荐管理规定》 · 2021</i></div>
+      </div>
+    </div>
+  </div>
+</div></body></html>
