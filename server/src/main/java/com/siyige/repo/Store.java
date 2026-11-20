@@ -126,20 +126,21 @@ public class Store {
     }
 
     public void updateStep(String id, int step, Long deadline) {
+        long now = System.currentTimeMillis();
         if (deadline == null) {
             // 单人模式不限时：直接把 deadline 置空，参数化 null 会让 JDBC 猜不出类型
-            jdbc.update("update sy_match set step=?, deadline_at=null, extend_count=0, warned=false where id=?",
-                    step, id);
+            jdbc.update("update sy_match set step=?, deadline_at=null, extend_count=0, warned=false, last_active_at=? where id=?",
+                    step, now, id);
         } else {
-            jdbc.update("update sy_match set step=?, deadline_at=?, extend_count=0, warned=false where id=?",
-                    step, ts(deadline), id);
+            jdbc.update("update sy_match set step=?, deadline_at=?, extend_count=0, warned=false, last_active_at=? where id=?",
+                    step, ts(deadline), now, id);
         }
     }
 
     /** 打字续命：deadline 后移、次数 +1。 */
     public void extendDeadline(String id, long deadline) {
-        jdbc.update("update sy_match set deadline_at=?, extend_count=extend_count+1 where id=?",
-                ts(deadline), id);
+        jdbc.update("update sy_match set deadline_at=?, extend_count=extend_count+1, last_active_at=? where id=?",
+                ts(deadline), System.currentTimeMillis(), id);
     }
 
     public void setPhase(String id, String phase) {

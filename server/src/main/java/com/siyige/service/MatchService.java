@@ -260,9 +260,12 @@ public class MatchService {
         }
         for (Map<String, Object> row : running) {
             try {
+                // 活跃时间优先用 last_active_at：单人模式 deadline_at 为 NULL，
+                // 只拿 started_at 会把「打了 15 分钟的正常对局」误判成僵尸（用户踩过）
                 long dl = numLong(row.get("deadline_at"));
                 long started = numLong(row.get("started_at"));
-                long anchorTs = Math.max(dl, started);
+                long active = numLong(row.get("last_active_at"));
+                long anchorTs = Math.max(active > 0 ? active : started, Math.max(dl, started));
                 if (anchorTs <= 0 || now - anchorTs < ABANDON_AFTER_MS) continue;
 
                 String id = str(row.get("id"));
