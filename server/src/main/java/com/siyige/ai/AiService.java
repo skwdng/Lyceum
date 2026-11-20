@@ -265,7 +265,7 @@ public class AiService {
         } else {
             text = template(seat, seg, mateLast, history);
         }
-        return guard(text, p, mateLast, oppLast, seat, history);
+        return guard(text, p, mateLast, oppLast, seat, seg, duty, history);
     }
 
     public String speak(String seat, String seg, String topicTitle) {
@@ -329,7 +329,7 @@ public class AiService {
             text = template(seat, seg, mateLast, history);
             degraded = true;
         }
-        return new Speech(guard(text, p, mateLast, oppLast, seat, history), degraded, analysis);
+        return new Speech(guard(text, p, mateLast, oppLast, seat, seg, duty, history), degraded, analysis);
     }
 
     /**
@@ -387,7 +387,7 @@ public class AiService {
             text = template(seat, seg, mateLast, history);
             degraded = true;
         }
-        return new Speech(guard(text, p, mateLast, oppLast, seat, history), degraded, analysis);
+        return new Speech(guard(text, p, mateLast, oppLast, seat, seg, duty, history), degraded, analysis);
     }
 
     /** 只做分析：把对方上一句拆成 主张/论据/漏洞/弱点。 */
@@ -719,7 +719,7 @@ public class AiService {
     // ---------------------------------------------------------------- 护栏
 
     /** 输出后处理：承接检查 + 去 AI 味 + 长度截断。 */
-    String guard(String text, Personas.Persona p, String mateLast, String oppLast, String seat, List<Map<String, Object>> history) {
+    String guard(String text, Personas.Persona p, String mateLast, String oppLast, String seat, String seg, String duty, List<Map<String, Object>> history) {
         String t = text == null ? "" : text.trim();
         t = t.replaceAll("(?i)作为(一个)?(AI|人工智能|语言模型)[，,]?", "")
              .replaceAll("(?i)I'?m an AI\\.?", "")
@@ -739,20 +739,33 @@ public class AiService {
                 if (!t.contains("没有回答")) t = "你这一轮没有回答问题。" + t;
             } else {
                 // claim 从"剥掉壳之后"的文本里取，长度收到 24 字以内
-                String claim = shorten(coreClaim(oppClean), 24);
+                String claim = shorten(coreClaim(oppClean), 24).replaceAll("[「」『』]", "").trim();
                 // 最近 4 轮已经引用过同一句 → 不再重复引用，直接说自己的（避免"复读机"）
                 boolean quoted = !claim.isBlank() && alreadyQuoted(history, claim, claim);
-                if (!claim.isBlank() && !quoted) t = "对方刚才说「" + claim + "」，这一点我不认同：" + t;
+                int usedOppFrames = countOppFrames(history);
+                if (!claim.isBlank() && !quoted && usedOppFrames < 3) {
+                    t = "对方刚才说「" + claim + "」，这一点我不认同：" + t;
+                }
             }
         }
         boolean hasLink = t.matches("(?s).*(顺着|接着|接住|补充|回应|刚才.*说的|讲了|这一条我认|我方[一二三四]辩|「).*");
         String mateClean = stripQuoteFrames(mateLast);
-        if (!mateClean.isBlank() && !hasLink) {
-            String hook = hookOf(mateClean).replaceAll("[「」『』]", "").trim();
-            if (hook.length() > 4 && !hook.isBlank() && !alreadyQuoted(history, hook, mateLast)) {
-                // 这是队友的话，不能标成「对方说」；hook 里残留的引号先清掉，避免「X」」」
-                String lead = "顺着我方刚才那句「" + hook + "」，再补一层：";
-                t = lead + t;
+        // ① 环节限制：总结是收束、立论是开场、质询答要先回答问题 —— 都不该"顺队友"
+        boolean hookAllowed = seg != null
+                && !"总结".equals(seg)
+                && !"立论".equals(seg)
+                && !(duty != null && duty.contains("答"));
+        // ③ 全场最多用两次承接模板（真人不会每轮都用同一句开场）
+        int usedHooks = countHooks(history);
+        if (hookAllowed && usedHooks < 2 && !mateClean.isBlank() && !hasLink) {
+            String hook = clipAtClause(hookOf(mateClean).replaceAll("[「」『』]", "").trim(), 18);
+            if (hook.length() >= 6 && !alreadyQuoted(history, hook, mateLast)) {
+                String[] leads = {
+                        "顺着我方刚才那句「" + hook + "」，再补一层：",
+                        "接着我方上一位的说法，「" + hook + "」这一点还要往下推：",
+                        "把「" + hook + "」这半步往下推："
+                };
+                t = leads[Math.min(usedHooks, leads.length - 1)] + t;
             }
         }
         int cap = Math.max(p.maxChars(), segCap(t));
@@ -779,6 +792,41 @@ public class AiService {
             if (s.equals(before)) break;
         }
         return s.isEmpty() ? src : s;
+    }
+
+    /** 历史里已经用过几次"对方刚才说「…」"的引用框架（用来限制频率）。 */
+    private static int countOppFrames(List<Map<String, Object>> history) {
+        if (history == null) return 0;
+        int n = 0;
+        for (Map<String, Object> t : history) {
+            if (String.valueOf(t.get("content")).startsWith("对方刚才说")) n++;
+        }
+        return n;
+    }
+
+    /** 历史里已经用过几次"承接队友"的模板（用来限制频率）。 */
+    private static int countHooks(List<Map<String, Object>> history) {
+        if (history == null) return 0;
+        int n = 0;
+        for (Map<String, Object> t : history) {
+            String c = String.valueOf(t.get("content"));
+            if (c.startsWith("顺着我方刚才那句") || c.startsWith("接着我方上一位的说法")
+                    || c.startsWith("把「")) n++;
+        }
+        return n;
+    }
+
+    /** 把引文截到最近的分句边界，避免「…要满足什」这种半句。 */
+    private static String clipAtClause(String s, int max) {
+        if (s == null) return "";
+        String x = s.trim();
+        if (x.length() <= max) return x;
+        int cut = -1;
+        for (int i = Math.min(max, x.length()) - 1; i >= 6; i--) {
+            char c = x.charAt(i);
+            if ("，。；、！？：」』".indexOf(c) >= 0) { cut = i; break; }
+        }
+        return cut > 6 ? x.substring(0, cut) : x.substring(0, max);
     }
 
     private static String shorten(String s, int n) {

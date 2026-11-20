@@ -209,10 +209,12 @@ class RoomNicknameTest {
         List<Map<String, Object>> seats = roomStore.seats(code);
         String a1 = String.valueOf(seats.stream().filter(s -> "A1".equals(s.get("seat_key")))
                 .findFirst().orElseThrow().get("user_name"));
-        String a2 = String.valueOf(seats.stream().filter(s -> "A2".equals(s.get("seat_key")))
+        // 第二个人优先补到**对面**（B1），而不是同队的 A2：
+        // 两个人挤在一侧根本没法对辩（实跑时发现过，见 RoomStore.firstEmpty 注释）
+        String b1 = String.valueOf(seats.stream().filter(s -> "B1".equals(s.get("seat_key")))
                 .findFirst().orElseThrow().get("user_name"));
 
         assertEquals("张同学", a1);
-        assertEquals("李同学", a2);
+        assertEquals("李同学", b1);
     }
 }
