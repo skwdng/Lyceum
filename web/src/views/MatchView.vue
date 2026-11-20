@@ -258,6 +258,34 @@ async function exitMatch() {
   router.push({ name: 'solo' });
 }
 
+/**
+ * 气泡文字兜底：模型偶尔把同一段换个说法再说几遍。
+ * 服务端已按精确句去重，这里再按"相邻句高度重合"剪一次。
+ */
+function dedupeBubble(text) {
+  if (!text || text.length < 200) return text;
+  const parts = text.split(/(?<=[。！？；])/);
+  if (parts.length < 4) return text;
+  const out = [];
+  for (const p of parts) {
+    const cur = p.trim();
+    if (!cur) continue;
+    const dup = out.some((prev) => {
+      const a = prev.replace(/\s/g, '');
+      const b = cur.replace(/\s/g, '');
+      if (a.length < 10 || b.length < 10) return false;
+      const setA = new Set(a.slice(0, 40));
+      const setB = new Set(b.slice(0, 40));
+      let hit = 0;
+      setB.forEach((ch) => { if (setA.has(ch)) hit++; });
+      return hit / Math.max(1, setB.size) > 0.85;
+    });
+    if (dup) break;
+    out.push(cur);
+  }
+  return out.join('');
+}
+
 const verdictOf = (t) => (t.typing ? '' : '');
 </script>
 
@@ -381,7 +409,7 @@ const verdictOf = (t) => (t.typing ? '' : '');
                 </div>
                 <div class="bub">
                   <span v-if="t.typing && !t.shown" class="pending">…</span>
-                  <template v-else>{{ t.text.slice(0, t.shown) }}</template><span v-if="t.stream" class="caret">▍</span>
+                  <template v-else>{{ dedupeBubble(t.text.slice(0, t.shown)) }}</template><span v-if="t.stream" class="caret">▍</span>
                 </div>
               </div>
             </div>
@@ -456,6 +484,13 @@ const verdictOf = (t) => (t.typing ? '' : '');
               <span style="font-size: 11.5px; color: #a8adb8">
                 {{ debate.extendUsed ? '已自动续命 ' + debate.extendUsed + ' 次' : '打字时会自动续时' }}
               </span>
+              <button
+                v-if="debate.kind === 'solo'"
+                class="btn sm ghost"
+                disabled
+                style="margin-left: 10px"
+                title="轮到你说，没法催"
+              >催一下</button>
               <span style="flex: 1"></span>
               <button class="btn sm primary" @click="submit">发送</button>
             </div>
@@ -463,10 +498,11 @@ const verdictOf = (t) => (t.typing ? '' : '');
           <div v-else class="waiting">
             <span>{{ debate.hasTyping() ? '对方正在说话…' : '对方正在思考…' }}</span>
             <button
-              v-if="debate.canSkip()"
+              v-if="debate.kind === 'solo'"
               class="btn sm ghost"
               style="margin-left: 10px"
-              :disabled="debate.skipBusy"
+              :disabled="debate.skipBusy || !debate.canSkip()"
+              :title="debate.canSkip() ? '让对方立刻开口，或立刻显示全文' : '这一轮已经催过了，等下一步'"
               @click="debate.nudge()"
             >
               {{ debate.skipBusy ? '催中…' : (debate.hasTyping() ? '直接显示全文' : '催一下') }}
