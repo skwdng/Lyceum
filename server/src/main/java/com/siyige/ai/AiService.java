@@ -774,6 +774,9 @@ public class AiService {
                 t = leads[Math.min(usedHooks, leads.length - 1)] + t;
             }
         }
+        // 先剪掉模型自己重复的段落（退化循环），再按字数截断
+        t = cutRepeats(t);
+
         // 上限取「人设上限」和「环节上限」的较小值：质询答最多 120 字，立论可以 260 字
         int cap = Math.min(p.maxChars(), Format.segCharCap(seg, duty));
         if (t.length() > cap) {
@@ -834,6 +837,38 @@ public class AiService {
             if ("，。；、！？：」』".indexOf(c) >= 0) { cut = i; break; }
         }
         return cut > 6 ? x.substring(0, cut) : x.substring(0, max);
+    }
+
+    /**
+     * 剪掉模型退化式重复。
+     *
+     * <p>现象：一次输出里把同一段话抄 5–10 遍（截图里那个气泡就是这样），
+     * 长度能到 1500 字以上，max_tokens 也拦不住。这里按句子做「第二次出现即截断」：
+     * 同一句（≥8 字）再次出现，说明模型在原地打转，后面的内容没有信息量。
+     */
+    static String cutRepeats(String src) {
+        if (src == null) return "";
+        String s = src.trim();
+        if (s.length() < 120) return s;
+
+        String[] parts = s.split("(?<=[。！？；])");
+        if (parts.length < 4) return s;
+
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        StringBuilder out = new StringBuilder();
+        for (String raw : parts) {
+            String p = raw.trim();
+            if (p.isEmpty()) continue;
+            String key = p.replaceAll("[\\s\u3000]", "");
+            if (key.length() >= 8 && !seen.add(key)) {
+                // 这句已经出现过 —— 认定开始循环，直接把后面全砍掉
+                break;
+            }
+            out.append(p);
+        }
+        String out1 = out.toString().trim();
+        // 兜底：如果砍完太短（比如模型只重复了两句），保留原文的前 1/2 也行，但别返回空
+        return out1.length() < 20 ? s : out1;
     }
 
     private static String shorten(String s, int n) {
