@@ -19,7 +19,7 @@ public final class Format {
     public record Step(int no, String seg, String seat, int sec, String duty) { }
 
     /** 轮数随机范围（含两端）。 */
-    public static final int QUERY_MIN = 2, QUERY_MAX = 3;   // 质询 8–12 步，占全场约 1/3（原来最多 16 步，占 64%）
+    public static final int QUERY_MIN = 2, QUERY_MAX = 2;   // 每方两次质询（8 步，约全场 1/3；原来最多 16 步占 64%）
     public static final int FREE_MIN = 3, FREE_MAX = 6;
 
     /** 固定部分：立论 + 驳立论；总结放在最后单独拼。 */
