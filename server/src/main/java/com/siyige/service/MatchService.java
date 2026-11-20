@@ -222,6 +222,9 @@ public class MatchService {
     /** 正在生成中的对局（防同一步被 tick 重复提交） */
     private final java.util.Set<String> generating = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
+    /** 每个 (对局, step) 的生成次数：advance 失败会重试，超过 3 次就止损。 */
+    private final java.util.Map<String, Integer> attempts = new java.util.concurrent.ConcurrentHashMap<>();
+
     @jakarta.annotation.PreDestroy
     void shutdownPool() {
         aiPool.shutdownNow();
@@ -332,6 +335,18 @@ public class MatchService {
     private void submitAi(String id, Map<String, Object> m, List<Format.Step> steps, int step,
                           Format.Step cur, String seat, boolean buzzed) {
         if (!generating.add(id)) return;                 // 这场已经在生成，跳过
+
+        // 同一步最多生成 3 次：再失败说明 advance 那边有问题，
+        // 无限重试只会把同一句话重复插进库里（前端就会看到"叠字"），还烧 token。
+        String akey = id + "#" + (step + 1);
+        int tries = attempts.merge(akey, 1, Integer::sum);
+        if (tries > 3) {
+            log.error("对局 {} 第 {} 步连续生成 {} 次仍未推进，判 ABANDONED", id, step + 1, tries);
+            attempts.remove(akey);
+            generating.remove(id);
+            try { store.finishMatch(id, "ABANDONED", 0); } catch (Exception ignore) { }
+            return;
+        }
         aiPool.submit(() -> {
             try {
                 ai.bind(id);
@@ -367,6 +382,7 @@ public class MatchService {
                             "options", FlawService.TYPES));
                 }
                 advance(id, m, steps, step);
+                attempts.remove(akey);
             } catch (Exception e) {
                 log.warn("AI 生成失败 match={} step={}: {}", id, step, e.toString());
             } finally {
