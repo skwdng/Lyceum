@@ -425,11 +425,11 @@ public class MatchService {
      * AI 接话的思考时间。
      *
      * <p>原来写死 10–15 秒：一句说完要干等十几秒才有下一句，训练节奏被拖成一节 20 分钟。
-     * 改成 2.5–4.5 秒——留一点"接话"的呼吸感，又不至于让人盯着屏幕发呆。
+     * 改成 1.2–2.2 秒——只留"接话"的呼吸感；想更慢就用 ai-delay-scale 放大（线上可调）。
      * 想更慢就用 siyige.pace.ai-delay-scale 放大（线上可调，不用改代码）。
      */
     private long aiDeadline(String seat) {
-        long pick = 2_500L + (long) (2_000L * Math.random());
+        long pick = 1_200L + (long) (1_000L * Math.random());
         long ms = Math.max(400, (long) (pick * Math.max(0.05, aiDelayScale)));
         return System.currentTimeMillis() + ms;
     }
