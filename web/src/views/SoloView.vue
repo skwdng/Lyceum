@@ -112,6 +112,16 @@ async function startFromPanel() {
     router.push({ name: 'login', query: { next: '/solo' } });
     return;
   }
+  // 已经有一场在打：别默默顶掉它（原来点一次开练，旧对局就从本地消失了）
+  if (debate.matchId && debate.match && debate.match.status === 'RUNNING') {
+    const startNew = window.confirm(
+      '你有一场未完成的对局。\n\n「确定」：放弃它，开新的一局（旧局按已用量结算）\n「取消」：回到原来那一局继续打');
+    if (!startNew) {
+      router.push({ name: 'match' });
+      return;
+    }
+    debate.reset();
+  }
   const id = debate.pendingTopicId;
   const matchId = await debate.createMatch(id ? { topicId: id } : {});
   if (matchId) router.push({ name: 'match' });

@@ -20,6 +20,24 @@ const debate = useDebateStore();
 const auth = useAuthStore();
 
 const draft = ref('');
+
+// 草稿按对局存在本地：刷新、切页回来都不该让用户重打一遍
+const draftKey = () => (debate.matchId ? 'sy_draft_' + debate.matchId : '');
+function saveDraft() {
+  try {
+    const k = draftKey();
+    if (!k) return;
+    if (draft.value) localStorage.setItem(k, draft.value);
+    else localStorage.removeItem(k);
+  } catch (e) { /* 忽略 */ }
+}
+function loadDraft() {
+  try {
+    const k = draftKey();
+    const saved = k ? localStorage.getItem(k) : '';
+    if (saved) draft.value = saved;
+  } catch (e) { /* 忽略 */ }
+}
 const chatEl = ref(null);
 const showTip = ref(false);
 
@@ -115,6 +133,7 @@ onMounted(async () => {
   debate.startPoll();
   debate.startClock();
   debate.startTyping();
+  loadDraft();
   // 打字机要滚的时候由这里决定怎么滚（store 里只做「要不要滚」的判断）
   debate.scrollToBottom = scrollBottom;
   await nextTick();
@@ -127,6 +146,13 @@ onMounted(async () => {
     scrollBottom();
   }
 });
+
+// 新增条目就拉一次打字机：首条发言到达时定时器可能还没启动，
+// 不拉的话那一条会整段直接出现（"对方一辩直接弹出来"就是这么来的）
+watch(
+  () => (debate.turns || []).length,
+  (n, old) => { if (n > (old || 0)) debate.startTyping(); }
+);
 
 onBeforeUnmount(() => {
   // 离开前记住位置，下次回来（还没打完的那一场）接着看
@@ -214,6 +240,7 @@ async function submit() {
 }
 
 function onType() {
+  saveDraft();
   debate.keepalive();
 }
 
