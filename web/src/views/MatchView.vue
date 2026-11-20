@@ -50,6 +50,31 @@ const streamList = computed(() =>
   }))
 );
 
+/**
+ * 反驳提示：从对方最近一条发言里按规则挑攻击角度。
+ *
+ * <p>灵感来自 Kialo（论证图）和辩论教学的「反驳四问」：定义、因果、举证、反例。
+ * 纯规则、零成本，专门解决"轮到我了但不知道从哪儿下手"。
+ */
+const rebutHints = computed(() => {
+  if (!debate.waiting) return [];
+  const turns = debate.turnsView || [];
+  const oppSeats = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4']
+    .filter((s) => !debate.mySeats.includes(s) && s[0] !== (debate.mySeats[0] || 'A')[0]);
+  const last = turns.filter((t) => oppSeats.includes(t.seat)).pop();
+  const text = (last && last.text) || '';
+  const hints = [];
+  if (/显然|众所周知|毋庸置疑|不用多说|不言而喻/.test(text)) hints.push({ k: '举证', v: '对方用了"显然/众所周知"，让他给出处' });
+  if (/所有|全部|一律|从来没有|绝对/.test(text)) hints.push({ k: '反例', v: '全称判断，举一个反例就能破' });
+  if (/专家说|权威|大家都|人人都|大家都认为/.test(text)) hints.push({ k: '来源', v: '追问是哪个专家、哪份署名论证' });
+  if (/因为|所以|因此|导致|从而/.test(text)) hints.push({ k: '因果', v: '检验因果链：是否只是相关？有没有第三因？' });
+  if (/是指|指的是|界定为|定义为|所谓/.test(text)) hints.push({ k: '定义', v: '争定义：换一个更常见的界定，他让步了吗？' });
+  if (/[？?]/.test(text)) hints.push({ k: '回应', v: '对方在提问，先正面回答再反问' });
+  if (/据《|根据《/.test(text)) hints.push({ k: '核实', v: '核对引用的条款是否支持他的结论' });
+  if (!hints.length) hints.push({ k: '口径', v: '追问具体口径：谁来做、按什么标准、什么时候生效' });
+  return hints.slice(0, 3);
+});
+
 const cdText = computed(() => {
   if (debate.unlimited) return debate.waiting ? '不限时' : '';
   if (!debate.waiting) return '';
@@ -420,6 +445,12 @@ const verdictOf = (t) => (t.typing ? '' : '');
           </div>
 
           <template v-if="debate.waiting">
+            <div v-if="rebutHints.length" class="hints">
+              <span class="hint-label">可以从这儿下手</span>
+              <span v-for="h in rebutHints" :key="h.k" class="hint-chip" :title="h.v">
+                <b>{{ h.k }}</b>{{ h.v }}
+              </span>
+            </div>
             <textarea v-model="draft" placeholder="写下你的发言…" @input="onType"></textarea>
             <div class="row" style="margin-top: 8px">
               <span style="font-size: 11.5px; color: #a8adb8">

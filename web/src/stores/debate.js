@@ -499,6 +499,10 @@ export const useDebateStore = defineStore('debate', {
           }
         }
 
+        // 兜底：只要列表里有未打完的条目，就确保打字机在跑
+        // （原来只在页面 mount 时启动一次，任何时序问题都会让文字"啪一下全出来"）
+        if ((this.turnsView || []).some((x) => x.typing)) this.startTyping();
+
         this.remaining = d.remainingSec || 0;
         this.extendUsed = d.extendUsed || 0;
         this.phase = d.phase || 'STEP';
@@ -604,6 +608,7 @@ export const useDebateStore = defineStore('debate', {
     // ==================== 打字机 ====================
     startTyping() {
       if (this.typeTimer) return;
+      if (!(this.turnsView || []).some((x) => x.typing)) return;   // 没有待打的就别空转
       const pauses = {};
       this.typeTimer = setInterval(() => {
         // 串行：只推进最靠前的那条未打完的

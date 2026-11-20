@@ -418,7 +418,8 @@ public class MatchService {
         int turnSec = stepSeconds(ns, 0, str(m.get("pace")), str(m.get("kind")));
 
         // 自由辩：先开一个抢话窗口，谁抢到谁上；其余环节按席次轮转
-        boolean isBuzz = "自由辩".equals(ns.seg());
+        // 单人模式不抢拍：没有对手跟你抢，8 秒窗口只会把打字慢的人卡住
+        boolean isBuzz = !"solo".equalsIgnoreCase(str(m.get("kind"))) && "自由辩".equals(ns.seg());
         Long deadline = isBuzz
                 ? Long.valueOf(System.currentTimeMillis() + buzzWindowMs())
                 : (mine ? deadlineFor(turnSec) : Long.valueOf(aiDeadline(ns.seat())));

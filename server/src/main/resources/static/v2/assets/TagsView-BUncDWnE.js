@@ -1,4 +1,4 @@
-import { _ as _export_sfc, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, G as vModelText, H as withKeys, F as Fragment, r as renderList, e as createCommentVNode, h as withModifiers, i as ref, m as toast, q as adminApi, R as errText, p as computed, a as openBlock, n as normalizeClass } from "./index-Dz8xOCIa.js";
+import { _ as _export_sfc, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, G as vModelText, H as withKeys, F as Fragment, r as renderList, e as createCommentVNode, h as withModifiers, i as ref, m as toast, q as adminApi, R as errText, p as computed, a as openBlock, n as normalizeClass } from "./index-CmGe-8W7.js";
 const _hoisted_1 = {
   class: "panel",
   "data-panel": "tags"
