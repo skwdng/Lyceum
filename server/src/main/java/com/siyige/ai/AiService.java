@@ -498,6 +498,8 @@ public class AiService {
 
         sb.append("【表达要求】直接回应内容本身：**不要用**「对方刚才说……」「顺着我方刚才那句……」这类复述套话开头；")
           .append("引用对方原话不超过一次、且只引关键词。同一句话不要在相邻两轮里重复讲。\n");
+        int capHint = Format.segCharCap(seg, duty);
+        sb.append("【字数】这一环节最多 ").append(capHint).append(" 字（超过会被截断），说重点，不要凑字数。\n");
         sb.append("【你的推理方式】").append(p.strategy()).append("\n");
         sb.append("【陪练强度】").append(switch (difficulty == null ? "pro" : difficulty.toLowerCase()) {
             case "novice" -> "新手：语气友好，先接住对方再给台阶，不主动抓对方漏洞";
@@ -740,9 +742,13 @@ public class AiService {
             } else {
                 // claim 从"剥掉壳之后"的文本里取，长度收到 24 字以内
                 String claim = shorten(coreClaim(oppClean), 24).replaceAll("[「」『』]", "").trim();
-                // 最近 4 轮已经引用过同一句 → 不再重复引用，直接说自己的（避免"复读机"）
+                // 最近几轮已经引用过同一句 → 不再重复引用，直接说自己的（避免"复读机"）
                 boolean quoted = !claim.isBlank() && alreadyQuoted(history, claim, claim);
                 int usedOppFrames = countOppFrames(history);
+                // 同一个席位连着两轮（质询里"答完接着问"）→ 不加引用框架，直接推进
+                String lastSeat = (history == null || history.isEmpty())
+                        ? "" : String.valueOf(history.get(history.size() - 1).get("seat"));
+                if (seat.equals(lastSeat)) usedOppFrames = 99;
                 if (!claim.isBlank() && !quoted && usedOppFrames < 3) {
                     t = "对方刚才说「" + claim + "」，这一点我不认同：" + t;
                 }
@@ -768,7 +774,8 @@ public class AiService {
                 t = leads[Math.min(usedHooks, leads.length - 1)] + t;
             }
         }
-        int cap = Math.max(p.maxChars(), segCap(t));
+        // 上限取「人设上限」和「环节上限」的较小值：质询答最多 120 字，立论可以 260 字
+        int cap = Math.min(p.maxChars(), Format.segCharCap(seg, duty));
         if (t.length() > cap) {
             int cut = t.lastIndexOf('。', cap);
             t = cut > cap * 0.6 ? t.substring(0, cut + 1) : t.substring(0, cap) + '。';

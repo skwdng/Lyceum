@@ -19,7 +19,7 @@ public final class Format {
     public record Step(int no, String seg, String seat, int sec, String duty) { }
 
     /** 轮数随机范围（含两端）。 */
-    public static final int QUERY_MIN = 2, QUERY_MAX = 4;
+    public static final int QUERY_MIN = 2, QUERY_MAX = 3;   // 质询 8–12 步，占全场约 1/3（原来最多 16 步，占 64%）
     public static final int FREE_MIN = 3, FREE_MAX = 6;
 
     /** 固定部分：立论 + 驳立论；总结放在最后单独拼。 */
@@ -40,6 +40,23 @@ public final class Format {
     };
 
     public static final List<String> SEATS = List.of("A1","A2","A3","A4","B1","B2","B3","B4");
+
+    /**
+     * 这一环节的**字数上限**（汉字）。
+     *
+     * <p>以前所有人所有环节都是 110–260 字：质询「答」也写 180 字，和真人一句「我方正面回答：…」
+     * 完全不像。按环节收敛后，长环节（立论/总结）继续给空间，短环节（质询/自由辩）逼它说人话。
+     */
+    public static int segCharCap(String seg, String duty) {
+        String s = seg == null ? "" : seg;
+        String d = duty == null ? "" : duty;
+        if (s.contains("立论") && !s.contains("驳")) return 260;
+        if (s.contains("驳立论")) return 200;
+        if (s.contains("质询")) return d.contains("答") ? 120 : 100;
+        if (s.contains("自由辩")) return 140;
+        if (s.contains("总结")) return 280;
+        return 200;
+    }
 
     /** 随机轮数：真实比赛每场不一样，别写死。 */
     public static int randomQueryRounds(Random r) { return QUERY_MIN + r.nextInt(QUERY_MAX - QUERY_MIN + 1); }

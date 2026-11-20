@@ -71,9 +71,19 @@ public class WalletService {
         return cfg.getInt(ConfigKey.BILLING_WELCOME_GRANT);
     }
 
-    /** 一场的预估费用 = 预估 token 成本 + 服务费。 */
+    /** 一场的预估费用 = 预估 token 成本 + 服务费（用默认预估）。 */
     public long estimateCents() {
-        return costOf(estimateTokens) + serviceFeeCents();
+        return estimateCents(estimateTokens);
+    }
+
+    /**
+     * 按**这一场实际赛制**预估费用。
+     *
+     * <p>原来所有比赛都按固定 9000 token 预扣，可赛制是 17–24 步随机，
+     * 实测费用在 0.6–1.7 元之间漂：估低了会中途余额不足，估高了白占用户额度。
+     */
+    public long estimateCents(long tokens) {
+        return costOf(Math.max(0, tokens)) + serviceFeeCents();
     }
 
     private long costOf(long tokens) {
@@ -114,8 +124,13 @@ public class WalletService {
      * @return 预扣金额；余额不足返回 -1
      */
     public long hold(String userId, String matchId) {
+        return hold(userId, matchId, estimateTokens);
+    }
+
+    /** 同上，但用调用方按赛制算出来的预估 token。 */
+    public long hold(String userId, String matchId, long estimateTokens) {
         ensureWallet(userId);
-        long need = estimateCents();
+        long need = estimateCents(estimateTokens);
         if (repo.balance(userId) < need) return -1L;
         if (!repo.add(userId, -need)) return -1L;
         repo.log(userId, "HOLD", -need, repo.balance(userId), matchId,

@@ -10,7 +10,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { debateApi, baseApi, ApiError } from '../api.js';
-import { useDebateStore, SEATS, SEAT_OF, SEG_OF } from '../stores/debate.js';
+import { useDebateStore, SEATS } from '../stores/debate.js';
 import { useAuthStore } from '../stores/auth.js';
 import { useMetaStore } from '../stores/meta.js';
 import { toast } from '../utils/toast.js';

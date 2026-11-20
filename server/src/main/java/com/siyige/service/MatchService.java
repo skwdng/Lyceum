@@ -137,10 +137,12 @@ public class MatchService {
                 || (aiTier != null && !aiTier.chargeModelCost(tier) && !aiTier.chargeServiceFee(tier));
         String payer = (payerUserId == null || payerUserId.isBlank()) ? userId : payerUserId;
         if (wallet != null && !freeTier) {
-            long held = wallet.hold(payer, id);
+            // 按赛制长度估：每步约 1.1k token（两段式分析 + 生成）+ 1.5k 固定开销
+            long estimateTokens = 1_500L + (long) steps.size() * 1_100L;
+            long held = wallet.hold(payer, id, estimateTokens);
             if (held < 0) {
                 throw new IllegalStateException("余额不足，请先充值（本场预估 "
-                        + (wallet.estimateCents() / 100.0) + " 元）");
+                        + (wallet.estimateCents(estimateTokens) / 100.0) + " 元）");
             }
             store.setTokenBase(id, wallet.tokenSnapshot());
         }
@@ -203,6 +205,28 @@ public class MatchService {
 
     // ---------- 定时推进（AI 回合 / 超时） ----------
 
+    /**
+     * AI 生成用的线程池。
+     *
+     * <p>tick 每 250ms 扫一遍对局表，如果 AI 调用直接在 tick 线程里做（3–8 秒），
+     * 多场并发就会排队：压测里 15 场时最后一场要等 50 秒。这里改成 tick 只判定、
+     * 生成丢进池子，四路并行。
+     */
+    private final java.util.concurrent.ExecutorService aiPool =
+            java.util.concurrent.Executors.newFixedThreadPool(4, r -> {
+                Thread th = new Thread(r, "ai-gen");
+                th.setDaemon(true);
+                return th;
+            });
+
+    /** 正在生成中的对局（防同一步被 tick 重复提交） */
+    private final java.util.Set<String> generating = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    @jakarta.annotation.PreDestroy
+    void shutdownPool() {
+        aiPool.shutdownNow();
+    }
+
     /** 多久没动静算「没人管了」（毫秒）。比最长单步（180 秒）留足余量。 */
     private static final long ABANDON_AFTER_MS = 15 * 60 * 1000L;
 
@@ -233,8 +257,8 @@ public class MatchService {
         }
         for (Map<String, Object> row : running) {
             try {
-                long dl = num(row.get("deadline_at"));
-                long started = num(row.get("started_at"));
+                long dl = numLong(row.get("deadline_at"));
+                long started = numLong(row.get("started_at"));
                 long anchorTs = Math.max(dl, started);
                 if (anchorTs <= 0 || now - anchorTs < ABANDON_AFTER_MS) continue;
 
@@ -281,27 +305,7 @@ public class MatchService {
             if (!expired && !aiGrabs) return;
             String aiSeat = pickAiSeat(m, cur);
             if (aiSeat == null) return;                     // 全是玩家席位，等玩家抢
-            ai.bind(id);
-            applyTier(m);
-            AiService.Speech sp;
-            try {
-                sp = aiLineFor(m, aiSeat, cur.seg(), cur.duty());
-            } finally {
-                ai.clearOwnProfile();
-                ai.unbind();
-            }
-            String line = sp.text();
-            FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
-            line = planted.text();
-            store.insertTurn(id, step + 1, aiSeat, cur.seg(), line, sp.degraded() ? "TEMPLATE" : "OK", "ai");
-            store.setPhase(id, "STEP");
-            hub.emit(id, "turn", Map.of("seat", aiSeat, "seg", cur.seg(), "who", "ai",
-                    "content", line, "buzzed", true));
-            if (planted.type() != null) {
-                store.insertFlaw(id, step + 1, planted.type());
-                hub.emit(id, "flaw", Map.of("step", step + 1, "seat", aiSeat, "options", FlawService.TYPES));
-            }
-            advance(id, m, steps, step);
+            submitAi(id, m, steps, step, cur, aiSeat, true);
             return;
         }
 
@@ -313,28 +317,57 @@ public class MatchService {
             hub.emit(id, "turn", Map.of("seat", speaker, "seg", cur.seg(), "who", "me",
                     "content", "（超时未发言）", "timeout", true));
         } else {
-            ai.bind(id);
-            applyTier(m);
-            AiService.Speech sp;
-            try {
-                sp = aiLineFor(m, cur.seat(), cur.seg(), cur.duty());
-            } finally {
-                ai.clearOwnProfile();
-                ai.unbind();
-            }
-            String line = sp.text();
-            // 按难度概率埋一处逻辑漏洞，供玩家抓
-            FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
-            line = planted.text();
-            store.insertTurn(id, step + 1, cur.seat(), cur.seg(), line, sp.degraded() ? "TEMPLATE" : "OK", "ai");
-            hub.emit(id, "turn", Map.of("seat", cur.seat(), "seg", cur.seg(), "who", "ai", "content", line));
-            if (planted.type() != null) {
-                store.insertFlaw(id, step + 1, planted.type());
-                hub.emit(id, "flaw", Map.of("step", step + 1, "seat", cur.seat(),
-                        "options", FlawService.TYPES));
-            }
+            submitAi(id, m, steps, step, cur, cur.seat(), false);
+            return;                       // 由异步任务推进，tick 不再阻塞
         }
         advance(id, m, steps, step);
+    }
+
+    /**
+     * 把「AI 说一句」丢进线程池。
+     *
+     * <p>同一个对局同一时刻只允许一个生成任务（{@code generating} 集合），
+     * 否则 tick 每 250ms 看到 deadline 过期就会重复提交，一句话被生成好几次。
+     */
+    private void submitAi(String id, Map<String, Object> m, List<Format.Step> steps, int step,
+                          Format.Step cur, String seat, boolean buzzed) {
+        if (!generating.add(id)) return;                 // 这场已经在生成，跳过
+        aiPool.submit(() -> {
+            try {
+                ai.bind(id);
+                applyTier(m);
+                AiService.Speech sp;
+                try {
+                    sp = aiLineFor(m, seat, cur.seg(), cur.duty());
+                } finally {
+                    ai.clearOwnProfile();
+                    ai.unbind();
+                }
+                String line = sp.text();
+                FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
+                line = planted.text();
+                store.insertTurn(id, step + 1, seat, cur.seg(), line,
+                        sp.degraded() ? "TEMPLATE" : "OK", "ai");
+                if (buzzed) store.setPhase(id, "STEP");
+                java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+                payload.put("seat", seat);
+                payload.put("seg", cur.seg());
+                payload.put("who", "ai");
+                payload.put("content", line);
+                if (buzzed) payload.put("buzzed", true);
+                hub.emit(id, "turn", payload);
+                if (planted.type() != null) {
+                    store.insertFlaw(id, step + 1, planted.type());
+                    hub.emit(id, "flaw", Map.of("step", step + 1, "seat", seat,
+                            "options", FlawService.TYPES));
+                }
+                advance(id, m, steps, step);
+            } catch (Exception e) {
+                log.warn("AI 生成失败 match={} step={}: {}", id, step, e.toString());
+            } finally {
+                generating.remove(id);
+            }
+        });
     }
 
     /** 抓漏：玩家指出某一轮 AI 发言的逻辑漏洞。 */
@@ -515,20 +548,28 @@ public class MatchService {
     }
 
     /** 单人 → 流式；多人房间 → 整段（广播给多个人，增量推太碎没意义） */
+    /** 是否推流式增量（默认关：前端用打字机，推了也是白推）。 */
+    @org.springframework.beans.factory.annotation.Value("${siyige.ai.stream:false}")
+    private boolean aiStream;
+
     private AiService.Speech aiLineFor(Map<String, Object> m, String seat, String seg, String duty) throws Exception {
-        if ("solo".equalsIgnoreCase(str(m.get("kind")))) return aiLineStream(m, seat, seg, duty);
+        // 房间多人对局不推流式；单人模式也要看开关
+        if (aiStream && "solo".equalsIgnoreCase(str(m.get("kind")))) {
+            return aiLineStream(m, seat, seg, duty);
+        }
         return aiLine(m, seat, seg, duty);
     }
 
+    /**
+     * 生成一段 AI 发言。
+     *
+     * <p>以前单人/房间两条路：单人两段式（先分析对方再回应），房间单段 ——
+     * 同一个辩题在房间里 AI 明显更笨。现在统一走两段式，房间只是不推流式增量。
+     */
     private AiService.Speech aiLine(Map<String, Object> m, String seat, String seg, String duty) throws Exception {
         String id = str(m.get("id"));
-        if ("solo".equals(str(m.get("kind")))) {
-            return ai.speakForSolo(seat, seg, duty, str(m.get("topic_title")),
-                    str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
-        }
-        String line = ai.speak(seat, seg, duty, str(m.get("topic_title")),
+        return ai.speakForSolo(seat, seg, duty, str(m.get("topic_title")),
                 str(m.get("topic_id")), str(m.get("difficulty")), store.turns(id));
-        return new AiService.Speech(line, false, "");
     }
 
     /**
@@ -551,7 +592,9 @@ public class MatchService {
                 if (s != null) return s;
             }
         }
-        Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
+        // 严格解析：这里不能吃 parseSeats 的「空→A1」默认值，
+        // 否则房间对局里查不到席位的人会被当成 A1，替 A1 发言
+        Set<String> mine = TurnEngine.parseSeatsStrict(str(m.get("my_seats")));
         return mine.isEmpty() ? null : mine.iterator().next();
     }
 
@@ -767,6 +810,25 @@ public class MatchService {
     }
     private static String str(Object o) { return o == null ? "" : String.valueOf(o); }
     private static int num(Object o) { return o instanceof Number n ? n.intValue() : 0; }
+
+    /**
+     * 读毫秒时间戳。
+     *
+     * <p>为什么单独一个：{@code num()} 只认 Number，而 H2 的 timestamp 列取出来是
+     * {@link java.sql.Timestamp}——直接 num() 会得到 0。之前僵尸回收就是用 num() 读
+     * deadline_at 的，anchor 恒为 0，于是**一局都没回收过**（单测 MatchServiceTest 抓到的）。
+     */
+    private static long numLong(Object o) {
+        if (o == null) return 0L;
+        if (o instanceof java.sql.Timestamp ts) return ts.getTime();
+        if (o instanceof java.util.Date d) return d.getTime();
+        if (o instanceof Number n) return n.longValue();
+        try {
+            return Long.parseLong(String.valueOf(o).trim());
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
 
     /** AI 思考停顿（R-PACE-01），按压缩系数缩放。 */
     public long thinkMs() { return Math.max(400, (long) (aiThinkMs * Math.max(0.05, timeScale))); }

@@ -5,8 +5,10 @@ import { useWalletStore } from './wallet.js';
 import { toast } from '../utils/toast.js';
 
 /** 第 N 步 → 发言席位（与后端赛制一致） */
+/** 旧版 12 步兜底表：**只在服务端 plan 缺失时**用于显示，真实赛制以 plan 为准。 */
 export const SEAT_OF = { 1: 'A1', 2: 'B1', 3: 'A2', 4: 'B2', 5: 'A3', 6: 'B3', 7: 'A2', 8: 'B2', 9: 'A3', 10: 'B3', 11: 'B4', 12: 'A4' };
 /** 第 N 步 → 环节名 */
+/** 旧版 12 步兜底表（同上，仅兜底）。 */
 export const SEG_OF = { 1: '立论', 2: '立论', 3: '驳立论', 4: '驳立论', 5: '质询', 6: '质询', 7: '自由辩', 8: '自由辩', 9: '自由辩', 10: '自由辩', 11: '总结', 12: '总结' };
 /** 八个席位 */
 export const SEATS = [
@@ -702,7 +704,7 @@ export const useDebateStore = defineStore('debate', {
       const body = String(text || '').trim();
       if (!body) return;
       const seat = (this.mySeats && this.mySeats[0]) || 'A1';
-      const seg = SEG_OF[Number((this.match && this.match.step) || 0) + 1] || '自由辩';
+      const seg = this.segAt(Number((this.match && this.match.step) || 0) + 1) || '自由辩';
       const stepBase = Number((this.match && this.match.step) || 0) + 1;
       const oppSeat = String(seat).startsWith('A') ? 'B1' : 'A1';
 

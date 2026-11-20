@@ -10,7 +10,7 @@
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useDebateStore, SEAT_OF, SEG_OF } from '../stores/debate.js';
+import { useDebateStore } from '../stores/debate.js';
 import { useAuthStore } from '../stores/auth.js';
 import { toast } from '../utils/toast.js';
 
