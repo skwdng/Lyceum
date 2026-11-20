@@ -37,8 +37,42 @@
 .sp .rl { font-size: 10px; color: var(--sub); line-height: 1.2; }
 
 /* ---------- 对局舞台 ---------- */
-.stage { display: grid; grid-template-columns: 1fr 288px; gap: 14px; }
-.chat { background: #fbfaf7; border: 1px solid var(--line); border-radius: 12px; height: 460px; overflow-y: auto; padding: 16px; }
+.stage { display: grid; grid-template-columns: 1fr 288px; gap: 14px; align-items: stretch; }
+
+/* 左栏：聊天区撑满 + 输入框贴底 */
+.stage > div:first-child {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 210px);
+  min-height: 520px;
+}
+.stage > div:first-child > .composer { flex: 0 0 auto; margin-top: 12px; }
+
+/* .chat 外面还套了一层 position:relative 的 div（滚动按钮要用），
+   它必须也是 flex 容器，.chat 的 flex:1 才生效 —— 否则高度还是写死的 460px */
+.stage > div:first-child > div:first-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.stage > div:first-child > div:first-child > .chat {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* 漏洞卡不该被拉伸 */
+.stage > div:first-child > .card { flex: 0 0 auto; }
+.chat {
+  background: #fbfaf7;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  /* 高度交给外层 flex：聊天区吃掉剩余空间，输入框才会贴住页面底部。
+     原来写死 460px，屏幕一大下面就空一大块（用户截图里就是这样）。 */
+  flex: 1 1 auto;
+  min-height: 240px;
+  height: auto;
+  overflow-y: auto;
+  padding: 16px;
+}
 .msg { display: flex; gap: 9px; margin-bottom: 13px; animation: in 0.2s ease; }
 @keyframes in {
   from { opacity: 0; transform: translateY(4px); }

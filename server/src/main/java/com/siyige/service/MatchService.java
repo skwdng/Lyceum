@@ -421,9 +421,15 @@ public class MatchService {
     }
 
     /** AI 的"思考"停顿：按席位人设不同（快攻 0.9s、价值派 1.7s），再加抖动。 */
+    /**
+     * AI 接话的思考时间。
+     *
+     * <p>原来写死 10–15 秒：一句说完要干等十几秒才有下一句，训练节奏被拖成一节 20 分钟。
+     * 改成 2.5–4.5 秒——留一点"接话"的呼吸感，又不至于让人盯着屏幕发呆。
+     * 想更慢就用 siyige.pace.ai-delay-scale 放大（线上可调，不用改代码）。
+     */
     private long aiDeadline(String seat) {
-        // 一方说完，另一方至少隔 10 秒再回；区间 10–15 秒（按压缩系数缩放）
-        long pick = 10_000L + (long) (5_000L * Math.random());
+        long pick = 2_500L + (long) (2_000L * Math.random());
         long ms = Math.max(400, (long) (pick * Math.max(0.05, aiDelayScale)));
         return System.currentTimeMillis() + ms;
     }

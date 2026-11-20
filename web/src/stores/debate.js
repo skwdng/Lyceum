@@ -788,14 +788,45 @@ export const useDebateStore = defineStore('debate', {
       }
     },
 
-    /** 催一下按钮该不该显示：AI 还没开口（没有正在打字的条目）才给 */
+    /** 有没有正在逐字输出的条目 */
+    hasTyping() {
+      return (this.turnsView || []).some((t) => t.typing);
+    },
+
+    /**
+     * 「催一下」按钮是否显示。
+     *
+     * 语义（用户定义）：
+     *   · 等 AI 开口时 → 立刻让它开始说
+     *   · AI 正在说 → 立刻把整段说完
+     * 所以两种阶段都要给按钮，只有"轮到我说"的时候不给。
+     */
     canSkip() {
-      if (this.kind !== 'solo' || !this.waiting) {
-        const typing = (this.turnsView || []).some((t) => t.typing);
-        if (typing) return false;
+      if (this.kind !== 'solo') return false;
+      if (this.waiting) return false;            // 轮到我说，没什么可催
+      return !this.skipBusy;
+    },
+
+    /**
+     * 催一下：
+     * · 正在打字 → 就地补全（不打扰服务端，零延迟）
+     * · 还没开口 → 请服务端立刻推进
+     */
+    async nudge() {
+      if (this.skipBusy) return;
+      if (this.hasTyping()) {
+        // 把还没打的字一次性补齐：标 typed + shown 拉满，打字机自然停下
+        const typing = (this.turnsView || []).filter((t) => t.typing);
+        const keys = typing.map((t) => t.key);
+        const shown = { ...this.shown };
+        const typed = { ...this.typed };
+        typing.forEach((t) => { shown[t.key] = t.text.length; typed[t.key] = true; });
+        this.shown = shown;
+        this.typed = typed;
+        toast('已显示完整发言');
+        return;
       }
-      const step = Number((this.match && this.match.step) || 0);
-      return this.skipStep !== step && Date.now() >= this.skipUntil && !this.skipBusy;
+      await this.skipAi();
     },
 
     async toggleBrief() {

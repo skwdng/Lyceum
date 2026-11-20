@@ -430,15 +430,15 @@ const verdictOf = (t) => (t.typing ? '' : '');
             </div>
           </template>
           <div v-else class="waiting">
-            对方正在思考…
+            <span>{{ debate.hasTyping() ? '对方正在说话…' : '对方正在思考…' }}</span>
             <button
-              v-if="debate.kind === 'solo' && debate.canSkip()"
+              v-if="debate.canSkip()"
               class="btn sm ghost"
               style="margin-left: 10px"
               :disabled="debate.skipBusy"
-              @click="debate.skipAi()"
+              @click="debate.nudge()"
             >
-              {{ debate.skipBusy ? '催中…' : '催一下' }}
+              {{ debate.skipBusy ? '催中…' : (debate.hasTyping() ? '直接显示全文' : '催一下') }}
             </button>
           </div>
         </div>
