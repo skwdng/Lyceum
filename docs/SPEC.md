@@ -1773,7 +1773,7 @@ web/
 
 ### 31.3 白名单：`ConfigKey` 枚举
 
-后台**不能**写任意 key —— 只有枚举里声明的 10 项可改，键名/类型/范围/默认值/生效方式全在枚举里：
+后台**不能**写任意 key —— 只有枚举里声明的项可改（第一批 10 项 + 第二批 7 项，见 §32，现共 17 项），键名/类型/范围/默认值/生效方式全在枚举里：
 
 | # | 键 | 类型 | 默认 | 生效 |
 |---|---|---|---|---|
@@ -1854,3 +1854,80 @@ x 技术性上限：分页 SIZE_MAX / 密码最大长度 / 报表最大跨度（
 
 现在是单实例：写操作 `cache.remove(key)` 立刻生效，另有 30 秒 TTL 兜底。
 多实例时 A 机改库、B 机缓存仍是旧值，要么接受最长 30 秒延迟，要么上 Redis pub/sub 广播失效（接口不用改）。
+---
+
+## 32. 参数管理（第二批 7 项）（2026-11-20 追加）
+
+> 执行提示词《执行提示词-参数管理第二批》；同一分支 `feature-admin-config`，沿用同一套
+> `ConfigService` / `ConfigKey` / `sy_config` 表 —— **没有新表、没有新接口、没有新依赖**。
+
+### 32.1 本期 7 项
+
+| # | 键 | 类型 | 默认 | 现在读它的地方 | 生效 |
+|---|---|---|---|---|---|
+| 1 | `billing.cents-per-1k-tokens` | INT | 3 | `WalletService.costOf` | 立即（下一次计价） |
+| 2 | `billing.estimate-tokens` | INT | 9000 | `WalletService` 预扣 / DTO / 流水备注 | 立即（下一次预扣） |
+| 3 | `pace.time-scale` | DOUBLE | 0.05 | `MatchService.deadlineFor` / `thinkMs` / `prepareDuration` / 抢拍窗口 | 下次算 deadline |
+| 4 | `pace.turn-seconds` | INT | 300 | `MatchService.stepSeconds` 的「是否显式指定」比较 + `turnSec` 兜底 | 下一次判断 |
+| 5 | `pace.ai-think-ms` | INT | **700** | `MatchService.thinkMs` | 下一次 AI 回合 |
+| 6 | `pace.ai-delay-scale` | DOUBLE | 1.0 | `MatchService.aiDeadline` / `openingDelay` | 下一次 AI 回合 |
+| 7 | `ai.speech-enabled` | BOOL | true | `AiService.llmEnabled()` | 立即 |
+
+**`ai-think-ms` 的坑**：yml 写 700，代码里 `@Value(...:1800)` 的默认值是 1800，
+线上真正生效的一直是 yml 的 **700**。所以 `ConfigKey` 的默认值必须写 700（不是 1800），
+否则「库里没有行」时行为就从 700 变成了 1800。
+
+**`ai.speech-enabled` 的真实作用**：它唯一的用处就是 `llmEnabled()`
+（= 有 key 且开关开着）。关掉它 AI 发言会退回模板兜底，不只是「隐藏一个语音按钮」。
+
+### 32.2 新增类型 DOUBLE
+
+```text
+ConfigKey.Type 加 DOUBLE；ConfigService 加 getDouble(ConfigKey)（解析失败回落默认值并 WARN）
+校验：能解析成 double、不是 NaN/Infinity、在 [min, max] 内（min/max 从 Integer 改成 Number，
+      这样 17 个常量里 INT 传 0、DOUBLE 传 0.05，不用到处写 0d）
+归一化：trim 后**原样存**（1 不会被改写成 1.0）；代价是写 1 与默认值 1.0 字符串不相等，
+        会被当成「改过」——值相同、语义相同，不值得改写用户的输入
+前端：type=DOUBLE 用 <input type=number step=0.05> + 范围提示 + 行内校验
+```
+
+### 32.3 改造了哪 3 处
+
+| 文件 | 原来 | 现在 |
+|---|---|---|
+| `WalletService` | 剩下两个 `@Value` 字段 `centsPer1kTokens` / `estimateTokens` | 两个现读方法；**预扣与结算读同一份**，不会「按新价冻结、按旧价结算」 |
+| `MatchService` | 4 个 `@Value` 字段 | 4 个现读方法（timeScale / turnSeconds / aiThinkMs / aiDelayScale） |
+| `AiService` | `@Value` 字段 `speechEnabled` | `llmEnabled()` 里现读 |
+
+### 32.4 三条不能破的语义（改了就是 bug）
+
+```text
+① deadline 一旦写进库就不追改：deadlineFor() 只在「开局 / 推进回合 / 抢拍」时算一次；
+   后台改参数不碰已开局的对局（有单测：改完参数再读库，deadline_at 逐位不变）
+② stepSeconds 里「用户指定时长 == 配置默认值 -> 视为没指定」：比较对象也现读配置，
+   默认 300 时行为与改造前逐位一致（单测用 pace=tight 区分：默认 300 -> 180；配置 60 -> 300）
+③ 续时（keepalive）**不跟 time-scale 走**：一律 +30 秒。单测在 0.05 与 3.0 两种倍速下都验 +30 秒
+```
+
+### 32.5 `hot.decay-per-10min` 是死配置（不进后台）
+
+`application.yml` 的 `siyige.hot.decay-per-10min: 0.5` **全项目没有代码读它**
+（`HotRank.decay(double)` 是方法参数，不是配置）。本期**不动它**：不删 yml（怕与热度算法下一次
+真正用上时冲突）、也不加进枚举（后台改一个没人读的值只会误导人）。等热度算法真的用上再一起搬。
+
+### 32.6 验收（机器化的部分）
+
+```text
+单测 ConfigServiceTest（+6）：DOUBLE 读写 / 存原样 / 坏值被拒 / 超范围被拒 / 端点可写 / 库里坏值回落
+单测 WalletServiceConfigTest（+2）：单价 10 -> 预扣与结算都按新价；预估 token 20000 -> 金额与备注跟着变
+单测 MatchPaceConfigTest（新，8 条）：deadline 不追改 / 倍速现读 / stepSeconds 比较 / 续时不压缩 /
+                                AI 停顿与备场时长
+单测 AiServiceConfigTest（新，3 条）：开关关掉 llmEnabled=false、没 key 也不走模型
+界面自检 server/scripts/selftest_vue_config2.mjs（13 项）
+```
+
+### 32.7 与第一批的关系
+
+`WalletService` 的 4 个 `@Value` 到这一批**全部搬完**（服务费 / 赠送 / 单价 / 预估 token）。
+`MatchService` 的 4 个节奏参数全部搬完；`AiService` 的语音开关搬完。
+仍未搬（有意为之）：`llm.base-url` / `llm.model` / 密钥 / 基础设施（见 §31.7）。
