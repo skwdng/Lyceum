@@ -88,4 +88,10 @@ public final class AdminDtos {
 
     /** 启用 / 停用入参。 */
     public record SetAdminEnabledRequest(Boolean enabled) { }
+
+    /** T3：后台预置标签 `{ "name": "AI" }`。 */
+    public record CreateTagRequest(String name) { }
+
+    /** T3：标签改名 `{ "name": "人工智能" }`；撞名时后端自动合并。 */
+    public record RenameTagRequest(String name) { }
 }

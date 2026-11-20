@@ -1,0 +1,637 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>思弈阁 · 单人练习（交互演示）</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --ink:#1A1D24; --sub:#6B7280; --line:#E6E3DC; --bg:#F6F4EF; --card:#fff;
+    --blue:#2F5BEA; --blue-weak:#EDF1FE; --orange:#D2691E; --orange-weak:#FDF0E6;
+    --green:#0E9F6E; --green-weak:#E8F8F2; --red:#C0392B;
+  }
+  body{font:14px/1.65 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink)}
+  button{font:inherit;border:none;cursor:pointer;background:none;color:inherit}
+  .wrap{max-width:1120px;margin:0 auto;padding:22px 20px 60px}
+  header{display:flex;align-items:baseline;gap:12px;margin-bottom:18px}
+  header h1{font-size:19px;letter-spacing:.5px}
+  header .sub{font-size:12px;color:var(--sub)}
+  header .spacer{flex:1}
+  .pill{font:12px ui-monospace,Menlo,monospace;background:#fff;border:1px solid var(--line);border-radius:20px;padding:4px 12px;color:var(--sub)}
+
+  /* 大厅 */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+  .topic{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 18px 14px;cursor:pointer;transition:.16s;position:relative}
+  .topic:hover{border-color:#9DB4F5;box-shadow:0 8px 22px rgba(47,91,234,.10);transform:translateY(-2px)}
+  .topic h3{font-size:15px;line-height:1.5;margin-bottom:10px}
+  .tags{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .tag{font-size:11px;padding:2px 8px;border-radius:5px;background:#F1EFE9;color:#6B7280}
+  .tag.b{background:var(--blue-weak);color:var(--blue)}
+  .tag.o{background:var(--orange-weak);color:var(--orange)}
+  .topic .go{font-size:12px;color:var(--blue);font-weight:600}
+  .topic .meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--sub)}
+
+  /* 席位面板 */
+  .mask{position:fixed;inset:0;background:rgba(20,22,28,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .panel{background:#fff;border-radius:16px;width:min(760px,100%);padding:24px;box-shadow:0 24px 60px rgba(0,0,0,.22)}
+  .panel h2{font-size:17px;margin-bottom:6px}
+  .panel .desc{font-size:12.5px;color:var(--sub);margin-bottom:18px}
+  .seats{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .side-h{font-size:12px;color:var(--sub);margin-bottom:8px;display:flex;gap:8px;align-items:center}
+  .seat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .seat{border:1px solid var(--line);border-radius:10px;padding:10px 8px;text-align:center;cursor:pointer;transition:.14s;background:#FCFBF8}
+  .seat:hover{border-color:#9DB4F5}
+  .seat.on{background:var(--blue-weak);border-color:var(--blue);box-shadow:0 0 0 2px rgba(47,91,234,.12)}
+  .seat .k{font:11px ui-monospace,monospace;color:var(--sub)}
+  .seat .r{font-size:13px;font-weight:600;margin-top:2px}
+  .seat .n{font-size:11px;color:var(--sub);margin-top:2px}
+  .presets{display:flex;gap:8px;margin:16px 0 4px;flex-wrap:wrap}
+  .preset{font-size:12px;border:1px solid var(--line);border-radius:20px;padding:5px 12px;color:var(--sub)}
+  .preset:hover{border-color:var(--blue);color:var(--blue)}
+  .sum{margin-top:16px;background:#FBFAF7;border:1px dashed var(--line);border-radius:10px;padding:12px 14px;font-size:12.5px;color:#4A5568}
+  .sum b{color:var(--blue)}
+  .panel-foot{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+  .btn{border-radius:9px;padding:10px 18px;font-size:13.5px}
+  .btn.primary{background:var(--blue);color:#fff;font-weight:500}
+  .btn.primary:hover{background:#244BCF}
+  .btn.ghost{background:#F1EFE9;color:#4A5568}
+  .btn.ghost:hover{background:#E7E4DC}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+
+  /* 对局 */
+  .match{display:none}
+  .match.on{display:block}
+  .bar{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .bar .t{font-size:14px;font-weight:600;flex:1;min-width:160px}
+  .chip{font-size:12px;background:#F6F4EF;border:1px solid var(--line);border-radius:7px;padding:3px 9px;color:#4A5568}
+  .chip.mono{font-family:ui-monospace,Menlo,monospace}
+  .chip.warn{background:#FDECEA;border-color:#F5C6C0;color:var(--red)}
+  .seats-strip{display:flex;gap:6px;overflow-x:auto;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px}
+  .sp{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:8px;background:#F6F4EF;border:1px solid transparent;flex-shrink:0;transition:.2s}
+  .sp.me{background:var(--blue-weak);border-color:#B9C9F7}
+  .sp.cur{box-shadow:0 0 0 2px var(--blue) inset}
+  .sp .av{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+  .sp .av.a{background:var(--blue)} .sp .av.b{background:var(--orange)}
+  .sp .nm{font-size:11.5px;font-weight:600;line-height:1.2}
+  .sp .rl{font-size:10px;color:var(--sub);line-height:1.2}
+
+  .stage{display:grid;grid-template-columns:1fr 300px;gap:14px}
+  .chat{background:#FBFAF7;border:1px solid var(--line);border-radius:12px;height:540px;overflow-y:auto;padding:18px 18px 8px}
+  .msg{display:flex;gap:9px;margin-bottom:14px;animation:in .25s ease}
+  @keyframes in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+  .msg.b{flex-direction:row-reverse}
+  .msg .ava{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700}
+  .msg .ava.a{background:var(--blue)} .msg .ava.b{background:var(--orange)} .msg .ava.me{background:#2A2F3A}
+  .msg .bd{max-width:76%}
+  .msg.b .bd{text-align:right}
+  .msg .hd{font-size:11px;color:var(--sub);margin-bottom:3px;display:flex;gap:6px}
+  .msg.b .hd{justify-content:flex-end}
+  .msg .hd b{color:#3A4150}
+  .bub{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 13px;font-size:13.5px;line-height:1.75;text-align:left;display:inline-block;white-space:pre-wrap}
+  .msg.me .bub{background:#2A2F3A;color:#fff;border-color:#2A2F3A}
+  .msg.b:not(.me) .bub{background:#FFF8F2;border-color:#F3DFCC}
+  .sys{text-align:center;margin:10px 0 14px}
+  .sys span{font-size:11.5px;color:var(--sub);background:#fff;border:1px dashed var(--line);border-radius:6px;padding:4px 12px}
+  .typing{display:inline-flex;gap:3px;align-items:center}
+  .typing i{width:5px;height:5px;border-radius:50%;background:#B9BEC9;animation:bl 1s infinite}
+  .typing i:nth-child(2){animation-delay:.15s} .typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bl{0%,100%{opacity:.3}50%{opacity:1}}
+  .caret{display:inline-block;width:2px;height:14px;background:var(--blue);vertical-align:-2px;animation:bl .8s infinite}
+
+  .side{display:flex;flex-direction:column;gap:12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card h4{font-size:11.5px;color:var(--sub);letter-spacing:.5px;margin-bottom:10px;display:flex;justify-content:space-between}
+  .steps{font-size:12px;max-height:250px;overflow-y:auto}
+  .st{display:flex;gap:8px;padding:4px 0;color:#8A909C}
+  .st .no{width:18px;text-align:right;font-family:ui-monospace,monospace;font-size:11px}
+  .st.done{color:#4A5568}
+  .st.cur{color:var(--blue);font-weight:600}
+  .st.cur .no{color:var(--blue)}
+  .row{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0;color:#4A5568}
+  .row b{font-weight:600;color:var(--ink)}
+
+  .composer{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px}
+  .composer .hint{font-size:11.5px;color:var(--sub);margin-bottom:8px;display:flex;justify-content:space-between}
+  .composer textarea{width:100%;min-height:74px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit;outline:none;background:#FCFBF8}
+  .composer textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,91,234,.1)}
+  .cbar{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .cbar .sp2{flex:1}
+  .mic{border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:12.5px;color:#4A5568;background:#FCFBF8}
+  .mic.rec{border-color:var(--red);color:var(--red);background:#FDECEA}
+  .waiting{text-align:center;padding:16px;color:var(--sub);font-size:13px}
+  .waiting b{color:var(--blue)}
+
+  /* 结算 */
+  .result{display:none}
+  .result.on{display:block}
+  .hero{background:#fff;border:1px solid var(--line);border-radius:14px;padding:26px 28px;margin-bottom:14px}
+  .hero h2{font-size:22px;margin-bottom:4px}
+  .hero .d{font-size:12.5px;color:var(--sub)}
+  .score{display:flex;gap:34px;align-items:flex-end;margin-top:18px;flex-wrap:wrap}
+  .score .big{font-size:52px;font-weight:800;letter-spacing:-2px;line-height:1}
+  .score .big small{font-size:14px;font-weight:500;color:var(--sub);letter-spacing:0}
+  .dims{display:flex;flex-direction:column;gap:7px;min-width:260px}
+  .dim{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .dim .lb{width:44px;color:#4A5568}
+  .dim .dbar{flex:1;height:6px;background:#F1EFE9;border-radius:4px;overflow:hidden}
+  .dim .dbar i{display:block;height:100%;background:var(--blue);border-radius:4px}
+  .dim b{width:28px;text-align:right}
+  .ev{margin-top:16px;background:#FBFAF7;border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.9}
+  .ev .k{color:var(--sub);font-size:12px;margin-bottom:4px}
+  .ev .q{color:var(--red)}
+  .ev .fix{color:var(--green)}
+  .acts{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .footnote{font-size:11.5px;color:#9AA0AB;margin-top:14px;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>思弈阁</h1>
+    <span class="sub">单人练习 · 4v4 赛制 · 交互演示</span>
+    <span class="spacer"></span>
+    <span class="pill" id="paceTag">节奏 ×1</span>
+  </header>
+
+  <!-- 大厅 -->
+  <section id="lobby">
+    <div class="cards" id="topics"></div>
+    <div class="footnote">
+      点任意辩题即开（第一次会让你选辩位，之后记住选择）。演示版不连后端，AI 台词与评分为本地模拟。
+    </div>
+  </section>
+
+  <!-- 席位面板 -->
+  <div class="mask" id="seatMask" style="display:none">
+    <div class="panel">
+      <h2>你要坐哪几个位置？</h2>
+      <div class="desc">选中的席位由你发言，其余自动由 AI 占满。同时占多个位置 = 一个人分饰多角，练「接盘」和「预判」。</div>
+      <div class="seats">
+        <div>
+          <div class="side-h"><span class="tag b">正方</span><span>一辩 · 二辩 · 三辩 · 四辩</span></div>
+          <div class="seat-grid" id="seatsA"></div>
+        </div>
+        <div>
+          <div class="side-h"><span class="tag o">反方</span><span>一辩 · 二辩 · 三辩 · 四辩</span></div>
+          <div class="seat-grid" id="seatsB"></div>
+        </div>
+      </div>
+      <div class="presets">
+        <button class="preset" data-preset="A1">只练一辩</button>
+        <button class="preset" data-preset="A2">只练二辩</button>
+        <button class="preset" data-preset="A1,A2">一辩 + 二辩</button>
+        <button class="preset" data-preset="A1,A2,A3,A4">己方四人</button>
+        <button class="preset" data-preset="ALL">正反全占</button>
+      </div>
+      <div class="sum" id="sumBox">已选：<b>A1</b> · 本场你将发言 <b>1</b> 次</div>
+      <div class="panel-foot">
+        <button class="btn ghost" id="cancelSeat">取消</button>
+        <button class="btn primary" id="startBtn">进入对局</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 对局 -->
+  <section class="match" id="match">
+    <div class="bar">
+      <div class="t" id="mTopic">—</div>
+      <span class="chip" id="mMode">标准版 · 12 步</span>
+      <span class="chip mono" id="mStep">1 / 12</span>
+      <span class="chip mono" id="mTimer">--:--</span>
+      <button class="chip" id="paceBtn" title="演示用，真实产品无此按钮">节奏 ×1</button>
+    </div>
+    <div class="seats-strip" id="strip"></div>
+    <div class="stage">
+      <div>
+        <div class="chat" id="chat"></div>
+        <div class="composer">
+          <div class="hint"><span id="cHint">等待开始…</span><span id="cRight"></span></div>
+          <div id="composerBody"></div>
+        </div>
+      </div>
+      <div class="side">
+        <div class="card">
+          <h4><span>赛制进度</span><span id="progTxt">0/12</span></h4>
+          <div class="steps" id="steps"></div>
+        </div>
+        <div class="card">
+          <h4><span>本场</span></h4>
+          <div class="row"><span>你的席位</span><b id="sSeats">—</b></div>
+          <div class="row"><span>你的发言</span><b id="sTurns">0</b></div>
+          <div class="row"><span>跳过 AI</span><b id="sSkip">0</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 结算 -->
+  <section class="result" id="result">
+    <div class="hero">
+      <h2>本场复盘</h2>
+      <div class="d" id="rMeta">—</div>
+      <div class="score">
+        <div>
+          <div class="big" id="rTotal">0<small>分</small></div>
+          <div class="d" style="margin-top:8px">三维加权 · 含抓漏加分</div>
+        </div>
+        <div class="dims" id="rDims"></div>
+      </div>
+      <div class="ev" id="rEv"></div>
+      <div class="acts">
+        <button class="btn primary" id="againBtn">换席位再来</button>
+        <button class="btn ghost" id="sameBtn">同题重打</button>
+        <button class="btn ghost" id="backBtn">回大厅</button>
+      </div>
+    </div>
+    <div class="footnote">演示版评分是本地规则模拟；真实版本由「规则 40% + LLM 60%」产出，且每一分都必须带原句证据与改进句式（规格 R-SCORE-01/02）。</div>
+  </section>
+</div>
+
+<script>
+/* ---------------- 数据 ---------------- */
+const TOPICS = [
+  {id:1, title:'人工智能生成内容是否应当享有著作权', cat:'科技', diff:'进阶', pro:'AIGC 应受保护', con:'AIGC 不应受保护'},
+  {id:2, title:'应不应该全面推行远程办公', cat:'社会', diff:'新手'},
+  {id:3, title:'大数据算法推荐是否加剧了信息茧房', cat:'科技', diff:'竞赛'},
+  {id:4, title:'高校是否应当取消期末考试', cat:'教育', diff:'新手'},
+  {id:5, title:'公平与效率哪一个更应优先', cat:'价值', diff:'竞赛'},
+  {id:6, title:'短视频对青少年的影响利大于弊', cat:'社会', diff:'进阶'}
+];
+
+const SEATS = [
+  {k:'A1', side:'A', role:'一辩', turns:1}, {k:'A2', side:'A', role:'二辩', turns:2},
+  {k:'A3', side:'A', role:'三辩', turns:2}, {k:'A4', side:'A', role:'四辩', turns:1},
+  {k:'B1', side:'B', role:'一辩', turns:1}, {k:'B2', side:'B', role:'二辩', turns:2},
+  {k:'B3', side:'B', role:'三辩', turns:2}, {k:'B4', side:'B', role:'四辩', turns:1}
+];
+
+const STEPS = [
+  {seg:'立论',   seat:'A1', sec:180},
+  {seg:'立论',   seat:'B1', sec:180},
+  {seg:'驳立论', seat:'A2', sec:120},
+  {seg:'驳立论', seat:'B2', sec:120},
+  {seg:'质询',   seat:'A3', sec:120},
+  {seg:'质询',   seat:'B3', sec:120},
+  {seg:'自由辩', seat:'A2', sec:120},
+  {seg:'自由辩', seat:'B2', sec:120},
+  {seg:'自由辩', seat:'A3', sec:120},
+  {seg:'自由辩', seat:'B3', sec:120},
+  {seg:'总结',   seat:'B4', sec:180},
+  {seg:'总结',   seat:'A4', sec:180}
+];
+
+const AI_NAMES = {A1:'沈亦舟',A2:'苏晚',A3:'梁未',A4:'许晏清',B1:'何书言',B2:'路知远',B3:'陆见微',B4:'周砚'};
+
+const LINES = {
+  '立论': {
+    A:['我方立论：判断这道题要先立一个标准——可执行、可监督、可追责，三条缺一不可。',
+       '我方的核心主张是：这件事的收益是公共的，成本却集中在少数主体身上，整体上值得推进。'],
+    B:['我方先把议题拉回现实：今天讨论的不是理想状态该不该，而是此时此刻能不能。',
+       '我方立场明确：这一命题在现实层面缺乏可行性，成本与收益存在结构性错配。']
+  },
+  '驳立论': {
+    A:['对方一辩把「技术可行」直接推成了「制度应当」，这是从实然跳到应然，中间缺了一步。',
+       '对方始终没说清成本由谁承担。只谈收益不谈分摊，这个论证是不完整的。'],
+    B:['对方立的标准太宽——按它的说法，任何有试错成本的政策都不该做。',
+       '对方举的例子只能说明个别地区可行，推不出普遍可复制。']
+  },
+  '质询': {
+    A:['我请教对方：你方说的「成本过高」，具体高在哪个科目？拿不出可核查口径，这就只是印象。',
+       '我想追问一句：如果按你方的标准，现有制度里有几项能通过？'],
+    B:['我请教对方一辩：你说的「可行」，是实验室可行还是大规模推行可行？两者门槛差一个量级。',
+       '对方一直在谈原则，我想问：执行主体是谁？出了问题向谁追责？']
+  },
+  '自由辩': {
+    A:['对方把风险直接推成了禁止——风险存在只支持「应当规范」，支撑不到「不应推进」。',
+       '对方至今没有回应成本分摊的问题，我请对方正面回答。'],
+    B:['对方说我方只会否定，但我方给了替代路径：先试点、再评估、后铺开，这比一步到位更稳。',
+       '对方刚才那句是循环论证——用结论来证明结论。']
+  },
+  '总结': {
+    A:['整场下来，对方始终回避成本由谁承担。我方结论：值得做，但要按可监督的路径做。',
+       '把三个分歧收一下：标准、成本、执行。前两个对方没答，第三个对方答错了。'],
+    B:['我方结辩：对方没有拿出任何一期执行评估。在评估缺位的前提下，不应全面推进。',
+       '真正的分歧不在该不该，而在能不能——这一点我方从立论守到了现在。']
+  }
+};
+
+const FLAWS = [
+  {type:'未证明前提', sent:'有数据显示，超过七成的推行案例都在两年内收回了成本。'},
+  {type:'以偏概全',   sent:'我举个身边的例子：我一个朋友就是这么失败的，所以这条路走不通。'},
+  {type:'滑坡谬误',   sent:'一旦开了这个口子，后面就会一路退让，最后什么底线都守不住。'}
+];
+
+/* ---------------- 状态 ---------------- */
+const S = {
+  mySeats: JSON.parse(localStorage.getItem('sy_seats') || '["A1"]'),
+  topic: null, step: 0, running: false, pace: 1,
+  turns: 0, skipped: 0, myLines: [], timerId: null, stepTimer: null,
+  speaking: false
+};
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const sleep = ms => wait(ms / S.pace);
+
+/* ---------------- 大厅 ---------------- */
+function renderLobby(){
+  $('#topics').innerHTML = TOPICS.map(t => `
+    <div class="topic" data-id="${t.id}">
+      <h3>${esc(t.title)}</h3>
+      <div class="tags"><span class="tag">${t.cat}</span><span class="tag b">${t.diff}</span></div>
+      <div class="meta"><span>已坐席位：${S.mySeats.join(' ') || '未选'}</span><span class="go">开练 →</span></div>
+    </div>`).join('');
+  document.querySelectorAll('.topic').forEach(el => {
+    el.onclick = () => { S.topic = TOPICS.find(t => t.id === +el.dataset.id); openPanel(); };
+  });
+}
+
+/* ---------------- 席位面板 ---------------- */
+function openPanel(){
+  $('#seatMask').style.display = 'flex';
+  ['A','B'].forEach(side => {
+    const box = side === 'A' ? $('#seatsA') : $('#seatsB');
+    box.innerHTML = SEATS.filter(s => s.side === side).map(s => `
+      <div class="seat ${S.mySeats.includes(s.k)?'on':''}" data-k="${s.k}">
+        <div class="k">${s.k}</div><div class="r">${s.role}</div>
+        <div class="n">${s.turns} 次发言</div>
+      </div>`).join('');
+    box.querySelectorAll('.seat').forEach(el => el.onclick = () => toggleSeat(el.dataset.k));
+  });
+  syncSum();
+}
+function toggleSeat(k){
+  const i = S.mySeats.indexOf(k);
+  if (i >= 0) { if (S.mySeats.length === 1) return; S.mySeats.splice(i,1); }
+  else S.mySeats.push(k);
+  openPanel();
+}
+function syncSum(){
+  const n = STEPS.filter(st => S.mySeats.includes(st.seat)).length;
+  const cross = S.mySeats.some(k=>k[0]==='A') && S.mySeats.some(k=>k[0]==='B');
+  $('#sumBox').innerHTML = `已选：<b>${S.mySeats.sort().join(' ')}</b> · 本场你将发言 <b>${n}</b> 次` +
+    (cross ? ' · <span style="color:#C0392B">跨阵营自辩演练（不判胜负）</span>' : '');
+}
+
+/* ---------------- 开局 ---------------- */
+async function start(){
+  localStorage.setItem('sy_seats', JSON.stringify(S.mySeats));
+  $('#seatMask').style.display = 'none';
+  $('#lobby').style.display = 'none';
+  $('#result').classList.remove('on');
+  $('#match').classList.add('on');
+  $('#chat').innerHTML = '';
+  $('#mTopic').textContent = S.topic.title;
+  $('#sSeats').textContent = S.mySeats.join(' ');
+  S.step = 0; S.turns = 0; S.skipped = 0; S.myLines = []; S.running = true;
+
+  renderStrip(); renderSteps();
+  sys(`辩题：${S.topic.title} · 你占 ${S.mySeats.join('、')}`);
+  const n = STEPS.filter(st => S.mySeats.includes(st.seat)).length;
+  sys(`本场你共发言 ${n} 次 · 其余席位由 AI 补齐`);
+  await preparePhase();
+  loop();
+}
+
+async function preparePhase(){
+  $('#composerBody').innerHTML = `<div class="waiting">10 秒准备期 · 请整理你的<b style="color:#2F5BEA">立论</b>（演示中不打断）</div>`;
+  for (let i = 10; i > 0; i--) {
+    if (!S.running) return;
+    $('#cHint').textContent = `准备期 ${i}s · 请整理你的立论`;
+    $('#mTimer').textContent = `00:${String(i).padStart(2,'0')}`;
+    await sleep(1000);
+  }
+  $('#cHint').textContent = '开始';
+  $('#composerBody').innerHTML = '';
+  await sleep(400);
+}
+
+/* ---------------- 主循环 ---------------- */
+async function loop(){
+  for (S.step = 0; S.step < STEPS.length; S.step++) {
+    if (!S.running) return;
+    const st = STEPS[S.step];
+    const seat = SEATS.find(s => s.k === st.seat);
+    renderStrip(st.seat); renderSteps();
+    $('#mStep').textContent = `${S.step+1} / 12`;
+    $('#mMode').textContent = `标准版 · ${st.seg}`;
+
+    const isMine = S.mySeats.includes(st.seat);
+    if (isMine) { await myTurn(st, seat); }
+    else { await aiTurn(st, seat); }
+    if (!S.running) return;
+  }
+  finish();
+}
+
+/* ---------------- AI 回合 ---------------- */
+async function aiTurn(st, seat){
+  const name = AI_NAMES[st.seat];
+  sys(`${seat.role} ${name} 正在思考…`);
+  const think = (1800 + Math.random() * 1400) / S.pace;
+  $('#cHint').textContent = `${name} 正在思考…`;
+  $('#cRight').innerHTML = `<button class="chip" id="skipBtn">跳过这段</button>`;
+  $('#composerBody').innerHTML = `<div class="waiting">对方正在思考 <span class="typing"><i></i><i></i><i></i></span></div>`;
+  $('#skipBtn').onclick = () => { S.skipped++; $('#sSkip').textContent = S.skipped; skipFlag = true; };
+
+  let skipFlag = false;
+  const t0 = Date.now();
+  while (Date.now() - t0 < think) { if (skipFlag) break; await wait(60); }
+
+  if (!skipFlag) {
+    const pool = LINES[st.seg][seat.side];
+    const text = pool[Math.floor(Math.random()*pool.length)];
+    await typeOut(st.seat, name, st.seg, seat.role, text);
+  } else {
+    addMsg(st.seat, name, st.seg, seat.role, '（已跳过，摘要：' + (LINES[st.seg][seat.side][0].slice(0,28)) + '…）', true);
+  }
+  $('#cRight').innerHTML = '';
+  $('#composerBody').innerHTML = '';
+  await sleep(2500);              // R-PACE-04：AI 说完缓冲 2.5s
+}
+
+async function typeOut(k, name, seg, role, text){
+  const el = addMsg(k, name, seg, role, '', false, true);
+  $('#cHint').textContent = `${name} 正在发言…`;
+  const cps = (8 + Math.random()*4) * S.pace;
+  let i = 0;
+  while (i < text.length) {
+    i += 1;
+    el.querySelector('.txt').textContent = text.slice(0, i);
+    if ('。！？'.includes(text[i-1])) await sleep(380);
+    await sleep(1000 / cps);
+    scrollChat();
+  }
+  el.querySelector('.txt').textContent = text;
+}
+
+/* ---------------- 我的回合 ---------------- */
+async function myTurn(st, seat){
+  const comp = $('#composerBody');
+  $('#cHint').textContent = `轮到你（${seat.role}）· ${st.seg}`;
+  $('#cRight').textContent = '';
+  comp.innerHTML = `
+    <textarea id="inp" placeholder="写下你的${st.seg}…（演示：随便打几个字，或点「录音」看转写效果）"></textarea>
+    <div class="cbar">
+      <button class="mic" id="micBtn">🎙 按住说话</button>
+      <span class="sp2"></span>
+      <button class="btn ghost" id="skipMeBtn">跳过（演示）</button>
+      <button class="btn primary" id="sendBtn">发送</button>
+    </div>`;
+  const inp = $('#inp');
+  inp.focus();
+  $('#sendBtn').onclick = () => send(inp.value || '（未输入，直接发送）');
+  $('#skipMeBtn').onclick = () => send('[演示跳过]我方本轮发言从略，请对方继续。');
+  $('#micBtn').onclick = async () => {
+    $('#micBtn').classList.add('rec'); $('#micBtn').textContent = '● 录音中…（模拟转写）';
+    await wait(900);
+    inp.value = '就是说这个东西它其实吧……我觉得对方那个说法有点问题，因为大家都知道的嘛';
+    $('#micBtn').classList.remove('rec'); $('#micBtn').textContent = '🎙 按住说话';
+    showAsrBar();
+  };
+
+  let left = 45;   // 演示：真实按 st.sec，这里压到 45s 方便观察
+  $('#mTimer').textContent = fmt(left);
+  await new Promise(resolve => {
+    S.timerId = setInterval(() => {
+      left--;
+      $('#mTimer').textContent = fmt(left);
+      $('#mTimer').classList.toggle('warn', left <= 10);
+      if (left <= 0) { clearInterval(S.timerId); $('#mTimer').classList.remove('warn'); send('（超时未发言，记 TIMEOUT）', true); resolve(); }
+    }, 1000);
+    S._resolve = resolve;
+  });
+}
+
+function send(text, timeout){
+  if (S._resolve) { clearInterval(S.timerId); const r = S._resolve; S._resolve = null; r(); }
+  const seat = SEATS.find(s => s.k === STEPS[S.step].seat);
+  S.turns++; $('#sTurns').textContent = S.turns;
+  S.myLines.push(text);
+  addMsg(STEPS[S.step].seat, '你', STEPS[S.step].seg, seat.role + '（你）', text, false, false, true);
+  $('#composerBody').innerHTML = `<div class="waiting">已提交，等待下一环节…</div>`;
+  $('#cHint').textContent = '已提交';
+  $('#mTimer').textContent = fmt(STEPS[S.step].sec);
+  $('#mTimer').classList.remove('warn');
+}
+
+function showAsrBar(){
+  const comp = $('#composerBody');
+  const bar = document.createElement('div');
+  bar.className = 'sum';
+  bar.style.marginTop = '8px';
+  bar.innerHTML = `识别结果已填入输入框（原始转写）。
+    <button class="preset" id="polishBtn" style="margin-left:8px">一键规整</button>`;
+  comp.appendChild(bar);
+  $('#polishBtn').onclick = () => {
+    $('#inp').value = '我方认为对方的论证存在明显跳跃：他用「存在风险」直接推出「应当禁止」，但风险只支持「需要规范」。请对方补充中间环节的依据。';
+    bar.innerHTML = '<b>已规整成论辩结构</b>：前提 → 对方假设风险即禁止 → 我方主张需要规范而非禁止 → 要求对方补依据。';
+  };
+}
+
+/* ---------------- 视图 ---------------- */
+function renderStrip(cur){
+  $('#strip').innerHTML = SEATS.map(s => `
+    <div class="sp ${S.mySeats.includes(s.k)?'me':''} ${cur===s.k?'cur':''}">
+      <div class="av ${s.side.toLowerCase()}">${S.mySeats.includes(s.k)?'我':AI_NAMES[s.k][0]}</div>
+      <div>
+        <div class="nm">${S.mySeats.includes(s.k)?'你':AI_NAMES[s.k]}</div>
+        <div class="rl">${s.side==='A'?'正方':'反方'}${s.role}</div>
+      </div>
+    </div>`).join('');
+}
+
+function renderSteps(){
+  $('#steps').innerHTML = STEPS.map((st,i) => `
+    <div class="st ${i<S.step?'done':''} ${i===S.step?'cur':''}">
+      <span class="no">${i+1}</span>
+      <span>${st.seg} · ${st.seat}${S.mySeats.includes(st.seat)?' · 你':''}</span>
+    </div>`).join('');
+  $('#progTxt').textContent = `${Math.min(S.step+1,12)}/12`;
+}
+
+function sys(text){
+  const d = document.createElement('div');
+  d.className = 'sys'; d.innerHTML = `<span>${esc(text)}</span>`;
+  $('#chat').appendChild(d); scrollChat();
+}
+
+function addMsg(k, name, seg, role, text, dim, typing, me){
+  const side = k[0] === 'A' ? 'a' : 'b';
+  const d = document.createElement('div');
+  d.className = 'msg ' + (me ? 'me ' : '') + (k[0]==='B'?'b':'a');
+  d.innerHTML = `
+    <div class="ava ${me?'me':side}">${me?'我':name[0]}</div>
+    <div class="bd">
+      <div class="hd"><b>${esc(name)}</b><span>${k} · ${role}</span><span>·</span><span>${seg}</span></div>
+      <div class="bub"><span class="txt">${esc(text)}</span>${typing?'<span class="caret"></span>':''}</div>
+    </div>`;
+  if (dim) d.style.opacity = '.62';
+  $('#chat').appendChild(d); scrollChat();
+  return d;
+}
+function scrollChat(){ const c = $('#chat'); c.scrollTop = c.scrollHeight; }
+function fmt(s){ s = Math.max(0,s|0); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
+
+/* ---------------- 结算 ---------------- */
+function finish(){
+  S.running = false;
+  clearInterval(S.timerId);
+  $('#match').classList.remove('on');
+  $('#result').classList.add('on');
+
+  const said = S.myLines.join('');
+  const len = said.replace(/\s/g,'').length;
+  const matter = Math.max(45, Math.min(92, 55 + Math.round(len/12)));
+  const method = Math.max(42, Math.min(90, 52 + Math.round(len/14)));
+  const manner = Math.max(50, Math.min(90, 60 + Math.round(len/20)));
+  const total = Math.round(matter*0.4 + method*0.35 + manner*0.25);
+
+  $('#rMeta').textContent = `${S.topic.title} · 你占 ${S.mySeats.join('、')} · 发言 ${S.turns} 次 · 跳过 AI ${S.skipped} 次`;
+  $('#rTotal').innerHTML = `${total}<small>分</small>`;
+  $('#rDims').innerHTML = [['立论',matter],['论证',method],['表达',manner]].map(([n,v]) => `
+    <div class="dim"><span class="lb">${n}</span><div class="dbar"><i style="width:${v}%"></i></div><b>${v}</b></div>`).join('');
+
+  const q = S.myLines[0] || '（本轮未发言）';
+  $('#rEv').innerHTML = `
+    <div class="k">论证 ${method} ↓ · 证据</div>
+    <div>${esc(q.slice(0,42))}${q.length>42?'…':''}</div>
+    <div class="k" style="margin-top:12px">问题</div>
+    <div class="q">这句是态度陈述，没有给出可被检验的判断；对方可以用「凭什么」直接反问。</div>
+    <div class="k" style="margin-top:12px">改成这样</div>
+    <div class="fix">该政策有三处硬伤：成本被低估、执行主体不明、收益周期过长——任一条都能被单独检验。</div>`;
+}
+
+/* ---------------- 事件 ---------------- */
+$('#cancelSeat').onclick = () => { $('#seatMask').style.display = 'none'; };
+$('#startBtn').onclick = start;
+document.querySelectorAll('.preset').forEach(b => b.onclick = () => {
+  const p = b.dataset.preset;
+  S.mySeats = p === 'ALL' ? SEATS.map(s=>s.k) : p.split(',');
+  openPanel();
+});
+$('#paceBtn').onclick = () => {
+  S.pace = S.pace === 1 ? 4 : 1;
+  $('#paceBtn').textContent = '节奏 ×' + S.pace;
+  $('#paceTag').textContent = '节奏 ×' + S.pace;
+};
+$('#againBtn').onclick = () => { $('#result').classList.remove('on'); $('#lobby').style.display='block'; openPanel(); };
+$('#sameBtn').onclick = () => { $('#result').classList.remove('on'); start(); };
+$('#backBtn').onclick = () => { $('#result').classList.remove('on'); $('#lobby').style.display='block'; };
+
+renderLobby();
+
+/* 给自动化截图用的钩子 */
+window.DEMO = {
+  open(seats){ S.mySeats = seats; S.topic = TOPICS[0]; start(); },
+  say(text){ const i = $('#inp'); if(i){ i.value = text; $('#sendBtn').click(); return true; } return false; },
+  finish(){ S.step = 11; finish(); },
+  panel(){ S.topic = TOPICS[0]; openPanel(); }
+};
+</script>
+</body>
+</html>
+
+

@@ -71,6 +71,11 @@ public class RestoreService {
         if (AuditLogRepo.TARGET_ADMIN.equals(targetType)) {
             throw new IllegalArgumentException("NOT_RESTORABLE: 管理员账号操作不能撤销（请到管理员管理页调整）");
         }
+        // T3：标签操作同样不可恢复 —— 删掉的标签关联确实回不来（改名合并也一样），
+        // 与其让「恢复」按钮点了报错，不如在这里就说清楚。
+        if (AuditLogRepo.TARGET_TAG.equals(targetType)) {
+            throw new IllegalArgumentException("NOT_RESTORABLE: 标签操作不能撤销（标签删除/合并是不可逆的）");
+        }
 
         if (!AuditLogService.canRestore(row)) {
             String verdict = row.get("verdict") == null ? "" : String.valueOf(row.get("verdict"));

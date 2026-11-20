@@ -1,0 +1,74 @@
+/* 全局样式：和 Web 端保持同一套视觉语言（米白底、圆角卡、蓝色主色） */
+page {
+  background: #f7f5f0;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #1a1d24;
+  font-size: 15px;
+}
+
+.wrap { padding: 16px 16px 32px; }
+
+.card {
+  background: #fff;
+  border: 1px solid #ece9e2;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.sub { font-size: 12.5px; color: #8a909c; line-height: 1.6; }
+.row { display: flex; align-items: center; gap: 10px; }
+.grow { flex: 1; min-width: 0; }
+
+.btn {
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 15px;
+  background: #eef1f7;
+  color: #2b3140;
+}
+.btn.primary { background: #2f5bea; color: #fff; }
+.btn.ghost { background: #fff; border: 1px solid #e6e3dc; }
+.btn[disabled] { opacity: .5; }
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #fcfbf8;
+  border: 1px solid #e6e3dc;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 15px;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #f1f0ec;
+  color: #6b7280;
+}
+.tag.blue { background: #eef3ff; color: #2f5bea; }
+.tag.orange { background: #fdf3e8; color: #b4671e; }
+
+/* 聊天气泡：和 Web 端一致，我方靠右蓝底，对方靠左白卡 */
+.msg { display: flex; gap: 10px; margin-bottom: 14px; }
+.msg.me { flex-direction: row-reverse; }
+.bub {
+  max-width: 78%;
+  padding: 10px 13px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #ece9e2;
+  font-size: 15px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msg.me .bub { background: #eef3ff; border-color: #dbe4ff; }
+.who { font-size: 11.5px; color: #8a909c; margin-bottom: 3px; }
+
+.empty { text-align: center; color: #a8adb8; font-size: 13px; padding: 40px 0; }

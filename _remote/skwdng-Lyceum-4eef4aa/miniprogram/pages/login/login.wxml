@@ -1,0 +1,25 @@
+<view class="wrap">
+  <view class="title">思弈阁</view>
+  <view class="sub">AI 辩论训练 · 选一道题，和 AI 打完一场完整赛制</view>
+
+  <view class="card" style="margin-top:16px">
+    <view class="row" style="margin-bottom:12px">
+      <view class="grow row" style="gap:8px">
+        <view class="tag {{mode==='login'?'blue':''}}" data-mode="login" bindtap="switchMode">登录</view>
+        <view class="tag {{mode==='register'?'blue':''}}" data-mode="register" bindtap="switchMode">注册</view>
+      </view>
+    </view>
+
+    <input class="input" placeholder="账号" value="{{account}}" bindinput="onAccount" />
+    <input class="input" style="margin-top:10px" password placeholder="密码（8 位以上，含字母和数字）"
+           value="{{password}}" bindinput="onPassword" />
+
+    <button class="btn primary" style="margin-top:16px" loading="{{busy}}" bindtap="submit">
+      {{mode === 'register' ? '注册并开始' : '登录'}}
+    </button>
+
+    <view class="sub" style="margin-top:10px">
+      首次使用会自动注册并送 1 元体验金（够打 1 场）。
+    </view>
+  </view>
+</view>

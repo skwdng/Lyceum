@@ -1,10 +1,11 @@
 package com.siyige.admin;
 
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigService;
 import com.siyige.video.MachineAuditService;
 import com.siyige.video.VideoRepo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
@@ -23,6 +24,11 @@ import java.util.Map;
  *
  * <p>所以这里**复用同样的数据层**（{@link VideoRepo} 的队列/日志/判定/恢复方法原样调用），
  * 只把"谁在操作"换成 {@link AdminContext}。判定规则、字段、状态机一个都没有重写。
+ *
+ * <p><b>开关改成后台可改</b>（参数管理第一批）：{@code video.audit.console-enabled} 不再用
+ * {@code @Value} 冻在字段里，改成每次调 {@link ConfigService#getBool(ConfigKey)}，
+ * 所以后台一关，这个台的 4 个接口**立刻** 403，不用重启。
+ * 视频侧 {@code VideoController} 自己的那个开关是另一个（视频模块本期不碰）。
  */
 @Service
 public class AdminVideoAuditService {
@@ -35,25 +41,25 @@ public class AdminVideoAuditService {
     private final MachineAuditService machine;
     /** 处理记录：视频复核通过/驳回/恢复都要留痕 */
     private final AuditLog audit;
-    private final boolean consoleEnabled;
+    /** 复核台开关（后台可改、立即生效）。 */
+    private final ConfigService cfg;
 
     /** 单页上限 / 默认页大小 */
     static final int SIZE_MAX = 50;
     static final int SIZE_DEFAULT = 20;
 
     public AdminVideoAuditService(VideoRepo repo, AdminVideoAuditRepo repo2, MachineAuditService machine,
-                                  AuditLog audit,
-                                  @Value("${siyige.video.audit.console-enabled:false}") boolean consoleEnabled) {
+                                  AuditLog audit, ConfigService cfg) {
         this.repo = repo;
         this.repo2 = repo2;
         this.machine = machine;
         this.audit = audit;
-        this.consoleEnabled = consoleEnabled;
+        this.cfg = cfg;
     }
 
-    /** 审核台是否可用（与视频模块共用同一个开关）。 */
+    /** 审核台是否可用（**每次现读**后台参数，所以关掉立刻生效）。 */
     public boolean consoleEnabled() {
-        return consoleEnabled;
+        return cfg.getBool(ConfigKey.VIDEO_AUDIT_CONSOLE);
     }
 
     /**
@@ -178,13 +184,14 @@ public class AdminVideoAuditService {
     /** 机器审核规则（只读，给管理台说明用）。 */
     public Map<String, Object> rules() {
         Map<String, Object> out = new LinkedHashMap<>(machine.rules());
-        out.put("consoleEnabled", consoleEnabled);
+        out.put("consoleEnabled", consoleEnabled());
         return out;
     }
 
     private void requireEnabled() {
-        if (!consoleEnabled) {
-            throw new IllegalArgumentException("CONSOLE_DISABLED: 视频复核台未开放（siyige.video.audit.console-enabled=false）");
+        if (!consoleEnabled()) {
+            throw new IllegalArgumentException(
+                    "CONSOLE_DISABLED: 视频复核台未开放（后台参数 video.audit.console-enabled = false）");
         }
     }
 

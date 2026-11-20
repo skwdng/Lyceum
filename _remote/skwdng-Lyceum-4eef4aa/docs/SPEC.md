@@ -1,0 +1,1856 @@
+# 思弈阁 · 实现规格书（AI 可执行版 · v4.7）
+
+> 唯一规格来源。逐条对照编号实现，全部满足才能标完成。
+> v4.3（2026-11-04）：追加第 19 节「举报与审核（治理）」，含 R-GOV-01 ~ R-GOV-25。
+> v4.4（2026-11-04）：追加第 20 节「辩论侧的登录与对局归属」，含 R-DEB-01 ~ R-DEB-14。
+> v4.5（2026-11-05）：追加第 21 节「通知与 @提及」，含 R-NTF-01 ~ R-NTF-22。
+> v4.6（2026-11-05）：追加第 22 节「社区 @AI」，含 R-AI-01 ~ R-AI-30（本节标题行此前漏登记版本号，此处补记）。
+> v4.7（2026-11-07）：追加第 23 节「好友 + 私聊 + 邀请组队」，含 R-SOC-01 ~ R-SOC-31。
+> 关键词：**MUST**（必须）、**MUST NOT**（禁止）、**SHOULD**（推荐）、**可调参数**。
+
+---
+
+## 0. 给实现者（AI）的指令
+
+1. 第 2 节（房间）与第 3 节（流程）是骨架，写错后面全部返工。
+2. 第 4 节（AI 节奏）、第 5 节（语音）是硬约束。
+3. 与本文冲突的旧代码/旧文档一律以本文为准。
+
+### 0.1 变更记录（v4.2，**不要复活以下旧设计**）
+
+| 变更 | 说明 |
+|---|---|
+| ❌ 移除 1v1 / 2v2 | **只保留 4v4（每方一辩到四辩，8 席）** |
+| ❌ 移除段位 / 等级 / 积分 / 排行榜 | 改为**个人辩论记录** + 与自己比的三个指标（第 6 节） |
+| ✅ 新增语音转文字 | 第 5 节 |
+| ✅ 保留 4v4 团队层 | 队内频道、协同分、辩位权限 |
+| ✅ 拆分两种入口 | **单人辩论**（选题/自填 → 选位置 → 即开）· **多人辩论**（建房 → 拉人 → 准备 → 开局） |
+| ✅ 新增辩题 AI 审核 | 单人自填题、房间换题都必须过审（§3.7） |
+| ✅ 新增社区（v4.2） | 第 18 节；帖子 / 两层楼中楼 / 点赞 / 浏览去重 / 内容审核，共 40 条 |
+| ✅ 社区只搜标题（v4.2） | 明确收窄为 `title LIKE`，不引入全文索引与向量检索 |
+
+### 0.2 产品取舍（写规格的人做的判断，不是需求原文）
+
+| 判断 | 依据 | 落地条款 |
+|---|---|---|
+| 全流程单场约 24 分钟，但单个席位只开口 1–2 次 | 12 步时长合计 1380s；三辩/四辩各只 1 次发言 | 三档训练模式 R-TRAIN-01、AI 发言可跳过 R-FLOW-09、座位卡预告发言次数 R-SEAT-07 |
+| 评分必须可解释，否则等于装饰 | 用户无法理解 72 与 80 的差别 | R-SCORE-01~04 |
+| 语音转写会拉低评分，需区分“口语差”与“论证差” | 转写文本含大量口水词 | R-VOICE-11 一键规整 + 双文本对比 |
+| 无段位后动机系统为空 | 只有记录=没有进度感 | R-REC-07 个人趋势 / 连续天数 / 漏洞统计 |
+| 房主踢人、转让、观战是低频功能 | 4v4 真人难凑齐，90% 场次不触发 | 降级为 P2（第 13 节） |
+
+---
+
+## 0.3 合并说明（本版本 = 你的规格书 + 队友计划书的工程亮点）
+
+| 来源 | 内容 |
+|---|---|
+| **规格书（主体）** | 单人点题即开、多选辩位、去段位、语音转文字、AI 节奏、可解释评分、三档训练模式、跳过/加速 |
+| **计划书（采纳）** | 三段式异步推送、SSE/WS 语义分工、结构化输出四级兜底、状态机复用、`@Tool` 论据检索、Redis 快照、AI 评测集四指标、点赞与评分隔离、五维画像、提示词人格分离、ChatMemory 滑窗、目标用户与边界、风险表、不选理由 |
+| **计划书（不采纳）** | 语音列为范围外、`user` 段位/积分、排行榜、第 3 周才做房间 |
+| **计划书（降级）** | 论点树、观战 → P2（表结构与接口先定，不做深度交互） |
+| **社区（v4.2 升级）** | 原列 P2，现升级为**正式范围**：完整设计见第 18 节（R-COM-01~40） |
+
+---
+
+## 1. 术语
+
+| 术语 | 定义 |
+|---|---|
+| 房间 Room | 一场 4v4 的容器：辩题、8 席、房主、设置 |
+| 席位 Seat | `A1–A4`（正方一辩…四辩）、`B1–B4`（反方一辩…四辩） |
+| 辩位 Role | 一辩 / 二辩 / 三辩 / 四辩，由席位决定 |
+| 占位者 Occupant | `EMPTY` / `AI` / `USER` |
+| 回合 Turn | 一个席位在某环节的一次发言 |
+| 记录 Record | 一场打完后的历史条目（替代段位） |
+
+---
+
+## 1.5 目标用户与项目边界（采纳自计划书 §1.3 / §1.4，按本期范围修订）
+
+| 用户群体 | 核心诉求 | 对应功能 |
+|---|---|---|
+| 高校辩论队队员 | 赛前陪练、找逻辑漏洞 | 单人点题即开 · 多选辩位 · 复盘 · 抓漏 |
+| 通识课 / 演讲课学生 | 低成本入门，先搞懂规则 | 新手引导 · 可解释评分 |
+| 想练表达的在职者 | 随时能练，不用约人 | 单人 1v7 AI · 碎片化 `DRILL` |
+| 辩论爱好者 | 看别人怎么打、找队友 | 4v4 房间 · 观战（P2） |
+
+| 范围内（本期做） | 范围外（本期不做） |
+|---|---|
+| 单人 4v4：点题即开、1–8 席位任选 | **模型微调训练** |
+| 4v4 房间：8 席、AI 填充、房主开局 | 真人语音实时对辩（只做语音转文字输入） |
+| **语音转文字 + 一键规整**（本期新增） | 真人裁判介入 |
+| 逐轮三维评分 + 可解释证据 + 抓漏 | 移动端 App |
+| 五维画像 + 弱项专练 | 排行榜 / 段位（明确不做） |
+| 辩论记录与动机三件套 | 论点树可视化（P2，表先留） |
+| **自定义辩题 + AI 审核** | – |
+
+---
+
+## 1.6 两种训练模式（产品只有这两条入口）
+
+| | **单人辩论 SOLO** | **多人辩论 ROOM** |
+|---|---|---|
+| 入口 | 选题库辩题 **或自己填一个**（需审核） | 建房 / 凭房间号加入 |
+| 席位 | 玩家占 **1–8 个**（可只坐一辩，也可正反全占），其余 AI | 真人优先，空位开局补 AI |
+| 准备 | 无（点完即开） | 房主免准备；其他真人必须点准备 |
+| 开局 | 直接进 10 秒准备期 | 房主点「开始辩论」 |
+| 通道 | 只用 SSE | SSE + WebSocket |
+| 断线恢复 | 重新 GET 对局 | 房间快照 + 事件补发 |
+| 对选题的要求 | **自定义辩题必须先过 AI 审核** | 建房时若换题，同样要过审核 |
+
+> 两条入口共用同一套 `TurnEngine` 与 `Format`，差异只在「席位怎么来的」和「谁有权开局」。
+
+---
+
+## 2. 房间（4v4）
+
+### 2.1 入口
+
+- **R-ROOM-01** 大厅 MUST 提供三个入口：**加入房间**（房间码 / 公开列表）、**自选辩题开房**、**快速开始**（默认辩题，直接建单人房）。
+- **R-ROOM-02** 房间 MUST 有 8 个席位，每方 4 人；辩位固定为一辩→四辩。
+- **R-ROOM-03** 房间码 MUST 为 `SY-XXXX`（4 位，排除 `O0I1`），大小写不敏感。
+- **R-ROOM-04** 建房者 MUST 成为房主，并自动坐 **A1（正方一辩）**。
+- **R-ROOM-05** 大厅首屏 MUST 把「**快速开始**（单人 + 7 AI，默认辩题，一键开打）」放在主位；「加入房间 / 开房」为次位。依据：4v4 真人难凑齐，日常入口是单人练习。
+- **R-ROOM-06** 大厅 MUST 显示一局预计时长与「你将发言 N 次」，避免用户点进去才发现要坐 20 分钟。
+
+### 2.2 房间设置（仅房主，`LOBBY` 内可改）
+
+- **R-SET-01** 可改项：辩题（可选或随机）、赛制（`STD` 标准版 / `FREE` 不限时段）、可见性（`PUBLIC`/`PRIVATE`）、房间密码（4 位）、允许观战。
+- **R-SET-02** 变更 MUST 通过 SSE 广播，所有人界面即时生效。
+- **R-SET-03** `RUNNING` 后 MUST NOT 允许修改任何设置。
+
+### 2.3 席位与座位卡
+
+- **R-SEAT-01** 座位卡 MUST 显示：头像、昵称、**辩位名**、准备状态、房主徽标、AI 标识。
+- **R-SEAT-02** 空位 MUST 显示「＋ 邀请」，点击给出房间码与邀请链接。
+- **R-SEAT-03** 点击自己座位 MUST 弹出换座菜单（同阵营内可换辩位）；点击空位 MUST 直接换座。
+- **R-SEAT-04** 房主点击他人座位 MUST 能：**移到对面**、**踢出房间**、**转让房主**。
+- **R-SEAT-05** 跨阵营换位 MUST 由房主操作，玩家 MUST NOT 自行跳到对面。
+- **R-SEAT-06** AI 席位 MUST 显示「AI」与一句风格标签（如「硬框架 · 弱点：未证明前提」）。
+- **R-SEAT-07** 换座菜单里每个席位 MUST 标注：**该席位本场发言次数与累计时长**（一辩 1 次/180s、二辩 2 次/240s、三辩 2 次/240s、四辩 1 次/180s）。依据：选座=选投入，不能让用户盲选。
+
+### 2.4 准备与开局
+
+- **R-READY-01** **房主 MUST NOT 有「准备」按钮**（隐式就绪），座位卡显示房主徽标。
+- **R-READY-02** 每名非房主真人 MUST 有「准备 / 取消准备」，默认未准备。
+- **R-READY-03** AI 席位恒为已准备，不显示按钮。
+- **R-READY-04** 加入、换座、退出 MUST 把该真人重置为未准备。
+- **R-READY-05** 最少 **1 名真人**即可开局（1 人 + 7 AI 打满 4v4）。
+- **R-READY-06** 房主「开始辩论」按钮状态：
+  | 条件 | 状态 | 文案 |
+  |---|---|---|
+  | 有真人未准备 | 禁用 | 还有 N 人未准备 |
+  | 全员就绪 | 可用 | 开始辩论 |
+  | 房间内无真人（异常） | 禁用 | 房间里没有真人 |
+- **R-READY-07** 点击开始 MUST 在 1 秒内把空位填成 AI 并广播 `room.start`。
+- **R-READY-08** 房主离开 MUST 转让给下一位真人；无真人则关闭房间并广播 `room.closed`。
+
+### 2.5 邀请 / 观战 / 房间聊天
+
+- **R-JOIN-01** 凭房间码加入 MUST 自动坐第一个空位；满 8 人返回 `ROOM_FULL`。
+- **R-JOIN-02** 私密房 MUST NOT 出现在公开列表；设密码的房间进入前 MUST 校验密码。
+- **R-JOIN-03** 邀请链接 MUST 形如 `/room/SY-XXXX`，打开自动加入（已登录前提下）。
+- **R-JOIN-04** 观战者 MUST NOT 占席、MUST NOT 进队内频道，只出现在观战计数。
+- **R-CHAT-01** 房间频道 MUST 支持文字消息（含观战可见），落库并广播。
+
+### 2.6 状态机
+
+```
+LOBBY ──(房主开始 · 全员就绪)──▶ RUNNING ──(12 步走完)──▶ REVIEW ──▶ FINISHED ──▶ RECORDED
+  │
+  ├──(房主离开且无真人)──▶ CLOSED
+  └──(闲置 30 分钟)─────▶ CLOSED
+```
+
+---
+
+## 3. 辩论流程
+
+### 3.1 标准版 4v4 步骤表（与《项目计划书》表 13 对齐，顺序 MUST NOT 改）
+
+| 序 | 环节 | 席位 | 时长 | 该环节的核心任务 |
+|---|---|---|---|---|
+| 1 | 立论 | A1 | 180s | 立住判断标准，给出 2–3 个分论点 |
+| 2 | 立论 | B1 | 180s | 先破题，重新定义战场 |
+| 3 | 驳立论 | A2 | 120s | 打掉对方最强的那一点 |
+| 4 | 驳立论 | B2 | 120s | 回应攻击并抛出对方没准备的问题 |
+| 5 | 质询 | A3 | 120s | 连续追问，逼出对方未证明的前提 |
+| 6 | 质询 | B3 | 120s | 每次只问一件事，逼出对方的定义 |
+| 7 | 自由辩 | A2 | 120s | 每次只说一件事，打完一个点就换 |
+| 8 | 自由辩 | B2 | 120s | 同上 |
+| 9 | 自由辩 | A3 | 120s | 同上 |
+| 10 | 自由辩 | B3 | 120s | 同上 |
+| 11 | 总结 | B4 | 180s | 收拾战场，再升华价值 |
+| 12 | 总结 | A4 | 180s | 指出真正分歧与获胜理由 |
+
+> 9 个环节 + 自由辩展开为 4 个子回合 = **12 步**，与计划书 §5.1 一致。
+> 各辩位本场发言：一辩 1 次/180s、二辩 2 次/240s、三辩 2 次/240s、四辩 1 次/180s。
+
+- **R-FLOW-01** 服务端 MUST 维护 `currentStep` 与 `currentSeat`，只有 `currentSeat` 能提交。
+- **R-FLOW-02** 非当前席位提交 MUST 返回 `409 NOT_YOUR_TURN` 且不落库。
+- **R-FLOW-03** 倒计时归零 MUST 落一条 `TIMEOUT` 占位发言并推进。
+- **R-FLOW-04** 12 步走完 MUST 进 `REVIEW` → `FINISHED` → 写辩论记录。
+- **R-FLOW-05** 进入 `RUNNING` 后 MUST 先播 **10 秒准备期**，提示「请整理你的立论」。
+- **R-FLOW-06** 席位权限 MUST 服务端校验：一辩不得提交结辩内容、四辩不得提交立论。
+- **R-FLOW-07** `FREE` 模式 MUST 不设环节与倒计时，按席位顺序轮流，随时可点「结束并评分」。
+
+### 3.2 队内频道
+
+- **R-TEAM-01** 己方真人 MUST 能发队内消息，对手与观战 MUST NOT 可见。
+- **R-TEAM-02** AI 队友 MUST 能读取队内频道内容并据此调整下一轮发言。
+- **R-TEAM-03** AI 队友（同侧）MUST 呼应真人上一段发言（协同分来源）。
+
+### 3.3 输入方式
+
+- **R-FLOW-08** 每个回合 MUST 同时支持键盘输入与**语音转文字**（第 5 节），二者写入同一输入框。
+
+### 3.4 训练模式（解决“24 分钟只说 1 次话”）
+
+| 模式 | 步骤 | 时长 | 用途 |
+|---|---|---|---|
+| `FULL` 全流程 | 12 步 | ~24 分钟 | 完整赛制演练、结课/比赛前 |
+| `SPRINT` 快速 | 立论 A1 → 立论 B1 → 自由辩 ×4 → 结辩 B4 → 结辩 A4（8 步） | ~13 分钟 | 日常训练默认 |
+| `DRILL` 片段 | 只练单一环节（如只练质询，连续换 3 个 AI 对手） | ~5 分钟 | 专项纠错 |
+
+- **R-TRAIN-01** 三种模式 MUST 共用同一引擎，只是 `steps` 配置不同。
+- **R-TRAIN-02** 建房/开局时 MUST 显式选择模式，默认 `SPRINT`。
+- **R-TRAIN-03** `DRILL` 模式 MUST 允许重复练同一环节 ≥3 轮，且不生成完整记录（只记一条练习）。
+
+### 3.5 AI 发言的可控性
+
+- **R-FLOW-09** AI 回合的发言 MUST 支持「**跳过**」：点击后立即结束该回合，辩论史里留一条 30 字内摘要，MUST 不影响评分与后续流程。
+- **R-FLOW-10** AI 发言 MUST 支持 1.5× / 2× 加速播放；MUST NOT 影响真人自己的回合。
+- **R-FLOW-11** 跳过与加速 MUST 记入 `turn.input_type`（`skipped` / `fast`），用于分析用户耐心度。
+
+### 3.6 单人练习（`SOLO`，点题即开 · 可多选辩位）
+
+> 依据：计划书 §1.4“AI 对辩：单人占满四个辩位”。这是产品主路径，房间是增量。
+
+- **R-SOLO-01 一键开局**：大厅辩题卡直接「开练」，**不建房、不占席、不准备**。`POST /api/matches {topicId, seats[], mode}` → 立即进入 10 秒准备期。房间相关 UI MUST NOT 出现。
+- **R-SOLO-02 可多选辩位**：`seats` MUST 支持 1–8 个席位（`A1–A4` / `B1–B4` 任意组合，可跨阵营）。**选中的席位由玩家本人发言，未选的全部自动由 AI 占满。**
+- **R-SOLO-03 判定改为集合**：引擎唯一改动是 `currentSeat ∈ mySeats` → 等玩家输入；否则 AI 自动发言。`mySeats` 必须持久化到 `match` 行（`my_seats` 字段）。
+- **R-SOLO-04 记住上次选择**：同一用户再次点辩题时，MUST 复用上次的 `seats` 直接开打，**不再弹选择面板**（这是"流畅"的关键）。
+- **R-SOLO-05 选择面板低频出现**：仅首次、或主动点「改席位」时出现；一屏列 8 个席位勾选框 + 三个预设（「只练一辩」「己方四人」「正反全占」）。
+- **R-SOLO-06 跨阵营允许但降级判定**：同时选中正反方时 MUST 标记 `drill=true`，**不判胜负**，只给个人评分并在结算页注明「自辩演练」。
+- **R-SOLO-07 协同分口径调整**：多席位时协同分 MUST 按「接续**我方**上一段发言」计算，不论该发言由哪个席位完成。
+- **R-SOLO-08 断线恢复**：仅通过 `GET /api/matches/{id}` 重建，MUST NOT 依赖事件补发、WebSocket、Redis 快照、分布式锁。
+- **R-SOLO-09 结算页三动作**：换席位重打 / 同题重打 / 只练这一幕（转 `DRILL`）。
+- **R-SOLO-10 AI 队友（未选中的同侧席位）MUST 呼应玩家上一段发言**（R-TEAM-03 同样生效）。
+- **R-SOLO-11 记一条 `record`**，`opponent_type = AI`，`my_seats` 一并入库。
+
+**发言密度（选座 = 选训练量，UI 上必须显示）**
+
+| 你选的席位 | 本场你的发言次数 | 约占全场 | 适用场景 |
+|---|---|---|---|
+| 1 席（如一辩） | 1 次 | 8% | 单点打磨 |
+| 2 席（一辩 + 二辩） | 3 次 | 25% | 练「接盘」：自己接自己的话 |
+| 4 席（己方全占） | 6 次 | 50% | 赛前把己方整条线走一遍 |
+| 8 席（正反全占） | 12 次 | 100% | 自辩对练，练预判对方立论 |
+
+> 各席位出场次数：一辩 1、二辩 2、三辩 2、四辩 1（合计 6/方，共 12 步）。
+
+**单人 / 房间的能力差异（实现时以此为准）**
+
+| 能力 | 单人 SOLO | 房间 ROOM |
+|---|---|---|
+| 入口 | 点辩题即开 | 建房/加入 → 准备 → 开局 |
+| 通道 | 只需 SSE | SSE + WebSocket |
+| 状态权威 | `match` 表 | 内存 + Redis 快照 `room:{code}` |
+| 并发控制 | 不需要（单用户单局） | `lock:room:{code}` + 发言令牌 |
+| 准备/房主/踢人/转让 | 无 | 有 |
+| 断线恢复 | 重新 GET 一次 | `lastEventId` 补发 |
+| 接口数 | 6 | 16 |
+| 预计工期 | ~9 天可玩 | +4 天 |
+
+### 3.7 辩题审核（AI 审核，**两种模式都要过**）
+
+> 自定义辩题必须能被正经辩起来。乱填、立场绑架、人身攻击、违规内容一律挡住，并给出改写建议。
+
+- **R-TOPIC-01** **单人自定义辩题 MUST 先过审核**；多人房间若允许换题，换题同样 MUST 过审核。题库内的官方辩题默认已审核，不再重复审。
+- **R-TOPIC-02** 审核 MUST 在提交后 **3 秒内**返回结论；超过 3 秒 MUST 降级为本地规则审核（长度、是否含正反立场、黑名单词），并标记 `pending`，MUST NOT 让用户干等。
+- **R-TOPIC-03** 结论 MUST 是三态之一：
+  | 结论 | 含义 | 前端行为 |
+  |---|---|---|
+  | `PASS` | 可辩 | 进入选位置 / 建房 |
+  | `REJECT` | 不可辩或违规 | 阻止开局，给理由 + 2 条改写建议 |
+  | `NEED_EDIT` | 太宽/太窄/立场绑架 | 允许用户改写后再审，不放行 |
+- **R-TOPIC-04** 审核维度 MUST 至少覆盖五项，且每项给出判定理由：
+  1. **可辩性**：是否存在正反两种合理立场（「1+1=2 是否正确」不可辩）
+  2. **平衡性**：是否一方天然压倒（「人是否应当呼吸」不可辩）
+  3. **边界清晰**：是否含「所有/永远/一定」等无法证伪的绝对表述
+  4. **合规性**：涉政敏感、色情、暴力、人身攻击、歧视 → 直接 `REJECT`
+  5. **表述完整**：≥6 字、是一个可判断的命题而非关键词堆砌
+- **R-TOPIC-05** `REJECT` / `NEED_EDIT` MUST 给出**可照抄的改写示例**，例如：
+  > 「AI 好不好」→ 建议：「AI 生成内容是否应当享有著作权」
+- **R-TOPIC-06** 审核结果 MUST 落库：`topic.moderation_status`、`moderation_reason`、`moderation_at`；相同文本（按 sha256）MUST 命中缓存，不重复调模型。
+- **R-TOPIC-07** 审核 MUST NOT 阻断主流程以外的动作：题库浏览、历史记录、能力分析都不受审核影响。
+- **R-TOPIC-08** 审核失败（模型超时/报错）MUST 走规则兜底放行并标 `pending`，MUST NOT 把用户卡死在「审核中」。
+- **R-TOPIC-09** `pending` 的辩题 MUST 在对局结束前异步补审；补审 `REJECT` 时 MUST 保留已产生记录，但该题不进热辩榜。
+- **R-TOPIC-10** 用户 MUST 能对 `REJECT` 结果提人工复核（P2 实现，本期仅提供入口与提示）。
+- **R-TOPIC-11** 审核通过的自定义辩题 MUST 参与热辩榜计分；官方题库与自定义题在榜上 MUST 区分标记（避免刷榜刷出一堆垃圾题）。
+
+---
+
+## 4. AI 节奏（硬约束）
+
+- **R-PACE-01** AI 回合前 MUST 有随机思考停顿 `1.8–3.2s`，显示「对方辩友正在思考…」。
+- **R-PACE-02** AI 输出 MUST 流式逐字，`8–12 字/秒`，MUST NOT 一次性推完整段。
+- **R-PACE-03** 句号/问号处 MUST 插 `300–500ms` 停顿。
+- **R-PACE-04** 每个 AI 回合结束 MUST 留 `2.5s` 缓冲，期间 MUST NOT 有新消息。
+- **R-PACE-05** 轮到玩家时 MUST 给「轮到你发言」+ 倒计时；输入框聚焦或录音中 MUST NOT 推 AI 消息。
+- **R-PACE-06** 质询环节 AI MUST 只出 1–2 句提问。
+- **R-PACE-07** AI 发言 MUST NOT 超过该回合剩余时长，超时 MUST 截断。
+- **R-PACE-08** 所有停顿参数 MUST 集中在 §9 配置。
+
+---
+
+## 5. 语音转文字
+
+- **R-VOICE-01** 回合内 MUST 有「按住说话 / 点击录音」入口，单次最长 **90 秒**，且 MUST NOT 超过当前回合剩余时间。
+- **R-VOICE-02** 录音 MUST 实时转写，首字延迟 SHOULD ≤ 1.5s，结果 MUST 落到输入框且可编辑。
+- **R-VOICE-03** MUST NOT 自动发送，必须用户点「发送」才提交回合。
+- **R-VOICE-04** 录音中 MUST 显示时长与音量反馈；到上限 MUST 自动停止并保留文本。
+- **R-VOICE-05** 识别失败 / 无权限 / 浏览器不支持 MUST 回退键盘输入并提示，MUST NOT 卡死回合。
+- **R-VOICE-06** 音频 MUST NOT 默认持久化，只存文本；如保存音频须用户显式勾选。
+- **R-VOICE-07** 语言 MUST 为中文，MUST 自动补标点。
+- **R-VOICE-08** 录音期间倒计时 MUST 继续；剩余 ≤15s MUST 提示「时间不多了」。
+- **R-VOICE-09** 转写文本 MUST NOT 因识别错误直接进评分，用户可改、可撤销。
+- **R-VOICE-10** 技术路线：优先浏览器 `SpeechRecognition`（`zh-CN`），不可用时回退后端 ASR（`/api/asr`）。
+- **R-VOICE-11** 转写完成后 MUST 提供「**一键规整**」：把口语转写整理成论辩结构（前提→主张→论据），规整结果 MUST 可编辑、可撤销，且 MUST 经用户确认后才可发送。
+- **R-VOICE-12** MUST 同时保存两份文本：`raw_text`（原始转写）与 `polished_text`（规整后），复盘页 MUST 并排展示差异并给出「口语 → 论辩」的差距提示。依据：语音会拉低评分，必须让用户看清“是表达问题还是论证问题”。
+
+---
+
+## 6. 记录、评分与动机
+
+### 6.1 辩论记录（替代段位）
+
+- **R-REC-01** 每场 `FINISHED` MUST 自动写一条记录：辩题、我的立场与辩位、对手类型（真人/AI）、时长、回合数、总分、胜负、日期。
+- **R-REC-02** 记录页 MUST 按时间倒序，支持按辩题与类型筛选。
+- **R-REC-03** MUST NOT 出现段位、等级、积分、排行榜、胜率排名等攀比项。
+- **R-REC-04** 单条记录 MUST 可点开看该场复盘。
+- **R-REC-05** 统计区 MUST 只展示：总场次、总时长、平均分、最常练的题型。
+- **R-REC-06** 记录 MUST 支持删除单条。
+
+### 6.2 评分必须可解释（R-SCORE）
+
+> 层级关系：**每轮出三维分**（立论/论证/表达）→ **赛后聚合为五维能力画像**（立论/论证/表达/应变/论据），与《项目计划书》创新点三一致。
+
+- **R-SCORE-01** 每个维度分（立论/论证/表达）MUST 附带 **1–2 条证据**：引用用户原句 + 指出问题类型。
+- **R-SCORE-02** 每条扣分 MUST 给出**可照抄的改进句式**（不是“建议加强论证”这种空话）。
+- **R-SCORE-03** 分数 MUST NOT 出现无法归因的加减项；无法解释的扣分 MUST 不入账。
+- **R-SCORE-04** 复盘页 MUST 支持「按扣分权重排序」的薄弱项列表，并给出对应练习建议（指向 `DRILL` 模式）。
+
+示例（MUST 按此格式输出）：
+```
+论证 68 ↓   证据：第 3 轮「大家都知道这样不行」是态度陈述，不可检验
+            改进：该政策有三处硬伤——成本、执行主体、收益周期
+```
+
+### 6.3 复盘
+
+- **R-REC-07** 复盘 MUST 包含：三维雷达、薄弱项（按权重）、发言时间线、被抓住的逻辑漏洞清单、**口语 vs 规整文本对比**（R-VOICE-12）。
+- **R-REC-08** 复盘 MUST 能一键跳到对应 `DRILL` 练习（例如反复练“质询”环节）。
+
+### 6.4 动机：只和自己比
+
+- **R-MOT-01** MUST 提供**能力雷达趋势**（同一维度 30 天前 vs 现在），MUST NOT 展示任何人际排名。
+- **R-MOT-02** MUST 提供**连续练习天数**（个人 streak），中断即归零，MUST NOT 与他人比较。
+- **R-MOT-03** MUST 提供**漏洞统计**（按类型计数，如“未证明前提 12 次 / 滑坡谬误 5 次”），作为个人错题本。
+
+---
+
+## 7. 接口契约
+
+| 方法 | 路径 | 请求 | 响应 |
+|---|---|---|---|
+| POST | `/api/auth/login` | `{account,password}` | `{token,user}` |
+| GET | `/api/topics?cat=&diff=&q=` | – | `[{id,title,cat,diff}]` |
+| POST | `/api/topics/audit` | `{title}` | `{result:PASS\|REJECT\|NEED_EDIT, reason, suggestions[]}` |
+| **POST** | **`/api/matches`** | **`{topicId\|title, seats[], mode}`** | **`{matchId}` 单人点题即开（自定义题先审）** |
+| POST | `/api/rooms` | `{topicId\|random, mode, visibility, password?}` | `{code}` |
+| GET | `/api/rooms` | – | 公开房间列表 |
+| GET | `/api/rooms/{code}` | – | 房间详情（设置/8 席/准备/房主） |
+| POST | `/api/rooms/{code}/join` | `{password?}` | `{seatKey}` |
+| POST | `/api/rooms/{code}/leave` | – | `204` |
+| POST | `/api/rooms/{code}/seat` | `{seatKey}` | `{seatKey}` |
+| POST | `/api/rooms/{code}/ready` | `{ready}` | `{ready}` |
+| POST | `/api/rooms/{code}/settings` | `{topicId?,mode?,visibility?,password?,allowSpectate?}` | `{settings}` |
+| POST | `/api/rooms/{code}/start` | – | `{matchId}` |
+| POST | `/api/rooms/{code}/kick` | `{userId}` | `204` |
+| POST | `/api/rooms/{code}/transfer` | `{userId}` | `204` |
+| POST | `/api/rooms/{code}/move` | `{userId,seatKey}` | `{seatKey}` |
+| POST | `/api/rooms/{code}/chat` | `{text}` | `{messageId}` |
+| GET | `/api/rooms/{code}/events` | – | SSE（房间阶段） |
+| GET | `/api/matches/{id}` | – | 对局详情 |
+| POST | `/api/matches/{id}/turns` | `{content,inputType:kb\|voice}` | `{turnId,nextSeat}` |
+| GET | `/api/matches/{id}/events` | – | SSE（对局阶段） |
+| POST | `/api/matches/{id}/catch` | `{turnId,type}` | `{ok,delta}` |
+| POST | `/api/matches/{id}/finish` | – | `FREE` 模式结束并评分 |
+| GET | `/api/matches/{id}/review` | – | 复盘 |
+| GET | `/api/matches/{id}/arguments` | – | 论点树结构（P2 只返回数据，前端暂不渲染，R-ARG-04） |
+| POST | `/api/asr` | `multipart 音频` | `{text}` |
+| GET | `/api/records?q=&type=` | – | 记录列表 |
+| GET | `/api/records/{id}` | – | 单条记录 |
+| DELETE | `/api/records/{id}` | – | 删除记录 |
+| GET | `/api/community/posts?type=&title=&topicId=&range=&sort=&page=&size=` | – | 社区帖子列表（筛选 + 排序 + 分页） |
+| GET | `/api/community/posts/{id}` | – | 帖子详情 |
+| POST | `/api/community/posts` | `{type,title,body,topicId?}` | `{postId}` |
+| PATCH | `/api/community/posts/{id}` | `{type?,title?,body?,topicId?}` | `{postId}` |
+| DELETE | `/api/community/posts/{id}` | – | `204`（软删除） |
+| POST | `/api/community/posts/{id}/view` | – | `204` 浏览计数（服务端去重） |
+| GET | `/api/community/posts/{id}/comments?page=&size=` | – | 楼列表，每楼附前 3 条楼中楼 + 子回复总数 |
+| GET | `/api/community/comments/{rootId}/replies?page=&size=` | – | 某一楼的全部楼中楼 |
+| POST | `/api/community/posts/{id}/comments` | `{body,replyObjectType,replyObjectCommentId?}` | `{commentId}` |
+| DELETE | `/api/community/comments/{id}` | – | `204`（软删除） |
+| POST | `/api/community/posts/{id}/like` | – | `204` 幂等点赞 |
+| DELETE | `/api/community/posts/{id}/like` | – | `204` 取消点赞 |
+| POST | `/api/community/comments/{id}/like` | – | `204` 幂等点赞 |
+| DELETE | `/api/community/comments/{id}/like` | – | `204` 取消点赞 |
+
+错误码：`ROOM_FULL` `WRONG_PASSWORD` `NOT_YOUR_TURN` `NOT_HOST` `NOT_READY` `ROOM_STARTED` `ROOM_NOT_FOUND` `SEAT_TAKEN` `ASR_FAILED` `CONTENT_BLOCKED` `POST_NOT_FOUND` `COMMENT_NOT_FOUND` `NOT_AUTHOR`。
+
+---
+
+## 8. 数据表
+
+```
+user(id,name,created_at)                       -- 无 tier/段位
+topic(id,title,cat,diff,heat,source,moderation_status,moderation_reason,moderation_at,title_hash)
+      -- source: official|custom；moderation_status: PASS|REJECT|NEED_EDIT|pending
+room(id,code,topic_id,mode,visibility,password,allow_spectate,host_id,status,created_at)
+seat(room_id,seat_key,side,role,occupant_type,user_id,ai_profile_id,ready)
+room_chat(id,room_id,user_id,text,created_at)
+match(id,room_id,topic_id,mode,status,current_step,current_seat,deadline_at,started_at,finished_at,
+      my_seats,drill)      -- my_seats: 玩家占的席位集合（如 "A1,A2"）；drill: 跨阵营自辩标记
+turn(id,match_id,step,seat_key,seg,seq,content,input_type,status,flaw_type,created_at)
+team_msg(id,match_id,side,user_id,text,created_at)
+score(id,match_id,user_id,matter,method,manner,collab,catch,role_hit,created_at)
+catch(id,turn_id,user_id,claimed,truth,ok)
+review(id,match_id,user_id,radar_json,weak_json,chain_json)
+record(id,user_id,match_id,topic_title,seat_key,side,opponent_type,duration_sec,turns,total_score,result,created_at)
+ai_profile(id,name,style,weakness,flaw_type,tone)
+evidence(id,keyword,domain,dimension,content,source,created_at)   -- 论据库（≥500 条，必须带出处）
+drill_record(id,user_id,drill_type,topic_id,score,weak_tags,created_at)
+argument(id,match_id,side,parent_id,claim,evidence_ids,created_at) -- 论点树（P2，表先留）
+post(id,author_id,type,title,body,excerpt,topic_id,comment_count,like_count,view_count,
+     hot_score,last_comment_at,status,created_at,updated_at)   -- 社区帖子
+post_comment(id,post_id,user_id,root_id,reply_object_type,reply_object_comment_id,
+             reply_object_user_id,body,like_count,status,created_at)   -- 两层：楼 + 楼中楼
+community_like(user_id,target_type,target_id,created_at)   -- 主键 (user_id,target_type,target_id)
+```
+
+- **R-DATA-01** `turn` 只追加不改写（超时落 `TIMEOUT`）。
+- **R-DATA-02** `seat.ready` MUST 与席位同表。
+- **R-DATA-03** 删除 `record` MUST NOT 删除 `match` / `review`。
+- **R-DATA-04** 社区三表 MUST 建以下索引（缺一不可，四种排序各靠一个索引）：
+  ```
+  post: (status, created_at DESC)          -- NEW
+        (status, comment_count DESC)       -- COMMENTS
+        (status, like_count DESC)          -- LIKES
+        (status, hot_score DESC)           -- HOT
+        (status, type, created_at DESC)    -- 类型筛选
+        (topic_id, status, created_at DESC) -- 辩题筛选
+        (author_id, created_at DESC)
+  post_comment: (post_id, status, root_id, created_at)
+                (root_id, status, created_at)
+                (user_id, created_at DESC)
+  community_like: (target_type, target_id)
+  ```
+- **R-DATA-05** `post_comment.root_id` MUST 由服务端派生后落库，MUST NOT 依赖运行时递归查询父级。
+
+---
+
+## 9. 参数
+
+```yaml
+siyige:
+  room:
+    maxSeats: 8
+    minRealPlayers: 1
+    hostReadyImplicit: true
+    idleCloseMinutes: 30
+    codeAlphabet: ABCDEFGHJKLMNPQRSTUVWXYZ23456789
+  flow:
+    prepareSeconds: 10
+    steps:
+      - {seg: 立论,   seat: A1, sec: 180}
+      - {seg: 立论,   seat: B1, sec: 180}
+      - {seg: 驳立论, seat: A2, sec: 120}
+      - {seg: 驳立论, seat: B2, sec: 120}
+      - {seg: 质询,   seat: A3, sec: 120}
+      - {seg: 质询,   seat: B3, sec: 120}
+      - {seg: 自由辩, seat: A2, sec: 120}
+      - {seg: 自由辩, seat: B2, sec: 120}
+      - {seg: 自由辩, seat: A3, sec: 120}
+      - {seg: 自由辩, seat: B3, sec: 120}
+      - {seg: 总结,   seat: B4, sec: 180}
+      - {seg: 总结,   seat: A4, sec: 180}
+  pace:
+    aiThinkMs: [1800, 3200]
+    aiTypingCps: [8, 12]
+    sentencePauseMs: [300, 500]
+    postAiTurnMs: 2500
+    freeDebateGrabWindowMs: 5000
+    maxConsecutiveAiTurns: 2
+  voice:
+    maxSeconds: 90
+    firstTextLatencyMs: 1500
+    requiresConfirm: true
+    persistAudio: false
+    language: zh-CN
+  score: {matter: 0.4, method: 0.35, manner: 0.25}   # 立论 / 论证 / 表达
+  community:
+    pageSize: 20
+    excerptLength: 200
+    commentMaxLength: 1000
+    commentPreviewCount: 3
+    hotScore: {comment: 4, like: 2, view: 0.05, decay: 1.5}
+    hotRecalcMinutes: 10
+    hotRecalcWindowDays: 7
+    view:
+      dedupDays: 1
+      dedupExpireAt: "02:00"       # 次日凌晨 2 点，必须是 EXPIREAT 不是固定 24h
+      pendingTtlHours: 2           # 定时任务挂掉时的兜底
+      flushMinutes: 5
+      redisTimeoutMs: 50           # 超时即放弃计数，不阻塞详情页
+```
+
+---
+
+## 10. 验收
+
+| ID | 动作 | 通过标准 |
+|---|---|---|
+| AC-01 | 建房 | 8 席、房间号、房主徽标、设置入口齐备 |
+| AC-02 | 私密房 + 密码 | 不进公开列表，凭码 + 密码才进 |
+| AC-03 | 真人未准备 | 开始按钮禁用，提示「还有 N 人未准备」 |
+| AC-04 | **单人建房直接开始** | 7 席 1 秒内补 AI，走完 12 步出复盘 |
+| AC-05 | 房主点他人座位 | 出现「移到对面 / 踢出 / 转让房主」 |
+| AC-06 | 开局 | 先播 10 秒准备期，再进入立论 A1 |
+| AC-07 | AI 回合 | 先「正在思考」1.8–3.2s，再逐字流；说完静止 2.5s |
+| AC-08 | 非当前席位提交 | 409 `NOT_YOUR_TURN`，库无记录 |
+| AC-09 | 玩家超时 | 落 `TIMEOUT`，自动进下一环节 |
+| AC-10 | 自由辩连打 3 轮 | AI 不连说 3 次，第 3 次前出现抢话窗口 |
+| AC-11 | 点录音说一句话 | 边说边出字，可编辑；点发送才提交 |
+| AC-12 | 拒绝麦克风权限 | 回退键盘输入，提示清晰，回合不卡 |
+| AC-13 | 打完 12 步 | 进 REVIEW → 出复盘 → 生成一条辩论记录 |
+| AC-14 | 记录页 | 只有场次/时长/平均分，**无段位无排名** |
+| AC-15 | 断网 10 秒 | 重连补齐事件，状态一致 |
+| AC-16 | 刷新页面 | 回到同一房间/同一对局同一位置 |
+| AC-17 | 大厅首屏 | 「快速开始」（单人 1v7AI）为主按钮，并显示预计时长与发言次数 |
+| AC-18 | 换座菜单 | 每个席位标出「发言 N 次 / 累计 X 秒」 |
+| AC-19 | 选 `SPRINT` 模式开局 | 只有 8 步，约 13 分钟打完 |
+| AC-20 | 点「跳过」AI 发言 | 该回合立即结束，史册留 30 字摘要，后续流程正常 |
+| AC-21 | 点 1.5× 播放 AI 发言 | 速度加快，自身回合不受影响 |
+| AC-22 | 看任意一条评分 | 每个维度都有原句引用 + 改进句式，无无法归因的扣分 |
+| AC-23 | 语音说完点「一键规整」 | 文本被整理成论辩结构，可编辑、可撤销，确认后才发送 |
+| AC-24 | 打开复盘 | 能看到「口语 vs 规整」并排对比 |
+| AC-25 | 打开记录页 | 有雷达趋势、连续天数、漏洞统计，**仍无任何排名** |
+| AC-26 | **单人练习入口** | 点辩题卡直接开打：不建房、不占席、不准备，10 秒准备期 |
+| AC-27 | 单人**同时选一辩+二辩** | 这两席轮到你就等你输入，其余 6 席 AI 自动发言；本场你发言 3 次 |
+| AC-28 | 第二次点同一辩题 | **不再弹选择面板**，复用上次席位直接开局（手感是"点一下就开始"） |
+| AC-29 | 单人中途刷新 | 重新 GET 一次即恢复进度与当前席位，无需事件补发 |
+| AC-30 | 结算页 | 有「换席位重打」「同题重打」「只练这一幕」三个按钮 |
+| AC-31 | 同时选中正反方 | 标记为自辩演练，**不判胜负**，只出个人评分 |
+| AC-32 | 自己填一个正常辩题 | 3 秒内审核通过，直接进选位置 |
+| AC-33 | 填「1+1=2 是否正确」 | 返回 REJECT 或 NEED_EDIT，说明不可辩，并给改写示例 |
+| AC-34 | 填含人身攻击/违规词 | REJECT，阻止开局，理由明确 |
+| AC-35 | 故意让审核接口超时 | 3 秒内降级为规则审核放行，标 pending，不卡住用户 |
+| AC-36 | 同一个自定义题再审一次 | 命中缓存，不再调用模型（日志可见） |
+| AC-37 | 发帖 | 类型 / 标题 / 正文齐备后可发布，列表首位出现，**作者处只显示昵称** |
+| AC-38 | 按标题搜 | 只返回标题命中的帖子；正文含该词但标题不含的**不出现** |
+| AC-39 | 组合筛选 | 类型 + 标题 + 关联辩题 + 日期同时生效，结果数随筛选变化 |
+| AC-40 | 四种排序 | NEW / COMMENTS / LIKES / HOT 结果各不相同；HOT 下新帖有机会压过旧帖 |
+| AC-41 | 回复帖子 | 显示为楼，**不显示**「回复了谁」 |
+| AC-42 | 回复楼 | 显示「回复了 xxx」，仍挂在同一楼内 |
+| AC-43 | 回复楼中楼 | 仍挂在同一楼内，显示「回复了 被回复者」，**不出现第三层缩进** |
+| AC-44 | 点赞 | 重复点赞不重复计数；刷新后 `liked` 状态保持 |
+| AC-45 | 浏览去重 | 同一人同一天多次刷新，浏览数只 +1；**次日再看可再 +1**（自然日口径） |
+| AC-46 | 敏感词 | 发布成功；命中词以全角＊逐码点落库，数据库中无原文；摘要同为替换后文本 |
+| AC-47 | 删除帖子 | 列表与详情不可见，其下评论一并不可见 |
+| AC-48 | 浏览回写 | 5 分钟后库中 `view_count` 与实际唯一浏览数一致；Redis 中 `view:pending` 已清空 |
+
+---
+
+## 11. 禁止事项
+
+1. MUST NOT 出现段位、等级、积分、排行榜。
+2. MUST NOT 在玩家发言/录音期间推 AI 消息。
+3. MUST NOT 一次性返回 AI 整段发言。
+4. MUST NOT 把准备状态做成前端假状态。
+5. MUST NOT 允许非房主开局。
+6. MUST NOT 在 `RUNNING` 后改顺序、席位或设置。
+7. MUST NOT 因空位卡住开局（必须自动补 AI）。
+8. MUST NOT 语音识别结果自动提交。
+9. MUST NOT 默认保存用户音频。
+10. MUST NOT 做 1v1 / 2v2 模式（只做 4v4）。
+11. MUST NOT 输出无法归因的分数（见 R-SCORE-03）。
+12. MUST NOT 在「跳过 AI 发言」时丢失辩论史（必须留摘要）。
+13. MUST NOT 在社区展示作者的任何身份标识（段位 / 等级 / 积分 / 场次 / 贡献值）。
+14. MUST NOT 让点赞数影响任何评分、段位或排名。
+15. MUST NOT 让楼中楼长出第三层。
+
+---
+
+## 12. 里程碑（**先单人，后房间**）
+
+| # | 范围 | 需求 | 天 | 依赖 |
+|---|---|---|---|---|
+| M1 | 骨架 + 登录 + 辩题库 + 大厅（单人入口为主） | R-ROOM-01、R-SOLO-01 | 2 | – |
+| M3 | 赛制引擎：12 步 + 三档模式 + 发言权 + 计时 + SSE | R-FLOW-01~08、R-TRAIN-01~03 | 3.5 | M1 |
+| M4 | AI 席位 + 流式 + 节奏 + **跳过/加速** | R-PACE-01~08、R-FLOW-09~11 | 2 | M3 |
+| M6 | **可解释评分** + 抓漏 + 复盘 | R-SCORE-01~04、R-REC-07~08 | 2.5 | M4 |
+| **★ 单人 MVP 达成（约 10 天）** | 一个人能对 7 个 AI 打完一场并拿到复盘 | R-SOLO-01~08 | – | – |
+| M2 | 房间：8 席 / 座位卡 / 准备 / 房主操作 / 设置 / 邀请 / 聊天 | R-ROOM-04、R-SET-01~03、R-SEAT-01~07、R-READY-01~08、R-JOIN-01~04、R-CHAT-01 | 3.5 | 单人 MVP |
+| M5 | **语音转文字 + 一键规整** | R-VOICE-01~12 | 2.5 | M1（可与 M2 并行） |
+| M7 | **记录与动机** + 队内频道 + 联调 + 答辩材料 | R-REC-01~06、R-MOT-01~03、R-TEAM-01~03、AC-01~36 | 2.5 | 全部 |
+| M8 | **社区**：帖子 / 两层楼中楼 / 点赞 / 浏览去重 / 内容审核 | R-COM-01~40、AC-37~48 | 2.5 | M1 |
+
+**顺序说明**：
+1. **单人先于房间**。单人只需 DB + SSE，房间要额外引入 WebSocket、Redis 快照、分布式锁，且房间的准备/踢人/转让在单人里根本不触发——先做房间等于先写一批跑不到的分支。
+2. **M5 语音可与 M2 并行**，因为单人模式下语音只在本地调浏览器 API，不依赖房间。
+3. M2 的房间层 MUST 复用 M3 的 `TurnEngine`，不得另写一套推进逻辑。
+4. **M8 社区可与 M2/M5 并行**：社区只依赖 `user` 与 `topic`，不碰赛制引擎，是工期风险最低的一块，适合塞在等联调的碎片时间里。
+
+---
+
+## 13. P2（有工时再做，别提前做）
+
+| 项 | 为什么后置 |
+|---|---|
+| 房主踢人 | 4v4 真人难凑齐，90% 场次不触发 |
+| 转让房主 | 同上，房间多为一两人 + AI |
+| 观战 | 同上；且需要额外做延迟推送防作弊 |
+| 跨阵营换边 | 只有在真人对局里才有意义，且可用“解散重开”替代 |
+| 房间聊天 | 单人练习用不到；多人房是低频场景 |
+
+> 判断标准：**能提升留存/训练效果的功能优先，能提升“管理感”的功能后置。**
+
+---
+
+## 14. 技术实现
+
+> 本章与《思弈阁·项目计划书（技术方案分册）》一致；技术栈按作者已交付项目校准（GitHub `skwdng`：`xiaoc-kuaisong` = Spring Boot + MyBatis + MySQL + Redis + 小程序/Web；`123c` = Java Feed 系统）。
+
+### 14.1 技术选型
+
+> **不选理由**（答辩必被问，采纳自计划书 §2.7）：
+> - **不引向量库**（Milvus/pgvector）：论据语料万级，ngram 精确命中足够，省一套运维。
+> - **不用 JPA**：周榜、画像聚合这类统计用 JPA 会写成一堆 Criteria，不如直接 SQL。
+> - **不用 React**：JSON/JSX 对 Java 后端出身的团队认知负担更大。
+> - **不全程 WebSocket**：LLM 流式是单向，SSE 天然适配且浏览器自带重连；房间双向才用 WS。
+
+| 层 | 技术 | 版本 | 用途 |
+|---|---|---|---|
+| 运行环境 | Java（LTS） | 17 | 虚拟线程、record 可用 |
+| 应用框架 | Spring Boot | 3.2.x | 自动装配、起步依赖 |
+| 常规接口 | Spring Web MVC | 6.1.x | 同步 CRUD（辩题/记录/房间） |
+| 流式输出 | Spring WebFlux | 6.1.x | AI 发言 SSE（`Flux<ServerSentEvent>`） |
+| 房间事件 | Spring WebSocket + STOMP | 6.1.x | 入座、开局、轮转、发言广播 |
+| 鉴权 | Spring Security + JWT | 6.2.x | 无状态鉴权 |
+| ORM | MyBatis-Plus | 3.5.x | 复杂统计直接写 SQL |
+| 数据库 | MySQL | 8.0 | InnoDB + utf8mb4 + ngram 全文索引 |
+| 缓存/状态 | Redis | 7.x | 房间快照、发言令牌、限流、榜单 |
+| AI 框架 | Spring AI | 1.x | `ChatClient.stream()` / `.entity()` / `@Tool` |
+| 模型 | DeepSeek API（OpenAI 兼容） | – | deepseek-chat |
+| 前端 | Vue 3 + Vite 6 + Pinia（**无 UI 库、无图表库**） | – | 见 §24（§14.1 为原计划，实际按 §24 实现） |
+| SSE 客户端 | `@microsoft/fetch-event-source` | 2.x | 原生 EventSource 不能带 header |
+| 部署 | Docker Compose + Nginx | – | 一键起 MySQL/Redis/App/Nginx |
+
+### 14.2 工程结构
+
+```
+com.siyige
+├─ api/            Controller、DTO、统一响应、异常处理
+├─ auth/           JWT 过滤器、UserDetails
+├─ room/           RoomService、SeatService、RoomSnapshot（Redis）
+├─ debate/         Format（赛制常量）、TurnEngine（纯函数）、TurnService、TimerService
+├─ ai/             DebaterAgent、JudgeAgent、PromptTemplates、SafeJson（兜底解析）
+├─ voice/          AsrController、AsrClient（浏览器不支持的兜底）
+├─ score/          ScorePipeline、DiagnosisService（五维聚合）
+├─ record/         RecordService
+├─ domain/         entity + mapper（MyBatis-Plus）
+└─ common/         RedisLock、RateLimiter、Result
+```
+
+### 14.3 关键实现条款
+
+- **R-TECH-01 状态机纯函数化**：`Format.STEPS` 为不可变列表，`TurnEngine.next(state)` 无副作用、无 IO，可直接单测；单人练习与房间共用同一个推进器（对齐计划书亮点四）。
+- **R-TECH-02 房间权威 + 快照**：房间状态以服务端内存为权威，每次变更写 `room:{id}` 快照（TTL 2h，结束即删）；客户端重连带 `lastEventId`，服务端比对补发缺失事件（计划书亮点六）。
+- **R-TECH-03 发言权仲裁**：提交前对 `turn:{matchId}:{step}` 做 `SETNX`（TTL = 该回合时长），成功者获得写入权；同时校验 `seatKey == currentSeat`，双保险。
+- **R-TECH-04 计时器**：以 `match.deadline_at` 为唯一权威，不用内存 Timer 作真相；后台每 5s 扫描 `status=RUNNING AND deadline_at < now()` 推进超时回合。服务重启不丢计时。
+- **R-TECH-05 双通道分工**：SSE 只承载单向流（AI 发言增量、点评卡片分片）；WS/STOMP 承载双向房间事件。两条链路鉴权/限流/日志独立，互不牵连。
+- **R-TECH-06 三段式异步推送**：① 主回复 `ChatClient.stream()` 逐字（首字 ≤1.5s）→ ② 点评异步结构化抽取 → ③ 论点抽取最低优先级。任一失败不回滚其它链路。
+- **R-TECH-07 结构化输出四级兜底**：Schema 强约束 → 本地修复（剥 ```json 围栏/补括号/去尾逗号）→ 把解析错误回灌模型重试 → 返回 `degraded=true` 的默认对象。**评分卡片永远渲染得出来**。
+- **R-TECH-08 论据检索**：`@Tool searchEvidence(keyword, dimension, topK)` + MySQL ngram 全文索引；返回必须带出处，前端可点开核对，防止模型编数字。
+- **R-TECH-09 语音双路**：主路浏览器 `SpeechRecognition(zh-CN)`；不支持/失败时前端上传音频到 `/api/asr`，服务端转第三方 ASR 返回文本。**音频默认不落盘**（R-VOICE-06）。
+- **R-TECH-10 评分管线**：规则分（长度、结构连接词、论据词命中）占 40%，LLM 占 60%；LLM 输出缺 `evidence` 或 `improve` 字段时，该维度回落规则分并标 `degraded`（对应 R-SCORE-03）。
+- **R-TECH-11 五维画像聚合**：逐轮三维分 + 漏洞标签 → 赛后按维度加权聚合为五维（立论/论证/表达/应变/论据），写入 `diagnosis`；「应变」由质询/自由辩环节表现单独计算。
+- **R-TECH-12 记录与删除语义**：`match` 结束事务内写 `record`；删除 `record` 只删记录行，不删 `match`/`review`（R-DATA-03）。
+- **R-TECH-15 单人模式的技术裁剪**：`SOLO` 只走「MVC 提交 + WebFlux SSE 流 + DB 状态」三件套，MUST NOT 引入 WebSocket、`room:{code}` 快照、分布式锁。玩家席位是**集合**（`match.my_seats`，如 `"A1,A2"`），推进判断为 `currentSeat ∈ mySeats`；`TurnEngine` 与 `Format` 由单人先写、房间后复用，**房间层 MUST NOT 复制粘贴出第二套推进逻辑**。
+- **R-TECH-16 论据检索（采纳自计划书亮点五）**：`@Tool searchEvidence(keyword, dimension, topK)` + `getCounterExample(claim)`，底层 MySQL ngram 全文索引；返回 MUST 带 `source` 出处，AI 发言中引用的数字 MUST 能点开核对；论据库 MUST ≥500 条并按领域/维度打标。
+- **R-TECH-17 点赞与评分隔离（采纳自计划书创新点四）**：点赞/热度 MUST NOT 进入评分计算链路，接口层、聚合层、测试用例三处同时约束；即使观战功能上线，评分也必须只由模型依据发言内容产出。
+- **R-TECH-18 提示词人格分离（采纳自计划书 §2.3）**：辩手 / 评委 / 教练三套提示词模板 MUST 分文件维护，各自独立版本号；改一个 MUST NOT 影响另外两个。辩手按 `ai_profile`（风格+弱点+语气）注入，评委只读全场不参与辩论。
+- **R-TECH-19 上下文滑窗（采纳自计划书风险表）**：`ChatMemory` MUST 只保留最近 6 轮全文，更早轮次压成摘要（≤120 字/轮）；MUST NOT 把全场 12 步原文塞进每次调用（单场成本会翻倍）。
+- **R-TECH-20 流式取消传播（采纳自计划书亮点一技术要点）**：前端关闭页面或点「跳过」时，下游 LLM 请求 MUST 被取消（WebFlux `Flux` 取消信号向上传播），MUST NOT 出现“用户已离开、服务端还在烧 token”。
+
+### 14.4 通道分工（采纳自计划书亮点二）
+
+| 维度 | SSE | WebSocket + STOMP |
+|---|---|---|
+| 承载 | AI 发言流式、点评分片 | 入座、开局、轮转、发言广播 |
+| 方向 | 服务端 → 客户端 | 双向 |
+| 生命周期 | 一次发言一次连接 | 房间存续期间长连接 |
+| 断线 | 浏览器自动重连 + `Last-Event-ID` | 客户端重连 + 服务端快照 |
+| 端点 | `/api/matches/{id}/events` | `/ws/room/{code}` |
+| 何时需要 | **单人模式只用这个** | 只有房间模式才升级 |
+
+> 两条链路的鉴权、限流、日志 MUST 独立，故障不得互相牵连。
+
+### 14.5 Redis 键设计
+
+| Key | 类型 | TTL | 用途 |
+|---|---|---|---|
+| `room:{code}` | Hash | 2h | 房间快照：席位、当前 step、host |
+| `turn:{matchId}:{step}` | String(SETNX) | 回合时长 | 发言权令牌 |
+| `lock:room:{code}` | String | 3s | 房间写操作串行化 |
+| `rl:llm:{userId}` | String(INCR) | 60s | LLM 调用限流 |
+| `topic:hot` | ZSet | 10min | 辩题热度榜（只做曝光，不做排名） |
+| `view:seen:{postId}:{yyyyMMdd}` | Set | 次日 02:00 | 社区浏览去重，成员为 `userId`（R-COM-31） |
+| `view:pending` | Hash | 2h 兜底 | 待回写的浏览增量，`field=postId`（R-COM-31） |
+
+> **内存与淘汰**：`view:seen:*` 是本系统唯一随浏览量线性增长的数据（估算：单帖 1 万浏览 ≈ 800KB，百帖/天 ≈ 2MB）。
+> Redis 的 `maxmemory` / `maxmemory-policy` 是**实例级**配置，**分 db 不能隔离淘汰**。
+> 因此 MUST 二选一：① 给足内存（建议 ≥512MB）并加水位告警；② 把浏览计数放到独立 Redis 实例。
+> 目标是**房间快照 `room:{code}` 不被逐出**。
+
+### 14.6 部署
+
+```yaml
+# docker-compose 关键服务
+mysql:   { image: mysql:8.0,  volumes: [./data/mysql:/var/lib/mysql] }
+redis:   { image: redis:7 }
+app:     { build: ., depends_on: [mysql, redis], ports: ["8080:8080"] }
+nginx:   { image: nginx:alpine, ports: ["80:80"] }
+```
+
+```nginx
+# SSE 必须关缓冲，否则一定粘包/延迟
+location /api/ {
+  proxy_http_version 1.1;
+  proxy_set_header Connection '';
+  proxy_buffering off;
+  proxy_cache off;
+  chunked_transfer_encoding off;
+  add_header X-Accel-Buffering no;
+}
+```
+
+- **R-TECH-13** 服务器 MUST ≥ 2C4G（8 席 × 多房间 + LLM 转发）。
+- **R-TECH-14** `Actuator /actuator/health` MUST 暴露给 Nginx 探活。
+
+### 14.7 测试与评测
+
+| 类型 | 范围 | 目标 |
+|---|---|---|
+| 单元测试 | `TurnEngine`（12 步推进）、席位映射、超时推进、`my_seats` 集合判定 | 业务层覆盖率 ≥60% |
+| 接口测试 | MockMvc：点题即开/提交/超时/抓漏/结算 | 200 与 409 分支全覆盖 |
+| AI 评测集 | 20 题 × 4 段人工发言（优秀/中等/较差三档），两名辩手给基准分 | **合法率 ≥99%、完整率 ≥98%、分数漂移 σ ≤5、与人排序一致性 ≥0.75、样本 ≥80 条** |
+| 压测 | 8 席 × 10 房间并发 | 席位广播延迟 ≤300ms、首字延迟 ≤1.5s |
+
+> 评测集 MUST 在每次提示词改动后跑一次，作为“这次改动变好还是变坏”的判据（采纳自计划书亮点七）。
+
+### 14.8 里程碑与计划书四周的映射
+
+| 计划书 | 本规格 | 说明 |
+|---|---|---|
+| 第 1 周 地基 | M1 | 骨架/登录/辩题库/大厅 |
+| 第 2 周 AI 对辩 | M2 + M3 + M4 | 房间与赛制引擎先于 AI（否则 AI 无处接入） |
+| 第 3 周 4v4 与观战 | M5 + M6 | 语音与评分；观战降 P2 |
+| 第 4 周 画像与收尾 | M7 | 记录、动机、联调、答辩材料 |
+
+---
+
+## 15. 与《项目计划书》的冲突（**先改计划书，否则两份材料自相矛盾**）
+
+| # | 计划书写的 | 本规格（以本文为准） | 处理建议 |
+|---|---|---|---|
+| 1 | §1.4 范围外：**语音输入与语音识别** | **范围内**（R-VOICE-01~12） | 计划书该行改为“范围内”，并把语音列为创新点之一 |
+| 2 | 数据模型 `user` 含**段位、积分** | 已删除，改 `record` 辩论记录 | 删除该两字段；`diagnosis` 保留 |
+| 3 | 赛制表 9 环节 12 步（立论/驳立论/质询/自由辩/总结） | 已按计划书对齐（§3.1） | 上一版 SPEC 的“应答”环节作废，勿实现 |
+| 4 | 逐轮三维分 + 五维画像 | 一致（§6.2 已补五维） | 保留 |
+| 5 | P2 含“排行榜” | **排行榜删除**（R-REC-03 禁止排名） | 计划书 P2 行删掉排行榜，只留观战/社区 |
+| 6 | 观战在范围内 | 降为 P2 | 计划书可在结题材料中说明“延后” |
+| 7 | 前端 `@microsoft/fetch-event-source` | 一致 | – |
+| 8 | §1.4 范围外：**社区板块（不在本期规格内）** | **范围内**（第 18 节 R-COM-01~40） | 计划书该行改为「范围内」，并把社区列入功能清单 |
+| 9 | 社区搜索为「标题 + 摘要 + 正文 + 作者 + 标签」 | 收窄为**仅标题模糊匹配**（R-COM-10） | 计划书若提社区检索，按标题写 |
+| 10 | 社区帖子带标签（16 个）与作者段位徽章 | **标签整体删除**；**作者不显示任何身份**（R-COM-03） | 计划书不写标签；原型需去掉 tier 徽章 |
+
+> 判断：**计划书是给评审看的，本规格是给实现看的。两者冲突时，先改计划书那一行，再写代码。**
+
+---
+
+## 16. 风险与应对（采纳自计划书 §7）
+
+| 风险 | 可能性 | 影响 | 应对 |
+|---|---|---|---|
+| 前端不熟导致滞后 | 高 | 高 | 第 1 周先用 Arco 模板跑通一个完整页面（列表+表单+弹窗），套路固化后再批量复制；组件从简 |
+| 模型输出格式不稳 | 中 | 高 | 结构化输出 + 四级兜底（R-TECH-07）；每版提示词跑一次评测集，用数字判好坏 |
+| 4v4 并发状态错乱 | 中 | 中 | **单人先行**消掉大部分并发面；房间层服务端权威 + 状态机纯函数推进，单机内存 + Redis 快照，不做分布式一致性 |
+| SSE 被代理缓冲 | 中 | 中 | Nginx 显式 `proxy_buffering off` + `X-Accel-Buffering: no`（§14.5） |
+| 上下文超长推高成本 | 中 | 中 | `ChatMemory` 按轮次滑窗：最近 6 轮全文 + 更早轮次摘要 |
+| 语音识别在非 Chrome 不可用 | 高 | 中 | 浏览器 `SpeechRecognition` 为主路，`/api/asr` 兜底（R-VOICE-10），失败回退键盘 |
+| 语音识别错字影响评分 | 中 | 中 | 双文本 + 一键规整（R-VOICE-11/12），提交前可改可撤销 |
+| 工期不足 | 高 | 高 | 按 §13 的 P2 顺序削减；P2 保留界面与数据不做深度交互 |
+
+### 16.1 削减优先级（合并计划书 P0/P1/P2）
+
+| 级别 | 功能 | 可削减程度 |
+|---|---|---|
+| **P0 不可削** | 赛制引擎 + 发言权 + AI 流式 + 可解释评分 | 削了项目不成立 |
+| **P0 不可削** | 单人点题即开 + 多选辩位 | 这是主路径，房间是增量 |
+| P1 应做 | 语音转文字、辩论记录、动机三件套 | 语音可缩为“仅 Chrome”，记录可缩为列表 |
+| P1 应做 | AI 评测集 | 可缩为 10 题 |
+| P2 可选 | 观战、论点树可视化、专练题库 | 保留界面与表结构，不做深度交互 |
+
+---
+
+## 17. 论点树与弱项专练（P2 实现，**表与接口现在就要定死**）
+
+> 这两块是计划书“创新点三”闭环的落点：点评 → 画像 → 专练。本期不做交互，但**数据结构和接口必须先定**，否则后期加要动主表。
+
+### 17.1 论点树（argument）
+
+- **R-ARG-01** 每个 `match` MUST 维护一棵论点树：节点为 `{side, parent_id, claim, evidence_ids}`，根节点是双方的一辩立论。
+- **R-ARG-02** 每次发言后 MUST 异步抽取 0–3 个论点节点（失败不影响主流程，R-TECH-06 第三条链路）。
+- **R-ARG-03** 节点之间 MUST 能表达「攻击」关系（A 方节点被 B 方节点反驳），前端据此画交锋虚线。
+- **R-ARG-04** 本期 MUST NOT 做树的可视化渲染；只要求 `GET /api/matches/{id}/arguments` 返回可绘制的结构。
+
+### 17.2 弱项专练（drill）
+
+- **R-DRILL-01** 复盘里的**每一条薄弱项 MUST 挂一个专练入口**（`drill_type` + 对应 `topic_id`），点击即创建一场 `DRILL` 模式对局，只练该环节。
+- **R-DRILL-02** 专练 MUST 连续 ≥3 轮同一环节（如连续质询 3 个不同 AI 对手），每轮独立评分，取最好一次进 `drill_record`。
+- **R-DRILL-03** `drill_record` MUST 记录：类型、题、分数、命中的薄弱标签，用于画像趋势（R-MOT-01）。
+- **R-DRILL-04** 专练结果 MUST NOT 生成完整 `record`（避免刷场次），只记一条 `drill_record`。
+
+> **与 §3.4 的关系**：§3.4 的 `DRILL` 是「只练单一环节」的**对局模式**（一场 `match`）；本节说的是**从复盘薄弱项一键进入专练**的入口。两者共用同一个 `mode=DRILL`，区别只在「谁发起」：前者用户主动选，后者由复盘点进来。
+> **接口复用**：专练对局 MUST 复用 `POST /api/matches`（`mode=DRILL` + `seats[]`），MUST NOT 另开一套建局接口。
+
+### 17.3 五维画像聚合（衔接 §6.2）
+
+| 维度 | 来源 |
+|---|---|
+| 立论 | 立论环节的三维分 + 框架完整度 |
+| 论证 | 全环节的论证分 + 论据引用次数（`evidence` 命中） |
+| 表达 | 表达分 + 口语规整差距（R-VOICE-12） |
+| 应变 | 质询 / 自由辩环节的表现 + 被质询后的回应质量 |
+| 论据 | 引用数 × 出处可核查率 |
+
+---
+
+## 18. 社区
+
+> 定位：辩论者的经验交换区。与主产品共享 `user` 与 `topic`，但**不参与任何评分、段位或排名体系**（见第 11 节禁止事项 1）。
+> 本节为 v4.2 追加。为避免打乱既有跨节引用，编号排在文末；正文引用本节统一写「第 18 节」。
+
+### 18.1 帖子
+
+- **R-COM-01** 帖子 MUST 有三个必填内容：**类型、标题、正文**。类型枚举 `CHAT`（闲聊）/ `GUIDE`（教程）/ `HELP`（求助）。
+- **R-COM-02** 帖子 MAY 关联一个辩题（`topic_id` 可空）；有关联时列表与详情 MUST 显示辩题标题。
+- **R-COM-03** 帖子 MUST NOT 展示作者的任何身份标识——段位、等级、积分、练习场次、贡献值一律不显示，列表与详情**只显示昵称**。
+- **R-COM-04** 列表 MUST 展示：类型、标题、摘要、作者昵称、评论数、浏览数、点赞数、创建时间、最后回复时间。
+- **R-COM-05** 摘要 MUST 由服务端在写入时截取（≤200 字）；列表查询 MUST NOT 读取正文列。
+- **R-COM-06** 正文为 Markdown。MUST NOT 提供图片上传，仅允许外链图片。
+- **R-COM-07** 只有作者本人可编辑/删除自己的帖子；删除为软删除（`status=2`），其下评论一并不可见。
+- **R-COM-08** 帖子 MUST NOT 出现在任何用户排行榜、贡献榜、积分体系中。
+
+### 18.2 筛选与排序
+
+- **R-COM-09** 列表 MUST 支持四个筛选条件，可任意组合：**类型、标题模糊匹配、关联辩题、日期范围**。
+- **R-COM-10** 标题匹配 MUST 使用 `title LIKE '%关键词%'`。MUST NOT 引入全文索引、ngram 或向量检索——**本版明确收窄为标题**，不搜正文。
+- **R-COM-11** 日期范围枚举 MUST 为 `ALL` / `3D` / `7D` / `OLDER`（`OLDER` = 早于 7 天）。
+- **R-COM-12** 排序 MUST 支持四种：`NEW`（创建时间倒序）、`COMMENTS`（评论数倒序）、`LIKES`（点赞数倒序）、`HOT`（`hot_score` 倒序）。
+- **R-COM-13** `hot_score` MUST 按下式计算，写入时更新，并由定时任务每 10 分钟批量重算最近 7 天的帖子：
+
+  ```
+  hot_score = (comment_count * 4 + like_count * 2 + view_count * 0.05)
+              / POW(hours_since_created + 2, 1.5)
+  ```
+
+- **R-COM-14** 四种排序 MUST 各自有可走索引（见第 8 节 R-DATA-04）。MUST NOT 在 SQL 里实时计算热度后排序。
+
+### 18.3 评论与楼中楼
+
+- **R-COM-15** 评论 MUST 只有两层：**楼**（直接回复帖子）与**楼中楼**（回复某条评论）。MUST NOT 出现第三层。
+- **R-COM-16** 回复对象 MUST 用三个字段表达：`reply_object_type`（`POST`/`COMMENT`）、`reply_object_comment_id`（被回复评论 id）、`reply_object_user_id`（被回复者 id）。
+- **R-COM-17** `reply_object_type=POST` 时，该评论为**楼**：`root_id` 为 `NULL`，`reply_object_comment_id` 与 `reply_object_user_id` 均为 `NULL`。
+- **R-COM-18** `reply_object_type=COMMENT` 时，该评论为**楼中楼**：`root_id` MUST 指向被回复评论**所属的那一楼**的 id（若被回复的就是楼本身，则 `root_id` = 该楼 id）。
+- **R-COM-19** `root_id` MUST 由服务端派生并落库。客户端 MUST NOT 提交 `root_id`。
+- **R-COM-20** 楼中楼渲染 MUST 只显示「{作者昵称} **回复了** {reply_object_user 昵称}」。MUST NOT 出现三级缩进或多级引用链。
+- **R-COM-21** 评论列表 MUST 按**楼**分页；每楼 MUST 附带前 3 条楼中楼预览与该楼楼中楼总数；展开时按 `root_id` 单独分页拉取。
+- **R-COM-22** `post.comment_count` MUST 含楼中楼；`last_comment_at` 仅用于列表展示，MUST NOT 作为排序键。
+- **R-COM-23** 只有评论作者本人可删除自己的评论；删除为软删除，不删物理行。
+- **R-COM-24** 评论正文 MUST ≤ 1000 字。
+
+### 18.4 点赞
+
+- **R-COM-25** 帖子与评论 MUST 都支持点赞，二者共用一张点赞表，用 `target_type` 区分。
+- **R-COM-26** 点赞 MUST 为幂等的 `POST` / `DELETE` 两个接口。MUST NOT 做成单一 toggle 接口。
+- **R-COM-27** 同一用户对同一对象 MUST NOT 重复点赞（主键约束保证）。
+- **R-COM-28** 点赞 MUST NOT 影响任何评分、段位或排名。
+- **R-COM-29** 列表页 MUST 返回每个对象对当前用户的 `liked` 状态，且 MUST 用一次批量 `IN` 查询完成，不得逐条查询。
+
+### 18.5 浏览数
+
+浏览数**允许误差**，MUST NOT 用于任何结算、排名或评分（见第 11 节禁止事项 14）。
+
+- **R-COM-30** 去重口径 MUST 为**自然日**，以 `Asia/Shanghai` 为准：同一用户对同一帖子每天最多计 1 次。
+- **R-COM-31** 去重与计数 MUST 使用**两个生命周期不同的 Redis 结构**：
+
+  | 用途 | Key | 类型 | TTL | 内容 |
+  |---|---|---|---|---|
+  | 浏览去重 | `view:seen:{postId}:{yyyyMMdd}` | Set | **次日 02:00** | 当天看过此帖的 `userId` |
+  | 待回写增量 | `view:pending` | Hash | 2 小时（兜底） | `field=postId`，`value=待加次数` |
+
+- **R-COM-32** 去重集的过期 MUST 用 `EXPIREAT` 指定到**次日 02:00**。MUST NOT 简单设成固定 24 小时——固定 24h 是滚动窗口，会导致「隔天第一次浏览不计」。
+- **R-COM-33** 计数侧 MUST 用 Hash（`field=postId`）。MUST NOT 再用一个 Set 存 `userId`：去重已在第一步完成，重复存只是把内存翻倍，且回写时必须 `SCAN` 遍历键空间。
+- **R-COM-34** `SADD` 去重与 `HINCRBY` 计数 MUST 放在**同一个 Lua 脚本**里原子执行。MUST NOT 分两次调用（否则会出现「标记已看但没计数」，该用户当天再也不会被计数）。
+- **R-COM-35** 回写 MUST 用 Lua 原子地「读取并清空」（`HGETALL` + `DEL`）。MUST NOT 先 `HGETALL` 再单独 `DEL`——两步之间进来的新增量会被一起吞掉。
+- **R-COM-36** 回写执行在定时任务（每 5 分钟）中，顺序 MUST 为：原子取出 → 批量 `UPDATE post SET view_count = view_count + ?` → 若 UPDATE 失败则把取出的增量 `HINCRBY` 补回并告警。
+- **R-COM-37** 浏览计数 MUST NOT 阻塞详情页渲染：Redis 调用 MUST 设 50ms 超时，超时或异常 MUST 直接返回 `204`。
+- **R-COM-38** 因 Redis 重启导致的去重集丢失（多计）或 `view:pending` 丢失（少计）MUST 视为可接受，MUST NOT 为此引入持久化保证。
+
+### 18.6 内容审核
+
+- **R-COM-39** 发帖与评论 MUST 在落库前过敏感词校验；命中 MUST 用全角＊（U+FF0A）逐码点替换后落库，MUST NOT 保存原文（不新增 raw 字段），摘要 MUST 基于替换后的正文生成；命中 MUST NOT 拒绝发布，MUST NOT 返回 `CONTENT_BLOCKED`；审核 MUST 在服务端执行，MUST NOT 只靠前端过滤。
+- **R-COM-40** 审核 MUST 在服务端完成。MUST NOT 只依赖前端过滤。
+
+---
+
+## 19. 举报与审核（治理）
+
+> 本节为 v4.3 追加（2026-11-04 实现并验收）。第 18.6 节是**自动**打码，本节是**人工**治理，两套机制互不联动。
+> 正文引用本节统一写「第 19 节」。
+
+### 19.1 举报
+
+- **R-GOV-01** 可举报对象 MUST 只有两种：`POST`（帖子）与 `COMMENT`（评论）。MUST NOT 提供「举报用户」。
+- **R-GOV-02** 举报原因 MUST 为枚举：`SPAM`（垃圾广告）/ `ABUSE`（人身攻击）/ `ILLEGAL`（违法违规）/ `OTHER`（其他）；补充说明 MAY 填写，长度 MUST ≤ 500。
+- **R-GOV-03** 举报 MUST 要求登录。MUST NOT 举报自己发布的内容（返回 `400`）。
+- **R-GOV-04** 同一用户对同一目标 MUST 只能举报一次；重复举报 MUST 返回 `409 ALREADY_REPORTED`。唯一性 MUST 由数据库唯一索引 `(target_type, target_id, reporter_id)` 兜底，MUST NOT 只靠应用层先查后插。
+- **R-GOV-05** 补充说明 MUST 在落库前过敏感词打码（同 R-COM-39 规则），MUST NOT 存原文。
+- **R-GOV-06** 举报 MUST NOT 自动隐藏或自动删除内容。MUST NOT 因举报数量自动改变内容可见性。
+
+### 19.2 管理员与处置
+
+- **R-GOV-07** 管理员 MUST 为**独立账号体系**（`sy_admin` 表），与普通用户表无关；登录 MUST 走独立接口并签发带 `typ=ADMIN`、`role=ADMIN` 的令牌。
+- **R-GOV-08** 管理员令牌与用户令牌 MUST 互不承认：管理端过滤器 MUST 拒绝用户令牌（`403 NOT_ADMIN`），社区过滤器 MUST 拒绝管理员令牌（`401 NOT_ADMIN`）。
+- **R-GOV-09** 处置动作 MUST 为四种之一：`IGNORE`（驳回）/ `DELETE`（软删内容）/ `BAN`（社区禁言）/ `DELETE_AND_BAN`。
+- **R-GOV-10** 处理一条举报时，该**目标下全部 `PENDING` 举报 MUST 一次性结案**，MUST NOT 只处理当前一条。
+- **R-GOV-11** 社区禁言 MUST 为有期限（1 / 3 / 7 天），到期 MUST 自动解除；禁言期间 MUST 只能浏览，MUST NOT 发帖、评论、编辑帖子、点赞；MUST NOT 拦截删除自己的内容与取消点赞。
+- **R-GOV-12** 全站封禁 MUST 复用 `sy_user.status`（`0` = 封禁），MUST 立即生效：登录 MUST 被拒（`401 ACCOUNT_DISABLED`），已登录者的下一次请求 MUST 被拒。
+- **R-GOV-13** 两种处罚 MUST 互不干扰：解除封禁 MUST NOT 顺带解除禁言，反之亦然。
+- **R-GOV-14** 举报队列 MUST 按被举报**目标**聚合（一行 = 一个目标），MUST 按举报人数降序；同一目标 ≥ 3 名不同举报人时 MUST 标记为「多人举报」；MUST NOT 因多人举报自动处置。
+
+### 19.3 处理记录与恢复
+
+- **R-GOV-15** 管理员每次处置 MUST 落一条处理记录（`sy_audit_log`），字段 MUST 含：举报 id、操作人、动作、处置结论、目标、人读说明、IP、时间。
+- **R-GOV-16** 处理记录 MUST NOT 记录密码、令牌或任何凭据。
+- **R-GOV-17** 写处理记录失败 MUST NOT 影响主流程：失败 MUST 只告警，MUST NOT 抛给调用方。
+- **R-GOV-18** 一键恢复 MUST 只恢复被删除的**内容**（`status` 由 2 改回 1）；MUST NOT 顺带解除禁言。
+- **R-GOV-19** 恢复后：原记录 MUST 标记为「已撤销」（`undo_at`），MUST 追加一条 `RESTORE` 记录留痕，关联举报状态 MUST 变为 `REOPENED`。
+- **R-GOV-20** 恢复 MUST 幂等：已撤销的记录再次恢复 MUST 返回 `409 ALREADY_RESTORED`；无内容可恢复的处置（纯禁言、驳回）MUST 返回 `409 NOT_RESTORABLE` 且界面 MUST NOT 显示恢复入口。
+- **R-GOV-21** 恢复 MUST 二次确认后才执行。
+
+### 19.4 修改密码
+
+- **R-GOV-22** 用户与管理端 MUST 各自提供修改密码接口；MUST 校验旧密码，新密码 MUST 8–64 位且同时含数字与字母，MUST NOT 与旧密码相同。
+- **R-GOV-23** 改密成功后，该账号此前签发的**所有令牌 MUST 立即失效**（`401 TOKEN_STALE`）；实现 MUST 以「令牌签发时间早于密码变更时间」判定，MUST NOT 依赖逐个拉黑。
+- **R-GOV-24** 前端在改密成功后 MUST 清除本地令牌并回到登录态，MUST NOT 让用户停在一个必然 401 的页面。
+- **R-GOV-25** 鉴权判别 MUST 用**一次查询**同时取全站封禁状态与密码变更时间；MUST NOT 为此增加每请求的额外查询或缓存层（本期决策）。
+
+---
+
+## 20. 辩论侧的登录与对局归属
+
+> 本节为 v4.4 追加（2026-11-04 实现并验收）。第 18 / 19 节管社区，本节管辩论侧的身份与访问控制。
+> 正文引用本节统一写「第 20 节」。
+
+### 20.1 门槛
+
+- **R-DEB-01** 建对局、查对局、对局内所有操作、战绩、诊断、多人房间 MUST 要求登录；未登录 MUST 返回 `401`。
+- **R-DEB-02** 辩题、辩题可辩性、论据卡、热榜、健康检查 MUST 保持匿名可访问；MUST NOT 因为「统一登录」把它们一并拦掉。
+- **R-DEB-03** 匿名可访问 MUST 通过「不注册鉴权过滤器」实现，MUST NOT 用「注册了再逐个放行」——后者漏一个就是漏洞。
+
+### 20.2 身份
+
+- **R-DEB-04** 辩论侧接口 MUST NOT 接受客户端传入的 `userId` / `userName`；身份 MUST 一律取自令牌（`sub`）。请求里残留的这两个字段 MUST 被忽略，MUST NOT 报错、MUST NOT 采信。
+- **R-DEB-05** 战绩与诊断 MUST 只按当前登录用户查询；`?userId=` 传别人的 id MUST 无效。
+
+### 20.3 对局归属
+
+- **R-DEB-06** 访问一场对局的判据 MUST 为下列任一成立：① 我是这条对局的 `user_id`；② 这条对局属于某个房间，且我在该房间的席位上。MUST NOT 只看 ①——房间局只有一条对局且记在房主名下，只看 ① 会把同房间其他玩家全部挡掉。
+- **R-DEB-07** 归属校验 MUST 覆盖**所有** `/api/matches/{id}/**`：查看、复盘、抓漏列表、跳过、抢拍、提交回合、指点、续命、事件流。MUST NOT 只保护事件流。
+- **R-DEB-08** 未登录 MUST 为 `401`；已登录但越权 MUST 为 `403`。两者 MUST NOT 混用。
+
+### 20.4 事件流（SSE）
+
+- **R-DEB-09** 事件流 MUST 与其它接口同等鉴权。实现 MUST 允许在**该端点**用查询参数 `?token=` 传令牌——浏览器 `EventSource` 无法设置请求头。
+- **R-DEB-10** 查询参数令牌 MUST **只**对 `/events` 路径生效；其它任何接口 MUST 只认 `Authorization` 头（实测 `?token=` 对 `/records`、`/diag` 无效）。
+
+### 20.5 房间
+
+- **R-DEB-11** 席位展示 MUST 用账号昵称（`sy_user.name`），改名 MUST 即时生效。MUST NOT 再把「房主」「玩家」写成名字。
+- **R-DEB-12** 「房主 / 玩家」MUST 作为**标签**与昵称并列展示，MUST NOT 当作名字参与任何业务判断。
+- **R-DEB-13** 房主免准备 MUST 按**席位**判定（房主固定坐 `A1`）。MUST NOT 比较名字字面量——昵称一改就会失效。
+
+### 20.6 历史数据
+
+- **R-DEB-14** 账号接入之前产生的对局（`user_id` 为 `u1` 或随机 `gXXXXXX`）MUST NOT 被任何账号认领，MUST NOT 做数据迁移。这些对局对所有人都是 `403`。
+
+## 21. 通知与 @提及
+
+> 本节为 v4.5 追加（2026-11-05 实现并验收）。第 18 节是社区内容本身，本节是社区内的提醒机制。
+> 正文引用本节统一写「第 21 节」。
+
+### 21.1 类型与触发
+
+- **R-NTF-01** 通知类型 MUST 为下列 11 种之一：`COMMENT_POST`（帖子被评论）/ `REPLY_COMMENT`（评论被回复）/ `LIKE_POST`（帖子被赞）/ `LIKE_COMMENT`（评论被赞）/ `MENTION`（被 @）/ `POST_DELETED`（帖子被管理员删）/ `COMMENT_DELETED`（评论被管理员删）/ `MUTED`（被社区禁言）/ `BANNED`（被全站封禁）/ `UNMUTED`（禁言解除）/ `UNBANNED`（封禁解除）。
+- **R-NTF-02** **自己的操作 MUST NOT 产生通知**：评论自己的帖子、回复自己的评论、赞自己的内容、@ 自己，全部不发。
+- **R-NTF-03** 作者自己删除自己的内容 MUST NOT 通知自己；**管理员**删除内容 MUST 通知作者，且文案 MUST 带处置理由。
+- **R-NTF-04** 禁言 MUST 通知到期时间与理由；封禁 MUST 通知理由。解除禁言 / 解封 MUST 各发一条。
+- **R-NTF-05** 写通知失败 MUST NOT 影响主流程：评论、点赞、删帖、处罚 MUST 照常成功，只记日志。
+
+### 21.2 点赞聚合
+
+- **R-NTF-06** 点赞通知 MUST 按「收件人 + 被赞对象」聚合为**一行**，唯一性 MUST 由唯一索引 `(user_id, agg_key)` 兜底；`agg_key` 形如 `LIKE_POST:123`。
+- **R-NTF-07** 聚合人数 MUST 每次从点赞表现算（`count(*)`），MUST NOT 用 `+1/-1` 增量累加——反复点赞取消会对不上。
+- **R-NTF-08** 文案 MUST 为：1 人时「X 赞了你的帖子《标题》」；≥2 人时「X 等 N 人赞了你的帖子《标题》」，其中 N MUST 含 X，X MUST 是**最近**一个点赞的人。
+- **R-NTF-09** 已读的聚合行再次被点赞 MUST 重新变为未读并让未读数 +1；本来就未读的聚合行 MUST NOT 重复计数。新点赞 MUST 刷新该行时间使其排到最前。
+- **R-NTF-10** 取消点赞 MUST 只重算人数：MUST NOT 改时间、MUST NOT 改已读状态、MUST NOT 动未读数；人数归零时 MUST 删除该行（不允许出现「等 0 人」）。
+
+### 21.3 未读数
+
+- **R-NTF-11** 未读数 MUST 存 Redis Hash `notify:unread`（field = userId）；MUST NOT 每次轮询都查库。
+- **R-NTF-12** 未读数 MUST NOT 做「未命中就回源查库」的兜底（本期决策）：Redis 重启后计数从 0 重新起算，这是已接受的代价。
+- **R-NTF-13** 拉列表 MUST **只把本页**未读行标为已读，并按**本页实际标记条数**递减未读数；递减到 ≤ 0 时 MUST 删除该 field。递减 MUST 用 Lua 原子执行（`HGET` 与 `HSET` 分两步在并发下会算错）。
+- **R-NTF-14** 列表 MUST 返回**标记之前**的已读状态，前端据此给未读行加深底色。
+- **R-NTF-15** 角标 MUST 遵守：未读 0 时不渲染；> 99 显示 `99+`。
+- **R-NTF-16** 列表 MUST 只返回本人的通知；标记已读 MUST 以 `user_id` 过滤，MUST NOT 允许操作他人通知。
+- **R-NTF-17** 通知 MUST 存内容快照（`excerpt` / `note`），内容被删除后仍能展示「你的帖子《X》已被删除」。
+
+### 21.4 @ 提及
+
+- **R-NTF-18** @ MUST 只认 **userId**（前端提交 `mentions: [id...]`），MUST NOT 由后端按昵称文本猜人——昵称不唯一，猜就会发错。
+- **R-NTF-19** @ MUST 反向校验：① id 必须是真实账号；② 该账号昵称必须真的以 `@昵称` 形式出现在正文里；③ 不是作者自己。任一不满足 MUST **静默丢弃**，MUST NOT 报错、MUST NOT 阻断发布。
+- **R-NTF-20** 一次 @ MUST ≤ 10 人，超出部分 MUST 丢弃；去重后处理。
+- **R-NTF-21** 正文里的 `@昵称` MUST 渲染为浅蓝色（`#4C9AFF`），MUST NOT 做成链接（重名会跳错人）。
+- **R-NTF-22** @ 候选接口 MUST 要求登录，MUST 只返回 `{id, name}`（MUST NOT 返回账号），最多 10 条，按昵称前缀匹配。
+
+### 21.5 与封禁的关系
+
+- **R-NTF-23** 被封禁用户的通知 MUST 照常写入，解封后可见；封禁期间社区接口对其一律 `401`。
+- **R-NTF-24** 全站封禁 MUST 同样作用于 `/api/auth/**`：封禁后 `/me`、改名、退出 MUST 返回 `401 ACCOUNT_DISABLED`（与 R-GOV-12 一致，MUST NOT 只在社区过滤器里判）。
+- **R-NTF-25** 查询参数类型不合法（如 `?page=abc`）MUST 返回 `400 INVALID_PARAM`，MUST NOT 落成 `500`。
+
+---
+## 22. 社区 @AI（DeepSeek 助手）
+
+> 本节为 2026-11-05 追加（V1/V2 实现并验收）。第 18 节是社区内容，第 21 节是通知；本节是「把 AI 当普通用户拉进社区」。
+> 正文引用本节统一写「第 22 节」。
+
+### 22.1 账号与身份
+
+- **R-AI-01** AI MUST 是一个**普通用户行**：`sy_user(id='ai_deepseek', account='deepseek', name='DeepSeek', is_bot=1)`。
+  `is_bot` MUST 由 `schema-ai.sql` 以 `alter table ... add column if not exists` 添加，默认 0，MUST NOT 改既有 schema 文件。
+- **R-AI-02** AI 账号 MUST NOT 能登录：`AuthService.login` MUST 在**密码校验之前**拦下并返回 `401`。
+  其 `password_hash` MUST 是不可解析的串——先走 `encoder.matches()` 会抛解析异常变成 `500`。
+- **R-AI-03** 评论出参 MUST 带 `isBot`（楼与楼中楼都要），前端据此显示「AI」标签；除此之外 MUST NOT 有任何区别对待
+  （点赞、回复、举报、被删都照常）。
+
+### 22.2 触发与楼层
+
+- **R-AI-04** 触发 MUST 同时满足：① 正文含 `@DeepSeek`；② 请求体 `mentions` 里含 `ai_deepseek`。
+  两个条件缺一 MUST NOT 触发（只看 mentions 会被伪造请求刷量，只看正文违背「@ 只认 userId」）。
+- **R-AI-05** 楼层归属 MUST 为：发帖 @ → 帖下一条**楼**；楼里 @ → 该楼的**楼中楼**；楼中楼里 @ → **同一楼的楼中楼**。
+  实现上入队时 `rootId = (原 rootId ?: 该评论自身 id)`——第一版传 `null` 会让 AI 变成一条新楼。
+- **R-AI-06** 总开关 MUST 为三项**全部**满足才开启：`siyige.ai.enabled=true`、`siyige.llm.api-key` 非空、Redis 可达。
+- **R-AI-07** 关闭时 `@DeepSeek` MUST 退化为普通文本：不入队、不报错、不影响评论发布。
+
+### 22.3 限额
+
+- **R-AI-08** 限额 MUST 为「每账号每自然日 5 次」，存 Redis Hash `ai:usage:{yyyy-MM-dd}`（field = userId），TTL 24h。
+- **R-AI-09** 「判断是否超限」与「计数 +1」MUST 在 Lua 里**原子**完成；分两步在并发下会超卖。
+- **R-AI-10** 扣减时机 MUST 是**入队时**：模型失败（超时 / 429 / 空回复）也占额度，这是防刷的既定代价。
+- **R-AI-11** 超限 MUST NOT 报错、MUST NOT 影响评论发布，只是不入队。
+
+### 22.4 队列与幂等
+
+- **R-AI-12** 队列 MUST 用 Redis Stream：stream `community:ai:tasks`、group `ai-worker`、consumer `c-{hostname}-{pid}`。
+- **R-AI-13** 幂等 MUST 有三层：① **结果层**（库里已答过就不再答，权威）；② **并发层** `SET NX ai:proc:{id} EX 300`；
+  ③ **兜底层**（锁自动过期，覆盖调模型时崩溃）。发帖场景没有 commentId，判重口径 MUST 是
+  「同帖 + AI 作者 + 楼级别 + 可见」。
+- **R-AI-14** 每条消息处理完 MUST `XACK`（**含失败**）；失败 MUST NOT 重投、MUST NOT 回复失败说明。
+- **R-AI-15** 消费者 MUST 定期回收闲置 > 5 分钟的 PEL 消息（`XPENDING` + `XCLAIM`）。
+- **R-AI-16** 阻塞读 MUST 用**独立的长超时 Redis 连接**（`AiRedis`，15s）；
+  共享模板的命令超时是 50ms（为浏览计数定的），会掐断 `XREADGROUP BLOCK 5s`。MUST NOT 改共享配置。
+
+### 22.5 输出
+
+- **R-AI-17** 输出 MUST NOT 做业务截断；字数 MUST 靠 system prompt 约束（「不超过 300 字」），
+  另在落库前留 1000 字**列长兜底**（`sy_post_comment.body` 是 varchar(1000)）。
+- **R-AI-18** 输出 MUST 过敏感词打码（与真人评论同一套）。
+- **R-AI-19** 失败（超时 / 429 / 5xx / 空回复）MUST 只 `log.warn` 然后返回：MUST NOT 重试、MUST NOT 回复「AI 暂时不可用」。
+- **R-AI-20** MUST NOT 做「正在思考」占位、MUST NOT 做「已呼叫 DeepSeek」提示——AI 要像普通用户一样出现。
+- **R-AI-21** v1 MUST NOT 做工具调用（tools 相关代码一行都不加）。
+
+### 22.6 通知
+
+- **R-AI-22** AI 回复 MUST **只发一条** `REPLY_COMMENT` 给提问者；MUST NOT 复用 `onComment`（那会发两条）。
+- **R-AI-23** 文案 MUST 区分场景：AI 回在帖子下 →「DeepSeek 回复了你的帖子：…」；回在评论下 →「DeepSeek 回复了你的评论：…」。
+- **R-AI-24** `@DeepSeek` MUST NOT 给 AI 账号自己发 `MENTION` 通知（它不登录，那条会永远未读）。
+- **R-AI-25** AI 回复 MUST NOT 触发 @ 提及通知，也 MUST NOT 再次入队（否则会自我循环）。
+
+### 22.7 前端
+
+- **R-AI-26** AI 账号昵称后 MUST 显示「AI」小标签（`.ai-badge`），其余样式 MUST 与真人一致。
+- **R-AI-27** 提交内容里含 `ai_deepseek` 时，前端 MUST 在 5s / 12s / 25s **静默**重拉评论；
+  MUST NOT 弹提示、MUST NOT 占位。用户已离开该帖时必须静默放弃。
+
+### 22.8 配置与运维
+
+- **R-AI-28** 配置 MUST 只放 `server/config/application-local.yml`（已被 `.gitignore` 忽略）：
+  `siyige.llm.base-url` / `api-key` / `model`、`siyige.ai.enabled`。**api-key MUST NOT 进仓库**。
+- **R-AI-29** `model` MUST 用反代里真实存在的 id（如 `deepseek-v4.1-flash`）；`deepseek-chat` 是官方名，用错必 400/404。
+- **R-AI-30** 启动 MUST 打一行日志说明 AI 是否启用；未启用时 MUST 说明原因（没开开关 / 没配 key / Redis 不可用）。
+
+---
+
+## 23. 好友 + 私聊 + 邀请组队
+
+> 本节 2026-11-07 追加（V1~V4 实现并验收）。第 18 节是社区内容，第 21 节是通知，
+> 第 22 节是社区 @AI；本节是**人与人的关系**与**一对一消息**。
+> 完整字段表 / 错误码 / WS 帧格式见 [docs/社交接口契约.md](社交接口契约.md)。
+>
+> 编号说明：原计划 20 条（R-SOC-01 ~ R-SOC-20）。实施时把「未读缓存」「WS 降级」
+> 「多连接推送」拆成了独立可验证的条目，最终到 **R-SOC-31**——条目变多不是范围变大，
+> 同一条要求的判定标准更明确了。
+
+### 23.1 关系（好友）
+
+- **R-SOC-01** 好友关系 MUST 用**字典序单行**存：`sy_friend(user_a, user_b)` 主键，写入前按字典序排好。
+  `(A,B)` 与 `(B,A)` MUST 落到同一行——否则会出现「两边都显示是好友、删一边还剩一边」。
+- **R-SOC-02** 好友请求 MUST 独立成表并留全生命周期：`PENDING / ACCEPTED / REJECTED` + `handled_at`。
+  `REJECTED` 行 MUST NOT 删除（「为什么没加成」要有据可查），但 MUST NOT 阻挡新请求。
+- **R-SOC-03** 发请求 MUST 依次拦：自己（400 `CANT_ADD_SELF`）→ 不是用户（404）→ 是 AI 账号
+  （400 `TARGET_IS_BOT`）→ 已是好友（409 `ALREADY_FRIEND`）→ 同方向已有 PENDING（409 `PENDING_EXISTS`）。
+- **R-SOC-04** **双向互发 MUST 直接成为好友**：两条请求都置 `ACCEPTED`，双方各收一条 `FRIEND_ACCEPTED`。
+  不这样做会出现「两边都显示已发送、谁也没法接受」的死局。
+- **R-SOC-05** 接受 / 拒绝 MUST 校验「这条请求是发给我的」（403 `NOT_REQUEST_TARGET`）与
+  「还是 PENDING」（409 `REQUEST_NOT_PENDING`）。
+- **R-SOC-06** 拒绝 MUST NOT 通知发起人；接受 MUST 双向通知。
+- **R-SOC-07** 附言上限 100 字，超出 MUST **静默截断**（按码点），MUST NOT 报错。
+- **R-SOC-08** AI 账号（`is_bot=1`）MUST 被三重拦截：搜索不返回、加好友 400、不能私聊。
+- **R-SOC-09** 删除好友 MUST 只删一行关系即双向解除；历史会话与消息 MUST 保留；
+  之后的发消息 MUST 403 `NOT_FRIEND`。
+
+### 23.2 会话与消息
+
+- **R-SOC-10** 会话 MUST 一对人一行：`unique(user_a, user_b)`，插入冲突时 MUST 回查而不是报错
+  （两边同时第一次发消息会各插一次）。
+- **R-SOC-11** 发消息 MUST 依次校验：收件人非空且非自己 → 非空正文 → ≤2000 字（按码点）→
+  **是好友**（403 `NOT_FRIEND`）→ 过敏感词打码（原文 MUST NOT 落库）。
+- **R-SOC-12** 一条消息落库 MUST 同时动四处：消息表、会话的 `last_msg_id`/`last_msg_at`、
+  **发件人**的已读位置、**收件人**的未读计数。缺任一处都会出现怪现象
+  （列表看不见 / 自己的消息显示未读 / 角标不亮）。
+- **R-SOC-13** 历史分页 MUST 用**游标** `beforeId`，MUST NOT 用 offset（翻页期间新消息会错位）；
+  返回 MUST 按时间正序（前端直接渲染）。
+- **R-SOC-14** 断线补拉 MUST 提供 `afterId`（正序、`id > afterId`），
+  这是「一条都不丢」的唯一保证。`beforeId` 与 `afterId` MUST NOT 同时接受（400）。
+- **R-SOC-15** 越权 MUST 拦截：读 / 标已读别人的会话 → 403 `NOT_MEMBER`；会话不存在 → 404。
+  会话列表 MUST 只出现我参与的会话。
+- **R-SOC-16** 消息 MUST NOT 自动清理；本期 MUST NOT 做撤回 / 编辑 / 删除 / 群聊 / 富媒体。
+
+### 23.3 未读
+
+- **R-SOC-17** 未读**读路径** MUST 走缓存（Redis `social:unread:{userId}` Hash，field=convId），
+  **MUST NOT 查库**：侧栏角标由各 field 求和、会话列表每行取自己的 field，一次 `HGETALL` 满足两处。
+- **R-SOC-18** 数据库 `read_a/read_b` MUST 只表示「读到哪条消息 id」，是唯一真相；
+  用途只有两个：算这次标已读**实际读掉几条**、缓存丢失时按库重建。
+  已读位置 MUST 只前进（`greatest`），迟到的旧回执 MUST NOT 打回。
+- **R-SOC-19** 标已读 MUST 按**实际读掉的条数**递减（MUST NOT 一律 -1），且 MUST 用**原子脚本**
+  递减、减到 ≤0 MUST 删掉该 field（MUST NOT 出现负数）。
+  缓存只在两种情况下回源：冷启动、打开会话列表；空用户 MUST 也写哨兵以免反复判冷。
+
+### 23.4 实时与降级
+
+- **R-SOC-20** 实时 MUST 用 **WebSocket（原生，非 STOMP）**，握手令牌走 `?token=`；
+  `/ws/**` MUST NOT 注册任何 Servlet 过滤器，鉴权在 `ChatHandshakeInterceptor` 里做
+  （把 WS 塞进 `JwtAuthFilter` 会破坏 R-NTF 侧「`?token=` 只对 `/events` 回退」的既有规则）。
+- **R-SOC-21** 一个账号 MUST 支持多连接（手机 + 电脑），一条消息 MUST 推给收件人的**每一端**；
+  会话 MUST 用 `ConcurrentWebSocketSessionDecorator` 包装（原生 session 非线程安全）。
+- **R-SOC-22** WS MUST 有 25 秒心跳；上一轮无 `pong` MUST 判定假死并重连；重连 MUST 指数退避
+  （1s 起、30s 封顶）并在连上后按 `afterId` 补拉。
+- **R-SOC-23** **连续失败 3 次 MUST 降级为 3 秒轮询**（延迟 ≤3s），WS 恢复后 MUST 自动切回实时；
+  降级期间**发送** MUST 走 HTTP `POST /api/social/messages`（只靠轮询"收"会让链路半残）。
+- **R-SOC-24** 业务拒绝（非好友等）MUST 回 `error` 帧且带回 `clientMsgId`，MUST NOT 关连接；
+  前端 MUST 把那条气泡标成「发送失败」，MUST NOT 让它一直转圈。
+
+### 23.5 邀请组队
+
+- **R-SOC-25** INVITE MUST 是**消息的一种 type**（`type='INVITE'` + `payload={roomCode,topicTitle}`），
+  MUST NOT 新建表——这样好友校验、建会话、未读、推送、分页、离线补拉全部自动复用。
+- **R-SOC-26** 房间号 MUST 校验格式（`SY-` + 2~10 位大写字母数字，后端统一转大写），
+  格式不对 MUST 400；辩题标题 >60 字 MUST 截断。
+- **R-SOC-27** 邀请入口 MUST 只给**房主**（队友自己拉人会出现「房间被塞满、房主不知道」）。
+  收方点卡片 MUST 走与手动输房间号**同一条路径**（`POST /api/rooms/{code}/join`）。
+
+### 23.6 通知与前端
+
+- **R-SOC-28** 好友类通知 MUST 用独立 type（`FRIEND_REQUEST` / `FRIEND_ACCEPTED`），
+  `link.view` MUST 为 `friends`（MUST NOT 落回 `me`：这批通知与帖子无关）。
+- **R-SOC-29** 侧栏「消息」MUST 是**独立入口 + 独立角标**，与「通知」角标各算各的：
+  进通知页 MUST NOT 清掉消息红点，反之亦然。
+- **R-SOC-30** 搜索结果里画什么按钮 MUST 全由后端给的三个布尔（`isFriend` / `hasPendingRequest` /
+  `pendingIn`）决定，前端 MUST NOT 自己推断。
+- **R-SOC-31** 本期 MUST NOT 做任何频率限制——**2026-11-07 经产品确认不做**（原「20 条/分」「10 次/天」取消）。
+  理由：私聊里连发多条是正常对话，限流会误伤；好友请求量小，暂无骚扰风险。
+  若将来要加，MUST 在网关 / 过滤器层做，MUST NOT 塞进 `ChatService`（会把事务与限流耦在一起）。
+
+---
+
+
+---
+
+## 24. 前端：Vue 3 实现（2026-11-10 追加）
+
+> 本节描述**实际实现**。§14.1 的技术表是立项时的计划（Vue 3.4 + Arco + ECharts + MySQL + WebFlux），
+> 实际交付与此有偏差；前端以本节为准，偏差原因见各条说明。
+>
+> 背景：原前端是原生 JS（`core.js` + `js/views/*.js`，约 5,400 行）。2026-11-10 分 5 批整体迁到
+> Vue 3，17 个页面全部重写（约 7,000 行），旧文件删除，**同一批修掉了一个线上白屏事故**。
+
+### 24.1 选型（与 §14.1 的差异及原因）
+
+| 项 | 计划 | 实际 | 原因 |
+|---|---|---|---|
+| 框架 | Vue 3.4 | **Vue 3.5** | 直接装最新稳定版 |
+| 构建 | Vite 5 | **Vite 6** | 同上 |
+| UI 库 | Arco Design Vue | **不用** | 现有界面风格已定型，引 UI 库等于重做视觉；且包体会翻倍 |
+| 图表 | ECharts | **手写 SVG 雷达** | 只用一个雷达图，引 ECharts（≈300KB）不划算 |
+| 语言 | 未定 | **JavaScript（非 TS）** | 与团队现状一致，改用 TS 的成本在类型标注而非代码 |
+
+### 24.2 硬性要求
+
+- **R-WEB-01** 前端 MUST 为 Vue 3 单页应用（`web/`），MUST NOT 再新增原生 JS 视图文件，
+  MUST NOT 重新引入第二套前端。
+- **R-WEB-02** 路由 MUST 使用 **Hash 模式**（`createWebHashHistory`）。理由：Spring 静态资源
+  没有 SPA fallback，History 模式一刷新即 404，而后端本期不得改动。
+- **R-WEB-03** 静态资源路径 MUST 由构建 `base` 生成（相对 `'./'`），**MUST NOT 手写**
+  `/js/...`、`/css/...` 这类根绝对路径。
+  > 这是真实事故：旧 `index.html` 有 17 处根绝对路径，部署在 `/siyige/` 子路径下全部 404，
+  > 页面停在「正在连接后端…」，与直接双击 `static/index.html` 的症状一致。
+- **R-WEB-04** 用户令牌 MUST 存 `localStorage['sy_jwt']`（兼容旧会话）；管理员令牌 MUST 独立为
+  `localStorage['sy_admin_jwt']`，MUST NOT 混用。
+- **R-WEB-05** 接口前缀 MUST 由 `location.pathname` 判断 `/siyige` 得到，统一收敛在 `api.js`；
+  业务代码 MUST NOT 自己拼 URL 前缀。
+- **R-WEB-06** 构建产物 MUST 提交到 `server/src/main/resources/static/v2/`，
+  生产服务器 MUST NOT 依赖 Node/npm。
+- **R-WEB-07** 未读角标 MUST 只有一处轮询（`stores/unread.js`，45 秒）；页面组件 MUST NOT
+  自建 `setInterval`。WebSocket 同一用户同一时刻 MUST 只有一条连接。
+- **R-WEB-08** 切换账号 MUST 重置全部 store（`reset()`），MUST NOT 让上一个账号的会话、
+  未读、余额残留。历史缺陷：换账号后「标题显示自己、未读消不掉、发消息失败」。
+- **R-WEB-09** 每批迁移 MUST 配套浏览器自检脚本（`server/scripts/selftest_vue_*.mjs`），
+  脚本开头 MUST 清 `localStorage` 并等待应用挂载完成，否则多脚本共用一个浏览器 profile 会互相污染。
+- **R-WEB-10** 旧前端文件 MUST 在新页面验收通过后统一删除；删除 MUST 与入口切换放在同一批提交，
+  MUST NOT 出现「新旧两套都在改」的状态。
+
+### 24.3 入口与部署
+
+```text
+用户访问  /siyige/                    -> static/index.html（21 行，只做一次跳转）
+          /siyige/v2/index.html#/<路由> -> Vue 应用本体（Hash 路由）
+管理台    /siyige/v2/index.html#/admin  -> 裸布局 + sy_admin_jwt + /api/admin
+```
+
+- 跳转 MUST 保留 `query` 与 `hash`：老书签 `/?v=community`、`/#/community/12` 不得失效
+- 构建：`cd web && npm i && npm run build`（产物直接落进 `static/v2/`）
+- 服务器侧 **无需改 Nginx**（仍走现有 `/siyige/ → 127.0.0.1:8080`）；
+  唯一例外是聊天 WebSocket，仍需 `/siyige/ws/` 的 Upgrade 配置（见 §23 上线前置条件）
+
+### 24.4 目录
+
+```text
+web/
+├── vite.config.js      base='./' + outDir=static/v2 + dev proxy(/api, /ws)
+├── src/App.vue         外壳（侧栏 / 内容区 / 未读角标）
+├── src/router.js       Hash 路由（17 个页面）
+├── src/nav.js          侧栏导航（加页面 = 加一行）
+├── src/api.js          API_BASE / 401 / 错误体
+├── src/stores/         auth / unread / wallet / chat / debate / meta
+├── src/utils/          chatWs / community / markdown / format / toast
+├── src/components/     AppShell / ToastHost / ReportModal
+└── src/views/*.vue     一人一块，与旧 js/views/*.js 一一对应
+```
+
+### 24.5 验收
+
+| 项 | 标准 |
+|---|---|
+| 入口 | `/` 落到新版；`/js/core.js`、`/css/app.css`、`/admin.html` 均 404 |
+| 登录 | 注册/登录/改密/退出全通；刷新不掉登录；换账号不串状态 |
+| 页面 | 17 个页面逐屏有实质内容，无空白、无 JS 异常 |
+| 实时 | 聊天 WS 双端收发；断线自动重连、降级轮询后仍可收 |
+| 自检 | `selftest_vue_batch0/1/2/2b/3/3b/entry.mjs` 全绿 |
+
+
+---
+
+## 25. AI 档位与能力分析（2026-11-10 追加）
+
+> 本节记录 2026-11-10 与「前端迁 Vue」同日上线的两块能力：**计费档位**与**能力分析画像**。
+> 接口与字段见 `docs/社交接口契约.md` 之外的两处实现：`ai/AiTier.java` 与 `api/ApiController.diag`。
+
+### 25.1 AI 档位
+
+| 档位 | key | 模型 | 计费 | 可用性 |
+|---|---|---|---|---|
+| 基础版 | `BASIC` | 本地 ollama（默认 `qwen2.5:7b`） | 免费（模型成本 0，服务费 0） | 需 `SIYIGE_BASIC_ENABLED=true` 且本地装了 ollama |
+| 高级版 | `PRO` | 平台模型（deepseek） | 按 token 实算 + 服务费 | 恒可用 |
+| 自带 Key | `BYOK` | 用户自己的 baseUrl / key / model | **全免费**（平台零成本） | 需在钱包里配过 key |
+
+- **R-TIER-01** `GET /api/ai-tiers` MUST 返回三档的 `key / label / available / model / note`。
+- **R-TIER-02** 档位取值非法或缺省 MUST 归一为 `PRO`；`BASIC` 未启用时 MUST 静默降级为 `PRO`。
+- **R-TIER-03** 选了 `BYOK` 但用户没配 key 时 MUST 退回 `PRO`（MUST NOT 按免费结算）。
+- **R-TIER-04** `BYOK` 与 `BASIC` MUST NOT 收任何费用（预扣、结算、服务费全免）。
+- **R-TIER-05** 多人房间整场费用 MUST 记在**房主**名下（`sy_match.payer_user_id`），与发起人分开。
+- **R-TIER-06** 前端 MUST NOT 自行计算费用，只显示后端返回的账单。
+
+### 25.2 能力分析
+
+- **R-DIAG-01** 画像 MUST 为**六维**：立论 / 论证 / 表达 / 应变 / 论据 / **协同**。
+- **R-DIAG-02** 「协同」MUST 只在**有真人队友**时计分；单人局同侧是 AI 补位（`input_type=ai`），
+  MUST 按中性 60 记，MUST NOT 让 AI 发言把协同拉成 0 或 100。
+- **R-DIAG-03** `GET /api/diag?n=` MUST 支持「最近 N 场」（`n<=0` 或省略 = 全部），
+  返回 MUST 带 `total / window / samples / empty`。
+- **R-DIAG-04** 每场结束 MUST 把该场六维写进 `sy_record.dims_json`，窗口均值 MUST 用逐场记录重算。
+- **R-DIAG-05** 没有任何逐场记录时 MUST 返回 `empty:true` 且 `dims` 为空，
+  MUST NOT 返回写死的占位维度（前端据此显示空态，不画假雷达）。
+- **R-DIAG-06** 前端雷达 MUST 支持从中心生长动画与「0→值」条形动画，且 MUST 显示与上一场的增减箭头。
+
+### 25.3 对局可继续（前端行为）
+
+- **R-RESUME-01** 离开对局页 MUST 只停轮询与 SSE，MUST NOT 清空 `matchId / match`。
+- **R-RESUME-02** 回到对局页 MUST 自动恢复轮询并立即拉一次状态。
+- **R-RESUME-03** 任意页面 MUST 能看到「有一场还没打完」入口并能一键回到该场。
+- **R-RESUME-04** 聊天区自动滚动 MUST 同时满足：贴底、用户 600ms 内没手动滚过、每 3 个字一次；
+  用户滚轮 / 触摸 / 方向键操作 MUST 立刻解除跟随。
+
+
+---
+
+## 26. 管理后台与报表（2026-11-11 追加）
+
+> 本节对应 `feature-rebuild-admin` 这一批：管理台从「单页 + 三个 tab」改成左侧栏 + 六个子页，
+> 并新增模块浏览统计、活跃用户埋点与报表页。后端聚合在 `admin/analytics/`，采集在 `track/`。
+
+### 26.1 布局与路由
+
+- **R-ADM-01** 管理台 MUST 为左侧栏 + 嵌套路由结构，子页 MUST 为
+  `概览 / 报表分析 / 举报处理 / 用户管理 / 处理记录 / 设置`。
+- **R-ADM-02** 未持有管理员令牌访问任意子页 MUST 被送到登录页；已登录访问登录页 MUST 回到概览。
+- **R-ADM-03** 侧栏 MUST 可折叠（宽屏 208px → 56px），折叠状态 MUST 持久化；窄屏（<760px）
+  MUST 默认收起并提供抽屉式展开。
+- **R-ADM-04** `GET /admin` MUST 302 到 SPA 入口（相对路径，兼容 `/siyige/` 子路径部署），
+  MUST NOT 再用 forward（会因相对 base 变成白屏）。
+
+### 26.2 模块浏览统计
+
+- **R-STAT-01** 统计单元 MUST 是**模块**（11 个：community / chat / match / solo / video / hot /
+  diag / records / wallet / friends / admin），MUST NOT 按具体页面路径统计。
+- **R-STAT-02** 上报 MUST 由前端路由切换触发（`POST /api/track/pv`），同一模块连续切换 MUST 去抖；
+  该接口 MUST 允许匿名访问（匿名只计 PV，登录用户才进 UV）。
+- **R-STAT-03** 未在白名单内的 module 值 MUST 返回 400。
+- **R-STAT-04** PV MUST 用 Redis Hash 累加、UV MUST 用 HyperLogLog（去重且省内存）；
+  两者 MUST 由定时任务落库 `sy_module_view`（PV 每 5 分钟、UV 每小时快照），
+  取增量 MUST 用「读取并清空」的原子脚本，落库失败 MUST 把增量补回。
+- **R-STAT-05** 未回写的实时增量 MUST 叠加进报表今日数据（只读不删，避免与落库重复计数）。
+
+### 26.3 活跃用户
+
+- **R-ACT-01** 活跃 MUST 只统计「有效行为」：登录、开局、提交发言、发帖、评论、发私信、点赞、举报；
+  MUST NOT 把浏览、轮询、心跳、SSE 连接算作活跃。
+- **R-ACT-02** 打点 MUST 用注解 + AOP 实现（`@Active`），MUST NOT 修改业务方法体。
+- **R-ACT-03** DAU MUST 用 HyperLogLog 按日记录，每天落库 `sy_daily_active`；
+  WAU / MAU MUST 现场用 PFMERGE 合并计算，MUST NOT 额外建表。
+- **R-ACT-04** 本期 MUST NOT 做历史回填（当前无历史数据，且 H2 为内存库）。
+
+### 26.4 报表与导出
+
+- **R-RPT-01** 报表接口 MUST 只读，路径前缀 `/api/admin/analytics/**`，与「举报管理」
+  （`AdminReport*`，report = 举报）**命名区分**，不得混淆。
+- **R-RPT-02** 报表 MUST 支持时间范围 `7d / 30d / 90d` 与自定义 `from/to`；KPI MUST 带与上一周期对比。
+- **R-RPT-03** 报表缓存 MUST ≤ 5 秒并支持手动刷新（数据要能"点完就看到变化"）。
+- **R-RPT-04** 导出 MUST 同时支持 CSV 与 XLSX；CSV MUST 带 UTF-8 BOM；
+  XLSX MUST 为真实 zip 包（不得用 CSV 改名冒充），本期 MUST NOT 引入 POI / EasyExcel。
+- **R-RPT-05** 图表 MUST 为自研 SVG，MUST NOT 引入图表库；空数据 MUST 显示占位而不画空坐标系。
+
+### 26.5 本期不做（记待办）
+
+- 管理员权限分级（只读 / 运营 / 超级）
+- 漏洞（失败原因）统计：系统内存在两套命名不一致的漏洞枚举，需先统一再统计
+- 留存分析（次日 / 7 日）
+
+
+---
+
+## 27. 内容管理台与审核接入（2026-11-12 追加）
+
+> 本节对应 `feature-admin-content`：管理台新增内容管理（帖子 / 评论）、用户违规浮窗，
+> 并把视频人工复核与辩题审核接进管理台。
+
+### 27.1 内容管理
+
+- **R-CM-01** 帖子 MUST 支持按 关键词 / 类型 / 状态 / 作者 / 时间区间 筛选并分页；
+  评论 MUST 支持跨帖搜索（结果带所属帖子 id 与标题）。
+- **R-CM-02** 关键词 MUST 转义 LIKE 通配符（`%` `_`）并显式 `escape`，否则输入 `%` 会全表命中。
+- **R-CM-03** 分页 `size` MUST 有上限（≤50），越界 MUST 返回空页而不是报错。
+- **R-CM-04** 帖子详情 MUST 返回正文、统计与**完整评论树**（楼 + 楼中楼两层，按 `root_id` 分组），
+  且 MUST 包含**已屏蔽**的评论（管理端可见，用户侧不可见）。
+- **R-CM-05** 从评论跳转到帖子详情 MUST 原地打开并滚动定位、高亮该楼层。
+- **R-CM-06** 屏蔽 = 软删（`sy_post.status=2` / `sy_post_comment.status=2`），
+  MUST 复用举报处置那套副作用（目标下 PENDING 举报置 ACCEPTED、写审计），MUST NOT 另造一套。
+- **R-CM-07** 屏蔽评论后 MUST 重算所属帖子的 `comment_count / last_comment_at / hot_score`
+  （复用 `CommentService` 既有重算，不改算法）。
+
+### 27.2 处置动作与审计
+
+- **R-CM-08** 管理台可执行：屏蔽 / 解除 / 禁言（1·3·7 天）/ 封禁 / 解封，MUST 支持多选批量与统一理由；
+  批量 MUST 返回 `done / failed / total`，部分失败不整体回滚。
+- **R-CM-09** `sy_audit_log` MUST 新增 `source` 列区分 `REPORT`（举报处置）与 `MANUAL`（管理台主动处置）；
+  MANUAL 时 `report_id=0`，MUST NOT 改既有列的 NOT NULL 约束。
+- **R-CM-10** 一键恢复 MUST 兼容 MANUAL 来源（`report_id<=0` 时跳过"关联举报改回 REOPENED"），
+  REPORT 老路径行为 MUST 保持逐字一致。
+
+### 27.3 用户违规浮窗
+
+- **R-USR-01** 全站点用户名 MUST 可点击弹浮窗（内容管理 / 评论树 / 视频作者 / 举报作者 / 处理记录 / 用户管理），
+  MUST 复用同一个组件与接口。
+- **R-USR-02** 浮窗 MUST 显示：基本信息与状态、发帖/评论/对局/余额统计、
+  被封禁记录、禁言历史（起止）、被删除内容（可翻页）。
+- **R-USR-03** 浮窗内可直接禁言 / 封禁 / 解封；操作成功后列表状态 MUST 即时同步。
+
+### 27.4 视频复核
+
+- **R-VID-01** 视频人工复核 MUST 走管理端（`/api/admin/video-audit/**`，管理员令牌），
+  MUST NOT 只凭"已登录"放行——否则任何注册用户都能给自己过审。
+- **R-VID-02** 旧入口 `/api/video/audit/*` MUST 拒绝（非管理员 403），并在代码注释说明迁移去向。
+- **R-VID-03** 驳回 MUST 使视频不上广场；恢复 MUST 回到驳回前的状态；每次判定 MUST 写 `sy_video_audit`。
+
+### 27.5 辩题审核
+
+- **R-TOPIC-01** 管理端题库列表 MUST 包含被驳回 / 下架的题（用于复审），
+  MUST NOT 复用前台 `Store.topics()` 的过滤。
+- **R-TOPIC-02** 前台题库 MUST 过滤 `mod_status='REJECT'`。
+- **R-TOPIC-03** 驳回 MUST 填理由并落 `mod_reason / mod_at`；通过 = `PASS`，下架 = `REJECT`。
+- **R-TOPIC-04** 本期 MUST NOT 把自定义辩题改成"人工先审再开打"（会阻塞用户开局），
+  人工只做事后下架与驳回留痕。
+
+### 27.6 本期已知不影响使用的问题
+
+- 帖子详情抽屉为全局单例，理论上可通过脚本跨路由保持打开；正常界面下抽屉有遮罩，侧栏不可点，不构成可达路径
+
+---
+
+## 28. 管理员账号与权限分级（RBAC）（2026-11-13 追加）
+
+> 设计方案：`管理员账号与权限分级-设计方案.md`；分支 `feature-admin-rbac`。
+> 一句话：**账号只能由超管建，权限按 4 个角色分级，无权限要明确拒绝而不是白屏。**
+
+### 28.1 权限点（15 个，`com.siyige.admin.rbac.Perm`）
+
+| 权限点 | 覆盖接口 |
+|---|---|
+| `admin:manage` | `/api/admin/admins/**`（列表/创建/改角色/启停/重置密码） |
+| `report:read` / `report:resolve` | `GET /reports`、`GET /reports/{id}` / `POST /reports/{id}/resolve` |
+| `user:read` | `GET /users`、`GET /users/{id}/profile` |
+| `user:ban` | `POST /users/{id}/ban|unban|status|mute`、`POST /users/batch` |
+| `content:read` | `GET /posts`、`/posts/{id}`、`/posts/{id}/comments`、`GET /comments` |
+| `content:moderate` | `POST /content/{type}/{id}/hide|unhide`、`POST /content/batch` |
+| `audit:read` / `audit:restore` | `GET /audit` / `POST /audit/{id}/restore` |
+| `video:read` / `video:audit` | `GET /video-audit/{queue,{id}/logs,rules}` / `POST /video-audit/{id}/{decide,restore}` |
+| `topic:read` / `topic:moderate` | `GET /topics` / `POST /topics/{id}/{approve,reject,offline}` |
+| `analytics:read` | `GET /stats` + `analytics/{overview,modules,trend,breakdown,active,quality}` |
+| `analytics:export` | **仅** `GET /analytics/export`（导出全站数据，只给超管） |
+
+- **R-RBAC-01** 权限点代码 MUST 是上面这些字符串：`/api/admin/me` 下发、403 文案、前端菜单
+  三处都按它匹配，改名等于改契约。
+- **R-RBAC-02** 权限矩阵 MUST 只写一处（`AdminRole.perms()`）；别处 MUST NOT 再写角色判断。
+
+### 28.2 角色与矩阵（`com.siyige.admin.rbac.AdminRole`）
+
+| 权限点 | SUPER | OPS | MOD | VIEWER |
+|---|:--:|:--:|:--:|:--:|
+| admin:manage | Y | - | - | - |
+| report:read / resolve | Y / Y | Y / Y | Y / Y | Y / - |
+| user:read / ban | Y / Y | Y / Y | Y / - | Y / - |
+| content:read / moderate | Y / Y | Y / Y | Y / Y | Y / - |
+| audit:read / restore | Y / Y | Y / Y | Y / - | Y / - |
+| video:read / audit | Y / Y | Y / - | Y / Y | Y / - |
+| topic:read / moderate | Y / Y | Y / Y | Y / Y | Y / - |
+| analytics:read / export | Y / Y | Y / - | - / - | Y / - |
+
+### 28.3 数据与鉴权链路
+
+- **R-RBAC-03** 角色 MUST 存数据库（`sy_admin.role`），MUST NOT 写进 JWT：
+  写进令牌的话改角色要等令牌过期（2 小时）才生效，而实际要求"改完下一次请求就生效"。
+- **R-RBAC-04** 每请求 MUST 只用**一条** SQL 取全（`AdminStatusSource.authInfo`）：
+  `status + pwd_changed_at + role + must_change_pwd`。加角色 MUST NOT 增加查询次数。
+- **R-RBAC-05** 接口权限 MUST 用 `@Require(Perm.X)` 声明 + `RequireAspect` 统一校验；
+  角色缺失 MUST 403 `NOT_ADMIN`（**绝不静默放行**）；权限不足 MUST 403 `FORBIDDEN_PERM`
+  并在 message 里带上缺的权限点。
+- **R-RBAC-06** `sy_admin` 只加列（`role` / `must_change_pwd` / `last_login_at` /
+  `created_by` / `role_changed_at`）；`role` 默认 `SUPER`，老账号升级后不被降权。
+
+### 28.4 账号规则（A 方案：超管创建）
+
+- **R-RBAC-07** MUST NOT 有自助注册/邀请码；只能 `POST /api/admin/admins` 由超管建号。
+- **R-RBAC-08** 一次性密码 MUST 12 位、去掉易混淆字符（`0 O 1 l I`）、`SecureRandom`，
+  且 MUST 同时含数字与字母；明文 MUST 只出现在「创建」与「重置」两次响应里，
+  库里只存 Argon2 哈希，日志与审计文案 MUST NOT 出现密码。
+- **R-RBAC-09** 保护规则 MUST 实现并返回 400：`CANNOT_DISABLE_SELF` / `CANNOT_DEMOTE_SELF` /
+  `LAST_SUPER` / `ROLE_REQUIRED`（创建不给角色，**不默认超管**）/ `ADMIN_EXISTS` /
+  `WEAK_PASSWORD`（复用用户侧 `PasswordPolicy`）。
+- **R-RBAC-10** 账号 MUST NOT 硬删除，只能停用（处理记录要能对上人）。
+- **R-RBAC-11** 重置密码 MUST 同时刷新 `pwd_changed_at`（旧令牌立刻失效）+ `must_change_pwd=true`；
+  首登改密成功后 MUST 清 `must_change_pwd`。
+- **R-RBAC-12** `must_change_pwd=true` 时 MUST 除「改密」「`/me`」之外全部 403
+  `PASSWORD_CHANGE_REQUIRED`；拦截实现 MUST 只在 `AdminAuthFilter` 一处，不得逐接口写。
+
+### 28.5 审计
+
+- **R-RBAC-13** 账号操作 MUST 写 `sy_audit_log`（`report_id=0`、`source='MANUAL'`、
+  `target_type='ADMIN'`、`target_id=管理员id`、`target_owner=账号`），
+  动作：`ADMIN_CREATE / ADMIN_ROLE / ADMIN_DISABLE / ADMIN_ENABLE / ADMIN_RESET_PWD`。
+- **R-RBAC-14** `target_type='ADMIN'` 的记录 MUST NOT 可恢复（`RestoreService` 直接
+  409 `NOT_RESTORABLE`），否则「恢复」按钮会拿管理员 id 去改内容。
+
+### 28.6 前端行为
+
+- **R-RBAC-15** 登录后 MUST 调 `GET /api/admin/me` 拿角色与权限点；菜单 MUST 按 `perm` 过滤；
+  按钮 MUST 按权限点显隐（不是灰掉）。
+- **R-RBAC-16** 直接输 URL 进无权限页面 MUST 显示「无权限」卡片（含缺的权限点），
+  MUST NOT 白屏或 404。
+- **R-RBAC-17** `mustChangePwd=true` MUST 强制跳改密页；改完 MUST 回登录页重新登录。
+- **R-RBAC-18** 登录落点 MUST 是第一个有权限的页面（概览要 `analytics:read`，MOD 没有）。
+- **R-RBAC-19** 前端权限只是体验层：后端 `@Require` MUST 独立强制校验，改前端 MUST NOT 能提权。
+
+### 28.7 测试
+
+- 权限矩阵参数化测试 `AdminPermissionMatrixTest`（`@SpringBootTest` + MockMvc）：
+  4 角色 × 35 条接口 + 匿名 401 + 首登强制改密 + 改角色立即生效。
+- 账号规则 `AdminAccountServiceTest`（19 条，真 H2）。
+- 界面自检 `server/scripts/selftest_vue_admin_rbac.mjs`（9 项）：建号 → 一次性密码 →
+  强制改密 → 菜单/按钮按权限 → 无权限卡片 → VIEWER 零处置按钮 → 改角色即时生效。
+
+---
+
+## 29. 帖子标签（2026-11-15 追加）
+
+> 设计方案《帖子标签系统-设计方案》；分支 `feature-post-tags`。
+> 一句话：**帖子能打标签、能按标签筛、后台能改名合并与删除**，且老客户端不受影响。
+
+### 29.1 表（`schema-tag.sql`，新文件，既有 schema 一个没动）
+
+| 表 | 列 | 说明 |
+|---|---|---|
+| `sy_tag` | `id / name / name_key / scope / use_count / created_by / created_at` | `name` 展示名（保留样子），`name_key` 归一化键（小写去空格），唯一索引 `ux_tag_scope_key(scope, name_key)` |
+| `sy_post_tag` | `post_id / tag_id / created_at` | 复合主键 `(post_id, tag_id)`；`ix_post_tag_tag(tag_id, post_id)` 反向索引 |
+
+- **R-TAG-01** 新表 MUST 只写在 `schema-tag.sql`，MUST NOT 改既有 `schema-*.sql`；
+  `application.yml` 的 `schema-locations` 排在 `schema-community.sql` 之后。
+- **R-TAG-02** `name_key` MUST 存在：不然 `AI` / `ai` / `Ai ` 会变成三个标签。
+- **R-TAG-03** `use_count` MUST 在关联变动后**重算那一行**（`update … set use_count = (select count(*) …)`），
+  MUST NOT 用 +1/-1（四个入口漏一个就永久漂移）。
+
+### 29.2 规则
+
+| 规则 | 取值 | 错误码 |
+|---|---|---|
+| 名称长度 | 1-12 **码点**（emoji 按 1 个算） | 400 `TAG_INVALID` |
+| 禁用字符 | `# @ / \` 与控制字符 | 400 `TAG_INVALID` |
+| 敏感词 | **直接拒绝，不打码**（标签打码没有意义） | 400 `TAG_BLOCKED` |
+| 每帖最多 | 5 个 | 400 `TAG_LIMIT` |
+| 每人每天新建 | 10 个（Redis `tag:new:{yyyyMMdd}:{userId}`） | 429 `TAG_QUOTA` |
+| 归一化 | 去首尾空格、连续空格合一、英文小写做 key | — |
+| 同一帖重复标签 | 按 key 去重，只落一条关联 | — |
+| 标签不存在（后台） | — | 400 `TAG_NOT_FOUND` |
+
+- **R-TAG-04** 发帖请求**不带** `tags` MUST 照旧成功（老客户端兼容），响应里 `tags` 是 `[]` 而不是 null。
+- **R-TAG-05** 标签不合法时 MUST 在**建帖之前**就 400，MUST NOT 落半条帖子。
+- **R-TAG-06** 帖子软删（`status=2`）MUST NOT 动 `sy_post_tag` —— 恢复后标签必须还在。
+- **R-TAG-07** Redis 不可用时：配额检查**放行**、热门缓存**回退查库**（只 warn），MUST NOT 阻塞发帖与列表。
+
+### 29.3 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/community/tags?q=&limit=` | 联想：只返回用过的（`use_count>0`），按使用次数降序 |
+| GET | `/api/community/tags/hot?limit=` | 热门标签（Redis 缓存 60 秒，单 key，变动即失效） |
+| GET | `/api/community/posts?tagId=12` | 按标签筛（`exists` 子查询，与其他筛选叠加，不产生重复行） |
+| POST | `/api/community/posts` | body 加可选 `tags: string[]` |
+| PATCH | `/api/community/posts/{id}` | **不传 `tags` 就不改**；传了（含 `[]`）整组替换 |
+| GET | `/api/admin/tags?q=&page=&size=` | 后台列表（含 `use_count=0`，便于清理） |
+| POST | `/api/admin/tags` | 预置标签；重名幂等返回已有（`created=false`） |
+| POST | `/api/admin/tags/{id}/rename` | 改名；撞名 **自动合并**（`merged=true` + `mergedInto` + `moved`） |
+| DELETE | `/api/admin/tags/{id}` | 断关联 + 删标签（`affected` = 受影响帖子数） |
+
+- **R-TAG-08** 列表与详情的每个帖子 MUST 带 `tags: [{id,name}]`；列表 MUST **一次批量查**
+  （`tagsByPostIds`），MUST NOT 每帖查一次。
+- **R-TAG-09** 后台写操作 MUST 挂 `@Require(Perm.CONTENT_MODERATE)`；VIEWER MUST 403。
+- **R-TAG-10** 后台审计 MUST 写 `target_type='TAG'`、`source='MANUAL'`、`report_id=0`，
+  动作 `TAG_CREATE / TAG_RENAME / TAG_MERGE / TAG_DELETE`，detail 是人读描述（不许出现 SQL 或堆栈）。
+- **R-TAG-11** `target_type='TAG'` 的记录 MUST 不可恢复（`canRestore=false`，
+  `POST /audit/{id}/restore` 返回 409 `NOT_RESTORABLE`）。
+- **R-TAG-12** 合并 MUST 在同一事务里四步：迁关联（**跳过已同时拥有两个标签的帖子**，避免主键冲突）→
+  断源关联 → 删源标签 → 重算目标 `use_count`。
+
+### 29.4 前端
+
+- **R-TAG-13** 发帖/编辑 MUST 有标签选择器：chip + 输入联想（250ms 防抖）+ 回车新建；满 5 个禁用输入。
+- **R-TAG-14** 社区列表 MUST 有热门标签条（`[全部] + 最多 12 个`），点击后 URL MUST 带 `tagId`
+  （可分享、可刷新、可后退）；再点一次 / 点「全部」取消。
+- **R-TAG-15** 卡片 MUST 显示前 3 个标签，多余显示 `+N`；详情 MUST 显示完整标签，点任意一个回列表筛选。
+- **R-TAG-16** 后台改名撞名时 MUST 先弹确认（「「AI」已存在，是否把「人工智能」并入它？将影响 N 篇帖子」），
+  MUST NOT 静默合并；删除 MUST 二次确认并写明受影响帖子数。
+- **R-TAG-17** 前端权限只是体验层：后台接口的 `@Require` 独立强制校验。
+
+### 29.5 测试
+
+- `TagServiceTest`（14 条，真 H2 + mock Redis）：归一/码点长度/禁用字符/敏感词/每帖 5 个/每日 10 个/
+  复用不吃配额/Redis 挂了放行/use_count 重算/同标签去重/编辑替换/软删不动/联想过滤/热门缓存与回退。
+- `TagApiTest`（8 条，`@SpringBootTest` + MockMvc）：不带 tags 照旧成功/带 tags 回显/`ai`≡`AI`/
+  按 tagId 筛 + 关键词叠加/联想与热门/四种错误码且不落半条帖子/编辑替换与不传不动/软删恢复。
+- `AdminTagServiceTest`（10 条，真 H2）：列表含未使用/预置幂等/预置过校验/普通改名/撞名合并
+  （跳过重复、计数相加、帖子改挂）/只改大小写不算撞名/删除只解关联/404/审计动作与文案。
+- 界面自检 `server/scripts/selftest_vue_tags.mjs`（9 项）：热门条 → 卡片标签 → 点标签筛（URL 带 tagId）→
+  刷新仍在筛选 → 取消 → 详情跳回 → 发帖选择器（联想/回车/满 5 禁用）→ 发出去后详情显示 → 零 JS 异常。
+
+---
+
+## 30. 管理台告警（2026-11-17 追加）
+
+> 设计方案《管理台告警-设计方案》；分支 `feature-admin-alerts`。
+> 一句话：**定时扫描业务指标 → 超阈值落库（去重）→ 红点/SSE 提醒 → 列表里处理**。
+
+### 30.1 表（`schema-alert.sql`，新文件）
+
+| 表 | 关键列 | 说明 |
+|---|---|---|
+| `sy_alert` | `rule_key / target_type / target_id / level / title / detail / metric / dedup_key / status / acked_* / resolved_at / first_seen / last_seen` | `dedup_key` 上有**唯一索引**，去重靠它 |
+| `sy_alert_mute` | `rule_key(主键) / muted_until / muted_by` | 静音期间不生成新告警，已存在的照常显示 |
+
+- **R-ALT-01** 去重粒度 MUST 是「规则 + 对象 + 日期」：`USER_REPORT_BURST:u_1029:2026-11-16`、
+  `POST_REPORT_BURST:POST:12:2026-11-16`、`REPORT_BACKLOG:2026-11-16`、`DAU_MISSING:2026-11-15`（缺的那一天）。
+  对象类规则带对象 id，所以处理掉一个对象不影响别的对象。
+- **R-ALT-02** 并发/重复插入 MUST 靠唯一索引 + 捕获 `DuplicateKeyException` 兜住，
+  MUST NOT 用"先查再插"（两个扫描线程会同时查到"没有"）。
+
+### 30.2 四条规则与阈值
+
+- **R-ALT-03** 阈值 MUST 集中在 `AlertRule`（唯一真源），MUST NOT 散落在 SQL 或 Service：
+  `REPORT_THRESHOLD`（**验证期 3，上线改 30**）、`BACKLOG_THRESHOLD = 10`、`WINDOW_HOURS = 24`。
+- **R-ALT-04** 判定口径是「**>** 阈值」不是「>=」：正好等于阈值不报。
+- 规则：`USER_REPORT_BURST`（人，24h 内被举报次数合计）、`POST_REPORT_BURST`（单条内容）、
+  `REPORT_BACKLOG`（全局 PENDING 数，detail 带"最老一条已等 N 小时"）、
+  `DAU_MISSING`（昨天 `sy_daily_active` 一行都没有 → `CRIT`，自己检查自己）。
+- **R-ALT-05** 统计只算 `status in ('PENDING','ACCEPTED')` 的举报；`IGNORED/REJECTED` 是"已判定没事"，不推高指标。
+- **R-ALT-06** 按人聚合 MUST **不用 join**：先单表 `group by target_type,target_id` 出计数，
+  再 `in` 批量查 `sy_post.author_id` / `sy_post_comment.user_id`，最后**应用层累加**。
+  两条规则共用同一次聚合查询（不查两遍）。
+- **R-ALT-07** 按人累加 MUST 统计**全部**举报（不是只累加"单条内容已超标"的那几行），
+  否则 3 篇各被举报 2 次（合计 6 次）的用户会漏报。
+
+### 30.3 状态机
+
+```
+        触发              人点「已处理」              指标回落
+  ───────────→ OPEN ──────────────→ ACKED ─────────────→ 保持 ACKED
+                 │
+                 └──── 指标自己回落 ────→ RESOLVED
+```
+
+- **R-ALT-08** 红点 MUST 现算 `count(*) where status='OPEN'`，不缓存。
+- **R-ALT-09** 指标回落只把该规则下"这次不再超标"的 OPEN 改 RESOLVED；
+  **ACKED 永远不动**（人处理过的不能自己变回未处理，也不能来回跳）。
+- **R-ALT-10** 同一对象当天已有 OPEN 时 MUST 只更新 `metric / title / detail / last_seen`（`first_seen` 不动）；
+  已有 ACKED/RESOLVED 时 MUST NOT 再插新行（撞 dedup_key → 静默跳过）。
+- **R-ALT-11** `reopen`（ACKED → OPEN）MUST 清空 `acked_by/acked_note/acked_at`。
+
+### 30.4 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/admin/alerts?status=OPEN\|ALL&page=&size=` | 列表（默认 OPEN），带 `unread/openTotal/mutes` |
+| GET | `/api/admin/alerts/unread` | 未处理数 |
+| GET | `/api/admin/alerts/stream?token=` | SSE，只推 `{unread}`；建连先推一次 |
+| POST | `/api/admin/alerts/{id}/ack` | 已处理 `{note?}` |
+| POST | `/api/admin/alerts/{id}/reopen` | 撤回 |
+| POST | `/api/admin/alerts/mute` | 静音 `{ruleKey, until}`（epoch 毫秒，最多 30 天） |
+| POST | `/api/admin/alerts/mute/{ruleKey}/off` | 解除静音 |
+| GET | `/api/admin/alerts/mutes` | 生效中的静音 |
+| POST | `/api/admin/alerts/scan` | 手动扫描（验证/补扫） |
+
+- **R-ALT-12** 权限：**读**挂 `analytics:read`、**写**（ack/reopen/mute/scan）挂 `report:resolve`。
+  原因：既有 RBAC 矩阵里 VIEWER 也有 `analytics:read`（只读角色能看所有列表），
+  写操作若也挂它，只读角色就能把告警标记成已处理。
+- **R-ALT-13** 告警的「标记已处理」MUST NOT 写 `sy_audit_log`（处理记录页只放内容处置动作）；
+  `acked_by/acked_at/acked_note` 本身就是留痕。
+- **R-ALT-14** SSE 的令牌 MUST 只能通过 `?token=` 传（EventSource 不能设请求头），
+  且 `AdminAuthFilter` 的例外 MUST **精确到** `/api/admin/alerts/stream` 一条：
+  其它 `/api/admin/**` 带 `?token=` 必须仍然 401。
+
+### 30.5 前端
+
+- **R-ALT-15** 顶栏 MUST 有铃铛 + 未处理数（>99 显示 99+），点击进 `/admin/alerts`；
+  没有 `analytics:read` 的角色不渲染铃铛、也不建 SSE。
+- **R-ALT-16** 未读数 MUST 三路并用：进台拉一次 → SSE 事件即时更新 → 60 秒轮询兜底。
+  处理动作之后重新拉，不做本地 +/-1。
+- **R-ALT-17** 本次会话第一次看到 unread>0 MUST 只弹一次 toast（`sessionStorage` 记标记）。
+- **R-ALT-18** 退出登录 / 401 / 回登录页 MUST 断 SSE + 停轮询 + 清零红点。
+- **R-ALT-19** 告警列表 MUST 有两个视角（未处理 / 全部）、三个动作（已处理含备注 / 撤回 / 去看）；
+  「去看」按 `targetType` 复用**已有**组件：USER → 用户违规浮窗，POST/COMMENT → 内容抽屉，
+  REPORT_BACKLOG → 举报页，DAU_MISSING → 报表页。
+- **R-ALT-20** 部署说明：nginx MUST 关 SSE 缓冲（`proxy_buffering off; add_header X-Accel-Buffering no;`）。
+
+### 30.6 测试
+
+- `AlertServiceTest`（13 条，真 H2 + mock SSE）：阈值边界（=不报 / >报）、25 小时窗口外不算、
+  IGNORED/REJECTED 不算、帖子与评论都能聚合到作者、按人累加（单条不超标合计超标要报）、
+  同对象两次扫描只一条、不同对象各一条、已处理当天不再重复且不翻回、次日换键可再报、
+  回落→RESOLVED、ACKED 保持、撤回与冲突、静音期间不产生/解除后恢复、静音参数校验、
+  积压阈值与等待时长、DAU 缺失 CRIT、未读数与 SSE 推送。
+- `AdminAuthFilterTest`（+3 条）：`/alerts/stream?token=` 放行、其它 `/api/admin/**` 带 `?token=` 仍 401、
+  SSE 带坏令牌 401。
+- 界面自检 `server/scripts/selftest_vue_alerts.mjs`（8 项）：扫描 → 红点 → 告警页 → 已处理 →
+  红点归零 → 同对象不重复 → 另一对象照常触发 → 静音后不产生 → 全部视图可见已处理。
+
+---
+
+## 31. 参数管理（第一批 10 项）（2026-11-19 追加）
+
+> 设计方案《参数管理-设计方案》；分支 `feature-admin-config`。
+> 一句话：**把「启动时读死」的配置改成「每次用到时现读」，后台改了立刻生效，不用重启。**
+
+### 31.1 为什么能热更（机制）
+
+```text
+业务代码 ──> ConfigService.getInt(KEY)
+                 ├─ ① 内存 Map（命中即返回）
+                 ├─ ② sy_config 表（缓存没有才查）
+                 └─ ③ ConfigKey 枚举的默认值（= 改造前的原值）
+```
+
+**Spring 单例冻结的是「对象引用」，不是「对象内部读到的数据」**：所以不再把值存进
+`@Value` 字段，而是每次调用 `ConfigService` 去读（它的字段是 JdbcTemplate + 缓存 Map，引用不变、值可变）。
+
+判断某个配置能不能热更，只看一件事：**这个值是不是每次请求/计算时才被用到**。
+
+| 用到的时机 | 能否热更 | 本期处理 |
+|---|---|---|
+| 每次请求 / 每次计算 | 能 | 改成现读，立即生效 |
+| 构造 bean 时一次（如 `LlmClient` 的 base-url + 已 build 的 HttpClient） | 不能 | 不搬，或搬了标「需重启」 |
+| 启动时一次（数据源 / Redis / 端口 / JWT 密钥） | 不能 | 永远不进后台 |
+
+### 31.2 表（`schema-config.sql`，新文件）
+
+| 表 | 关键列 | 说明 |
+|---|---|---|
+| `sy_config` | `k(主键) / v / type / updated_by / updated_at` | **只存被改过的值**；没有行 = 用默认值 |
+| `sy_config_log` | `k / old_v / new_v / operator / created_at` | 修改历史，可回滚 |
+
+### 31.3 白名单：`ConfigKey` 枚举
+
+后台**不能**写任意 key —— 只有枚举里声明的 10 项可改，键名/类型/范围/默认值/生效方式全在枚举里：
+
+| # | 键 | 类型 | 默认 | 生效 |
+|---|---|---|---|---|
+| 1 | `alert.report.threshold` | INT | 3 | 下次扫描 |
+| 2 | `alert.backlog.threshold` | INT | 10 | 下次扫描 |
+| 3 | `video.audit.console-enabled` | BOOL | true | 立即 |
+| 4 | `ai.tiers.basic.enabled` | BOOL | false | 立即 |
+| 5 | `ai.tiers.basic.base-url` | STRING | `http://127.0.0.1:11434/v1` | 立即 |
+| 6 | `ai.daily-limit` | INT | 5 | 立即 |
+| 7 | `billing.service-fee-cents` | INT | 30 | 立即 |
+| 8 | `billing.welcome-grant-cents` | INT | 100 | 立即 |
+| 9 | `tag.max-per-post` | INT | 5 | 立即 |
+| 10 | `tag.max-new-per-day` | INT | 10 | 立即 |
+
+> 默认值必须等于改造前的原值（yml 里的值 / 代码里的常量）。这是「不启动也零行为变化」的前提，
+> 有单测 `库里没有行时_10项默认值与改造前逐位一致` 守着，谁想顺手改 30 就会红。
+
+### 31.4 写流程
+
+```text
+① 校验（类型 / 范围 / 格式）—— 不合法抛 INVALID_PARAM，库里一个字节都不动
+② 新值等于默认值？ 是 -> 删掉那一行（恢复出厂），记一条历史
+                  否 -> update；影响 0 行则 insert
+③ 失效缓存
+④ 记 sy_config_log(k, old_v, new_v, operator)
+```
+
+第 ② 步的「改回默认值就删行」是为了让三件事同时成立：
+来源显示回「默认值」、「N 项已改过」的计数准确、「删掉库里的行就回默认」这句话自洽。
+
+### 31.5 接口与权限
+
+| 方法 | 路径 | 权限 |
+|---|---|---|
+| GET | `/api/admin/config` | `ADMIN_MANAGE` |
+| POST | `/api/admin/config` | `ADMIN_MANAGE` |
+| GET | `/api/admin/config/log` | `ADMIN_MANAGE` |
+| POST | `/api/admin/config/rollback` | `ADMIN_MANAGE` |
+
+**只有超管**：这些参数直接影响钱（服务费、赠送）与功能开关（复核台、基础版），
+OPS / MOD / VIEWER 一律 403，菜单也看不到。
+
+### 31.6 改造了哪 6 处
+
+| 文件 | 原来 | 现在 |
+|---|---|---|
+| `AlertService` | `AlertRule.REPORT_THRESHOLD` / `BACKLOG_THRESHOLD` 常量 | `cfg.getInt(...)`（每轮扫描开始读一次） |
+| `AdminVideoAuditService` | `@Value` 字段 `consoleEnabled` | `consoleEnabled()` 方法内现读 |
+| `AiTier` | 构造器存 `basicEnabled` / `basicBaseUrl` | 两个方法内现读（model / key 仍留在 yml） |
+| `AiUsageGuard` | `static final DAILY_LIMIT = 5` | 每次 `tryAcquire` 现读后传给 Lua |
+| `WalletService` | 4 个 `@Value` 字段 | 服务费 / 赠送改成现读方法（单价与预扣估算属第二批） |
+| `TagService` | `MAX_PER_POST` / `MAX_NEW_PER_DAY` 常量 | 现读；**报错文案里的数字也跟着变** |
+
+### 31.7 不搬的东西（有意为之）
+
+```text
+x 密钥：SIYIGE_JWT_SECRET / billing.pay-secret / llm.api-key / ai-tier.basic.api-key
+x 基础设施：数据源 / Redis / 端口 / schema-locations / 日志级别
+x 构造期固化：llm.base-url / llm.model（要热更就得每次重建 HttpClient，不值）
+x 词表类：社区敏感词、视频审核词（数据形态是一串词，以后单独做词表管理）
+x 技术性上限：分页 SIZE_MAX / 密码最大长度 / 报表最大跨度（配错会打挂，不开放）
+```
+
+### 31.8 验收（机器化的部分）
+
+```text
+单测 ConfigServiceTest
+  默认值逐位一致 / 读顺序 / 坏值被拒且库不变 / 历史 / 回滚 / 改回默认值删行
+  本来就是默认值再存一次默认值 -> 不写行、不记历史
+回归单测
+  TagServiceTest：上限 2 时 3 个标签被拒、2 个通过（文案带 2）
+  AiTierConfigTest / WalletServiceConfigTest / AiUsageGuardTest
+界面自检 server/scripts/selftest_vue_config.mjs（12 项）
+  改上限 -> 不重启 -> 被拒 -> 改回 -> 通过 -> 坏值被拒 -> 非超管 403 -> 来源徽标正确
+```
+
+### 31.9 多实例的升级路径
+
+现在是单实例：写操作 `cache.remove(key)` 立刻生效，另有 30 秒 TTL 兜底。
+多实例时 A 机改库、B 机缓存仍是旧值，要么接受最长 30 秒延迟，要么上 Redis pub/sub 广播失效（接口不用改）。
