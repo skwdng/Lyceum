@@ -46,9 +46,8 @@ siyige:
     turn-seconds: 300         # 每个发言环节的时长（秒），300 = 5 分钟
     ai-think-ms: 700
     ai-delay-scale: 1.0       # AI 回应间隔 10-15 秒，不随 time-scale 压缩         # AI 回合的“思考”下限（会被 time-scale 缩放）
-  audit:
-    # 关闭时走纯规则审核；打开需要配 llm
-    llm-enabled: false
+  # 注：原来的 siyige.audit.llm-enabled 已删除 —— 全项目没有任何代码读它（死配置，2026-11-23 全仓 grep 确认），
+  # 机器初审一直是纯规则审核（MachineAuditService），要接模型应改那里，而不是靠这个开关。
   # 充值计费
   ai-tier:
     tiers:

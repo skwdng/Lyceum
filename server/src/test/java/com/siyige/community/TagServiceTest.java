@@ -89,6 +89,39 @@ class TagServiceTest {
         assertEquals("人工 智能", service.normalize("人工   智能").name(), "连续空格合成一个");
     }
 
+    // ==================== 标签名长度来自后台参数（参数管理第三批） ====================
+
+    @Test
+    void 后台把上限改成4_5个码点被拒_文案写1到4_改回12通过() {
+        cfg.set(ConfigKey.TAG_NAME_MAX_CP, "4", "admin");
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.normalize("一二三四五"));
+        assertTrue(e.getMessage().startsWith("TAG_INVALID"), e.getMessage());
+        assertTrue(e.getMessage().contains("1-4"), "文案要用当前区间：" + e.getMessage());
+        assertEquals("一二三四", service.normalize("一二三四").name());
+
+        cfg.set(ConfigKey.TAG_NAME_MAX_CP, "12", "admin");
+        assertDoesNotThrow(() -> service.normalize("一二三四五"), "改回 12 之后同样这个标签就该通过");
+    }
+
+    @Test
+    void 后台把下限改成3_2个码点被拒_文案也写当前区间() {
+        cfg.set(ConfigKey.TAG_NAME_MIN_CP, "3", "admin");
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> service.normalize("一二"));
+        assertTrue(e.getMessage().contains("3-12"), e.getMessage());
+        assertEquals("一二三", service.normalize("一二三").name());
+    }
+
+    @Test
+    void 上限改成1时_一个emoji算一个字符_两个才被拒() {
+        cfg.set(ConfigKey.TAG_NAME_MIN_CP, "1", "admin");
+        cfg.set(ConfigKey.TAG_NAME_MAX_CP, "1", "admin");
+        // 😀 是 1 个码点、2 个 char；按 length() 会误判成 2 而拒掉
+        assertEquals("😀", service.normalize("😀").name());
+        assertThrows(IllegalArgumentException.class, () -> service.normalize("😀😀"));
+    }
+
     @Test
     void 长度按码点算_1到12() {
         assertEquals(12, service.normalize("一二三四五六七八九十一二").name().codePointCount(0, 12));

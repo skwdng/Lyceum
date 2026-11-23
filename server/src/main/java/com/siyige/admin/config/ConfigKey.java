@@ -37,6 +37,18 @@ public enum ConfigKey {
     VIDEO_AUDIT_CONSOLE("video.audit.console-enabled", Type.BOOL, "true", Group.AUDIT,
             "视频复核台开关", "关掉后管理端不能再人工过审（视频侧的开关是另一个，不在这里）", null, null, Effect.NOW),
 
+    VIDEO_TITLE_MIN("video.audit.title-min", Type.INT, "4", Group.AUDIT,
+            "视频标题最短字数", "低于这个长度直接驳回（下一次审核生效）", 1, 30, Effect.NOW),
+
+    VIDEO_TITLE_MAX("video.audit.title-max", Type.INT, "60", Group.AUDIT,
+            "视频标题最长字数", "超过这个长度直接驳回；与最短字数配反了会按 4/60 兜底", 1, 200, Effect.NOW),
+
+    VIDEO_ALLOW_LOCAL_UPLOAD("video.audit.allow-local-upload", Type.BOOL, "true", Group.AUDIT,
+            "允许本地上传", "关掉后只接受外链（http/https）", null, null, Effect.NOW),
+
+    VIDEO_PASS_REQUIRES_REVIEW("video.audit.pass-requires-review", Type.BOOL, "true", Group.AUDIT,
+            "机器通过后还要人工复核", "关掉后机器过了就直接上线", null, null, Effect.NOW),
+
     // ==================== AI ====================
 
     AI_TIER_BASIC_ENABLED("ai.tiers.basic.enabled", Type.BOOL, "false", Group.AI,
@@ -51,6 +63,9 @@ public enum ConfigKey {
                     ? null : "地址要以 http:// 或 https:// 开头";
         }
     },
+
+    AI_TIER_BASIC_MODEL("ai.tiers.basic.model", Type.STRING, "qwen2.5:7b", Group.AI,
+            "基础版模型名", "本地 ollama 的模型标识，例如 qwen2.5:7b", null, null, Effect.NOW),
 
     AI_DAILY_LIMIT("ai.daily-limit", Type.INT, "5", Group.AI,
             "社区 @AI 每日次数", "每人每天最多问几次（0 = 一次都不给）", 0, 100, Effect.NOW),
@@ -93,7 +108,13 @@ public enum ConfigKey {
             "每帖最多标签数", "发帖/改帖时校验，超了直接拒（TAG_LIMIT）", 1, 20, Effect.NOW),
 
     TAG_MAX_NEW_PER_DAY("tag.max-new-per-day", Type.INT, "10", Group.COMMUNITY,
-            "每人每天最多新建标签数", "0 = 只允许用已有标签", 0, 100, Effect.NOW);
+            "每人每天最多新建标签数", "0 = 只允许用已有标签", 0, 100, Effect.NOW),
+
+    TAG_NAME_MIN_CP("tag.name-min-cp", Type.INT, "1", Group.COMMUNITY,
+            "标签名最短字符数", "按码点算，不是按 length", 1, 12, Effect.NOW),
+
+    TAG_NAME_MAX_CP("tag.name-max-cp", Type.INT, "12", Group.COMMUNITY,
+            "标签名最长字符数", "按码点算；上限 24（数据库列宽 varchar(24)）", 1, 24, Effect.NOW);
 
     /** 参数类型（决定校验与前端控件）。DOUBLE 是第二批加的（pace.time-scale 这类小数）。 */
     public enum Type { BOOL, INT, DOUBLE, STRING }

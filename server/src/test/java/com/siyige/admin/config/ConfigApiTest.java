@@ -75,7 +75,7 @@ class ConfigApiTest {
     @DisplayName("列表：10 项、带分组/来源/生效时机，库是空的时候来源全是默认值")
     void 列表形状() throws Exception {
         String json = getJson("/api/admin/config");
-        assertTrue(json.contains("\"total\":17"), "第一批 10 + 第二批 7：" + json.substring(0, Math.min(200, json.length())));
+        assertTrue(json.contains("\"total\":24"), "10 + 7 + 7 = 24：" + json.substring(0, Math.min(200, json.length())));
         assertTrue(json.contains("\"source\":\"DEFAULT\""));
         assertTrue(json.contains("\"sourceLabel\":\"默认值\""));
         assertTrue(json.contains("\"effectLabel\":\"下次扫描生效\""));

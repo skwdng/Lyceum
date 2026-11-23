@@ -329,6 +329,29 @@ class ConfigServiceTest {
         assertEquals(0.05, cfg.getDouble(ConfigKey.PACE_TIME_SCALE), 1e-9);
     }
 
+    // ==================== 第三批：7 项默认值 ====================
+
+    @Test
+    void 第三批7项默认值与线上行为一致() {
+        // 4 / 60 / true / true / qwen2.5:7b / 1 / 12
+        assertEquals(4, cfg.getInt(ConfigKey.VIDEO_TITLE_MIN));
+        assertEquals(60, cfg.getInt(ConfigKey.VIDEO_TITLE_MAX));
+        assertTrue(cfg.getBool(ConfigKey.VIDEO_ALLOW_LOCAL_UPLOAD));
+        assertTrue(cfg.getBool(ConfigKey.VIDEO_PASS_REQUIRES_REVIEW));
+        assertEquals("qwen2.5:7b", cfg.getStr(ConfigKey.AI_TIER_BASIC_MODEL));
+        assertEquals(1, cfg.getInt(ConfigKey.TAG_NAME_MIN_CP));
+        assertEquals(12, cfg.getInt(ConfigKey.TAG_NAME_MAX_CP));
+        assertEquals(0, rows(ConfigKey.VIDEO_TITLE_MIN.key()), "默认值不落库");
+        assertEquals(24, ConfigKey.values().length, "两批 17 + 第三批 7 = 24 项");
+    }
+
+    @Test
+    void 词表不进参数表() {
+        // 词表是一整串词、改一个要改整串还要重启解析，留给以后的「词表管理」页
+        assertThrows(IllegalArgumentException.class, () -> ConfigKey.of("video.audit.reject-words"));
+        assertThrows(IllegalArgumentException.class, () -> ConfigKey.of("video.audit.review-words"));
+    }
+
     // ==================== 缓存 ====================
 
     @Test
