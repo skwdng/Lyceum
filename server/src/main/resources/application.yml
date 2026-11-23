@@ -64,13 +64,12 @@ siyige:
     pay-secret: dev-secret-change-me   # 回调签名密钥，上线必须换
   video:
     audit:
-      # 机器初审通过后是否仍进人工队列（true=更严；false=机器过了就直接上线）
-      pass-requires-review: ${SIYIGE_VIDEO_PASS_REVIEW:true}
+      # ⚠️ 原来这里还有 pass-requires-review / title-min / title-max / allow-local-upload 四个键，
+      # 自 2026-11-23 参数管理第三批起**已搬进后台参数**（管理台「系统 → 参数管理」→「审核」组），
+      # 因此从 yml 删除 —— 留在这里会变成"改了不生效"的第二个真相。
+      # 词表仍然只在这里（参数表不收词表：改一个词要改整串、还要重启解析）
       reject-words: 涉政敏感,色情,赌博,毒品,代考,枪,炸弹
       review-words: 打架,骂战,人身攻击,盗版,搬运,洗稿
-      title-min: 4
-      title-max: 60
-      allow-local-upload: true
       # 人工审核台：等管理端（admin）接入后再打开，避免任何登录用户给自己过审
       console-enabled: true
   llm:

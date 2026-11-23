@@ -62,9 +62,10 @@ await check('1 超管登录（admin/admin123）', async () => {
 });
 
 // ==================== 2. 列表：17 项 + 新增 7 项默认值 ====================
-await check('2 列表 17 项、出现「对局」分组、7 项默认值与线上一致', async () => {
+await check('2 列表至少 17 项、出现「对局」分组、7 项默认值与线上一致', async () => {
   const body = await list(adminTok);
-  need(body.total === 17, '应该是 17 项（第一批 10 + 第二批 7），实际 ' + body.total);
+  // 第二批是 17 项；后面批次还会往上加，所以这里断言「不少于」而不是写死
+  need(body.total >= 17, '第二批之后应不少于 17 项，实际 ' + body.total);
   need((body.groups || []).indexOf('对局') >= 0, '新分组「对局」没出现：' + JSON.stringify(body.groups));
   const expect = {
     [K.cents]: '3', [K.est]: '9000', [K.scale]: '0.05', [K.turn]: '300',
@@ -81,7 +82,7 @@ await check('2 列表 17 项、出现「对局」分组、7 项默认值与线�
   const scale = itemOf(body, K.scale);
   need(scale.type === 'DOUBLE', 'pace.time-scale 类型应为 DOUBLE，实际 ' + scale.type);
   need(Number(scale.min) === 0.05 && Number(scale.max) === 3, 'time-scale 范围应为 0.05-3：' + scale.min + '-' + scale.max);
-  return '17 项 · ' + body.groups.join('/');
+  return body.total + ' 项 · ' + body.groups.join('/');
 });
 
 // ==================== 3. 改成 60（不重启） ====================
@@ -233,9 +234,9 @@ try {
   await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#/admin/config' });
   await sleep(1600);
 
-  await check('10 参数页 17 行、出现「对局」分组、DOUBLE 是小数输入框', async () => {
+  await check('10 参数页有「对局」分组、DOUBLE 是小数输入框、来源=数据库', async () => {
     await waitFor('!!document.querySelector(\'[data-panel="config"]\')', '参数页');
-    await waitFor('document.querySelectorAll(\'[data-cfg-key]\').length === 17', '17 行参数');
+    await waitFor('document.querySelectorAll(\'[data-cfg-key]\').length >= 17', '参数行');
     const groups = await ev('Array.prototype.map.call(document.querySelectorAll(".cfg-group"), function(s){return s.getAttribute("data-group");})');
     need(groups.indexOf('对局') >= 0, '页面没有「对局」分组：' + JSON.stringify(groups));
 
@@ -248,7 +249,7 @@ try {
     need(st.step === '0.05', 'DOUBLE 的 step 应为 0.05，实际 ' + st.step);
     need(st.value === '0.2', '页面上的值应为刚设的 0.2，实际 ' + st.value);
     need(st.src === '数据库', '来源应显示「数据库」，实际「' + st.src + '」');
-    return '17 行 · 分组含对局 · DOUBLE step=0.05 · 来源=数据库';
+    return '分组含对局 · DOUBLE step=0.05 · 来源=数据库';
   });
 
   await check('11 页面里把 pace.turn-seconds 改成 60 并保存 -> 来源变数据库', async () => {
