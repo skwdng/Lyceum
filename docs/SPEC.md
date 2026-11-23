@@ -1974,6 +1974,10 @@ ConfigKey.Type 加 DOUBLE；ConfigService 加 getDouble(ConfigKey)（解析失�
    留给以后的「词表管理」页；MachineAuditService 里这两个 List 的构造方式保持不动
 ```
 
+另外：搬走之后 yml 里 `siyige.video.audit` 下的 `pass-requires-review` / `title-min` /
+`title-max` / `allow-local-upload` 四个键**已无读者**（`@Value` 全部移除），一并删除并留注释
+指向参数页 —— 否则就是"改了不生效"的第二个真相。词表仍只在 yml 里。
+
 ### 33.4 验收（机器化的部分）
 
 ```text
