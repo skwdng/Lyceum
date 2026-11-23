@@ -210,7 +210,7 @@ curl -N "localhost:8080/api/admin/alerts/stream?token=$TOKEN"
 - 线上 nginx 要关 SSE 缓冲：`proxy_buffering off;` + `add_header X-Accel-Buffering no;`。
 - 细节见 `docs/管理接口契约.md` §13 与 `docs/SPEC.md` §30。
 
-## 后台参数（2026-11-18 第一批 10 项 / 2026-11-20 第二批 7 项，共 17 项）
+## 后台参数（2026-11-18 第一批 10 / 2026-11-20 第二批 7 / 2026-11-23 第三批 7，共 24 项）
 
 把 10 个"启动时定死"的配置改成**后台可改、不用重启**。管理台「系统 → 参数管理」（仅超管）。
 
@@ -247,6 +247,13 @@ curl -s -XPOST localhost:8080/api/admin/config/rollback -H "Authorization: Beare
 | `pace.ai-think-ms` | **700** | `MatchService.aiThinkMs()` | 下一次 AI 回合 |
 | `pace.ai-delay-scale` | 1.0 | `MatchService.aiDelayScale()` | 下一次 AI 回合 |
 | `ai.speech-enabled` | true | `AiService.llmEnabled()` | 立即 |
+| `video.audit.title-min` | 4 | `MachineAuditService.check` | 下一次审核 |
+| `video.audit.title-max` | 60 | 同上 | 下一次审核 |
+| `video.audit.allow-local-upload` | true | 同上（关掉只收 http/https） | 下一次上传 |
+| `video.audit.pass-requires-review` | true | 同上（关掉机器 PASS 直接上线） | 下一次审核 |
+| `ai.tiers.basic.model` | qwen2.5:7b | `AiTier.profileOf` / `describe` | 立即 |
+| `tag.name-min-cp` | 1 | `TagService.normalize`（按码点） | 立即 |
+| `tag.name-max-cp` | 12 | 同上（上限 24 = 数据库列宽） | 立即 |
 
 - **库里没有行 = 用枚举默认值**，而默认值就是改造前的 yml / 常量值 —— 所以行为零变化，
   可以逐项灰度；出问题删掉 `sy_config` 那一行、重启即回到原值（参数页也能一键回滚）。
@@ -256,8 +263,9 @@ curl -s -XPOST localhost:8080/api/admin/config/rollback -H "Authorization: Beare
 - 审计写自己的 `sy_config_log`（参数页历史里看），**不写** `sy_audit_log`。
 - 本期**不改**任何密钥与基础设施（JWT / 支付 / LLM Key / 数据源 / Redis / 端口），
   也不碰"构造 bean 时读一次"的东西（那种改了对运行中的进程没用）。
-- 自检：`node scripts/selftest_vue_config.mjs 9482 http://localhost:8080`（第一批 12 项）、
-  `node scripts/selftest_vue_config2.mjs 9482 http://localhost:8080`（第二批 13 项，见 §冒烟测试）。
+- 自检：`selftest_vue_config.mjs`（第一批 12 项）、`selftest_vue_config2.mjs`（第二批 13 项）、
+  `selftest_vue_config3.mjs`（第三批 12 项），用法见 §冒烟测试。
+- 成对参数会配反：`video.audit.title-min` > `title-max` 时按默认 4/60 兜底并打 WARN（不会把标题全拒）。
 - 两处容易踩的坑：`pace.ai-think-ms` 的默认值必须是 **700**（yml 的值；代码里旧 `@Value` 写的是 1800，
   那不是线上行为）；`pace.turn-seconds` 只用于「用户指定时长是否等于默认值」的判断，不是每步时长本身
   （每步时长来自 `Pace.secondsFor` 的赛制表）。
@@ -293,6 +301,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1
 ```bash
 node scripts/selftest_vue_config.mjs  9482 http://localhost:8080   # 参数管理第一批 12 项
 node scripts/selftest_vue_config2.mjs 9482 http://localhost:8080   # 第二批 13 项（DOUBLE / 边界 / 改回默认值删行）
+node scripts/selftest_vue_config3.mjs 9482 http://localhost:8080   # 第三批 12 项（视频审核 4 / 模型名 / 标签长度）
 ```
 
 它**不会重启后端**：改 `tag.max-per-post` 为 2 → 发带 3 个标签的帖子被拒 → 改回 5 → 同样请求通过

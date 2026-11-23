@@ -1931,3 +1931,71 @@ ConfigKey.Type 加 DOUBLE；ConfigService 加 getDouble(ConfigKey)（解析失�
 `WalletService` 的 4 个 `@Value` 到这一批**全部搬完**（服务费 / 赠送 / 单价 / 预估 token）。
 `MatchService` 的 4 个节奏参数全部搬完；`AiService` 的语音开关搬完。
 仍未搬（有意为之）：`llm.base-url` / `llm.model` / 密钥 / 基础设施（见 §31.7）。
+---
+
+## 33. 参数管理（第三批 7 项）（2026-11-23 追加）
+
+> 执行提示词《参数管理第三批》。同分支 `feature-admin-config`，沿用同一套
+> `ConfigService` / `ConfigKey` / `sy_config` —— 只加键，表、接口、前端控件都不用动。
+
+### 33.1 本期 7 项
+
+| # | 键 | 类型 | 默认 | 现在读它的地方 | 生效 |
+|---|---|---|---|---|---|
+| 1 | `video.audit.title-min` | INT | 4 | `MachineAuditService.check` | 下一次审核 |
+| 2 | `video.audit.title-max` | INT | 60 | 同上 | 下一次审核 |
+| 3 | `video.audit.allow-local-upload` | BOOL | true | 同上（只放行 `/uploads/`） | 下一次上传 |
+| 4 | `video.audit.pass-requires-review` | BOOL | true | 同上（机器 PASS 后是否转人工） | 下一次审核 |
+| 5 | `ai.tiers.basic.model` | STRING | qwen2.5:7b | `AiTier.profileOf` / `describe` | 立即 |
+| 6 | `tag.name-min-cp` | INT | 1 | `TagService.normalize`（按码点） | 立即 |
+| 7 | `tag.name-max-cp` | INT | 12 | 同上；上限 24 = `sy_tag.name varchar(24)` | 立即 |
+
+搬完总数 24（2 告警 / 5 审核 / 5 AI / 4 计费 / 4 对局 / 4 社区）。
+
+### 33.2 成对参数的组合校验（min > max）
+
+```text
+两个键各自合法（min 1-30、max 1-200），但组合起来可以是 25 > 10 —— 单键校验拦不住。
+那样所有标题都会被拒，等于把上传入口整个关掉。
+→ MachineAuditService.titleBounds()：读的时候发现 min > max 就回落 4/60 并打 WARN；
+  check() 与 rules() 都用它，页面显示的也是真正生效的区间。
+```
+
+### 33.3 三件特意没做的事
+
+```text
+① siyige.audit.llm-enabled（yml）—— 死配置，全仓 grep 确认无人读，本批**删掉并留注释**；
+   不进参数表（后台改一个没人读的开关只会骗人）
+② VideoController 里那份 console-enabled 的 @Value —— **一个字没动**：
+   /api/video/* 的 4 个复核接口在 requireConsole() 里先要管理员身份，而它们只挂用户侧 JwtAuthFilter，
+   AdminContext 必然为空 = 对谁都是 403，是死代码；审核台已经搬到 /api/admin/video-audit/**，
+   本批不顺手改，避免扩大范围
+③ 词表（reject-words / review-words）—— 不进参数表：一整串词、改一个要改整串还要重启解析，
+   留给以后的「词表管理」页；MachineAuditService 里这两个 List 的构造方式保持不动
+```
+
+### 33.4 验收（机器化的部分）
+
+```text
+单测 ConfigServiceTest（+2）：第三批 7 项默认值 4/60/true/true/qwen2.5:7b/1/12 + 词表键不在枚举里
+单测 MachineAuditConfigTest（新，7 条）：
+  title-max=10 -> 11 字被驳回（文案带 10）；改回 60 -> 放行
+  title-min=8 -> 7 字被驳回（文案带 8）；正好 8 字放行
+  min>max（25/10）-> 回退 4/60 + WARN（用 logback ListAppender 断言日志原文）+ rules() 也是 4/60
+  allow-local-upload=false -> /uploads/ 被拒、外链仍可
+  pass-requires-review=false -> 机器 PASS 就是 PASS
+  词表仍在构造期解析（命中违禁词仍 REJECT），且 reject-words / review-words 不在枚举里
+单测 AiTierConfigTest（+1）：model 改 llama3 -> profileOf 与 describe 都是新值（Key 仍留构造器）
+单测 TagServiceTest（+3）：上限 4 -> 5 码点被拒（文案写 1-4）；下限 3 -> 2 码点被拒；
+  上限 1 时一个 emoji 算 1 个码点、两个才被拒
+界面自检 server/scripts/selftest_vue_config3.mjs（12 项）
+```
+
+### 33.5 已知遗留
+
+```text
+社区/管理台前端的标签输入框仍写死 maxlength="12"（PostEditorModal.vue / TagsView.vue ×2），
+后台把 tag.name-max-cp 改成别的值后，输入框会先按 12 截断 —— 属社区前端，本批未动，
+下次改标签 UI 时一并改成读接口返回的上限。
+```
+
