@@ -153,7 +153,7 @@ public class ApiController {
         out.put("matchId", id);
         out.put("topicId", topicId);
         out.put("seats", seats);
-        out.put("turnSeconds", turnSec > 0 ? turnSec : 300);
+        out.put("turnSeconds", turnSec > 0 ? turnSec : matches.defaultTurnSeconds());
         return out;
     }
 

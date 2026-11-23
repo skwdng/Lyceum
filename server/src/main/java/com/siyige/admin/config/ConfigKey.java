@@ -56,7 +56,7 @@ public enum ConfigKey {
             "社区 @AI 每日次数", "每人每天最多问几次（0 = 一次都不给）", 0, 100, Effect.NOW),
 
     AI_SPEECH_ENABLED("ai.speech-enabled", Type.BOOL, "true", Group.AI,
-            "AI 语音/模型通道开关", "关掉后 llmEnabled=false：AI 发言退回模板兜底（前端语音输入也用不了）",
+            "AI 是否用模型说话", "关掉后 llmEnabled=false：AI 发言全部退回模板，不调模型（没有对应前端开关，只影响服务端）",
             null, null, Effect.NOW),
 
     // ==================== 计费 ====================

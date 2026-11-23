@@ -78,8 +78,8 @@ siyige:
     base-url: https://api.deepseek.com/v1
     api-key: ""
     model: deepseek-chat
-  hot:
-    decay-per-10min: 0.5
+  # 注：原来的 siyige.hot.decay-per-10min 已删除 —— 全项目没有任何代码读它（死配置），
+  # 热度排行目前用 HotRank 的固定公式。等热度算法真的需要可调时，再按参数管理的方式登记。
 
 logging:
   level:

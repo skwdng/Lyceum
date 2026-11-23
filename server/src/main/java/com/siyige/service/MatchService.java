@@ -84,6 +84,9 @@ public class MatchService {
     /** 每步默认发言时长（秒）。用户显式指定且不等于它时才算"指定"。 */
     private int turnSeconds() { return cfg.getInt(ConfigKey.PACE_TURN_SECONDS); }
 
+    /** 当前配置的「每步发言时长」默认值：给接口回显用，避免各处再写死 300。 */
+    public int defaultTurnSeconds() { return turnSeconds(); }
+
     /** AI 回应间隔倍率（**不**跟 timeScale 压缩）。 */
     private double aiDelayScale() { return cfg.getDouble(ConfigKey.PACE_AI_DELAY_SCALE); }
 
