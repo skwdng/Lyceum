@@ -191,8 +191,8 @@ export const debateApi = {
   aiTiers: () => http.get('/api/ai-tiers'),
   createMatch: (payload) => http.post('/api/matches', payload),
   match: (matchId) => http.get('/api/matches/' + matchId),
-  submitTurn: (matchId, content) =>
-    http.post('/api/matches/' + matchId + '/turns', { content, inputType: 'kb' }),
+  submitTurn: (matchId, content, inputType) =>
+    http.post('/api/matches/' + matchId + '/turns', { content, inputType: inputType || 'kb' }),
   keepalive: (matchId) => http.post('/api/matches/' + matchId + '/keepalive'),
   buzz: (matchId) => http.post('/api/matches/' + matchId + '/buzz'),
   skip: (matchId) => http.post('/api/matches/' + matchId + '/skip'),

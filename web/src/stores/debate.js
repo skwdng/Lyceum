@@ -689,14 +689,14 @@ export const useDebateStore = defineStore('debate', {
     },
 
     // ==================== 动作 ====================
-    async submitTurn(text) {
+    async submitTurn(text, inputType) {
       const body = String(text || '').trim();
       if (!body) {
         toast('说点什么再发');
         return false;
       }
       try {
-        await debateApi.submitTurn(this.matchId, body);
+        await debateApi.submitTurn(this.matchId, body, inputType || 'kb');
         await this.load(false);
         return true;
       } catch (e) {

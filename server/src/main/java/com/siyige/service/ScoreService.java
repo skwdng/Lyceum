@@ -39,7 +39,7 @@ public class ScoreService {
     private static final Pattern STANDARD = Pattern.compile("(标准|三条|两条|首先|第一|前提|口径)");
     private static final Pattern CAUSAL = Pattern.compile("(因为|所以|因此|由于|导致|从而|既然)");
     private static final Pattern CONCEDE = Pattern.compile("(虽然|但是|然而|即便|退一步|就算)");
-    private static final Pattern HYPOTHESIS = Pattern.compile("(如果|假如|倘若)");
+    private static final Pattern HYPOTHESIS = Pattern.compile("(如果|假如|倘若|否则|不然)");
     private static final Pattern OPPONENT = Pattern.compile("(对方|你方|反方|正方)");
     private static final Pattern QUESTION = Pattern.compile("[？?]|(请问|我请教|我想问|请你回答)");
     private static final Pattern FILLER = Pattern.compile("(然后|那个|就是说|其实吧|嗯|呃)");
@@ -49,6 +49,12 @@ public class ScoreService {
     private static final Pattern FLAW_ABSOLUTE = Pattern.compile("(所有|全部|一律|从来没有|绝对)");
     private static final Pattern FLAW_AUTHORITY = Pattern.compile("(专家说|权威|大家都|人人都)");
     private static final Pattern EXAMPLE = Pattern.compile("(例如|比如|举个例子|以.*为例|案例)");
+
+    /** 口号腔：只有态度和形容词，没有可核查内容。 */
+    private static final Pattern SLOGAN = Pattern.compile("(落后的|很落后|太落后|内卷|趋势|常识|显而易见|不需要讨论|不需要论证|必须警惕|大家都知道|谁反对|就是害人|就是资本|本身就不成立|怎么可能|本身就是问题|谁说不是)");
+
+    /** 精确化表达：判准 / 口径 / 可核查 / 复核 / 指标 —— 这些是"真辩论"的语言特征。 */
+    private static final Pattern PRECISION = Pattern.compile("(判准|口径|可核查|复核|指标|基线|门槛|可预期)");
 
     private final EvidenceService evidenceService;
 
@@ -147,6 +153,8 @@ public class ScoreService {
         double base = matter * 0.25 + method * 0.30 + manner * 0.15 + adapt * 0.20 + evidence * 0.10;
         int flawBonus = Math.min(9, flawHits * 3);
         int total = Math.min(100, (int) Math.round(base) + collab + flawBonus);
+        // 全场没有一句有效内容（全是敷衍/超时）→ 不该拿"基准分"，直接 0
+        if (okTurns == 0) total = 0;
 
         Map<String, Integer> flaws = detectFlaws(all, adapt, mine);
 
@@ -202,8 +210,11 @@ public class ScoreService {
         int v = 45;
         if (JUDGE.matcher(s).find()) v += 15;          // 有明确判断
         if (STANDARD.matcher(s).find()) v += 12;       // 有标准
+        if (PRECISION.matcher(s).find()) v += 8;       // 会把话说到可核查的层面
         if (chars >= 120) v += 8;                      // 有展开（不是靠长度堆分）
         if (chars > 900) v -= 5;                       // 太长反而扣：说不清
+        // 口号腔：态度很足但没有任何可核查内容 → 显著扣分
+        if (SLOGAN.matcher(s).find() && !EXAMPLE.matcher(s).find() && !s.contains("据")) v -= 14;
         return clamp(v);
     }
 
@@ -215,7 +226,9 @@ public class ScoreService {
         if (causal >= 3) v += 8;
         if (CONCEDE.matcher(s).find()) v += 10;        // 会让步转折 = 有对抗意识
         if (HYPOTHESIS.matcher(s).find()) v += 8;      // 会假设推演
+        if (PRECISION.matcher(s).find()) v += 6;       // 有口径意识
         if (chars < 80) v -= 8;
+        if (SLOGAN.matcher(s).find() && causal == 0) v -= 10;   // 光喊口号、没有因果链
         return clamp(v);
     }
 

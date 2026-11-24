@@ -229,12 +229,95 @@ watch(chatEl, (el) => {
   if (el) bindScrollGuards();
 });
 
+// ==================== 语音输入（R-VOICE-01~05）====================
+const REC_MAX_SEC = 90;
+const recOn = ref(false);
+const recSec = ref(0);
+const recErr = ref('');
+let recog = null;
+let recTimer = null;
+let usedVoice = false;
+
+const recSupported = computed(() => {
+  const SR = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  return !!SR;
+});
+
+function stopVoice() {
+  if (recTimer) { clearInterval(recTimer); recTimer = null; }
+  if (recog) { try { recog.stop(); } catch (e) { /* 忽略 */ } recog = null; }
+  recOn.value = false;
+}
+
+function startVoice() {
+  recErr.value = '';
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    recErr.value = '当前浏览器不支持语音识别，请用键盘输入（Chrome / Edge 支持）';
+    toast(recErr.value);
+    return;
+  }
+  if (!debate.waiting) return toast('还没轮到你发言');
+  try {
+    recog = new SR();
+  } catch (e) {
+    recErr.value = '语音初始化失败，请用键盘输入';
+    return;
+  }
+  recog.lang = 'zh-CN';
+  recog.continuous = true;
+  recog.interimResults = true;          // 实时转写（R-VOICE-02）
+
+  let base = draft.value;               // 已经写好的部分不覆盖
+  recog.onresult = (ev) => {
+    let finalText = '', interim = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      if (r.isFinal) finalText += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    if (finalText) base = (base ? base + (base.endsWith('。') ? '' : '。') : '') + finalText;
+    // 结果落到输入框且可编辑（R-VOICE-02）
+    draft.value = base + interim;
+    usedVoice = true;
+    saveDraft();
+    debate.keepalive();
+  };
+  recog.onerror = (ev) => {
+    const code = (ev && ev.error) || 'unknown';
+    recErr.value = code === 'not-allowed'
+      ? '麦克风被拒绝，请允许权限或改用键盘输入'
+      : '语音识别出错（' + code + '），可以继续用键盘输入';
+    stopVoice();
+  };
+  recog.onend = () => { stopVoice(); };
+
+  try {
+    recog.start();
+  } catch (e) {
+    recErr.value = '无法开始录音，请用键盘输入';
+    return;
+  }
+
+  recOn.value = true;
+  recSec.value = 0;
+  recTimer = setInterval(() => {
+    recSec.value += 1;
+    if (recSec.value >= REC_MAX_SEC) {   // 到上限自动停、保留文本（R-VOICE-04）
+      toast('已到 90 秒上限，文本已保留');
+      stopVoice();
+    }
+  }, 1000);
+}
+
+onBeforeUnmount(() => stopVoice());
+
 async function submit() {
   const text = draft.value;
   if (!String(text || '').trim()) return toast('说点什么再发');
   // 先发请求，成功才清空（失败时把用户打的字原样留着）
-  const ok = await debate.submitTurn(text);
-  if (ok) draft.value = '';
+  const ok = await debate.submitTurn(text, usedVoice ? 'voice' : 'kb');
+  if (ok) { draft.value = ''; usedVoice = false; }
   await nextTick();
   scrollBottom();
 }
@@ -506,7 +589,9 @@ const verdictOf = (t) => (t.typing ? '' : '');
                 <b>{{ h.k }}</b>{{ h.v }}
               </span>
             </div>
-            <textarea v-model="draft" placeholder="写下你的发言…" @input="onType"></textarea>
+            <div v-if="recOn" class="recbar">正在录音 {{ recSec }}s / 90s · 说完点「停止」，文本可编辑后再发送</div>
+            <div v-else-if="recErr" class="recbar err">{{ recErr }}</div>
+            <textarea v-model="draft" placeholder="写下你的发言…（也可以用语音）" @input="onType"></textarea>
             <div class="row" style="margin-top: 8px">
               <span style="font-size: 11.5px; color: #a8adb8">
                 {{ debate.extendUsed ? '已自动续命 ' + debate.extendUsed + ' 次' : '打字时会自动续时' }}
@@ -519,7 +604,13 @@ const verdictOf = (t) => (t.typing ? '' : '');
                 title="轮到你说，没法催"
               >催一下</button>
               <span style="flex: 1"></span>
-              <button class="btn sm primary" @click="submit">发送</button>
+              <button
+                class="btn sm ghost"
+                :disabled="!recSupported"
+                :title="recSupported ? '语音输入（最长 90 秒，可编辑后再发送）' : '当前浏览器不支持语音识别'"
+                @click="recOn ? stopVoice() : startVoice()"
+              >{{ recOn ? '● 录音 ' + recSec + 's' : '🎤 语音' }}</button>
+              <button class="btn sm primary" style="margin-left: 8px" @click="submit">发送</button>
             </div>
           </template>
           <div v-else class="waiting">
