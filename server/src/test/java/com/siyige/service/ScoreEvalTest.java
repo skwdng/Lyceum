@@ -175,7 +175,7 @@ class ScoreEvalTest {
             Path out = Path.of("target", "eval-report.md");
             Files.createDirectories(out.getParent());
             Files.writeString(out, "# 评分有效性评测（自动生成）\n\n" +
-                    "- 样本：" + n + " 条（8 题 × 4 档）\n" +
+                    "- 样本：" + n + " 条（" + (n / 4) + " 题 × 4 档）\n" +
                     "- 合法率：" + String.format("%.1f%%", legalRate * 100) + "\n" +
                     "- 完整率：" + String.format("%.1f%%", completeRate * 100) + "\n" +
                     "- 生成时间：" + java.time.LocalDateTime.now() + "\n");

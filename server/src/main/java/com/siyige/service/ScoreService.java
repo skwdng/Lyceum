@@ -51,7 +51,7 @@ public class ScoreService {
     private static final Pattern EXAMPLE = Pattern.compile("(例如|比如|举个例子|以.*为例|案例)");
 
     /** 口号腔：只有态度和形容词，没有可核查内容。 */
-    private static final Pattern SLOGAN = Pattern.compile("(落后的|很落后|太落后|内卷|趋势|常识|显而易见|不需要讨论|不需要论证|必须警惕|大家都知道|谁反对|就是害人|就是资本|本身就不成立|怎么可能|本身就是问题|谁说不是)");
+    private static final Pattern SLOGAN = Pattern.compile("(落后的|很落后|太落后|内卷|趋势|常识|显而易见|不需要讨论|不需要论证|必须警惕|大家都知道|谁反对|就是害人|就是资本|本身就不成立|怎么可能|本身就是问题|谁说不是|没什么好讨论|不用讨论|明摆着|天经地义|必须管|当然重要|革命的本钱|电子毒品|世风日下)");
 
     /** 精确化表达：判准 / 口径 / 可核查 / 复核 / 指标 —— 这些是"真辩论"的语言特征。 */
     private static final Pattern PRECISION = Pattern.compile("(判准|口径|可核查|复核|指标|基线|门槛|可预期)");
@@ -211,10 +211,14 @@ public class ScoreService {
         if (JUDGE.matcher(s).find()) v += 15;          // 有明确判断
         if (STANDARD.matcher(s).find()) v += 12;       // 有标准
         if (PRECISION.matcher(s).find()) v += 8;       // 会把话说到可核查的层面
+        // 「判断 + 理由」同时出现才算立住了立场；只有判断词（必须/应当）不给额外分
+        boolean hasReason = CAUSAL.matcher(s).find() || EXAMPLE.matcher(s).find()
+                || PRECISION.matcher(s).find() || s.contains("据");
+        if (JUDGE.matcher(s).find() && hasReason) v += 8;
         if (chars >= 120) v += 8;                      // 有展开（不是靠长度堆分）
         if (chars > 900) v -= 5;                       // 太长反而扣：说不清
         // 口号腔：态度很足但没有任何可核查内容 → 显著扣分
-        if (SLOGAN.matcher(s).find() && !EXAMPLE.matcher(s).find() && !s.contains("据")) v -= 14;
+        if (SLOGAN.matcher(s).find() && !EXAMPLE.matcher(s).find() && !s.contains("据")) v -= 20;
         return clamp(v);
     }
 
@@ -228,7 +232,7 @@ public class ScoreService {
         if (HYPOTHESIS.matcher(s).find()) v += 8;      // 会假设推演
         if (PRECISION.matcher(s).find()) v += 6;       // 有口径意识
         if (chars < 80) v -= 8;
-        if (SLOGAN.matcher(s).find() && causal == 0) v -= 10;   // 光喊口号、没有因果链
+        if (SLOGAN.matcher(s).find() && causal == 0) v -= 14;   // 光喊口号、没有因果链
         return clamp(v);
     }
 
