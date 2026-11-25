@@ -49,6 +49,19 @@ public class MatchService {
     private final int defaultTurnSeconds;
     private final double aiDelayScale;
 
+    /**
+     * AI 接话的基础间隔（毫秒）。
+     *
+     * <p>用户反馈：1–2 秒就接上一个人的话，像抢麦。默认 3500ms 起（听—想—开口的间隙），
+     * 线上可用 siyige.pace.ai-gap-ms 调；直接 new 出来的单测实例也有默认值。
+     */
+    @Value("${siyige.pace.ai-gap-ms:3500}")
+    private long aiGapMs = 3500;
+
+    /** 接话间隔的随机抖动（毫秒）：同一场里间隔不该一模一样。 */
+    @Value("${siyige.pace.ai-gap-jitter-ms:2500}")
+    private long aiGapJitterMs = 2500;
+
     public MatchService(Store store, AiService ai, ScoreService scorer, HotRank hot, SseHub hub, FlawService flaw,
                         ObjectMapper json,
                         @Value("${siyige.pace.time-scale:1.0}") double timeScale,
@@ -487,8 +500,16 @@ public class MatchService {
      * 想更慢就用 siyige.pace.ai-delay-scale 放大（线上可调，不用改代码）。
      */
     private long aiDeadline(String seat) {
-        long pick = 1_200L + (long) (1_000L * Math.random());
-        long ms = Math.max(400, (long) (pick * Math.max(0.05, aiDelayScale)));
+        // 之前 1.2–2.2 秒，用户反馈"接上一个人的话太快"，像抢麦。
+        // 现在默认 3.5–6.0 秒：留出"听—想—开口"的间隙；按席位再叠一点人设差异
+        // （快攻派手快、价值派慢条斯理），线上可用 siyige.pace.ai-delay-scale 整体放大缩小。
+        long base = aiGapMs;
+        long jitter = aiGapJitterMs;
+        long pick = base + (long) (jitter * Math.random());
+        // 快攻派（A2/B2）说话更急，归谬/价值派（A3/B4）更慢
+        if ("A2".equals(seat) || "B2".equals(seat)) pick = (long) (pick * 0.85);
+        if ("B4".equals(seat) || "A3".equals(seat)) pick = (long) (pick * 1.25);
+        long ms = Math.max(600, (long) (pick * Math.max(0.05, aiDelayScale)));
         return System.currentTimeMillis() + ms;
     }
 
@@ -496,7 +517,8 @@ public class MatchService {
 
     /** 开场第一句：不等 10–15 秒，1.2 秒就开口。 */
     private long openingDelay() {
-        return Math.max(300, (long) (1200 * Math.max(0.05, aiDelayScale)));
+        // 开场第一句给 2.2 秒：让人先看清辩题和席位再听第一句
+        return Math.max(300, (long) (2_200 * Math.max(0.05, aiDelayScale)));
     }
 
     /** 这一轮由谁开口：正常就是赛制写的那个席位，玩家缺席才由同侧 AI 顶上。 */

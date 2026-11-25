@@ -141,13 +141,17 @@ import('node:fs').then(async (fs) => {
   }
 
   // ---------- 6. 轮到我：提示 + 语音按钮 ----------
+  // 输入框现在常驻（对方说话时也能先写），所以判断"轮到我"要看发送按钮变「发送」
   let myTurn = false;
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 90; i++) {
     await sleep(1000);
-    myTurn = await ev(`!!document.querySelector('textarea')`);
+    myTurn = await ev(`(()=>{
+      const b=[...document.querySelectorAll('button')].find(x=>/^发送$|等我回合/.test(x.textContent.trim()));
+      return !!(b && b.textContent.trim() === '发送');
+    })()`);
     if (myTurn) break;
   }
-  ok('轮到我时出现输入框', myTurn);
+  ok('轮到我时发送按钮可用（输入框常驻）', myTurn);
 
   const ui = await ev(`(()=>{
     const chips=[...document.querySelectorAll('.hint-chip')].map(x=>x.textContent.trim());

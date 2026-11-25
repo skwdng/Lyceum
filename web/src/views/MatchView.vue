@@ -20,6 +20,8 @@ const debate = useDebateStore();
 const auth = useAuthStore();
 
 const draft = ref('');
+const MAX_DRAFT = 1800;                     // 与后端截断口径一致（content 列 4000，留余量）
+const draftLen = computed(() => (draft.value || '').length);
 
 // 草稿按对局存在本地：刷新、切页回来都不该让用户重打一遍
 const draftKey = () => (debate.matchId ? 'sy_draft_' + debate.matchId : '');
@@ -313,13 +315,50 @@ function startVoice() {
 onBeforeUnmount(() => stopVoice());
 
 async function submit() {
-  const text = draft.value;
-  if (!String(text || '').trim()) return toast('说点什么再发');
+  const text = cleanPasted(draft.value).slice(0, MAX_DRAFT);
+  if (!debate.waiting) return toast('还没轮到你——写好的内容会留着，轮到你就能发');
+  if (!text) return toast('说点什么再发');
   // 先发请求，成功才清空（失败时把用户打的字原样留着）
   const ok = await debate.submitTurn(text, usedVoice ? 'voice' : 'kb');
   if (ok) { draft.value = ''; usedVoice = false; }
   await nextTick();
   scrollBottom();
+}
+
+/**
+ * 粘贴清洗：从网页/Word 复制常带零宽字符、全角空格、成堆空行。
+ * 直接塞给后端会变成一堆看不见的字符，用户看着"明明有字却发不出/评分为空"。
+ */
+function cleanPasted(raw) {
+  return String(raw || '')
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, '')  // 零宽
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0|\u3000/g, ' ')                 // &nbsp; / 全角空格
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function onPaste(e) {
+  const raw = (e.clipboardData && e.clipboardData.getData('text')) || '';
+  if (!raw) return;                       // 图片等交给浏览器默认处理
+  e.preventDefault();
+  const ta = e.target;
+  const cleaned = cleanPasted(raw).slice(0, MAX_DRAFT);
+  const start = ta.selectionStart ?? draft.value.length;
+  const end = ta.selectionEnd ?? draft.value.length;
+  const next = draft.value.slice(0, start) + cleaned + draft.value.slice(end);
+  draft.value = next.slice(0, MAX_DRAFT);
+  saveDraft();
+  debate.keepalive();
+  requestAnimationFrame(() => {
+    try {
+      const pos = Math.min(start + cleaned.length, ta.value.length);
+      ta.setSelectionRange(pos, pos);
+    } catch (err) { /* 忽略 */ }
+  });
+  if (raw.length !== cleaned.length && cleaned.length >= MAX_DRAFT) {
+    toast('内容超过 ' + MAX_DRAFT + ' 字，已截断');
+  }
 }
 
 function onType() {
@@ -582,38 +621,8 @@ const verdictOf = (t) => (t.typing ? '' : '');
             </span>
           </div>
 
-          <template v-if="debate.waiting">
-            <div v-if="rebutHints.length" class="hints">
-              <span class="hint-label">可以从这儿下手</span>
-              <span v-for="h in rebutHints" :key="h.k" class="hint-chip" :title="h.v">
-                <b>{{ h.k }}</b>{{ h.v }}
-              </span>
-            </div>
-            <div v-if="recOn" class="recbar">正在录音 {{ recSec }}s / 90s · 说完点「停止」，文本可编辑后再发送</div>
-            <div v-else-if="recErr" class="recbar err">{{ recErr }}</div>
-            <textarea v-model="draft" placeholder="写下你的发言…（也可以用语音）" @input="onType"></textarea>
-            <div class="row" style="margin-top: 8px">
-              <span style="font-size: 11.5px; color: #a8adb8">
-                {{ debate.extendUsed ? '已自动续命 ' + debate.extendUsed + ' 次' : '打字时会自动续时' }}
-              </span>
-              <button
-                v-if="debate.kind === 'solo'"
-                class="btn sm ghost"
-                disabled
-                style="margin-left: 10px"
-                title="轮到你说，没法催"
-              >催一下</button>
-              <span style="flex: 1"></span>
-              <button
-                class="btn sm ghost"
-                :disabled="!recSupported"
-                :title="recSupported ? '语音输入（最长 90 秒，可编辑后再发送）' : '当前浏览器不支持语音识别'"
-                @click="recOn ? stopVoice() : startVoice()"
-              >{{ recOn ? '● 录音 ' + recSec + 's' : '🎤 语音' }}</button>
-              <button class="btn sm primary" style="margin-left: 8px" @click="submit">发送</button>
-            </div>
-          </template>
-          <div v-else class="waiting">
+          <!-- 对方回合：只占一行提示，不挡输入框（你可以在对方说话时先写好） -->
+          <div v-if="!debate.waiting" class="waiting">
             <span>{{ debate.hasTyping() ? '对方正在说话…' : '对方正在思考…' }}</span>
             <button
               v-if="debate.kind === 'solo'"
@@ -622,9 +631,58 @@ const verdictOf = (t) => (t.typing ? '' : '');
               :disabled="debate.skipBusy || !debate.canSkip()"
               :title="debate.canSkip() ? '让对方立刻开口，或立刻显示全文' : '这一轮已经催过了，等下一步'"
               @click="debate.nudge()"
-            >
-              {{ debate.skipBusy ? '催中…' : (debate.hasTyping() ? '直接显示全文' : '催一下') }}
-            </button>
+            >{{ debate.skipBusy ? '催中…' : (debate.hasTyping() ? '直接显示全文' : '催一下') }}</button>
+          </div>
+
+          <div v-if="debate.waiting && rebutHints.length" class="hints">
+            <span class="hint-label">可以从这儿下手</span>
+            <span v-for="h in rebutHints" :key="h.k" class="hint-chip" :title="h.v">
+              <b>{{ h.k }}</b>{{ h.v }}
+            </span>
+          </div>
+
+          <div v-if="recOn" class="recbar">正在录音 {{ recSec }}s / 90s · 说完点「停止」，文本可编辑后再发送</div>
+          <div v-else-if="recErr" class="recbar err">{{ recErr }}</div>
+
+          <textarea
+            v-model="draft"
+            :disabled="recOn"
+            :placeholder="debate.waiting ? '写下你的发言…（语音可用，Ctrl+Enter 发送）' : '对方还在说 —— 你可以先写好，轮到你直接发（Ctrl+Enter）'"
+            @input="onType"
+            @paste="onPaste"
+            @keydown.enter.ctrl="submit"
+            @keydown.enter.meta="submit"
+          ></textarea>
+          <div class="count">
+            <span :class="{ warn: draftLen > 1800 }">{{ draftLen }} 字</span>
+            <span v-if="draftLen > 1800" style="color: #C0392B">建议 1800 字内，超出会被截断</span>
+          </div>
+
+          <div class="row" style="margin-top: 8px">
+            <span style="font-size: 11.5px; color: #a8adb8">
+              {{ debate.waiting ? (debate.extendUsed ? '已自动续命 ' + debate.extendUsed + ' 次' : '打字时会自动续时') : '先写好，轮到你就能发' }}
+            </span>
+            <button
+              v-if="debate.kind === 'solo'"
+              class="btn sm ghost"
+              disabled
+              style="margin-left: 10px"
+              title="轮到你说，没法催"
+            >催一下</button>
+            <span style="flex: 1"></span>
+            <button
+              class="btn sm ghost"
+              :disabled="!recSupported || !debate.waiting"
+              :title="recSupported ? (debate.waiting ? '语音输入（最长 90 秒）' : '轮到你才能录音') : '当前浏览器不支持语音识别'"
+              @click="recOn ? stopVoice() : startVoice()"
+            >{{ recOn ? '● 录音 ' + recSec + 's' : '🎤 语音' }}</button>
+            <button
+              class="btn sm primary"
+              style="margin-left: 8px"
+              :disabled="!debate.waiting || !draft.trim()"
+              :title="debate.waiting ? '发送（Ctrl+Enter）' : '还没轮到你，先写好，轮到你就能发'"
+              @click="submit"
+            >{{ debate.waiting ? '发送' : '等我回合' }}</button>
           </div>
         </div>
       </div>
