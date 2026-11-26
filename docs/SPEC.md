@@ -2002,4 +2002,107 @@ ConfigKey.Type 加 DOUBLE；ConfigService 加 getDouble(ConfigKey)（解析失�
 后台把 tag.name-max-cp 改成别的值后，输入框会先按 12 截断 —— 属社区前端，本批未动，
 下次改标签 UI 时一并改成读接口返回的上限。
 ```
+---
+
+## 34. 屏蔽词管理（2026-11-26 新增 · W1-W3）
+
+> 设计方案 `屏蔽词管理-设计方案.md`，执行提示词 `执行提示词-屏蔽词管理.md`。
+> 一句话：三份散在「文件 + yml」里的词表搬进 `sy_sensitive_word`，后台可增删改，
+> **改完立即生效**（重建内存 Trie，不用重启、不用发版）。
+
+### 34.1 一张表、三个 scope
+
+| scope | 用在哪 | 命中后果 |
+|---|---|---|
+| `COMMUNITY` | 帖子标题/正文、评论、标签 | 打码（全角＊）；标签**直接拒**（TAG_BLOCKED） |
+| `VIDEO_REJECT` | 视频标题/描述 | 直接驳回 |
+| `VIDEO_REVIEW` | 视频标题/描述 | 转人工复核 |
+
+同一个词**允许**同时出现在多个 scope（「赌博」既要社区打码、又要视频驳回）。
+
+### 34.2 读写路径（热点路径不查库）
+
+```text
+读：WordService.words(scope) -> volatile 不可变 Map（进程内缓存），发帖/评论/标签每条都走它，不查库
+写：校验 -> 落库 -> 重建缓存 -> SensitiveWordMasker.reload(COMMUNITY) 原子换表 -> 写审计
+```
+
+Masker 内部用**一个不可变的 Table(root, count, source) + volatile 一次替换**，
+而不是三个 volatile 字段：后者可能出现「新 root + 旧 count」的混搭，`count==0` 会短路漏打一次码。
+`mask() / wordCount() / source()` 的签名与语义没变，所以 CommunityService / CommentService /
+TagService 的调用点**一行都没动**。
+
+### 34.3 启动迁移与空表保护
+
+```text
+WordBootstrap（ApplicationRunner）：按 scope 分别判断 —— 表里 0 条才导种子
+  ① COMMUNITY    <- community-sensitive-words.txt（外部文件 > classpath）
+  ② VIDEO_REJECT <- yml siyige.video.audit.reject-words
+  ③ VIDEO_REVIEW <- yml siyige.video.audit.review-words
+  ④ 导完 reload()；幂等（先查后插 + 唯一索引 ux_word_scope_key 兜底）
+
+空表保护（两层）：
+  · Masker.reload(空集合) 不清表，只 WARN（别人直接调 reload 也不会把内容弄裸）
+  · WordService.reload() 发现 COMMUNITY 为空 -> 回落到**文件那份种子表**并打 WARN，
+    source 标记为 file-fallback（页面/汇总里能看到「打码来源」）
+    为什么不能只「保留上一张表」：逐条删光时上一张表最后只剩一条，等于没兜底
+```
+
+### 34.4 接口与权限
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/admin/words?scope=&q=&page=&size=` | 列表（含停用词，按 scope 分组排序） |
+| GET | `/api/admin/words/summary` | 各 scope 词数 + 最近变更 + `communityEmpty` + `maskedBy` |
+| GET | `/api/admin/words/export?scope=` | 导出 txt（`#` 注释头 + 一行一个，只导启用） |
+| POST | `/api/admin/words` | 批量新增 `{scope, words:[]}` -> `{added, skipped, invalid}` |
+| POST | `/api/admin/words/import` | 粘贴导入 `{scope, text}`（换行 / 英文逗号 / 中文逗号 / 顿号） |
+| POST | `/api/admin/words/{id}/enable` `/disable` | 启停 |
+| DELETE | `/api/admin/words/{id}` | 删除 |
+
+权限统一 `content:moderate`（审核员本来就管内容）。
+**注意**：`OPS` 角色在既有权限矩阵里也有 `content:moderate`，所以 OPS 同样能管词表；
+只有 `VIEWER` 是 403。若产品上要求「只有审核能改」，得新增一个专用权限点（`WORD_MANAGE`），
+那会改动既有矩阵，所以本批没做。
+
+审计：`sy_audit_log` 的 `target_type='WORD'`，动作 `WORD_ADD` / `WORD_DELETE` / `WORD_TOGGLE`；
+**全部不可「恢复」**（`RestoreService` 直接返回 `NOT_RESTORABLE`，删掉的词要重新加）。
+
+### 34.5 校验（设计方案 §4）
+
+| 项 | 规则 |
+|---|---|
+| 单条长度 | 1 ~ 32 个码点 |
+| 单批条数 | ≤ 500（粘贴导入也是先切词再按这个卡） |
+| 归一化 | trim + 英文小写（中文原样）；`AI` / `ai` 视为同一个词 |
+| 去重 | `ux_word_scope_key(scope, word_key)`，重复幂等跳过并计入 `skipped` |
+| 空白/纯符号 | 拒绝（至少含一个字母/数字/汉字），否则「、」会匹配一切 |
+
+### 34.6 页面
+
+`web/src/views/admin/WordsView.vue`（菜单：运营 → 屏蔽词）：
+三个 tab（社区-打码 / 视频-硬违规-驳回 / 视频-转人工-审查）、顶部词数与最近变更 +「导出 txt」、
+批量粘贴框 + 导入、按词搜索、行内启停/删除；社区词表为空时顶部红色横幅常驻。
+
+### 34.7 验收（自动化部分）
+
+```text
+单测 WordServiceTest（12）：归一化/AI=ai、32 码点边界、纯符号拒、501 拒、幂等 skipped、
+  停用启用、删空后的文件兜底、列表筛选、汇总、导出
+单测 WordBootstrapTest（3）：首次导入三份种子、重复启动不翻倍、表非空不覆盖运营改过的词表
+单测 SensitiveWordMaskerTest（+3）：reload 立刻生效且旧词不再命中、reload(空) 不清表、
+  一边 reload 一边 mask 1000 次不抛异常也不漏打码
+单测 MachineAuditConfigTest（+1）：加词立刻 REJECT、删词立刻不再命中（词表来自库）
+界面自检 server/scripts/selftest_vue_words.mjs（21 项，含发帖打码/标签拒绝/视频两种后果/
+  批量粘贴/501/导出/审计不可恢复/清空社区词表的兜底与红条/VIEWER 403）
+```
+
+### 34.8 遗留
+
+```text
+· yml 的 reject-words / review-words 这次**保留**（退化成「首次导入种子」），删除留到下次单独提交
+· 单字词误伤（「枪」会命中「枪械」以外的正常词）：页面只提示，不强制 ≥2 字
+· 词量上万再考虑 Aho-Corasick，本期百级词量 Trie 微秒级
+```
+
 

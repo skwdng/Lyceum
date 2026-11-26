@@ -271,6 +271,29 @@ curl -s -XPOST localhost:8080/api/admin/config/rollback -H "Authorization: Beare
   （每步时长来自 `Pace.secondsFor` 的赛制表）。
 - 细节见 `docs/管理接口契约.md` §14。
 
+## 屏蔽词（2026-11-26 · W1-W3）
+
+三份词表（社区 txt + 视频 yml 两份）已搬进 `sy_sensitive_word`，后台「系统 → 屏蔽词」页维护，
+**改完立即生效**（重建内存 Trie，不用重启、不用发版）。
+
+| scope | 用在哪 | 命中后果 | 原来的存放 |
+|---|---|---|---|
+| `COMMUNITY` | 帖子/评论/标签 | 打码（＊）；标签直接拒 | `community-sensitive-words.txt` |
+| `VIDEO_REJECT` | 视频标题/描述 | 直接驳回 | yml `siyige.video.audit.reject-words` |
+| `VIDEO_REVIEW` | 视频标题/描述 | 转人工复核 | yml `siyige.video.audit.review-words` |
+
+- 热点路径**不查库**：`WordService.words(scope)` 读内存里那张不可变表；写操作落库后重建缓存、
+  再让 `SensitiveWordMasker` 一次换表（`volatile` 引用替换，读者不会看到半张表）。
+- `mask() / wordCount() / source()` 的签名与语义没变 —— `CommunityService` / `CommentService` /
+  `TagService` 的调用点一行没动。
+- **空表保护**：社区词表被删空时，后端 WARN + 回落到文件种子继续打码（`summary.maskedBy=file-fallback`,
+  页面顶部红条）。逐条删光时"保留上一张表"兜不住，所以是显式回落文件。
+- 启动迁移：`WordBootstrap` 按 scope 判断，表里 0 条才从文件/yml 导入种子（幂等，重复启动不翻倍）。
+- 校验：单条 1-32 码点、单批 ≤500、纯符号拒绝、`AI`/`ai` 归一化成同一个词、重复幂等跳过。
+- 审计：`sy_audit_log` 的 `target_type='WORD'`（`WORD_ADD` / `WORD_DELETE` / `WORD_TOGGLE`），**不可恢复**。
+- 自检：`node scripts/selftest_vue_words.mjs 9482 http://localhost:8080`（21 项）。
+- 细节见 `docs/管理接口契约.md` §15 与 `docs/SPEC.md` §34。
+
 ## 已实现 / 未实现
 
 | | 状态 |
@@ -302,6 +325,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1
 node scripts/selftest_vue_config.mjs  9482 http://localhost:8080   # 参数管理第一批 12 项
 node scripts/selftest_vue_config2.mjs 9482 http://localhost:8080   # 第二批 13 项（DOUBLE / 边界 / 改回默认值删行）
 node scripts/selftest_vue_config3.mjs 9482 http://localhost:8080   # 第三批 12 项（视频审核 4 / 模型名 / 标签长度）
+node scripts/selftest_vue_words.mjs 9482 http://localhost:8080    # 屏蔽词 21 项（打码/标签拒/视频/批量/导出/兜底）
 ```
 
 它**不会重启后端**：改 `tag.max-per-post` 为 2 → 发带 3 个标签的帖子被拒 → 改回 5 → 同样请求通过
