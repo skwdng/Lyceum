@@ -57,6 +57,15 @@
       <artifactId>h2</artifactId>
       <scope>runtime</scope>
     </dependency>
+    <!--
+      MySQL 驱动：只在 -Dspring-boot.run.profiles=mysql 时用到（默认 profile 仍是 H2）。
+      版本由 spring-boot-starter-parent 管，别自己写版本号。
+    -->
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <scope>runtime</scope>
+    </dependency>
     <!-- 生产环境开启 redis profile 时启用；默认用内存实现 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

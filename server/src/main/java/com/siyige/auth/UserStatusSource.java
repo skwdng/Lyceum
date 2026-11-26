@@ -1,9 +1,9 @@
 package com.siyige.auth;
 
+import com.siyige.repo.Times;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 
@@ -51,8 +51,8 @@ public class UserStatusSource {
 
         Object[] row = rows.get(0);
         boolean disabled = ((Integer) row[0]) == 0;
-        Timestamp changed = (Timestamp) row[1];
-        Instant changedAt = changed == null ? null : changed.toInstant();
+        // H2 给 Timestamp、MySQL 给 LocalDateTime —— 交给 Times 统一（见 com.siyige.repo.Times）
+        Instant changedAt = Times.toInstant(row[1]);
         return new AuthState(disabled, changedAt);
     }
 

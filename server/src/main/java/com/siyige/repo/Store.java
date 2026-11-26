@@ -222,7 +222,12 @@ public class Store {
     }
 
     public void saveBrief(String topicId, String side, String content) {
-        jdbc.update("merge into sy_brief(topic_id, side, content) key(topic_id, side) values(?,?,?)",
+        // 先 update、影响 0 行再 insert：H2 与 MySQL 通用（merge ... key() 是 H2 专有，
+        // MySQL 那边对应 insert ... on duplicate key update，各写一套不如统一走这两句）
+        int n = jdbc.update("update sy_brief set content = ? where topic_id = ? and side = ?",
+                content, topicId, side);
+        if (n > 0) return;
+        jdbc.update("insert into sy_brief(topic_id, side, content) values(?,?,?)",
                 topicId, side, content);
     }
 
