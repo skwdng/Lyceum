@@ -212,6 +212,26 @@ class WordServiceTest {
         assertEquals(List.of("代考", "赌博"), body, "只导启用中的词，按词排序");
     }
 
+    @Test
+    void 导出的文件原样导入_不新增任何词_注释头不会被当成词() {
+        // 准备两条真实词（导出只导启用的）
+        add(WordScope.VIDEO_REJECT, "代写", "赌博");
+        String exported = words.export(WordScope.VIDEO_REJECT);
+        long before = words.countAll(WordScope.VIDEO_REJECT);
+
+        // 把导出的文件原样粘回导入框：应当 0 新增、全部跳过
+        Map<String, Object> r = words.importText(WordScope.VIDEO_REJECT, exported, 1L, "admin", "127.0.0.1");
+        assertEquals(0, ((Number) r.get("added")).intValue(), "导出再导入不该新增，实际：" + r);
+        assertEquals(2, ((Number) r.get("skipped")).intValue(), "两条都算重复跳过，实际：" + r);
+        assertEquals(before, words.countAll(WordScope.VIDEO_REJECT), "词数不能变");
+
+        // 注释头里的碎片一个都不能入库（曾经会变成「命中后果：打码）」这种词）
+        List<String> all = words.words(WordScope.VIDEO_REJECT);
+        assertTrue(all.stream().noneMatch(w -> w.startsWith("#")), "注释行不能变成词：" + all);
+        assertTrue(all.stream().noneMatch(w -> w.contains("命中后果")), "注释被逗号拆开的碎片不能入库：" + all);
+        assertTrue(all.stream().noneMatch(w -> w.startsWith("共 ")), "导出头的「共 N 条」不能入库：" + all);
+    }
+
     // ==================== 工具 ====================
 
     private long idOf(String word) {

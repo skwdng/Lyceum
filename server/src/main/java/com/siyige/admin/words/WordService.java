@@ -184,14 +184,21 @@ public class WordService {
      * 粘贴导入：换行 / 英文逗号 / 中文逗号 / 顿号 都当分隔符。
      *
      * <p>与 {@link #add} 同一条路（同一套校验、幂等、审计），只是先把一大段文本切开。
+     *
+     * <p><b>以 # 开头的整行跳过</b>：导出的文件头部是 # 注释，直接粘回来时必须能原样往返。
+     * 少了这一句，注释行会被逗号切开成「# 屏蔽词导出 scope=COMMUNITY（社区」「命中后果：打码）」
+     * 这样的碎片入库（2026-11-26 实测踩到过）。
      */
     @Transactional
     public Map<String, Object> importText(WordScope scope, String text, long adminId, String adminName, String ip) {
         if (text == null || text.isBlank()) throw new IllegalArgumentException("INVALID_PARAM: 没有要导入的内容");
         List<String> parts = new ArrayList<>();
         for (String line : text.split("\\R")) {
+            if (line == null || line.trim().startsWith("#")) continue;   // 注释行：导出文件头部
             for (String piece : line.split("[,，、]")) {
-                if (!piece.isBlank()) parts.add(piece);
+                String w = piece.trim();
+                if (w.isEmpty() || w.startsWith("#")) continue;          // 半行注释也挡一下
+                parts.add(w);
             }
         }
         if (parts.isEmpty()) throw new IllegalArgumentException("INVALID_PARAM: 没有识别到任何词（空行不算）");
