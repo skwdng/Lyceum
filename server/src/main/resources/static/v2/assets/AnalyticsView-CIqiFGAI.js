@@ -1,43 +1,6 @@
-import { J as getAdminToken, K as API_BASE, I as analyticsApi, L as ApiError, _ as _export_sfc, u as useAdminStore, o as onMounted, c as createElementBlock, b as createBaseVNode, F as Fragment, r as renderList, e as createCommentVNode, t as toDisplayString, d as createTextVNode, x as createVNode, i as ref, k as errText, m as toast, p as computed, a as openBlock, n as normalizeClass } from "./index-BVG9sIcp.js";
-import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-CWQaWl77.js";
-async function downloadExport(params, fallbackName = "export.csv") {
-  const token = getAdminToken();
-  const resp = await fetch(API_BASE + analyticsApi.exportPath(params), {
-    headers: token ? { Authorization: "Bearer " + token } : {}
-  });
-  if (!resp.ok) {
-    let message = "导出失败（HTTP " + resp.status + "）";
-    try {
-      const body = await resp.json();
-      if (body && (body.message || body.code)) message = body.message || body.code;
-    } catch (e) {
-    }
-    throw new ApiError(message, "EXPORT_FAILED", resp.status);
-  }
-  const blob = await resp.blob();
-  const name = filenameOf(resp.headers.get("Content-Disposition")) || fallbackName;
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2e3);
-  return name;
-}
-function filenameOf(contentDisposition) {
-  if (!contentDisposition) return "";
-  const m = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition);
-  if (m) {
-    try {
-      return decodeURIComponent(m[1].trim().replace(/^"|"$/g, ""));
-    } catch (e) {
-    }
-  }
-  const plain = /filename="?([^";]+)"?/i.exec(contentDisposition);
-  return plain ? plain[1].trim() : "";
-}
+import { _ as _export_sfc, u as useAdminStore, o as onMounted, c as createElementBlock, b as createBaseVNode, F as Fragment, r as renderList, e as createCommentVNode, t as toDisplayString, d as createTextVNode, x as createVNode, i as ref, I as analyticsApi, k as errText, m as toast, p as computed, a as openBlock, n as normalizeClass } from "./index-DP-xkCoN.js";
+import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-RcafgfQK.js";
+import { d as downloadExport } from "./exportFile-DjFyaROi.js";
 const _hoisted_1 = { "data-panel": "analytics" };
 const _hoisted_2 = { class: "adm-toolbar" };
 const _hoisted_3 = { class: "adm-chips" };

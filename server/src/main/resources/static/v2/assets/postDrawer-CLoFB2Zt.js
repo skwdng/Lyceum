@@ -1,4 +1,4 @@
-import { V as reactive } from "./index-BVG9sIcp.js";
+import { U as reactive } from "./index-DP-xkCoN.js";
 const state = reactive({
   open: false,
   postId: null,

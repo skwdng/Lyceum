@@ -11,9 +11,20 @@
  */
 import { API_BASE, getAdminToken, analyticsApi, ApiError } from '../../api.js';
 
+/** 报表导出（历史调用方保留这个签名）。 */
 export async function downloadExport(params, fallbackName = 'export.csv') {
+  return downloadPath(analyticsApi.exportPath(params), fallbackName);
+}
+
+/**
+ * 通用下载：给一个已经是 /api/ 前缀的路径（报表导出、屏蔽词导出都用它）。
+ *
+ * 为什么要单独抽出来：下载必须带 Authorization 请求头，window.open 带不了；
+ * 两个页面各写一份 fetch+Blob 迟早漂移，所以只留这一份。
+ */
+export async function downloadPath(path, fallbackName = 'export.txt') {
   const token = getAdminToken();
-  const resp = await fetch(API_BASE + analyticsApi.exportPath(params), {
+  const resp = await fetch(API_BASE + path, {
     headers: token ? { Authorization: 'Bearer ' + token } : {}
   });
 

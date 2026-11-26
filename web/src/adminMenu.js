@@ -33,6 +33,8 @@ export const ADMIN_MENU = [
       { to: '/admin/content/comments', label: '评论管理', icon: '☷', perm: 'content:read' },
       // T3：标签管理挂在「运营」组、帖子管理下面（改标签属于内容运营的活）
       { to: '/admin/tags', label: '标签管理', icon: '⚿', perm: 'content:moderate' },
+      // W3：屏蔽词紧挨着标签管理（都是审核员日常维护的内容资产）
+      { to: '/admin/words', label: '屏蔽词', icon: '🚫', perm: 'content:moderate' },
       { to: '/admin/video-audit', label: '视频复核', icon: '▷', perm: 'video:read' },
       { to: '/admin/topics', label: '辩题审核', icon: '❓', perm: 'topic:read' },
       { to: '/admin/users', label: '用户管理', icon: '☰', perm: 'user:read' },

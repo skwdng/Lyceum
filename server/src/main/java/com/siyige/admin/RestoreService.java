@@ -76,6 +76,10 @@ public class RestoreService {
         if (AuditLogRepo.TARGET_TAG.equals(targetType)) {
             throw new IllegalArgumentException("NOT_RESTORABLE: 标签操作不能撤销（标签删除/合并是不可逆的）");
         }
+        // 屏蔽词同理：删掉的词回不来，要恢复请到「屏蔽词」页重新添加（那里还有历史可查）。
+        if (AuditLogRepo.TARGET_WORD.equals(targetType)) {
+            throw new IllegalArgumentException("NOT_RESTORABLE: 屏蔽词操作不能撤销（请到「屏蔽词」页重新添加）");
+        }
 
         if (!AuditLogService.canRestore(row)) {
             String verdict = row.get("verdict") == null ? "" : String.valueOf(row.get("verdict"));

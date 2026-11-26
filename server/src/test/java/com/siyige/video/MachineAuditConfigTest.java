@@ -4,9 +4,14 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.siyige.admin.AuditLog;
 import com.siyige.admin.config.ConfigKey;
 import com.siyige.admin.config.ConfigRepo;
 import com.siyige.admin.config.ConfigService;
+import com.siyige.admin.words.WordRepo;
+import com.siyige.admin.words.WordScope;
+import com.siyige.admin.words.WordService;
+import com.siyige.community.SensitiveWordMasker;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +41,7 @@ class MachineAuditConfigTest {
 
     private JdbcTemplate jdbc;
     private ConfigService cfg;
+    private WordService words;
     private MachineAuditService audit;
 
     @BeforeEach
@@ -46,11 +52,17 @@ class MachineAuditConfigTest {
         ds.setPassword("");
         try (Connection c = ds.getConnection()) {
             ScriptUtils.executeSqlScript(c, new ClassPathResource("schema-config.sql"));
+            // 屏蔽词表（W1）：MachineAuditService 的两份词表现在从这里读
+            ScriptUtils.executeSqlScript(c, new ClassPathResource("schema-word.sql"));
         }
         jdbc = new JdbcTemplate(ds);
         cfg = new ConfigService(new ConfigRepo(jdbc));
-        // 词表仍然走构造器（本批不搬），给一个违禁词用于验证词表逻辑没被动过
-        audit = new MachineAuditService("违禁词甲,违禁词乙", "", cfg);
+        words = new WordService(new WordRepo(jdbc), new SensitiveWordMasker(java.util.List.of()),
+                org.mockito.Mockito.mock(AuditLog.class));
+        words.seed(WordScope.VIDEO_REJECT, java.util.List.of("违禁词甲", "违禁词乙"), "test");
+        words.seed(WordScope.VIDEO_REVIEW, java.util.List.of("争议词"), "test");
+        words.reload();
+        audit = new MachineAuditService(cfg, words);
     }
 
     /** 长度合适的标题 + 合法外链（避开「标题短且无简介」那条 REVIEW 规则） */
@@ -149,11 +161,39 @@ class MachineAuditConfigTest {
 
     // ==================== 词表没被动过 ====================
 
+    /**
+     * 词表从库读（屏蔽词管理 W1）：加词立刻生效、删词立刻失效，都不用重启。
+     *
+     * <p>顺便钉住「词表不进参数表」：{@code video.audit.reject-words} 这类键在 ConfigKey 里不存在，
+     * 谁想把它加回参数页都会在这里红。
+     */
     @Test
-    void 词表仍然是构造期解析的那两个List_不进参数表() {
-        assertEquals("REJECT", audit.check(OK_TITLE, "这里提到违禁词甲", OK_URL, null).result());
-        // 参数表里不该出现词表键
+    void 词表来自库_加词立刻REJECT_删词立刻不再命中() {
+        assertEquals("REVIEW", check(OK_TITLE).result(), "没加词之前 10 字的正常标题不该被拒");
+
+        words.add(WordScope.VIDEO_REJECT, java.util.List.of("测试违禁词"), 1L, "admin", "127.0.0.1");
+        MachineAuditService.Verdict hit = audit.check(OK_TITLE, "这里提到测试违禁词", OK_URL, null);
+        assertEquals("REJECT", hit.result(), "加了词立刻生效（不用重启）");
+        assertTrue(hit.reason().contains("违禁词"), hit.reason());
+
+        java.util.List<?> items = (java.util.List<?>) words
+                .list(WordScope.VIDEO_REJECT.name(), "测试违禁词", 1, 10).get("items");
+        Map<?, ?> row = (Map<?, ?>) items.get(0);
+        words.delete(((Number) row.get("id")).longValue(), 1L, "admin", "127.0.0.1");
+
+        assertEquals("REVIEW", audit.check(OK_TITLE, "这里提到测试违禁词", OK_URL, null).result(),
+                "删词之后同一个视频就不再被拒");
+
+        // 参数表里不该出现词表键（词表有自己的管理页）
         assertThrows(IllegalArgumentException.class, () -> ConfigKey.of("video.audit.reject-words"));
         assertThrows(IllegalArgumentException.class, () -> ConfigKey.of("video.audit.review-words"));
+    }
+
+    /** 软风险词：命中转人工（VIDEO_REVIEW 与 VIDEO_REJECT 是两条独立的表）。 */
+    @Test
+    void 转人工词命中就REVIEW_不会REJECT() {
+        MachineAuditService.Verdict v = audit.check(OK_TITLE, "这句里有个争议词", OK_URL, null);
+        assertEquals("REVIEW", v.result());
+        assertTrue(v.reason().contains("人工"), v.reason());
     }
 }

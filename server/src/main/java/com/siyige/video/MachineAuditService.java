@@ -2,12 +2,12 @@ package com.siyige.video;
 
 import com.siyige.admin.config.ConfigKey;
 import com.siyige.admin.config.ConfigService;
+import com.siyige.admin.words.WordScope;
+import com.siyige.admin.words.WordService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -25,8 +25,10 @@ import java.util.Map;
  *
  * <p><b>四个判定参数后台可改</b>（参数管理第三批）：标题长度上下限、是否允许本地上传、
  * 机器通过后是否仍要人工复核。都改成每次审核现读（{@link ConfigService}），改完不用重启。
- * <b>词表（reject-words / review-words）故意不搬</b>：它是一整串词，改一个词要改整串、
- * 还要重启解析，留给以后的「词表管理」页；这里仍然只在构造器里解析一次。
+ *
+ * <p><b>两份词表也搬进库了</b>（屏蔽词管理，W1）：{@code VIDEO_REJECT} / {@code VIDEO_REVIEW}
+ * 每次审核现读 {@link WordService}（内存缓存，不查库），后台改词立刻生效；
+ * 这里不再从 yml 解析，也不再保存 List 字段。
  */
 @Service
 public class MachineAuditService {
@@ -39,19 +41,21 @@ public class MachineAuditService {
     private static final int DEFAULT_TITLE_MIN = 4;
     private static final int DEFAULT_TITLE_MAX = 60;
 
-    private final List<String> rejectWords;
-    private final List<String> reviewWords;
-    /** 四个判定参数从后台读（每次审核现读）；词表仍在此解析一次。 */
+    /** 四个判定参数从后台读（每次审核现读）。 */
     private final ConfigService cfg;
+    /** 两份词表从库读（内存缓存，每次审核现取）；后台改词立刻生效。 */
+    private final WordService words;
 
-    public MachineAuditService(
-            @Value("${siyige.video.audit.reject-words:}") String rejectWords,
-            @Value("${siyige.video.audit.review-words:}") String reviewWords,
-            ConfigService cfg) {
-        this.rejectWords = split(rejectWords);
-        this.reviewWords = split(reviewWords);
+    public MachineAuditService(ConfigService cfg, WordService words) {
         this.cfg = cfg;
+        this.words = words;
     }
+
+    /** 硬违规词（命中直接驳回）。 */
+    private List<String> rejectWords() { return words.words(WordScope.VIDEO_REJECT); }
+
+    /** 软风险词（命中转人工）。 */
+    private List<String> reviewWords() { return words.words(WordScope.VIDEO_REVIEW); }
 
     /** 机器通过后是否仍需人工复核（默认 true：宁可慢一点，不让违规内容直接上线）。 */
     private boolean passRequiresReview() { return cfg.getBool(ConfigKey.VIDEO_PASS_REQUIRES_REVIEW); }
@@ -80,16 +84,6 @@ public class MachineAuditService {
         return new int[]{min, max};
     }
 
-    private static List<String> split(String s) {
-        List<String> out = new ArrayList<>();
-        if (s == null) return out;
-        for (String p : s.split(",")) {
-            String t = p.trim();
-            if (!t.isEmpty()) out.add(t);
-        }
-        return out;
-    }
-
     /** 审核一条视频的元数据。 */
     public Verdict check(String title, String description, String url, String segment) {
         String t = title == null ? "" : title.trim();
@@ -110,12 +104,12 @@ public class MachineAuditService {
 
         // ② 硬违规
         String all = t + " " + d;
-        for (String w : rejectWords) {
+        for (String w : rejectWords()) {
             if (all.contains(w)) return new Verdict("REJECT", "命中违禁词：" + w);
         }
 
         // ③ 软风险 → 人工复核
-        for (String w : reviewWords) {
+        for (String w : reviewWords()) {
             if (all.contains(w)) return new Verdict("REVIEW", "命中风险词：" + w + "，转人工复核");
         }
 
@@ -142,8 +136,8 @@ public class MachineAuditService {
         return Map.of(
                 "titleMin", bounds[0],
                 "titleMax", bounds[1],
-                "rejectWords", rejectWords,
-                "reviewWords", reviewWords,
+                "rejectWords", rejectWords(),
+                "reviewWords", reviewWords(),
                 "segments", SEGMENTS,
                 "flow", List.of("提交 → 机器初审", "命中风险词 → 人工复核", "通过 → 进入 Feed", "驳回 → 通知作者并留痕")
         );
