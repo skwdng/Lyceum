@@ -374,7 +374,7 @@ function errText(e) {
             </div>
           </div>
           <div style="font-size: 11px; color: #a8adb8; margin-top: 10px">
-            Redis <span class="mono">ZSET · {{ hotKey }}</span>
+            实时热度 · 开辩、发言、打完都会加分，随时间衰减
           </div>
         </div>
       </div>

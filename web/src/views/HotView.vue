@@ -42,7 +42,7 @@ function openDebate(topicId) {
 
 <template>
   <h1 class="pg">热辩榜</h1>
-  <p class="sub">按热度实时排序，数据存在 Redis ZSET；热度随时间衰减，避免旧题霸榜。</p>
+  <p class="sub">按热度实时排序：开辩、发言、打完都会加分，热度随时间衰减，避免旧题一直霸榜。</p>
 
   <div v-if="error" class="card"><div class="empty">{{ error }}</div></div>
 
@@ -76,21 +76,6 @@ function openDebate(topicId) {
       </table>
     </div>
 
-    <div class="card">
-      <b style="font-size: 13px">Redis 里的真实写法</b>
-      <div class="codebox" style="margin-top: 8px">
-        <span class="c"># 开辩 / 发言 / 打完，写入当日榜单</span>
-        <span class="k">ZINCRBY</span> {{ key }} 2 topic:t3
-        <span class="c"># 取前 10 名（带分数）</span>
-        <span class="k">ZREVRANGE</span> {{ key }} 0 9 <span class="k">WITHSCORES</span>
-        <span class="c"># 查名次 / 衰减 / 过期</span>
-        <span class="k">ZREVRANK</span> {{ key }} topic:t3
-        <span class="k">ZINCRBY</span>  {{ key }} -0.5 topic:t3
-        <span class="k">EXPIRE</span>   {{ key }} 172800
-      </div>
-      <div style="font-size: 11.5px; color: #8a909c; margin-top: 10px">
-        当前榜单成员 {{ cardCount }} 个。后端默认用内存实现，接真 Redis 只需换 HotRank 实现类。
-      </div>
-    </div>
+
   </div>
 </template>
