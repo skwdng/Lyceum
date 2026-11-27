@@ -80,6 +80,7 @@ create table if not exists sy_match (
   payer_user_id varchar(32),
   skipped_step int default -1,
   last_skip_at bigint default 0,
+  last_active_at bigint default 0,
   key ix_match_started (started_at)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_0900_ai_ci;
 
@@ -94,6 +95,7 @@ create table if not exists sy_turn (
   content    varchar(4000),
   status     varchar(16),          
   input_type varchar(16),          
+  ai_reason  varchar(32) default null,
   created_at timestamp default current_timestamp,
   key ix_turn (match_id, step),
   key ix_turn_created (created_at)
