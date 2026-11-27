@@ -1,9 +1,10 @@
-﻿# 02 · AI 发言审计：内容 / 节奏 / 降级路径
+# 02 · AI 发言审计：内容 / 节奏 / 降级路径
 
 > 审计对象：`server/src/main/java/com/siyige/ai/{AiService,QuoteGuard,Personas,LlmClient}.java`、`judges/`、`docs/AI-方案.md`、`docs/交接说明.md §4`
-> 方式：读代码 + **可复现夹具**（`server/src/test/java/com/siyige/audit/AuditAiSpeechTest.java`，15 个用例，类上 `@Disabled`）
+> 方式：读代码 + **可复现夹具**（`server/src/test/java/com/siyige/audit/AuditAiSpeechTest.java`，类上 `@Disabled` 时为反向验收）
 > 结论口径：本文件只记录**当前代码真实行为**，不假设"应该是这样"。所有「实际」列都有夹具或代码行号支撑。
 > 审计人：ai-engineer（tasks-10）；**未改任何 main 代码、未 commit**。
+> ⚠️ **§1–§6 是 2026-11-27 审计当时的原始结论，保留作对照**；其中 A1/A2/A3/A5/A10 已在 B3/B5 批次修掉，修复情况见文末 **§7**。
 
 ---
 
@@ -14,6 +15,7 @@
 # 想跑：先把类上的 @Disabled 注掉，再只跑这一个类
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\locked-build.ps1 test -Dtest=AuditAiSpeechTest
 ```
+
 **已验证**（只跑这一个类，未跑全量 test）：
 
 | 状态 | 命令 | 结果 |
@@ -225,3 +227,59 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\dev\locked-build.p
 2. **judges/ 只有静态审计**（A13），没有夹具：评审团需要真模型才能跑通，属于"能构造但不该在审计里联网"的范畴。
 3. **多人房间的抢拍窗口**（`buzzWindowMs=8000×timeScale`）与打字机的交互没有单独算；单人模式已覆盖。
 4. `docs/AI-方案.md` §7.5「已知遗留」与本次结论有重叠（模板重复、整段返回），但那里把"AI 编数字"归给 P1 论据库；本次新增的是**"编的数字裹上书名号就连引用护栏都拦不住"（A5）**，属于新发现。
+
+---
+
+## 7. 修复记录：B3 / B5 批次（2026-11-27）
+
+> 上面 §1–§6 是 2026-11-27 审计当时的**原始审计结论保留作对照**（当时的代码行为、行号、判据都是真的，只是已经被改掉了）。
+> 这一节只记「改了什么、怎么验收、现在到哪一步」。读这一节时请把上一节的「实际」列当历史记录，不要当现状。
+
+### 7.1 A1 字数与截断 — 已修（B3）
+
+- **修了什么**：字数收敛成唯一来源 `charCap(seg,duty,p)=max(40,min(Persona.maxChars,Format.segCharCap))`，prompt 里只剩同一个数（删掉「220–320 字」那套）；截断改为「最近句读（。！？；）→ 最近逗号（，、：）→ 82% 处加……」，不再 `substring(0,cap)+'。'`，也不切进引号内部，截断后统一 `QuoteGuard.dropDangling()` 收口。文件：`server/src/main/java/com/siyige/ai/AiService.java`。
+- **验收用例**（`server/src/test/java/com/siyige/audit/AuditAiSpeechTest.java`）：`字数只有一个来源_prompt与护栏用同一个上限`、`截断落在句读上_不是硬切`、`无句读时用省略号收尾_不伪造句号`、`截断不切进引文_不留孤立开引号`。
+- **状态**：已修。
+
+### 7.2 A2 cutRepeats 误杀 — 已修（B5）
+
+- **修了什么**：判据从「同句第二次出现即截断、后面全丢」改为三条 —— ①连续 3 次以上完全相同才算退化（连说 2 遍是修辞）；②判退化时只删重复的那几句，收束句照旧保留；③整段是「前半段原样再复制一遍」的周期性循环（`abcabc…`）时只留前半段（这样模型卡死的老毛病仍被剪）。文件：`AiService.java`（`cutRepeats`）。
+- **验收用例**：`cutRepeats不再误杀结辩的复现句`、`cutRepeats不再误杀质询的重复追问`、`cutRepeats只删重复句_连续三遍才收敛`；另外旧用例 `AiServiceGuardTest.重复不同句子时保留前半` 仍绿（靠周期性判据）。
+- **状态**：已修。
+
+### 7.3 A3 引文否定词/数字反转 — 已修（B3）
+
+- **修了什么**：在模糊命中之后加**硬指纹**：引文里的数字/百分比必须在原文出现，否定词（不/未/无/没有/禁止，其中 没≡没有）也必须在原文出现，否则判 `Status.MISMATCH`（按编造处理：改写 + 计数，`Result.mismatched()` 单独留一份给复盘）。文件：`server/src/main/java/com/siyige/ai/QuoteGuard.java`。
+- **验收用例**：`插入否定词的引文判不一致并改写`、`数字与原文不一致判不一致_一致则放行`、`真引用不会被护栏改动_三参构造仍可用`。
+- **状态**：已修（已知局限：只做"有没有"级别核对，同义改写可能被误伤——这是刻意的取舍，见 §7.6）。
+
+### 7.4 A5 出处豁免后门 — 已修（B3）
+
+- **修了什么**：豁免范围收窄 —— 带书名号时只放行书名号内部，书名号外面的话（如「显示下降 37%」）仍是主张要照常核；「据/根据/依据/出自/来源/援引」后面只有**不含数据口径**（%、百分点、倍）的纯出处名才豁免（年份算出处身份，不算数据）。文件：`QuoteGuard.java`。
+- **验收用例**：`出处豁免只豁免书名号内部_带数字的主张仍要核`。
+- **状态**：已修。
+
+### 7.5 A10 模板兜底不看 duty/席位 — 部分修（B5）
+
+- **修了什么**：池键从 `side+seg` 扩成 `side+seg+duty`（`poolKey`），新增 `A/B质询问`（封闭问句池：是/否、数字、二选一、口径、时间点、边界）与 `A/B质询答`（先正面回答 + 一句理由 + 可反问）；兜底句末尾掺一句席位人设 `PERSONA_TAIL`（8 席各一句，最近三条出现过就不重复）；顺带取消质询·答/立论/总结的「顺着我方刚才那句…」外壳（既违反「答方先正面回答」，又占掉 120 字上限）。文件：`AiService.java`。
+- **验收用例**：`质询答的兜底模板先正面回答`、`质询问的兜底模板是封闭问句`、`无key时8席人设仍可辨`。
+- **状态**：**部分修** —— duty 维度已分池、8 席靠尾句可辨；但模板库整体仍是「2 侧 × 环节」10 个池（没有按席位各写一池），无 key 时同侧同环节的句子骨架仍相同。补齐属下一批。
+
+### 7.6 其余条目当前状态
+
+| 条目 | 当前状态 | 说明 |
+|---|---|---|
+| A6 降级原因落库 | **进行中（后端 AiReasonTest 批次）** | `Speech.analysisStatus/degraded` 已能区分原因，落库与上屏由后端批次做 |
+| A7 预算耗尽提示 | **进行中（后端 AiReasonTest 批次）** | 同上，`budget-exhausted` 已经在返回值里，缺的是事件/复盘展示 |
+| A14 失败无 SSE 通知 / 3 次重试无效 | **进行中（后端 AiReasonTest 批次）** | 与 A6 同批处理 |
+| A4 短引文阈值过严 | 待下一批 | 夹具 `忠实缩略的短引文被判编造` 仍 `@Disabled` |
+| A8 打字机与接话间隔对账 | 待下一批 | 夹具 `打字机总比AI接话慢_下句会在上句没打完时到达` 仍 `@Disabled` |
+| A9 `ai-think-ms` 死配置 | 待下一批 | 夹具 `aiThinkMs配置从未被使用` 仍 `@Disabled` |
+| A11 质询·答 prompt 互斥指令 | 待下一批 | 夹具 `质询答的prompt同时要求全问句和先正面回答`、`质询轮次里人设与环节指令互斥` 仍 `@Disabled` |
+| A12 去 AI 味覆盖不全 | 待下一批 | 夹具 `去AI味覆盖不全` 仍 `@Disabled` |
+| A13 judges token 恒 0 / 无总超时 | 待下一批 | 静态审计结论，暂无夹具 |
+
+### 7.7 本批次验收数字
+
+- 定向：`mvn -f server/pom.xml test -Dtest=AuditAiSpeechTest,QuoteGuardTest,AiServiceBudgetTest,ScoreEvalTest` → 全绿（Audit 21 项：14 跑 + 7 skip；QuoteGuard 9；Budget 10；ScoreEval 4）。
+- 全量：`mvn -f server/pom.xml test` → **937 tests, 0 failures, 0 errors, 14 skipped，BUILD SUCCESS**（B3 合并时 930；新增的 7 条来自启用的 A1/A2/A3/A5/A10 夹具）。

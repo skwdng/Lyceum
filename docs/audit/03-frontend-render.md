@@ -55,3 +55,28 @@
 ```
 
 探针脚本骨架在 `scripts/audit/ui-probe.mjs`（本轮未跑通，B4 时修脚本再跑）。
+
+---
+
+## 4. 修复记录：B4 批次（2026-11-27）
+
+| ID | 修法 | 状态 |
+|---|---|---|
+| FE-1 | 列表不再过滤未打字的发言，改为占位（`…` / `is-pending`），只有「正在打的那一条」是半截 | 已修 |
+| FE-2 | 打字节奏 `clamp(3200/len,12,120)`，标点停顿减半（句末 ≤320ms / 逗号 ≤120ms） | 已修 |
+| FE-3 | `typed` 按 matchId 持久化（上限 300 条），刷新不重播已看完的 | 已修 |
+| FE-4 | `forceFull` 只在「首次加载且无 typed 记录」时生效 | 已修 |
+| FE-6 | `kind` 白名单：非法值按 `unlimited` 回落到 solo，不再丢「催一下」 | 已修 |
+| FE-5 | 催一下成功后 1.8s 无新 turn 时提示「对方正在组织语言，稍等」 | 已修 |
+| FE-7 | 手动滚动即置 `stickBottom=false` | 已修 |
+
+B4 验收（无头 Edge + 真对局，`target/b4-check.mjs`）：
+
+``
+apiTurns=3 · domBubbles=3            → 没有「消失」的发言
+growthSamples=23 · parallelGrowth=0  → 同一时刻只有一条在增长（串行）
+sampleLens=[176, 217, 1]             → 第三条显示占位「…」而不是被隐藏
+刷新后 lens=[176, 99, 1]             → 第一条已全文（typed 持久化生效），未打完的继续
+``
+
+`verify_prod_full` 仍 21/21；全量单测 939/0/0/14。

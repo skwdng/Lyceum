@@ -36,6 +36,43 @@ function readSeats() {
 /** 席位固定顺序：排序不依赖到达顺序（旧版同款） */
 const SEAT_ORDER = { A1: 1, A2: 2, A3: 3, A4: 4, B1: 5, B2: 6, B3: 7, B4: 8 };
 
+/* ==================== 播放进度持久化（FE-3） ====================
+ *
+ * `typed` 只存「哪些轮次已经打完」的 key 列表：
+ * · 刷新 / 切页回来不再整场重播（用户反馈：F5 之后全场从头打一遍）；
+ * · 一场一个 key（`sy_typed_<matchId>`），换场自然隔离；
+ * · 上限 300 条：12–19 步的场次远到不了，纯粹防止脏数据把 localStorage 撑爆；
+ * · `shown` 不持久化 —— 没打完的那条重头打是可接受的，而「打到一半的进度」存下来
+ *   反而会因为服务端文本微调而出现「字缩回去」。
+ */
+const TYPED_LS_PREFIX = 'sy_typed_';
+const TYPED_LS_MAX = 300;
+
+function readTyped(matchId) {
+  if (!matchId) return {};
+  try {
+    const raw = localStorage.getItem(TYPED_LS_PREFIX + matchId);
+    const arr = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(arr)) return {};
+    const out = {};
+    arr.slice(-TYPED_LS_MAX).forEach((k) => { if (k) out[k] = true; });
+    return out;
+  } catch (e) {
+    return {};                                  // 隐私模式 / 脏 JSON：当没有进度
+  }
+}
+
+function writeTyped(matchId, typed) {
+  if (!matchId) return;
+  try {
+    const keys = Object.keys(typed || {}).slice(-TYPED_LS_MAX);
+    if (keys.length) localStorage.setItem(TYPED_LS_PREFIX + matchId, JSON.stringify(keys));
+    else localStorage.removeItem(TYPED_LS_PREFIX + matchId);
+  } catch (e) {
+    /* 忽略：存不下就退化成「刷新重播」，不影响对局 */
+  }
+}
+
 /**
  * 离线草稿：先引用用户原话，再按环节给一个攻击角度。
  * 纯规则、不联网；质量不高，但保证"像对手在说话"而不是复读。
@@ -126,6 +163,12 @@ export const useDebateStore = defineStore('debate', {
     /** 已经通过流式显示过的轮次（keyOf）——这些不再走打字机 */
     streamedKeys: {},
     typed: {},
+    /**
+     * `typed` 属于哪一场（FE-3）。
+     * 换场必须换成本场自己的播放进度：否则上一场的 key 会串到新的一场，
+     * 表现就是「刚开的新局，头一句 AI 发言不打了、直接全文」。
+     */
+    typedMatchId: null,
     stickBottom: true,
     /** 用户最后一次手动滚动的时间戳：打字机 600ms 内不自动滚（旧版同款防拽） */
     lastUserScroll: 0,
@@ -205,20 +248,17 @@ export const useDebateStore = defineStore('debate', {
       sorted.forEach((t, i) => {
         if (s.mySeats.includes(t.seat)) lastMine = i;
       });
+      // FE-4：只有「本场还没有任何播放进度」时，才把我发言之前的历史 AI 发言直接放全文。
+      // 一旦有了 typed 记录（刷新回来 / 打到一半），就老老实实按两条条播，不再「唰一下全出来」。
+      const noProgress = Object.keys(s.typed || {}).length === 0;
       const forceFull = new Set();
-      sorted.forEach((t, i) => {
-        if (i < lastMine && !s.mySeats.includes(t.seat)) forceFull.add(keyOf(t));
-      });
-      let firstUntyped = -1;
-      sorted.forEach((t, i) => {
-        if (s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded) return;
-        if (i < lastMine) return;
-        if (!s.typed[keyOf(t)] && !s.streamedKeys[keyOf(t)] && firstUntyped < 0) firstUntyped = i;
-      });
-      // 打字机一次只放一条，会把还没"轮到打字"的发言藏起来。
-      // 有流式气泡在时不能藏——否则会出现 A1 → A2流式，B1 凭空消失。
-      const streaming = Object.keys(s.streaming || {}).length > 0;
+      if (noProgress) {
+        sorted.forEach((t, i) => {
+          if (i < lastMine && !s.mySeats.includes(t.seat)) forceFull.add(keyOf(t));
+        });
+      }
       // 预览还在吐字的席位：它对应的正式发言先别显示，避免同一句话出现两次
+      const streaming = Object.keys(s.streaming || {}).length > 0;
       const hiddenByPreview = new Set(
         Object.keys(s.streaming || {})
           .filter((seat) => s.streamDone && s.streamDone[seat])
@@ -228,22 +268,20 @@ export const useDebateStore = defineStore('debate', {
           })
           .filter(Boolean)
       );
-      const list = streaming
-        ? sorted.filter((x) => !hiddenByPreview.has(keyOf(x)))
-        : sorted.filter(
-            (t, idx) => s.mySeats.includes(t.seat) || t.status === 'TIMEOUT' || t.degraded
-              || firstUntyped === -1 || idx <= firstUntyped
-          );
+      // FE-1：列表始终渲染**全部** turns。
+      // 原来这里按 firstUntyped 把「第一条没打完之后的发言」整段过滤掉，
+      // 结果打字机一排队，用户看到的就是「上一句凭空消失 / 这一段没出现」。
+      // 现在只由「typing + shown」决定每条是占位、正在打、还是全文，不隐藏任何条目。
+      const list = streaming ? sorted.filter((x) => !hiddenByPreview.has(keyOf(x))) : sorted;
       return list.map((t) => {
-        const isStream = false;   // 列表里不再有合成项（流式渲染已停用，统一走打字机）
-        const me = !isStream && s.mySeats.includes(t.seat);
-        const timeout = !isStream && t.status === 'TIMEOUT';
-        const text = isStream ? (t.content || '') : ((t.content || '').trim() || '（这一轮没有说出内容）');
-        const key = isStream ? 'stream|' + t.seat : keyOf(t);
-        const streamed = !isStream && !!s.streamedKeys[key];
-        const alreadyTyped = streamed || (!isStream && !!s.typed[key]);
-        const typing = !isStream && !me && !timeout && !streamed && !s.typed[key] && !forceFull.has(key);
-        const shown = typing ? s.shown[key] || 0 : text.length;
+        const me = s.mySeats.includes(t.seat);
+        const timeout = t.status === 'TIMEOUT';
+        const text = (t.content || '').trim() || '（这一轮没有说出内容）';
+        const key = keyOf(t);
+        const streamed = !!s.streamedKeys[key];
+        // 串行：还没打、又不是我 / 超时 / 降级 / 强制全文的条目 → 排队待打（界面显示占位）
+        const typing = !me && !timeout && !streamed && !s.typed[key] && !forceFull.has(key);
+        const shown = typing ? Math.min(s.shown[key] || 0, text.length) : text.length;
         return {
           key,
           step: t.step,          // 漏洞卡要按 step 找"那句话打完没有"，必须带上
@@ -251,13 +289,15 @@ export const useDebateStore = defineStore('debate', {
           seg: t.seg,
           timeout,
           /** 这一条是模板降级（服务端 TEMPLATE）或本地离线草稿 —— 界面要标出来 */
-          degraded: !isStream && (!!t.degraded || t.status === 'TEMPLATE'),
-          /** 这一条是"正在生成"的预览（界面标「生成中…」并显示光标） */
-          stream: isStream,
+          degraded: !!t.degraded || t.status === 'TEMPLATE',
+          /** 流式渲染已停用（统一走打字机），字段保留给模板判断 */
+          stream: false,
           me,
           side: String(t.seat).startsWith('A') ? 'a' : 'b',
           text,
           typing,
+          /** 已经开始吐字了没有：false = 排队占位（界面显示「…」+ 灰底） */
+          started: shown > 0,
           shown
         };
       });
@@ -463,6 +503,14 @@ export const useDebateStore = defineStore('debate', {
         if (Array.isArray(d.steps) && d.steps.length) this.plan = d.steps;
         this.turns = d.turns || [];
 
+        // FE-3：typed 只属于一场。换场时把播放进度换成本场自己的（localStorage），
+        // 否则上一场的 key 会串过来（新局第一句不打字），或者 F5 之后整场从头打一遍。
+        if (this.typedMatchId !== this.matchId) {
+          this.typedMatchId = this.matchId;
+          this.typed = readTyped(this.matchId);
+          this.shown = {};
+        }
+
         // 流式收尾：这个席位是"边生成边显示"过来的，落库后
         //   · 立刻清掉「生成中…」预览
         //   · 用落库那条 turn 的 keyOf 标成已显示，跳过打字机
@@ -477,7 +525,7 @@ export const useDebateStore = defineStore('debate', {
             if (!hit) continue;
             this.streamedKeys = { ...this.streamedKeys, [keyOf(hit)]: true };
             // 同步标 typed：打字机截断用的是 typed，不标的话下一句会被截掉（实测少一条）
-            this.typed = { ...this.typed, [keyOf(hit)]: true };
+            this.markTyped(keyOf(hit));
             // 定稿：不再接收新字，但让显示把缓冲吐完再换成正式气泡，避免"跳变"
             this.streamDone = { ...(this.streamDone || {}), [seat]: true };
             /* 流式预览已停用：交给打字机 */
@@ -496,7 +544,7 @@ export const useDebateStore = defineStore('debate', {
             const hit = (d.turns || []).filter((x) => x.seat === seat).pop();
             if (hit) {
               this.streamedKeys = { ...this.streamedKeys, [keyOf(hit)]: true };
-              this.typed = { ...this.typed, [keyOf(hit)]: true };
+              this.markTyped(keyOf(hit));
             }
             // 不直接删：标成"定稿"，匀速显示把剩下的字吐完，ticker 再换成正式发言。
             // 直接删会让剩下的字一次性补齐 —— 就是用户说的"啪一下全出来"。
@@ -516,8 +564,12 @@ export const useDebateStore = defineStore('debate', {
         this.remaining = d.remainingSec || 0;
         this.extendUsed = d.extendUsed || 0;
         this.phase = d.phase || 'STEP';
-        this.kind = d.kind || 'solo';
         this.unlimited = !!d.unlimited;
+        // FE-6：后端把 JSON null 序列化成字符串 "null" 时，kind 会变成 "null"，
+        // 于是 `kind !== 'solo'` → 单人局的「催一下」永不出现、不限时也失效。
+        // 这里只认白名单，脏值一律按「有 unlimited 就当单人局，否则按房间」兜底。
+        const kindRaw = String(d.kind || '');
+        this.kind = ['solo', 'room'].includes(kindRaw) ? kindRaw : (this.unlimited ? 'solo' : 'room');
         this.waiting = !!d.waitingForMe;
         this.err = '';
 
@@ -616,12 +668,23 @@ export const useDebateStore = defineStore('debate', {
     },
 
     // ==================== 打字机 ====================
+    /**
+     * 标记「这一轮已经打完了」并落盘（FE-3）。
+     * 所有写 typed 的地方都必须走这里，否则刷新后这条会重播。
+     */
+    markTyped(key) {
+      if (!key || this.typed[key]) return;
+      this.typed = { ...this.typed, [key]: true };
+      if (this.typedMatchId && this.typedMatchId === this.matchId) writeTyped(this.matchId, this.typed);
+    },
+
     startTyping() {
       if (this.typeTimer) return;
       if (!(this.turnsView || []).some((x) => x.typing)) return;   // 没有待打的就别空转
       const pauses = {};
       this.typeTimer = setInterval(() => {
-        // 串行：只推进最靠前的那条未打完的
+        // 串行：只推进最靠前的那条未打完的（FE-1 之后列表里可能同时有多条待打，
+        // 但这里永远只推进第一条，所以同一时刻只有一条在增长）
         const next = this.turnsView.find((x) => x.typing);
         if (!next) return;
         const now = Date.now();
@@ -634,15 +697,16 @@ export const useDebateStore = defineStore('debate', {
           if (this.scrollToBottom) this.scrollToBottom();
         }
         if (idx >= next.text.length) {
-          this.typed[next.key] = true;
+          this.markTyped(next.key);
           return;
         }
         const ch = next.text.charAt(idx - 1);
-        const per = Math.min(150, Math.max(18, Math.round(6500 / Math.max(1, next.text.length))));
+        // FE-2：整条 ≈3.2s 打完（原来 6.5s），标点停顿减半（句末 4× 上限 320ms、逗号 1.5× 上限 120ms）
+        const per = Math.min(120, Math.max(12, Math.round(3200 / Math.max(1, next.text.length))));
         let d = per;
-        if (ch === '。' || ch === '！' || ch === '？') d = Math.min(520, per * 8);
-        else if (ch === '，' || ch === '；' || ch === '：') d = Math.min(240, per * 3);
-        else if (ch === '「' || ch === '」') d = Math.round(per * 1.5);
+        if (ch === '。' || ch === '！' || ch === '？') d = Math.min(320, per * 4);
+        else if (ch === '，' || ch === '；' || ch === '：') d = Math.min(120, per * 1.5);
+        else if (ch === '「' || ch === '」') d = Math.round(per * 1.25);
         pauses[next.key] = now + d;
       }, 40);
     },
@@ -696,7 +760,14 @@ export const useDebateStore = defineStore('debate', {
         return false;
       }
       try {
-        await debateApi.submitTurn(this.matchId, body, inputType || 'kb');
+        const r = await debateApi.submitTurn(this.matchId, body, inputType || 'kb');
+        // B4：后端对「同一轮重复提交」返回 {ok:true, duplicate:true}——这不是失败，
+        // 不能走离线兜底重试（那会在本地再插一条重复发言）。
+        if (r && r.duplicate) {
+          toast('这一轮已经发过');
+          await this.load(false);
+          return true;                       // 已经发出去了：输入框该清空
+        }
         await this.load(false);
         return true;
       } catch (e) {
@@ -824,8 +895,9 @@ export const useDebateStore = defineStore('debate', {
       if (this.waiting) return false;            // 轮到我说，没什么可催
       if (this.skipBusy) return false;
       const step = Number((this.match && this.match.step) || 0);
-      // 这一小阶段已经催过一次 → 先藏起来，进入下一步再出现
-      if (this.skipStep === step) return false;
+      // FE-5：催过一次只在**冷却期内**藏按钮。原来用的是「本步永不再给」，
+      // 一旦服务端受理了却没真正开说（AI 还在生成），按钮就永久消失、用户以为催坏了。
+      if (this.skipStep === step && Date.now() < this.skipUntil) return false;
       // 刚催完、上一轮的字还在吐：也先别弹，等这段说完（避免"刚点完又冒出来"）
       if (this.skipStep === step - 1 && this.hasTyping()) return false;
       return true;
@@ -835,25 +907,37 @@ export const useDebateStore = defineStore('debate', {
      * 催一下：
      * · 正在打字 → 就地补全（不打扰服务端，零延迟）
      * · 还没开口 → 请服务端立刻推进
+     *
+     * FE-5：**先真正发请求，再改按钮状态**。
+     * 原来这里在调用 skipAi() 之前就把 skipStep 设成本步，而 skipAi() 开头正好有
+     * `if (this.skipStep === step) return;` —— 于是「AI 还没开口」这条路径什么都没发出去，
+     * 界面却 toast 成功、按钮消失，用户看到的就是「点了催一下，3–6 秒毫无变化」。
      */
     async nudge() {
       if (this.skipBusy) return;
       const step = Number((this.match && this.match.step) || 0);
-      // 一点下去就先藏按钮：这一小阶段不再给第二次（避免连点/刷）
-      this.skipStep = step;
       if (this.hasTyping()) {
         // 把还没打的字一次性补齐：标 typed + shown 拉满，打字机自然停下
         const typing = (this.turnsView || []).filter((t) => t.typing);
-        const keys = typing.map((t) => t.key);
         const shown = { ...this.shown };
-        const typed = { ...this.typed };
-        typing.forEach((t) => { shown[t.key] = t.text.length; typed[t.key] = true; });
+        typing.forEach((t) => { shown[t.key] = t.text.length; });
         this.shown = shown;
-        this.typed = typed;
+        typing.forEach((t) => this.markTyped(t.key));
+        this.skipStep = step;
+        this.skipUntil = Date.now() + 3000;
         toast('已显示完整发言');
         return;
       }
+      const beforeTurns = (this.turns || []).length;
       await this.skipAi();
+      // 服务端受理 ≠ 马上有新发言（AI 可能还在生成）。1.8s 内既没有新 turn、也还是没轮到我，
+      // 就明确告诉用户「在组织语言」，而不是让界面看起来像点了没反应。
+      setTimeout(() => {
+        const stepNow = Number((this.match && this.match.step) || 0);
+        if ((this.turns || []).length === beforeTurns && stepNow === step && !this.waiting) {
+          toast('对方正在组织语言，稍等');
+        }
+      }, 1800);
     },
 
     async toggleBrief() {
@@ -916,6 +1000,8 @@ export const useDebateStore = defineStore('debate', {
       this.flawOffer = null;
       this.shown = {};
       this.typed = {};
+      // FE-3：换账号/离开对局时，播放进度归属清空；下一场 load() 会重新按 matchId 读取
+      this.typedMatchId = null;
       this.review = null;
       this.panel = null;
       this.tier = 'PRO';   // 换账号/离开对局：档位回默认，避免把上一个账号的选择带过去

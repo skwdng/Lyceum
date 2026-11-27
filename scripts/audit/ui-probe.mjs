@@ -1,14 +1,15 @@
 /**
- * ui-probe.mjs —— 对局页 3 项最小实测（只读；不改主代码）
+ * ui-probe.mjs -- B4 frontend playback acceptance probe (read-only)
  *
- *   node scripts/audit/ui-probe.mjs             # 全跑，硬超时 180s
- *   node scripts/audit/ui-probe.mjs typing      # 只跑打字机采样
+ *   node scripts/audit/ui-probe.mjs
  *
- * 前置：服务 18091（java -jar server/target/siyige-backend-0.1.0.jar --server.port=18091）
- *      无头 Edge 9341（--headless=new --remote-debugging-port=9341 --user-data-dir=C:\Windows\Temp\edge-audit-fe）
- * 产出：target/audit-shots/probe-<part>.json + *.png
+ * Server (must serve the on-disk build, not the jar copy):
+ *   java -jar server/target/siyige-backend-0.1.0.jar --server.port=18091 \
+ *        --spring.web.resources.static-locations=file:///D:/siyige/server/src/main/resources/static/
+ * Edge:
+ *   msedge --headless=new --remote-debugging-port=9341 --user-data-dir=C:\Windows\Temp\edge-audit-fe about:blank
  *
- * 每个 CDP 调用都有超时，任何一步拿不到数据都会写「未实测」而不是挂死。
+ * Output: target/audit-shots/probe-b4.json + b4-*.png
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,24 +22,30 @@ fs.mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const now = () => Date.now();
 const log = (...a) => console.log(...a);
-const DEADLINE = now() + 180000;
-const out = { startedAt: new Date().toISOString() };
-const save = (k, v) => { out[k] = v; fs.writeFileSync(path.join(OUT, 'probe-' + k + '.json'), JSON.stringify(v, null, 2), 'utf8'); };
+const checks = [];
+const results = {};
+const t = (id, label, ok, detail) => {
+  checks.push({ id, label, ok: !!ok, detail });
+  log((ok ? 'PASS  ' : 'FAIL  ') + id + ' ' + label + (detail ? ' | ' + detail : ''));
+};
+const dump = () => {
+  try { fs.writeFileSync(path.join(OUT, 'probe-b4.json'), JSON.stringify({ checks, results }, null, 2), 'utf8'); } catch (e) {}
+};
+setTimeout(() => { log('[watchdog] timeout, dump partial'); dump(); process.exit(2); }, 175000);
 
-/* ---------- CDP（每个调用 6s 超时，避免挂死） ---------- */
 async function connect() {
   let target = null;
   for (let i = 0; i < 40; i++) {
     try {
       const list = await (await fetch(`http://127.0.0.1:${CDP}/json/list`)).json();
-      const pages = list.filter((t) => t.type === 'page' && t.webSocketDebuggerUrl);
+      const pages = list.filter((x) => x.type === 'page' && x.webSocketDebuggerUrl);
       if (pages.length) { target = pages[0]; break; }
     } catch (e) { /* not up */ }
     await sleep(200);
   }
-  if (!target) throw new Error('CDP 无 page target');
+  if (!target) throw new Error('no CDP page target on ' + CDP);
   const ws = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; setTimeout(() => rej(new Error('ws open timeout')), 5000); });
+  await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; setTimeout(() => rej(new Error('ws timeout')), 5000); });
   let id = 0;
   const pend = new Map();
   const errs = [];
@@ -46,27 +53,23 @@ async function connect() {
     const m = JSON.parse(e.data);
     if (m.id && pend.has(m.id)) { pend.get(m.id)(m.result); pend.delete(m.id); return; }
     if (m.method === 'Runtime.exceptionThrown') {
-      const d = m.params.exceptionDetails;
-      errs.push(((d.exception && d.exception.description) || d.text || '').split('\n')[0]);
+      errs.push(String(((m.params.exceptionDetails.exception || {}).description || m.params.exceptionDetails.text || '')).split('\n')[0]);
     }
   };
-  const send = (method, params = {}) => {
+  const send = (method, params = {}, ms = 5000) => {
     const mid = ++id;
     ws.send(JSON.stringify({ id: mid, method, params }));
-    return Promise.race([
-      new Promise((r) => pend.set(mid, r)),
-      sleep(6000).then(() => ({ __timeout: method }))
-    ]);
+    return Promise.race([new Promise((r) => pend.set(mid, r)), sleep(ms).then(() => ({ __timeout: method }))]);
   };
-  const ev = async (expr) => {
-    const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
+  const ev = async (expr, ms = 5000) => {
+    const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }, ms);
     if (!r || r.__timeout) return { __err: 'timeout' };
-    if (r.exceptionDetails) return { __err: ((r.exceptionDetails.exception && r.exceptionDetails.exception.description) || r.exceptionDetails.text || '').split('\n')[0] };
+    if (r.exceptionDetails) return { __err: String(((r.exceptionDetails.exception || {}).description || r.exceptionDetails.text || '')).split('\n')[0] };
     return r.result ? r.result.value : undefined;
   };
   const shot = async (name) => {
-    const s = await send('Page.captureScreenshot', { format: 'png' });
-    if (s && s.data) { fs.writeFileSync(path.join(OUT, name), Buffer.from(s.data, 'base64')); log('   shot:', name); }
+    const s = await send('Page.captureScreenshot', { format: 'png' }, 9000);
+    if (s && s.data) { fs.writeFileSync(path.join(OUT, name), Buffer.from(s.data, 'base64')); log('   shot: ' + name); }
   };
   await send('Page.enable');
   await send('Runtime.enable');
@@ -79,182 +82,230 @@ const SNAP = `(() => {
   const s = pinia && pinia._s.get('debate');
   const dom = [...document.querySelectorAll('.chat .msg')].map((m) => {
     const hd = m.querySelector('.hd'); const bub = m.querySelector('.bub');
-    return { head: hd ? hd.textContent.replace(/\\s+/g, ' ').trim() : '', len: bub ? (bub.textContent || '').length : 0 };
+    return { head: hd ? hd.textContent.replace(/\\s+/g, ' ').trim() : '', len: bub ? (bub.textContent || '').length : 0,
+      pending: !!(bub && bub.classList.contains('is-pending')) };
   });
   const btns = [...document.querySelectorAll('button')].filter((b) => /催一下|直接显示全文|催中/.test(b.textContent || ''));
   return {
-    matchId: s ? s.matchId : null, step: s && s.match ? s.match.step : null,
-    waiting: s ? s.waiting : null, phase: s ? s.phase : null,
-    skipStep: s ? s.skipStep : null, skipBusy: s ? s.skipBusy : null,
+    matchId: s ? s.matchId : null, kind: s ? s.kind : null, step: s && s.match ? s.match.step : null,
+    waiting: s ? s.waiting : null, skipStep: s ? s.skipStep : null,
     canSkip: s ? s.canSkip() : null, hasTyping: s ? s.hasTyping() : null,
-    turnsN: s ? s.turns.length : 0,
-    view: s ? s.turnsView.map((t) => ({ k: t.key, step: t.step, seat: t.seat, len: (t.text || '').length, shown: t.shown, typing: t.typing })) : [],
+    turnsN: s ? s.turns.length : 0, typedKeys: s ? Object.keys(s.typed || {}) : [],
+    view: s ? s.turnsView.map((v) => ({ k: v.key, step: v.step, seat: v.seat, len: (v.text || '').length, shown: v.shown, typing: v.typing, started: v.started })) : [],
     dom, btns: btns.map((b) => ({ text: b.textContent.trim().slice(0, 10), disabled: b.disabled })),
-    net: (window.__net || []).slice(-6), toast: [...document.querySelectorAll('.tst')].map((x) => x.textContent.trim())
+    net: (window.__net || []).slice(-12), toast: [...document.querySelectorAll('.tst')].map((x) => x.textContent.trim())
   };
 })()`;
 
 const okv = (v) => v && !v.__err;
+const c = await connect();
+await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
 
-async function main() {
-  const part = process.argv[2] || 'all';
-  const c = await connect();
-  await c.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
-
-  /* ---------- 开局：注册 → 充值 → /solo 选座开局 ---------- */
-  const acc = 'ui_' + Math.floor(Math.random() * 900000 + 10000);
+const acc = 'b4_' + Math.floor(Math.random() * 900000 + 10000);
+await c.send('Page.navigate', { url: BASE + '/v2/index.html#/login' });
+await sleep(1600);
+const prepExpr = `(async () => {
+  const r = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account: '${acc}', password: 'Test123456' }) });
+  const d = await r.json();
+  if (!d.token) return { err: JSON.stringify(d).slice(0, 160) };
+  const H = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + d.token };
+  localStorage.setItem('sy_jwt', d.token);
+  localStorage.setItem('sy_seats', JSON.stringify(['B2']));
+  localStorage.setItem('sy_mode', 'STANDARD');
+  localStorage.setItem('sy_pace', 'normal');
+  localStorage.setItem('sy_tier', 'BASIC');
+  localStorage.removeItem('sy_match');
+  Object.keys(localStorage).filter((k) => k.indexOf('sy_typed_') === 0).forEach((k) => localStorage.removeItem(k));
+  const o = await (await fetch('/api/pay/orders', { method: 'POST', headers: H, body: JSON.stringify({ amountCents: 900 }) })).json();
+  if (o && o.orderId) await fetch('/api/pay/callback', { method: 'POST', headers: H, body: JSON.stringify({ orderId: o.orderId, amountCents: 900, sign: o.sign }) });
+  const tp = await (await fetch('/api/topics', { headers: H })).json();
+  const list = Array.isArray(tp) ? tp : (tp.items || tp.topics || tp.list || []);
+  const topicId = list.length ? list[0].id : null;
+  const m = await (await fetch('/api/matches', { method: 'POST', headers: H, body: JSON.stringify(topicId ? { topicId } : {}) })).json();
+  return { account: '${acc}', topicId, matchId: m.matchId || (m.match && m.match.id) || m.id || null };
+})()`;
+let prep = await c.ev(prepExpr, 30000);
+if (!okv(prep)) {
+  log('prep retry after reload');
   await c.send('Page.navigate', { url: BASE + '/v2/index.html#/login' });
-  await sleep(1500);
-  const reg = await c.ev(`(async () => {
-    const r = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account: '${acc}', password: 'Test123456' }) });
-    const d = await r.json();
-    if (!d.token) return { err: d };
-    localStorage.setItem('sy_jwt', d.token);
-    localStorage.setItem('sy_seats', JSON.stringify(['B2']));
-    localStorage.setItem('sy_mode', 'STANDARD');
-    localStorage.setItem('sy_pace', 'normal');
-    localStorage.setItem('sy_tier', 'BASIC');
-    const o = await (await fetch('/api/pay/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + d.token }, body: JSON.stringify({ amountCents: 900 }) })).json();
-    if (o && o.orderId) await fetch('/api/pay/callback', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + d.token }, body: JSON.stringify({ orderId: o.orderId, amountCents: 900, sign: o.sign }) });
-    return { account: '${acc}', token: !!d.token };
-  })()`);
-  log('register:', JSON.stringify(reg));
-  await c.send('Page.navigate', { url: BASE + '/v2/index.html#/solo' });
-  await sleep(1500);
-  await c.ev(`(() => { if (!window.__netPatched) { window.__net = []; const of = window.fetch.bind(window); window.fetch = (...a) => { try { window.__net.push(String((a[0] && a[0].url) || a[0])); } catch (e) {} return of(...a); }; window.__netPatched = true; } return true; })()`);
-  for (let i = 0; i < 40; i++) { if ((await c.ev(`!!document.querySelector('.topic')`)) === true) break; await sleep(200); }
-  await c.ev(`(() => { const t = document.querySelector('.topic'); if (t) t.click(); return !!t; })()`);
-  let started = null;
-  for (let i = 0; i < 30; i++) {
-    started = await c.ev(`(() => { const b = [...document.querySelectorAll('.mask button')].find((x) => /进入对局/.test(x.textContent || '')); if (!b) return null; b.click(); return b.textContent.trim(); })()`);
-    if (started) break;
-    await sleep(200);
-  }
-  log('进入对局:', started);
-  let s = null;
-  for (let i = 0; i < 60; i++) { s = await c.ev(SNAP); if (okv(s) && s.matchId) break; await sleep(200); }
-  save('boot', { account: acc, started, matchId: s && s.matchId, step: s && s.step });
-  log('match:', s && s.matchId, 'step', s && s.step);
-  if (!okv(s) || !s.matchId) { save('error', '开局失败，未取到 matchId'); c.close(); return; }
+  await sleep(2500);
+  prep = await c.ev(prepExpr, 30000);
+}
+results.prep = prep;
+log('prep: ' + JSON.stringify(prep));
+const matchId = prep && prep.matchId;
+if (!matchId) { t('B4-0', 'create match', false, JSON.stringify(prep).slice(0, 200)); dump(); process.exit(1); }
 
-  /* ---------- ① 打字机采样（首条 AI 发言） ---------- */
-  if (['all', 'typing'].includes(part)) {
-    log('\n=== ① 打字机长度采样 ===');
-    const series = [];
-    const t0 = now();
-    while (now() - t0 < 30000 && now() < DEADLINE) {
-      const x = await c.ev(SNAP);
-      if (!okv(x)) break;
-      series.push({ dt: now() - t0, view: x.view.map((v) => ({ k: v.k, shown: v.shown, len: v.len, typing: v.typing })), domN: x.dom.length, hasTyping: x.hasTyping });
-      if (!x.hasTyping && series.length > 3) break;
-      await sleep(120);
-    }
-    const perKey = {};
-    for (const sp of series) for (const v of sp.view) {
-      perKey[v.k] = perKey[v.k] || { len: v.len, pts: [] };
-      perKey[v.k].len = Math.max(perKey[v.k].len, v.len);
-      perKey[v.k].pts.push({ dt: sp.dt, shown: v.shown, typing: v.typing });
-    }
-    const summary = Object.entries(perKey).map(([k, v]) => {
-      let regress = 0, prev = null, maxJump = 0;
-      for (const p of v.pts) {
-        if (prev != null) { if (p.shown < prev) regress++; maxJump = Math.max(maxJump, p.shown - prev); }
-        prev = p.shown;
-      }
-      const a = v.pts[0], z = v.pts[v.pts.length - 1];
-      const secs = (z.dt - a.dt) / 1000;
-      return { key: k, len: v.len, firstShown: a.shown, lastShown: z.shown, samples: v.pts.length,
-        regress, maxJump, charsPerSec: secs > 0.3 ? Math.round(((z.shown - a.shown) / secs) * 10) / 10 : null,
-        firstFrameFull: v.len > 0 && a.shown >= v.len };
-    });
-    const outT = { seriesLen: series.length, summary, seriesHead: series.slice(0, 12).map((x) => x.view.map((v) => v.shown)) };
-    save('typing', outT);
-    log('  采样点:', series.length);
-    for (const r of summary) log('   ', r.key, 'len=' + r.len, 'first=' + r.firstShown, 'last=' + r.lastShown, 'cps=' + r.charsPerSec, 'regress=' + r.regress, 'maxJump=' + r.maxJump, '首帧即全文=' + r.firstFrameFull);
-    await c.shot('typewriter.png');
-  }
+// 注意：hash 变化不会重启应用，store 里可能还留着上一场的 matchId（深链会被忽略）。
+// 这里带一个 cache-buster 查询串，强制整页重载，保证读的是 URL 里的新 matchId。
+await c.send('Page.navigate', { url: BASE + '/v2/index.html?run=' + Date.now() + '#/match?match=' + matchId });
+await sleep(1900);
+let alive = (await c.ev('1+1')) === 2;
+if (!alive) {
+  log('page busy, re-navigate');
+  await c.send('Page.navigate', { url: BASE + '/v2/index.html#/match?match=' + matchId });
+  await sleep(2600);
+}
+await c.ev(`(() => { if (!window.__netPatched) { window.__net = []; const of = window.fetch.bind(window); window.fetch = (...a) => { try { window.__net.push(String((a[0] && a[0].url) || a[0])); } catch (e) {} return of(...a); }; window.__netPatched = true; } return true; })()`);
 
-  /* ---------- ② 气泡 (step,seat) 序列 vs 接口 ---------- */
-  if (['all', 'order'].includes(part)) {
-    log('\n=== ② 气泡序列 vs 接口 turns ===');
-    const x = await c.ev(SNAP);
-    const api = await c.ev(`(async () => {
-      const t = localStorage.getItem('sy_jwt');
-      const r = await fetch('/api/matches/${x.matchId}', { headers: { Authorization: 'Bearer ' + t } });
-      const d = await r.json();
-      return { step: d.match && d.match.step, turns: (d.turns || []).map((y) => ({ step: y.step, seat: y.seat, seg: y.seg, chars: (y.content || '').length })) };
-    })()`);
-    const apiSeq = (api.turns || []).map((t) => t.step + '|' + t.seat);
-    const viewSeq = x.view.map((t) => t.step + '|' + t.seat);
-    const dup = (a) => a.filter((k, i) => a.indexOf(k) !== i);
-    const res = {
-      apiSeq, viewSeq, apiDupe: dup(apiSeq), viewDupe: dup(viewSeq),
-      missing: apiSeq.filter((k) => !viewSeq.includes(k)), extra: viewSeq.filter((k) => !apiSeq.includes(k)),
-      domHeads: x.dom.map((d) => d.head), apiChars: (api.turns || []).map((t) => t.chars),
-      storeStep: x.step, apiStep: api.step
-    };
-    save('order', res);
-    log('  api :', apiSeq.join(' ') || '(空)');
-    log('  view:', viewSeq.join(' ') || '(空)');
-    log('  重复 api/view:', res.apiDupe.length, res.viewDupe.length, '丢条:', res.missing.length, '多出:', res.extra.length);
-  }
+let s0 = null;
+for (let i = 0; i < 30; i++) { s0 = await c.ev(SNAP); if (okv(s0) && s0.matchId) break; await sleep(250); }
+results.boot = { matchId: s0 && s0.matchId, kind: s0 && s0.kind, step: s0 && s0.step, turns: s0 && s0.turnsN };
+log('boot: ' + JSON.stringify(results.boot));
+t('B4-0', 'reached match page with store', okv(s0) && !!s0.matchId, 'match=' + (s0 && s0.matchId));
+t('B4-6a', 'kind whitelist (not "null")', ['solo', 'room'].includes(s0 && s0.kind), 'kind=' + (s0 && s0.kind));
 
-  /* ---------- ④ 催一下按钮状态 ---------- */
-  if (['all', 'nudge'].includes(part)) {
-    log('\n=== ④ 催一下 ===');
-    const R = { states: [], clicks: [] };
-    // 等「我的回合」
-    for (let i = 0; i < 400 && now() < DEADLINE; i++) {
-      const x = await c.ev(SNAP);
-      if (okv(x) && x.waiting) { R.myTurn = { step: x.step, btns: x.btns, canSkip: x.canSkip }; break; }
-      await sleep(250);
-    }
-    const before = await c.ev(SNAP);
-    R.myTurnClicks = await c.ev(`(() => {
-      const bs = [...document.querySelectorAll('button')].filter((x) => /催一下/.test(x.textContent || ''));
-      return bs.map((b) => { const d = b.disabled; if (!d) b.click(); return { text: b.textContent.trim(), disabled: d, title: b.getAttribute('title') || '' }; });
-    })()`);
-    // 提交一句 → 立刻采样按钮 + 连点 5 次
-    await c.ev(`(() => {
-      const ta = document.querySelector('.composer textarea');
-      if (!ta) return 'no-ta';
-      ta.value = '我方判断：算法推荐的成本由用户承担，平台必须公开推荐口径并接受外部抽查。';
-      ta.dispatchEvent(new Event('input', { bubbles: true }));
-      return ta.value.length;
-    })()`);
-    await sleep(200);
-    R.submit = await c.ev(`(() => { const b = [...document.querySelectorAll('.composer button')].find((x) => /发送/.test(x.textContent || '')); if (b && !b.disabled) { b.click(); return true; } return b ? 'disabled' : 'none'; })()`);
-    const t0 = now();
-    for (let i = 0; i < 12 && now() < DEADLINE; i++) {
-      const x = await c.ev(SNAP);
-      if (okv(x)) {
-        R.states.push({ dt: now() - t0, waiting: x.waiting, step: x.step, btns: x.btns, canSkip: x.canSkip, skipStep: x.skipStep, hasTyping: x.hasTyping, skipCalls: (x.net || []).filter((u) => u.includes('/skip')).length });
-        if (x.btns.length && x.btns.some((b) => /催一下|直接显示全文/.test(b.text) && !b.disabled)) {
-          R.clicks.push(await c.ev(`(() => {
-            const b = [...document.querySelectorAll('button')].find((x) => /催一下|直接显示全文/.test(x.textContent || ''));
-            if (!b) return { found: false };
-            const before = { text: b.textContent.trim(), disabled: b.disabled };
-            b.click();
-            return { found: true, before, after: { text: b.textContent.trim(), disabled: b.disabled } };
-          })()`));
-        }
-      }
-      await sleep(200);
-    }
-    R.final = await c.ev(SNAP);
-    R.skipCallsTotal = ((R.final.net || []).filter((u) => u.includes('/skip'))).length;
-    save('nudge', R);
-    log('  我的回合按钮:', JSON.stringify(R.myTurn && R.myTurn.btns));
-    log('  思考中按钮状态:', JSON.stringify(R.states.filter((s) => s.btns.length).slice(0, 3)));
-    log('  点击次数:', R.clicks.length, '| /skip 请求数:', R.skipCallsTotal, '| toast:', JSON.stringify(R.final.toast));
-    await c.shot('nudge.png');
-  }
-
-  out.consoleErrs = c.errs.slice(0, 8);
-  fs.writeFileSync(path.join(OUT, 'probe-summary.json'), JSON.stringify(out, null, 2), 'utf8');
-  log('\nconsole errors:', out.consoleErrs.length ? JSON.stringify(out.consoleErrs) : 'none');
-  c.close();
+// 新局第一步可能就轮到我说（取决于格式），先交一句，否则没有 AI 发言可采样
+const pre = await c.ev(SNAP);
+if (okv(pre) && pre.waiting) {
+  await c.ev(`(() => { const ta = document.querySelector('.composer textarea'); if (!ta) return 0; ta.value = '我方判断：推荐算法的成本要由平台先承担，才谈得上公开口径。'; ta.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+  await sleep(300);
+  const sent = await c.ev(`(() => { const b = [...document.querySelectorAll('.composer button')].find((x) => /发送/.test(x.textContent || '')); if (b && !b.disabled) { b.click(); return 1; } return 0; })()`);
+  log('pre-submit: ' + JSON.stringify(sent) + ' (step ' + pre.step + ')');
 }
 
-await main().catch((e) => { log('ERROR:', (e && e.stack) || e); try { fs.writeFileSync(path.join(OUT, 'probe-summary.json'), JSON.stringify({ error: String(e), out }, null, 2)); } catch (x) {} });
-process.exit(0);
+const series = [];
+const tStart = now();
+let domeq = { ok: true, worst: '' };
+let sawTyping = false;
+let completedKeys = 0;
+while (now() - tStart < 46000) {
+  const x = await c.ev(SNAP);
+  if (!okv(x)) break;
+  series.push({ dt: now() - tStart, view: x.view, dom: x.dom, hasTyping: x.hasTyping, turnsN: x.turnsN });
+  if (x.hasTyping) sawTyping = true;
+  if (x.dom.length !== x.view.length || x.view.length !== x.turnsN) {
+    if (domeq.ok) domeq = { ok: false, worst: 'dom=' + x.dom.length + ' view=' + x.view.length + ' turns=' + x.turnsN };
+  }
+  completedKeys = x.view.filter((v) => v.len > 0 && v.shown >= v.len && !v.me).length;
+  if (sawTyping && !x.hasTyping && completedKeys >= 2 && series.length > 25) break;
+  await sleep(110);
+}
+results.seriesLen = series.length;
+results.domVsTurns = domeq;
+let multiGrow = 0;
+const perKey = {};
+for (let i = 1; i < series.length; i++) {
+  const prev = series[i - 1].view;
+  let grown = 0;
+  for (const v of series[i].view) {
+    const old = prev.find((p) => p.k === v.k);
+    if (old && v.shown > old.shown) grown++;
+  }
+  if (grown > 1) multiGrow++;
+}
+for (const sp of series) {
+  for (const v of sp.view) {
+    perKey[v.k] = perKey[v.k] || { len: v.len, pts: [] };
+    perKey[v.k].len = Math.max(perKey[v.k].len, v.len);
+    perKey[v.k].pts.push({ dt: sp.dt, shown: v.shown });
+  }
+}
+let regress = 0;
+const durations = [];
+for (const k of Object.keys(perKey)) {
+  const v = perKey[k];
+  let prev = null; let first = null;
+  for (const p of v.pts) {
+    if (p.shown > 0 && first == null) first = p.dt;
+    if (prev != null && p.shown < prev) regress++;
+    prev = p.shown;
+  }
+  const done = v.pts.find((p) => p.shown >= v.len && v.len > 0);
+  if (done && first != null) durations.push({ key: k, len: v.len, secs: Math.round(((done.dt - first) / 1000) * 10) / 10 });
+}
+results.perKey = Object.keys(perKey).map((k) => ({ key: k, len: perKey[k].len, samples: perKey[k].pts.length, first: perKey[k].pts[0].shown, last: perKey[k].pts[perKey[k].pts.length - 1].shown }));
+results.multiGrowSamples = multiGrow;
+results.regress = regress;
+results.durations = durations;
+t('B4-1', 'only one bubble grows at a time', multiGrow === 0, 'violations=' + multiGrow + ' samples=' + series.length);
+t('B4-2', 'length never regresses', regress === 0, 'regressions=' + regress);
+t('B4-3', 'bubble count == turns count', domeq.ok, domeq.ok ? '' : domeq.worst);
+t('B4-5', 'single turn done in <=5s (FE-2)', durations.length > 0 && durations.every((d) => d.secs <= 5.2), JSON.stringify(durations.slice(0, 3)));
+await c.shot('b4-typing.png');
+
+const s1 = await c.ev(SNAP);
+const api = await c.ev(`(async () => {
+  const tk = localStorage.getItem('sy_jwt');
+  const r = await fetch('/api/matches/${matchId}', { headers: { Authorization: 'Bearer ' + tk } });
+  const d = await r.json();
+  return { turns: (d.turns || []).map((x) => ({ step: x.step, seat: x.seat, chars: (x.content || '').length })) };
+})()`, 8000);
+const apiSeq = ((api && api.turns) || []).map((x) => x.step + '|' + x.seat);
+const viewSeq = ((s1 && s1.view) || []).map((x) => x.step + '|' + x.seat);
+results.apiSeq = apiSeq;
+results.viewSeq = viewSeq;
+t('B4-4', 'bubble (step,seat) == API order', apiSeq.length > 0 && JSON.stringify(apiSeq) === JSON.stringify(viewSeq), apiSeq.join(' ') + ' vs ' + viewSeq.join(' '));
+
+const nudge = { sawWindow: false, skipCalls: 0, toast: [] };
+for (let i = 0; i < 240 && now() - tStart < 150000; i++) {
+  const x = await c.ev(SNAP);
+  if (!okv(x)) break;
+  if (x.waiting) {
+    await c.ev(`(() => { const ta = document.querySelector('.composer textarea'); if (!ta) return 0; ta.value = '我方判断：成本要由平台先承担，否则推荐口径无法核查。'; ta.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+    await sleep(300);
+    await c.ev(`(() => { const b = [...document.querySelectorAll('.composer button')].find((x) => /发送/.test(x.textContent || '')); if (b && !b.disabled) { b.click(); return 1; } return 0; })()`);
+    for (let j = 0; j < 14; j++) {
+      const y = await c.ev(SNAP);
+      if (!okv(y)) break;
+      const nb = (y.btns || []).find((b) => /催一下/.test(b.text));
+      if (!y.waiting && nb && !nb.disabled) {
+        nudge.sawWindow = true;
+        await c.ev(`(() => { const b = [...document.querySelectorAll('button')].find((x) => /催一下|直接显示全文/.test(x.textContent || '')); if (b) b.click(); return 1; })()`);
+        await sleep(900);
+        const z = await c.ev(SNAP);
+        nudge.skipCalls = ((z && z.net) || []).filter((u) => u.includes('/skip')).length;
+        nudge.toast = (z && z.toast) || [];
+        await c.shot('b4-nudge.png');
+        break;
+      }
+      await sleep(220);
+    }
+    break;
+  }
+  await sleep(300);
+}
+results.nudge = nudge;
+t('B4-6b', 'nudge while thinking really sends /skip', nudge.sawWindow && nudge.skipCalls > 0, nudge.sawWindow ? 'skip=' + nudge.skipCalls + ' toast=' + JSON.stringify(nudge.toast) : 'window not reached (not measured)');
+
+const before = await c.ev(SNAP);
+const typedBefore = ((before && before.typedKeys) || []);
+await c.shot('b4-before-reload.png');
+await c.send('Page.reload');
+await sleep(1300);
+let after = null;
+for (let i = 0; i < 30; i++) { const x = await c.ev(SNAP); if (okv(x) && x.view.length) { after = x; break; } await sleep(200); }
+const replayed = after ? after.view.filter((v) => typedBefore.includes(v.k) && v.shown < v.len) : [];
+results.reload = { typedBefore: typedBefore.length, typedAfter: after ? (after.typedKeys || []).length : null, replayed: replayed.map((r) => r.k) };
+t('B4-7', 'no full replay after F5', typedBefore.length > 0 && replayed.length === 0, 'typedBefore=' + typedBefore.length + ' replayed=' + replayed.length);
+await c.shot('b4-after-reload.png');
+
+await c.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 2, mobile: true });
+await sleep(900);
+const mob = await c.ev(`(() => {
+  const de = document.documentElement;
+  const over = [];
+  document.querySelectorAll('.chat *, .composer *, .stage *').forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0.5 && (r.right > de.clientWidth + 0.5 || r.left < -0.5)) over.push(String(el.className || el.tagName).slice(0, 30));
+  });
+  const ta = document.querySelector('.composer textarea');
+  const r = ta ? ta.getBoundingClientRect() : null;
+  return { vw: de.clientWidth, scrollW: de.scrollWidth, overflow: over.length, overflowList: over.slice(0, 5),
+    textareaVisible: r ? (r.bottom <= window.innerHeight + 1 && r.top >= 0) : null,
+    textareaTop: r ? Math.round(r.top) : null, textareaBottom: r ? Math.round(r.bottom) : null };
+})()`);
+results.mobile = mob;
+t('B4-8', '375px no horizontal overflow', mob && mob.scrollW <= mob.vw && mob.overflow === 0, JSON.stringify(mob));
+t('B4-9', '375px composer in viewport', mob && mob.textareaVisible === true, 'top=' + (mob && mob.textareaTop) + ' bottom=' + (mob && mob.textareaBottom));
+await c.shot('b4-375.png');
+
+results.consoleErrs = c.errs.slice(0, 8);
+dump();
+const failed = checks.filter((x) => !x.ok);
+log('');
+log('==== ' + (checks.length - failed.length) + '/' + checks.length + ' PASS ====');
+if (failed.length) log('FAILED: ' + failed.map((f) => f.id).join(', '));
+log('console errors: ' + (results.consoleErrs.length ? JSON.stringify(results.consoleErrs) : 'none'));
+c.close();
+process.exit(failed.length ? 1 : 0);

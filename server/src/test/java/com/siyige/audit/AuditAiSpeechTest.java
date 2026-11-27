@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
  * <ul>
  *   <li><b>已修好的</b>（B3：A1 字数/截断、A3 引文硬指纹、A5 出处豁免）：默认启用，断言的是**期望行为**，
  *       属于正式回归用例；</li>
- *   <li><b>还没修的</b>：逐个 {@code @Disabled("待 B5：…")}，断言的是"缺陷仍存在"，修好后把它翻成正向期望
+ *   <li><b>还没修的</b>：逐个 {@code @Disabled("待下一批：…")}，断言的是"缺陷仍存在"，修好后把它翻成正向期望
  *       并去掉 @Disabled。</li>
  * </ul>
  *
@@ -288,16 +288,14 @@ class AuditAiSpeechTest {
         assertEquals(0, legacy.fabricated());
     }
 
-    // ================================================================== 待 B5（未修，保持固化的缺陷）
+    // ================================================================== A2 复读误杀（已修，启用）
 
     /**
-     * A2：cutRepeats 的判定是「同一句 ≥8 字第二次出现即整段截断」。结辩复现句是修辞不是退化：
-     * 「我方判准只有一条：…」开头立一遍、收尾再点一遍，是标准结辩结构，却会被判复读，
-     * 连后面的收束句一起砍掉。
+     * A2：结辩的复现句是修辞不是退化——「我方判准只有一条：…」开头立一遍、收尾再点一遍，
+     * 同一句出现 2 次必须保留，收束句更要保留。只有连续 3 次相同才算退化。
      */
-    @Disabled("待 B5：cutRepeats 只删重复句、不砍后续，并放宽结辩/质询")
     @Test
-    void cutRepeats误杀结辩的复现句() throws Exception {
+    void cutRepeats不再误杀结辩的复现句() throws Exception {
         String ref = "我方判准只有一条：可执行、可监督、可追责。";
         String mids = "第一，标准可查：对方至今没有给出一个能被第三方复核的口径。"
                 + "第二，过程可看：执行主体是谁，对方从立论回避到结辩。"
@@ -307,25 +305,100 @@ class AuditAiSpeechTest {
 
         String cut = cutRepeatsOf(text);
 
-        assertFalse(cut.contains("请评委按这三条打分"), "收束句被当成复读整段砍掉：" + cut);
-        assertTrue(cut.contains("第三，结果可追"), "前面三条应该保留");
+        assertTrue(cut.contains("请评委按这三条打分"), "收束句必须保留：" + cut);
+        assertEquals(2, cut.split("我方判准只有一条").length - 1, "复现句的两次都保留（2 次是修辞）");
+        assertEquals(text.trim(), cut, "没有任何退化时正文不该被改动");
     }
 
-    /** A2：同一句「请对方正面回答…」夹在三条之间（真实质询节奏），也会被判复读截断。 */
-    @Disabled("待 B5：同上，重复追问不该整段截断")
+    /** A2：质询里同一句追问出现 3 次但中间夹着别的内容 —— 不是连续退化，整段保留。 */
     @Test
-    void cutRepeats误杀质询的重复追问() throws Exception {
+    void cutRepeats不再误杀质询的重复追问() throws Exception {
         String ask = "请对方正面回答：谁执行、谁复核、谁追责。";
         String a = "第一，你方说有成本，却没说是哪个科目，也没给出分摊比例的口径。";
         String b = "第二，你方说会改进，却没给改进的边界，也没说谁来判断改进是否发生。";
         String text = ask + a + ask + b + ask + "我方收在这个问题上。";
 
         String cut = cutRepeatsOf(text);
-        assertFalse(cut.contains("我方收在这个问题上"), "第二次追问就被判复读，后面整段丢失");
+
+        assertTrue(cut.contains("我方收在这个问题上"), "收束句必须保留：" + cut);
+        assertEquals(3, cut.split("请对方正面回答").length - 1, "三次追问都保留（中间隔了论证，不是退化）");
     }
 
+    /** A2：真正退化时只删重复的那几句，不砍后续；连续 2 遍仍保留。 */
+    @Test
+    void cutRepeats只删重复句_连续三遍才收敛() throws Exception {
+        String once = "同一段话在一轮里被抄了很多遍，这是模型卡住不动的典型表现，没有任何新信息量。";
+        // 连续 2 遍：保留
+        String twice = once + once + "最后我方收束一句，请评委记录。";
+        assertEquals(2, cutRepeatsOf(twice).split("同一段话").length - 1, "连续 2 遍是修辞，保留");
+
+        // 连续 3 遍：收敛成 1 句，且后面的收束句还在
+        String thrice = once + once + once + "最后我方收束一句，请评委记录。";
+        String cut = cutRepeatsOf(thrice);
+        assertEquals(1, cut.split("同一段话").length - 1, "连续 3 遍判退化，只留一句：" + cut);
+        assertTrue(cut.contains("最后我方收束一句"), "只删重复句，不砍后面的内容：" + cut);
+    }
+
+    // ================================================================== A10 模板分池（已修，启用）
+
+    /** A10：质询·答 的兜底必须「先正面回答 + 一句理由 + 可反问」，不能再抽到纯问句。 */
+    @Test
+    void 质询答的兜底模板先正面回答() {
+        AiService ai = offline();
+        List<Map<String, Object>> h = historyOf("我方判断：期末考试的学分认定必须有刚性凭证。",
+                "我方立论：判断这道题要先立一个标准——可执行、可监督、可追责。");
+
+        for (int i = 0; i < 12; i++) {
+            AiService.Speech sp = ai.speakForSolo("A3", "质询", "质询·答", "辩题", "t", "pro", h);
+            String t = sp.text();
+            assertTrue(t.matches("(?s).*(我方正面回答|我方直接回答|我方明确|我方给数字|我方回答|我方确认边界).*"),
+                    "答方第一句必须是正面回答，实际：" + t);
+            assertTrue(t.contains("理由"), "回答后要给一句理由：" + t);
+            assertFalse(t.trim().endsWith("？"), "结尾不能是纯问句（允许句中有反问，收尾要落在陈述）：" + t);
+            assertTrue(t.contains("我举个具体场景来说明。"), "兜底句要带上席位人设（A3 例证派）：" + t);
+        }
+    }
+
+    /** A10：质询·问 走封闭问句池（是/否、数字、二选一、口径、边界），且带人设。 */
+    @Test
+    void 质询问的兜底模板是封闭问句() {
+        AiService ai = offline();
+        List<Map<String, Object>> h = historyOf("我方判断：期末考试的学分认定必须有刚性凭证。",
+                "我方立论：判断这道题要先立一个标准——可执行、可监督、可追责。");
+
+        for (int i = 0; i < 12; i++) {
+            String t = ai.speakForSolo("A3", "质询", "质询·问", "辩题", "t", "pro", h).text();
+            assertTrue(t.matches("(?s).*(只回答是或否|给一个数字|二选一|明确口径|回答时间点|确认边界).*"),
+                    "问方要从封闭问句池里出：" + t);
+            assertFalse(t.contains("我方正面回答"), "问方不该出现答方句式：" + t);
+        }
+    }
+
+    /** A10：无 key 时 8 个席位靠人设尾句也能听出差别（同侧四席不再共用一个声音）。 */
+    @Test
+    void 无key时8席人设仍可辨() {
+        AiService ai = offline();
+        Map<String, String> tails = new LinkedHashMap<>();
+        tails.put("A1", "我方判准三条缺一不可。");
+        tails.put("A2", "我先就同一处连续追问。");
+        tails.put("A3", "我举个具体场景来说明。");
+        tails.put("A4", "三个分歧收一下。");
+        tails.put("B1", "先把关键词的定义统一。");
+        tails.put("B2", "对方刚才那个例子恰好说明这一点。");
+        tails.put("B3", "这两件事是因果还是相关，得分清。");
+        tails.put("B4", "对方从头到尾没有回答这个问题。");
+
+        for (Map.Entry<String, String> e : tails.entrySet()) {
+            String t = ai.speakForSolo(e.getKey(), "自由辩", "自由辩", "辩题", "t", "pro", List.of()).text();
+            assertTrue(t.contains(e.getValue()), e.getKey() + " 的兜底句没带上人设：" + t);
+        }
+        assertEquals(8, tails.values().stream().distinct().count(), "8 条尾句互不相同");
+    }
+
+    // ================================================================== 待下一批（降级原因落库等）
+
     /** A4：8–12 字的忠实缩略被判编造（短引文阈值过严）。 */
-    @Disabled("待 B5：8–12 字区间阈值下调或补包含判定")
+    @Disabled("待下一批：8–12 字区间阈值下调或补包含判定")
     @Test
     void 忠实缩略的短引文被判编造() {
         String said = "我方判断：取消期末考试会让学生彻底放弃复习，因为一次性闭卷只考记忆。";
@@ -341,7 +414,7 @@ class AuditAiSpeechTest {
      * A6：无 key / 429 / 超时 / 预算耗尽四条路径，返回值上唯一的共同点是 degraded=true，
      * 而 MatchService 只用这一个布尔决定落库状态（MatchService.java）：四条全部落成 status=TEMPLATE。
      */
-    @Disabled("待 B5：落库要带原因（no_key/rate_limit/timeout/budget）")
+    @Disabled("待下一批：落库要带原因（no_key/rate_limit/timeout/budget）")
     @Test
     void 四条降级路径落库状态无法区分() {
         List<Map<String, Object>> h = historyOf(
@@ -373,7 +446,7 @@ class AuditAiSpeechTest {
     }
 
     /** A8：打字机总时长（≈8.2–9.7s）长于 AI 接话间隔（2.98–7.5s）。 */
-    @Disabled("待 B5：打字机与 aiGap 对账（per=clamp(3200/字数) 或服务端补偿）")
+    @Disabled("待下一批：打字机与 aiGap 对账（per=clamp(3200/字数) 或服务端补偿）")
     @Test
     void 打字机总比AI接话慢_下句会在上句没打完时到达() {
         String freeDebate = "对方把风险直接推成了禁止——风险存在只支持「应当规范」，支撑不到「不应推进」。"
@@ -393,7 +466,7 @@ class AuditAiSpeechTest {
     }
 
     /** A9：ai-think-ms: 700 是死配置（MatchService.thinkMs() 没有任何调用方）。 */
-    @Disabled("待 B5：删掉死配置或让 aiDeadline 真正用它")
+    @Disabled("待下一批：删掉死配置或让 aiDeadline 真正用它")
     @Test
     void aiThinkMs配置从未被使用() throws Exception {
         String src = Files.readString(Path.of("src/main/java/com/siyige/service/MatchService.java"),
@@ -407,7 +480,7 @@ class AuditAiSpeechTest {
     }
 
     /** A11：质询·答 的 prompt 里同时写着「以问句为主」和「第一句必须正面回答」——两条互斥指令。 */
-    @Disabled("待 B5：SEG_GUIDE 按 (seg,duty) 取，答方单独一套环节指南")
+    @Disabled("待下一批：SEG_GUIDE 按 (seg,duty) 取，答方单独一套环节指南")
     @Test
     void 质询答的prompt同时要求全问句和先正面回答() throws Exception {
         AiService ai = offline();
@@ -420,7 +493,7 @@ class AuditAiSpeechTest {
     }
 
     /** A11：A3 人设「先给一个具体场景再归纳」与质询「以问句为主」冲突。 */
-    @Disabled("待 B5：答方人设改成先给结论再补场景")
+    @Disabled("待下一批：答方人设改成先给结论再补场景")
     @Test
     void 质询轮次里人设与环节指令互斥() throws Exception {
         AiService ai = offline();
@@ -434,7 +507,7 @@ class AuditAiSpeechTest {
     }
 
     /** A12：「去 AI 味」只覆盖「作为一个AI/语言模型」，「我是一个人工智能助手」原样留下。 */
-    @Disabled("待 B5：扩正则覆盖「我是(一个)?(AI|人工智能|语言模型|机器人|助手)」")
+    @Disabled("待下一批：扩正则覆盖「我是(一个)?(AI|人工智能|语言模型|机器人|助手)」")
     @Test
     void 去AI味覆盖不全() throws Exception {
         AiService ai = offline();
@@ -447,20 +520,4 @@ class AuditAiSpeechTest {
         assertTrue(b.contains("我是一个人工智能助手"), "这一种没被清掉：" + b);
     }
 
-    /** A10：模板兜底不看 duty：质询·答 抽到的仍是提问句（答方第一句必须正面回答）。 */
-    @Disabled("待 B5：LINES 键扩成 side+seg+duty，答池单列")
-    @Test
-    void 质询答的兜底模板仍然是提问句() {
-        AiService ai = offline();
-        List<Map<String, Object>> h = historyOf("我方判断：期末考试的学分认定必须有刚性凭证。",
-                "我方立论：判断这道题要先立一个标准——可执行、可监督、可追责。");
-
-        for (int i = 0; i < 12; i++) {
-            AiService.Speech sp = ai.speakForSolo("A3", "质询", "质询·答", "辩题", "t", "pro", h);
-            String t = sp.text();
-            boolean startsAsAnswer = t.startsWith("我方回答") || t.startsWith("我方正面回答") || t.startsWith("回答");
-            assertFalse(startsAsAnswer, "兜底模板忽略 duty=质询·答，第一句不是回答：" + t);
-            assertTrue(t.contains("？"), "抽到的仍是提问句（质询池全是问句）：" + t);
-        }
-    }
 }

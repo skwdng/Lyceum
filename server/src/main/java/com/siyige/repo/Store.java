@@ -215,8 +215,20 @@ public class Store {
 
     public void insertTurn(String matchId, int step, String seat, String seg, String content,
                            String status, String inputType) {
-        jdbc.update("insert into sy_turn(match_id,step,seat,seg,content,status,input_type) values(?,?,?,?,?,?,?)",
-                matchId, step, seat, seg, content, status, inputType);
+        insertTurn(matchId, step, seat, seg, content, status, inputType, null);
+    }
+
+    /**
+     * 带「AI 为什么降级」的写入。
+     *
+     * @param aiReason AI 分析状态：{@code ok} / {@code degraded} / {@code budget-exhausted} / {@code none}；
+     *                 玩家发言与超时记录传 null（没有 AI 分析这回事）
+     */
+    public void insertTurn(String matchId, int step, String seat, String seg, String content,
+                           String status, String inputType, String aiReason) {
+        jdbc.update("insert into sy_turn(match_id,step,seat,seg,content,status,input_type,ai_reason) "
+                        + "values(?,?,?,?,?,?,?,?)",
+                matchId, step, seat, seg, content, status, inputType, aiReason);
     }
 
     /** 这一步是否已经有发言了（防重复插入：重试/并发都靠它兜底）。 */
@@ -228,7 +240,9 @@ public class Store {
 
     public List<Map<String, Object>> turns(String matchId) {
         return lowerAll(jdbc.queryForList(
-                "select step,seat,seg,content,status,input_type,created_at from sy_turn where match_id=? order by id", matchId));
+                // ai_reason 要带上：复盘面板据此显示「这一轮 AI 是降级了还是模板兜底」
+                "select step,seat,seg,content,status,input_type,ai_reason,created_at "
+                        + "from sy_turn where match_id=? order by id", matchId));
     }
 
     // ---------- record / diag ----------

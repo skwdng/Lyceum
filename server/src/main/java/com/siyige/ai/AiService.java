@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -94,6 +95,40 @@ public class AiService {
                     "我确认一下：你方举的那两个案例，成本和今天这件事是同一个量级吗？",
                     "追问：如果评估结果和你方预期相反，你方会改变立场吗？",
                     "我想问一句直接的：这套方案最坏的结果是什么，谁承担？"
+            )),
+            // 质询·问：封闭问句池（是/否、数字、二选一）——质询该逼出可核查的口径，不是长篇论证
+            Map.entry("A质询问", List.of(
+                    "请对方只回答是或否：你方是否承认第一年的成本由学校承担？",
+                    "请给一个数字：这件事第一年的预算是多少，由哪个部门出？",
+                    "请二选一：你方主张现在全面推开，还是先试点再评估？",
+                    "请明确口径：你方说的「可行性」用哪一项指标衡量？",
+                    "请回答时间点：如果三年内不出效果，你方是否同意叫停？",
+                    "请确认边界：按你方逻辑，凡带风险的项目是不是都不该立项？"
+            )),
+            Map.entry("B质询问", List.of(
+                    "请对方只回答是或否：现行制度里是否出现过责任无人承担的情况？",
+                    "请给一个数字：试点覆盖多少所学校才算你方说的「规模」？",
+                    "请二选一：你方要的是取消考试，还是更换考核形式？",
+                    "请明确口径：你方说的「改进」由谁来判定已经发生？",
+                    "请回答时间点：你方的方案到第几年能给出评估结论？",
+                    "请确认边界：如果评估结果与预期相反，你方是否调整主张？"
+            )),
+            // 质询·答：先正面回答 + 一句理由 + 可反问（以前答方抽到的全是提问句，见 docs/audit/02 A10）
+            Map.entry("A质询答", List.of(
+                    "我方正面回答：成本由学校承担，理由是它本来就有教务与学籍权限。要不要我把分摊比例也说清？",
+                    "我方直接回答：先试点再评估，理由是现在没有任何基线数据。需要我把评估指标列出来吗？",
+                    "我方明确：承担主体是校教务部门，理由是它已经在做学籍审核。你方是否认可这个主体？",
+                    "我方给数字：第一年按每校一笔固定预算列支，理由是这与人头无关。你方要不要看口径？",
+                    "我方回答：三年内按年度评估，理由是学期制天然有节点。要不要我把节点说细一点？",
+                    "我方确认边界：有风险不等于不该做，理由是风险可以分层管理。你方接受这个区分吗？"
+            )),
+            Map.entry("B质询答", List.of(
+                    "我方正面回答：现行制度里确实有过责任真空，理由是执行与监管分属两个部门。要不要我把环节点出来？",
+                    "我方直接回答：规模先定一个区，理由是一区之内才好比较。需要我把样本量说出来吗？",
+                    "我方明确：要换考核形式而不是取消考核，理由是学分认定必须有凭证。你方是否同意这个前提？",
+                    "我方给口径：由第三方评估判定改进，理由是自评没有约束力。你方接受第三方吗？",
+                    "我方回答：第二年给出中期评估，理由是第一年只能拿到基线。要不要我把基线口径列出来？",
+                    "我方确认边界：结论相反我方就调整主张，理由是判准要先于结论。你方愿意同样承诺吗？"
             )),
             Map.entry("A自由辩", List.of(
                     "对方把风险直接推成了禁止——风险存在只支持「应当规范」，支撑不到「不应推进」。",
@@ -306,16 +341,16 @@ public class AiService {
         String text;
         if (budgetExhausted()) {
             log.warn("本场 token 预算用尽（{}≥{}），本轮直接走模板", usedTokens(), matchTokenBudget);
-            text = template(seat, seg, mateLast, history);
+            text = template(seat, seg, duty, mateLast, history);
         } else if (llmEnabled()) {
             try {
                 text = llm.chat(SYSTEM, buildPrompt(seat, seg, duty, topicTitle, topicId, difficulty, p, mateLast, oppLast, mine, history, ""), p.temperature(), 25);
             } catch (Exception e) {
                 log.warn("LLM 发言失败，降级模板：{}", e.toString());
-                text = template(seat, seg, mateLast, history);
+                text = template(seat, seg, duty, mateLast, history);
             }
         } else {
-            text = template(seat, seg, mateLast, history);
+            text = template(seat, seg, duty, mateLast, history);
         }
         return guard(text, p, mateLast, oppLast, seat, seg, duty, history);
     }
@@ -422,7 +457,7 @@ public class AiService {
         String text;
         if (budgetOut) {
             log.warn("本场 token 预算用尽（{}≥{}），本轮直接走模板", usedTokens(), matchTokenBudget);
-            text = template(seat, seg, mateLast, history);
+            text = template(seat, seg, duty, mateLast, history);
             degraded = true;
             analysis = "";
             analysisStatus = Speech.ANALYSIS_BUDGET;
@@ -432,11 +467,11 @@ public class AiService {
                         mateLast, oppLast, mine, history, analysis), p.temperature(), 25);
             } catch (Exception e) {
                 log.warn("LLM 发言失败，降级模板：{}", e.toString());
-                text = template(seat, seg, mateLast, history);
+                text = template(seat, seg, duty, mateLast, history);
                 degraded = true;
             }
         } else {
-            text = template(seat, seg, mateLast, history);
+            text = template(seat, seg, duty, mateLast, history);
             degraded = true;
         }
         GuardResult g = guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history);
@@ -486,7 +521,7 @@ public class AiService {
         String text;
         if (budgetOut) {
             log.warn("本场 token 预算用尽（{}≥{}），本轮直接走模板（流式）", usedTokens(), matchTokenBudget);
-            text = template(seat, seg, mateLast, history);
+            text = template(seat, seg, duty, mateLast, history);
             degraded = true;
             analysis = "";
             analysisStatus = Speech.ANALYSIS_BUDGET;
@@ -502,12 +537,12 @@ public class AiService {
                             mateLast, oppLast, mine, history, analysis), p.temperature(), 25);
                 } catch (Exception e2) {
                     log.warn("LLM 发言失败，降级模板：{}", e2.toString());
-                    text = template(seat, seg, mateLast, history);
+                    text = template(seat, seg, duty, mateLast, history);
                     degraded = true;
                 }
             }
         } else {
-            text = template(seat, seg, mateLast, history);
+            text = template(seat, seg, duty, mateLast, history);
             degraded = true;
         }
         GuardResult g = guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history);
@@ -733,16 +768,78 @@ public class AiService {
     // ---------------------------------------------------------------- 兜底
 
     private String template(String seat, String seg, String mateLast, List<Map<String, Object>> history) {
-        String key = Format.side(seat) + seg;
-        List<String> pool = LINES.getOrDefault(key, LINES.get("A自由辩"));
+        return template(seat, seg, "", mateLast, history);
+    }
 
-        // 本场没出现过的优先（避免三句里两句一样）
-        String base = pickFresh(pool, history);
+    /**
+     * 兜底发言。
+     *
+     * <p>池子的键从「阵营+环节」扩成「阵营+环节+职责」：质询·问走封闭问句池、质询·答走
+     * 「先正面回答 + 一句理由 + 可反问」池（旧实现答方抽到的全是提问句，docs/audit/02 A10）。
+     * 末尾再掺一句席位人设（{@link #PERSONA_TAIL}），否则无 key 时同侧四个席位听起来是同一个人。
+     */
+    private String template(String seat, String seg, String duty, String mateLast,
+                            List<Map<String, Object>> history) {
+        List<String> pool = LINES.getOrDefault(poolKey(seat, seg, duty), LINES.get("A自由辩"));
 
+        // 本场没出现过的优先（避免三句里两句一样）；末尾掺一句席位人设
+        String base = pickFresh(pool, history) + personaTail(seat, history);
+
+        // 立论/总结/质询·答 都不能用「顺着我方刚才那句…」开场（答方第一句必须是正面回答），
+        // 而且这层壳很占字数：质询·答 上限 120 字，加了它人设尾句就被截掉了。
+        boolean hookAllowed = !"总结".equals(seg) && !"立论".equals(seg)
+                && !(duty != null && duty.contains("答"));
+        if (!hookAllowed) return base;
         if (mateLast == null || mateLast.isBlank()) return base;
         String hook = hookOf(mateLast);
         if (hook.isBlank() || alreadyQuoted(history, hook, mateLast)) return base;
         return LEAD_TPL[random.nextInt(LEAD_TPL.length)].formatted(hook) + base;
+    }
+
+    /** 池子键：阵营 + 环节（质询再叠职责）。 */
+    static String poolKey(String seat, String seg, String duty) {
+        String side = Format.side(seat);
+        String s = seg == null ? "" : seg;
+        if (s.startsWith("质询") && duty != null) {
+            if (duty.contains("答")) return side + "质询答";
+            if (duty.contains("问")) return side + "质询问";
+        }
+        return side + s;
+    }
+
+    /**
+     * 每个席位一句"人设口吻"，接在兜底句末尾。
+     *
+     * <p>取自 {@link Personas} 的 style/habit 意图，但写成人话（不是复述人设标签），例如
+     * A1 的「三条缺一不可」、A4 的「三个分歧收一下」、B4 的「对方从头到尾没有回答一个问题」。
+     * 同一句在最近三轮里出现过就不再重复，避免变成新的复读机。
+     */
+    private static final Map<String, String> PERSONA_TAIL = Map.ofEntries(
+            Map.entry("A1", "我方判准三条缺一不可。"),
+            Map.entry("A2", "我先就同一处连续追问。"),
+            Map.entry("A3", "我举个具体场景来说明。"),
+            Map.entry("A4", "三个分歧收一下。"),
+            Map.entry("B1", "先把关键词的定义统一。"),
+            Map.entry("B2", "对方刚才那个例子恰好说明这一点。"),
+            Map.entry("B3", "这两件事是因果还是相关，得分清。"),
+            Map.entry("B4", "对方从头到尾没有回答这个问题。")
+    );
+
+    static String personaTail(String seat) {
+        return PERSONA_TAIL.getOrDefault(seat, "");
+    }
+
+    /** 人设尾句；最近三条里已经出现过就不再加（防止每轮同一句）。 */
+    private static String personaTail(String seat, List<Map<String, Object>> history) {
+        String tail = personaTail(seat);
+        if (tail.isEmpty()) return "";
+        if (history != null) {
+            for (int i = Math.max(0, history.size() - 3); i < history.size(); i++) {
+                String c = String.valueOf(history.get(i).get("content"));
+                if (c != null && c.contains(tail)) return "";
+            }
+        }
+        return " " + tail;
     }
 
     /** 从模板池里挑一条本场没用过的；都用过就随便挑一条。 */
@@ -1039,33 +1136,67 @@ public class AiService {
     /**
      * 剪掉模型退化式重复。
      *
-     * <p>现象：一次输出里把同一段话抄 5–10 遍（截图里那个气泡就是这样），
-     * 长度能到 1500 字以上，max_tokens 也拦不住。这里按句子做「第二次出现即截断」：
-     * 同一句（≥8 字）再次出现，说明模型在原地打转，后面的内容没有信息量。
+     * <p>现象：一次输出里把同一段话抄 5–10 遍（一个气泡 1500+ 字，max_tokens 也拦不住）。
+     *
+     * <p>但旧判据「同句第二次出现即截断、后面全丢」误伤太重：结辩的复现句（「我方判准只有一条…」
+     * 开头立一遍、收尾再点一遍）和质询的重复追问都是真辩手会用的修辞（docs/audit/02 A2）。现在：
+     * <ol>
+     *   <li><b>连续 3 次以上</b>完全相同才算退化（同一句连说 2 遍是修辞，允许）；</li>
+     *   <li>判退化时<b>只删重复的那几句</b>，收束句等后续内容照旧保留；</li>
+     *   <li>整段是「前半段原样再复制一遍」的周期性循环（abcabc…）时，只留前半段——
+     *       这是模型卡死最典型的样子，且不会动到 a b a 这种呼应结构。</li>
+     * </ol>
      */
     static String cutRepeats(String src) {
         if (src == null) return "";
         String s = src.trim();
         if (s.length() < 120) return s;
 
-        String[] parts = s.split("(?<=[。！？；])");
-        if (parts.length < 4) return s;
+        String[] raw = s.split("(?<=[。！？；])");
+        if (raw.length < 4) return s;
 
-        java.util.Set<String> seen = new java.util.HashSet<>();
-        StringBuilder out = new StringBuilder();
-        for (String raw : parts) {
-            String p = raw.trim();
-            if (p.isEmpty()) continue;
-            String key = p.replaceAll("[\\s\u3000]", "");
-            if (key.length() >= 8 && !seen.add(key)) {
-                // 这句已经出现过 —— 认定开始循环，直接把后面全砍掉
-                break;
-            }
-            out.append(p);
+        List<String> parts = new ArrayList<>();
+        for (String r : raw) {
+            String t = r.trim();
+            if (!t.isEmpty()) parts.add(t);
         }
-        String out1 = out.toString().trim();
-        // 兜底：如果砍完太短（比如模型只重复了两句），保留原文的前 1/2 也行，但别返回空
-        return out1.length() < 20 ? s : out1;
+
+        // ① 连续的同一句：≥3 次才收敛成 1 句（2 次 = 修辞复现/重复追问，保留）
+        List<String> once = new ArrayList<>();
+        for (int i = 0; i < parts.size(); ) {
+            String key = repeatKey(parts.get(i));
+            int run = 1;
+            while (i + run < parts.size() && repeatKey(parts.get(i + run)).equals(key)) run++;
+            if (key.length() >= 8 && run >= 3) {
+                once.add(parts.get(i));
+            } else {
+                for (int k = 0; k < run; k++) once.add(parts.get(i + k));
+            }
+            i += run;
+        }
+
+        // ② 周期性循环（abcabc / abab…）：只留前半段
+        List<String> out = once;
+        while (out.size() >= 4 && out.size() % 2 == 0 && sameBlock(out)) {
+            out = new ArrayList<>(out.subList(0, out.size() / 2));
+        }
+
+        String joined = String.join("", out).trim();
+        return joined.length() < 20 ? s : joined;
+    }
+
+    /** 去掉空白后的句子（用来判"是不是同一句"）。 */
+    private static String repeatKey(String s) {
+        return s == null ? "" : s.replaceAll("[\\s\u3000]", "");
+    }
+
+    /** 句子列表是否由前后两个完全相同的块组成。 */
+    private static boolean sameBlock(List<String> parts) {
+        int half = parts.size() / 2;
+        for (int i = 0; i < half; i++) {
+            if (!repeatKey(parts.get(i)).equals(repeatKey(parts.get(i + half)))) return false;
+        }
+        return true;
     }
 
     private static String shorten(String s, int n) {

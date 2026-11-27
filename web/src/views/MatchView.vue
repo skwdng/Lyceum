@@ -556,8 +556,8 @@ const verdictOf = (t) => (t.typing ? '' : '');
                   <span v-if="t.degraded" class="tag o" title="模板降级或本地离线草稿，不计入正式评分">离线草稿</span>
                   <span v-if="t.stream" class="tag blue" title="模型正在生成，先显示已收到的部分">生成中…</span>
                 </div>
-                <div class="bub">
-                  <span v-if="t.typing && !t.shown" class="pending">…</span>
+                <div class="bub" :class="{ 'is-pending': t.typing && !t.started }">
+                  <span v-if="t.typing && !t.started" class="pending">…</span>
                   <template v-else>{{ dedupeBubble(t.text.slice(0, t.shown)) }}</template><span v-if="t.stream" class="caret">▍</span>
                 </div>
               </div>

@@ -426,6 +426,9 @@ public class MatchService {
                     ai.unbind();
                 }
                 String line = sp.text();
+                // 「AI 为什么是这个样子」要能复盘：分析状态落库（ok/degraded/budget-exhausted/none），
+                // 玩家发言那条路径不写这个字段。
+                String aiReason = sp.analysisStatus();
                 FlawService.Planted planted = flaw.plant(line, str(m.get("difficulty")));
                 line = planted.text();
                 // 这一步已经有发言了就别再插一条（重试/并发会造成一步多条，
@@ -433,7 +436,7 @@ public class MatchService {
                 boolean already = store.hasTurn(id, step + 1);
                 if (!already) {
                     store.insertTurn(id, step + 1, seat, cur.seg(), line,
-                            sp.degraded() ? "TEMPLATE" : "OK", "ai");
+                            sp.degraded() ? "TEMPLATE" : "OK", "ai", aiReason);
                 }
                 if (buzzed) store.setPhase(id, "STEP");
                 java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
@@ -442,6 +445,8 @@ public class MatchService {
                 payload.put("who", "ai");
                 payload.put("content", line);
                 if (buzzed) payload.put("buzzed", true);
+                // 只有真降级才带 reason（ok/none 是正常或没分析，别让前端每轮都弹个「降级」）
+                if (isDegradedReason(aiReason)) payload.put("reason", aiReason);
                 hub.emit(id, "turn", payload);
                 if (planted.type() != null) {
                     store.insertFlaw(id, step + 1, planted.type());
@@ -604,6 +609,12 @@ public class MatchService {
 
     private static String sideName(String seat) {
         return "A".equals(Format.side(seat)) ? "正方（A）" : "反方（B）";
+    }
+
+    /** 哪些分析状态算「这一轮降级了」：分析失败、预算用尽。ok/none 不算。 */
+    private static boolean isDegradedReason(String analysisStatus) {
+        return AiService.Speech.ANALYSIS_DEGRADED.equals(analysisStatus)
+                || AiService.Speech.ANALYSIS_BUDGET.equals(analysisStatus);
     }
 
     /** AI 的"思考"停顿：按席位人设不同（快攻 0.9s、价值派 1.7s），再加抖动。 */
@@ -905,6 +916,8 @@ public class MatchService {
         hub.emit(matchId, "match.end", Map.of(
                 "total", sc.total(), "matter", sc.matter(), "method", sc.method(), "manner", sc.manner(),
                 "turns", sc.turns(), "timeout", sc.timeout()));
+        // 生成重试计数按「对局#step」记，对局结束就该丢掉，否则长跑进程会一直攒着
+        attempts.keySet().removeIf(k -> k.startsWith(matchId + "#"));
     }
 
     // ---------- 查询 ----------
