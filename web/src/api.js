@@ -203,6 +203,8 @@ export const debateApi = {
   submitTurn: (matchId, content) =>
     http.post('/api/matches/' + matchId + '/turns', { content, inputType: 'kb' }),
   keepalive: (matchId) => http.post('/api/matches/' + matchId + '/keepalive'),
+  /** 辅助库（对局内的提示/来源）：{seat, stage, hints:[{kind,text,basis}], sources:[{title,note}], generatedBy} */
+  assist: (matchId) => http.get('/api/matches/' + matchId + '/assist'),
   buzz: (matchId) => http.post('/api/matches/' + matchId + '/buzz'),
   skip: (matchId) => http.post('/api/matches/' + matchId + '/skip'),
   review: (matchId) => http.get('/api/matches/' + matchId + '/review'),

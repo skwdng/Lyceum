@@ -12,6 +12,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import { useDebateStore } from '../stores/debate.js';
 import { useAuthStore } from '../stores/auth.js';
+import { debateApi } from '../api.js';
 import { toast } from '../utils/toast.js';
 
 const route = useRoute();
@@ -172,6 +173,81 @@ const cdColor = computed(() => {
   return '#6B7280';
 });
 
+/* ==================== 辅助库（原「论据卡」） ====================
+ *
+ * 数据：`GET /api/matches/{id}/assist` →
+ *   { seat, stage, hints:[{ kind:'反驳|口径|论据|追问', text, basis }], sources:[{ title, note }], generatedBy:'ai'|'rules' }
+ * 后端没上线时显示「辅助暂时不可用」+ 重试，不阻塞对局。
+ */
+const assist = ref(null);
+const assistBusy = ref(false);
+const assistErr = ref('');
+const assistErrRaw = ref('');
+const assistOpen = ref(false);
+const assistEl = ref(null);
+
+const assistGeneratedBy = computed(() => (assist.value && assist.value.generatedBy) || '');
+
+/** 按 kind 分组：反驳 → 口径 → 论据 → 追问（未知类型排在后面） */
+const assistGroups = computed(() => {
+  const hints = (assist.value && assist.value.hints) || [];
+  const order = ['反驳', '口径', '论据', '追问'];
+  const map = new Map();
+  hints.forEach((h) => {
+    const k = (h && h.kind) || '提示';
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(h);
+  });
+  return [...map.keys()]
+    .sort((a, b) => {
+      const ia = order.indexOf(a);
+      const ib = order.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    })
+    .slice(0, 5)
+    .map((k) => ({ kind: k, items: map.get(k).slice(0, 5) }));
+});
+
+async function loadAssist(force) {
+  if (!debate.matchId || assistBusy.value) return;
+  if (!force && (assist.value || assistErr.value)) return;
+  assistBusy.value = true;
+  assistErr.value = '';
+  try {
+    const d = await debateApi.assist(debate.matchId);
+    assist.value = d && typeof d === 'object' ? d : null;
+  } catch (e) {
+    assist.value = null;
+    const raw = String((e && e.message) || '').trim();
+    // 后端还没上线时这里是 404 的原始 JSON：面板上只显示一句人话，原始信息留给 title
+    assistErr.value = /^\{/.test(raw)
+      ? '接口未就绪（' + (((e && e.code) || (e && e.status)) || '404') + '）'
+      : (raw || '接口未就绪');
+    assistErrRaw.value = raw;
+  } finally {
+    assistBusy.value = false;
+  }
+}
+
+/** 点席位条最右的「辅 AI」：打开（首次会拉一次）并滚到可见处 */
+function openAssist() {
+  assistOpen.value = true;
+  loadAssist(false);
+  nextTick(() => {
+    const el = assistEl.value;
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+}
+
+/** 点一条提示 → 插到输入框（原来的论据卡交互保留） */
+function insertHint(h) {
+  const text = String((h && h.text) || '').trim();
+  if (!text) return;
+  draft.value = (draft.value.trim() ? draft.value.trim() + ' ' : '') + text + (text.endsWith('。') ? '' : '。');
+  saveDraft();
+  toast('已插入发言框');
+}
+
 onMounted(async () => {
   // 支持深链 #/match?match=<id>：多人房里队友刷新页面、或从房间/消息点进来时，
   // 内存里没有 matchId，但后端允许 owner 与同房间席位成员读这一场（MatchAccess）。
@@ -196,6 +272,7 @@ onMounted(async () => {
     return;
   }
   if (!debate.match) await debate.load(true);
+  loadAssist(false);          // 辅助库先试着拉一次（后端没上线时面板显示失败态，不影响对局）
   debate.startPoll();
   debate.startClock();
   debate.startTyping();
@@ -610,7 +687,7 @@ const verdictOf = (t) => (t.typing ? '' : '');
       </div>
     </div>
 
-    <!-- 席位条 -->
+    <!-- 席位条（最右多一个「辅 AI」：不发言、不可抢拍，点开辅助库） -->
     <div class="strip">
       <div v-for="s in debate.stripSeats" :key="s.k" class="sp" :class="{ me: s.me, cur: s.cur }">
         <div class="av" :class="s.side.toLowerCase()">{{ s.me ? '我' : 'AI' }}</div>
@@ -619,6 +696,20 @@ const verdictOf = (t) => (t.typing ? '' : '');
           <div class="rl">{{ s.side === 'A' ? '正方' : '反方' }}{{ s.role }}</div>
         </div>
       </div>
+      <!-- 辅助席位：不是辩手，只负责给提示 -->
+      <button
+        type="button"
+        class="sp aux"
+        :class="{ on: assistOpen }"
+        title="打开辅助库：反驳角度 / 口径 / 论据 / 追问"
+        @click="openAssist"
+      >
+        <div class="av aux-av">辅</div>
+        <div>
+          <div class="nm">辅 AI</div>
+          <div class="rl">不出手 · 只提示</div>
+        </div>
+      </button>
     </div>
 
     <div class="stage">
@@ -640,7 +731,15 @@ const verdictOf = (t) => (t.typing ? '' : '');
                 </div>
                 <div class="bub" :class="{ 'is-pending': t.typing && !t.started }">
                   <span v-if="t.typing && !t.started" class="pending">…</span>
-                  <template v-else>{{ dedupeBubble(t.text.slice(0, t.shown)) }}</template><span v-if="t.stream" class="caret">▍</span>
+                  <span v-else class="bub-in">
+                    <!--
+                      B 方气泡：用一个 visibility:hidden 的**全文**占位把宽度先撑到最终值，
+                      可见的前缀用绝对定位盖在上面 —— 于是文字从左往右长，左边缘不会往左扩。
+                      A 方不渲染 ghost，行为与之前一致。
+                    -->
+                    <span v-if="t.typing && t.side === 'b'" class="bub-ghost" aria-hidden="true">{{ dedupeBubble(t.text) }}</span>
+                    <span :class="t.typing && t.side === 'b' ? 'bub-live' : ''">{{ dedupeBubble(t.text.slice(0, t.shown)) }}</span>
+                  </span><span v-if="t.stream" class="caret">▍</span>
                 </div>
               </div>
             </div>
@@ -656,20 +755,7 @@ const verdictOf = (t) => (t.typing ? '' : '');
           </button>
         </div>
 
-        <!-- 抢拍 -->
-        <div
-          v-if="debate.phase === 'BUZZ'"
-          class="card"
-          style="margin-top: 12px; border-color: #2f5bea; background: #f2f5ff; text-align: center"
-        >
-          <div style="font-size: 13px; font-weight: 600; color: #2f5bea">自由辩 · 抢话中</div>
-          <div style="font-size: 11.5px; color: #6b7280; margin: 4px 0 10px">
-            谁说都行，抢到话筒就归你。窗口 {{ Math.max(0, debate.remaining) }} 秒
-          </div>
-          <button class="btn primary" style="width: 100%; padding: 12px; font-size: 15px" @click="debate.buzz()">
-            抢 ！
-          </button>
-        </div>
+        <!-- 抢拍入口先关掉：用户不该主动抢话（BUZZ 阶段由后端关闭；这里连入口都不再渲染） -->
 
         <!-- 抓漏洞 -->
         <div
@@ -808,29 +894,68 @@ const verdictOf = (t) => (t.typing ? '' : '');
           </div>
         </div>
 
-        <div class="card" style="margin-top: 12px">
-          <div class="row" style="justify-content: space-between">
-            <b style="font-size: 12.5px">论据卡</b>
-            <span class="tag">{{ (debate.cards || []).length }} 张</span>
+        <!-- 辅助库（原「论据卡」）：AI 席位给的角度 + 可引用来源 -->
+        <div ref="assistEl" class="card assist-card" style="margin-top: 12px">
+          <div class="row" style="justify-content: space-between; margin-bottom: 8px">
+            <b style="font-size: 12.5px">辅助 · AI 席位</b>
+            <span class="row" style="gap: 8px">
+              <span v-if="assistGeneratedBy" class="tag" :class="assistGeneratedBy === 'ai' ? 'b' : ''">
+                {{ assistGeneratedBy === 'ai' ? 'AI 生成' : '规则生成' }}
+              </span>
+              <button class="btn sm ghost" :disabled="assistBusy" @click="loadAssist(true)">
+                {{ assistBusy ? '取材料…' : '刷新' }}
+              </button>
+            </span>
           </div>
-          <div style="font-size: 11.5px; color: #8a909c; margin: 6px 0 8px">
-            点一下插入到发言框。标「需核实」的自己查证过再用。
+          <div style="font-size: 11.5px; color: #8a909c; margin-bottom: 8px">
+            点一条提示插入发言框；标「需核实」的来源请自己查证再用。
           </div>
-          <div style="max-height: 230px; overflow: auto">
-            <div
-              v-for="(c, i) in debate.cards || []"
-              :key="i"
-              style="border: 1px solid #efede6; border-radius: 8px; padding: 7px 9px; margin-bottom: 6px; cursor: pointer"
-              @click="insertCard(c)"
-            >
-              <div style="font-size: 11.5px; line-height: 1.6">{{ c.claim }}</div>
-              <div style="font-size: 10.5px; color: #a8adb8; margin-top: 3px">
-                {{ c.source }} {{ c.year || '' }}
-                <span v-if="c.verified" class="tag g" style="font-size: 9.5px">已核实</span>
-                <span v-else class="tag o" style="font-size: 9.5px">需核实</span>
+
+          <!-- 加载中：骨架 -->
+          <div v-if="assistBusy && !assist" class="assist-sk">
+            <i></i><i></i><i></i>
+          </div>
+
+          <!-- 失败：可直接重试 -->
+          <div v-else-if="assistErr" class="assist-err">
+            <div>辅助暂时不可用</div>
+            <div class="assist-err-d" :title="assistErrRaw">{{ assistErr }}</div>
+            <button class="btn sm ghost" style="margin-top: 8px" @click="loadAssist(true)">重试</button>
+          </div>
+
+          <template v-else-if="assist">
+            <div class="assist-meta">
+              <span v-if="assist.seat">席位 {{ assist.seat }}</span>
+              <span v-if="assist.stage">· {{ assist.stage }}</span>
+            </div>
+            <div v-for="g in assistGroups" :key="g.kind" class="assist-group">
+              <div class="assist-kind">{{ g.kind }}</div>
+              <button
+                v-for="(h, i) in g.items"
+                :key="i"
+                type="button"
+                class="assist-hint"
+                @click="insertHint(h)"
+              >
+                <span class="assist-tx">{{ h.text }}</span>
+                <span v-if="h.basis" class="assist-basis">{{ h.basis }}</span>
+              </button>
+            </div>
+            <div v-if="(assist.sources || []).length" class="assist-sources">
+              <div class="assist-kind">来源</div>
+              <div v-for="(s, i) in assist.sources" :key="i" class="assist-src">
+                <span class="assist-src-t">{{ s.title }}</span>
+                <span class="tag o" style="font-size: 9.5px">需核实</span>
+                <div v-if="s.note" class="assist-src-n">{{ s.note }}</div>
               </div>
             </div>
-            <div v-if="!(debate.cards || []).length" class="empty">这道题暂无论据卡</div>
+            <div v-if="!assistGroups.length && !(assist.sources || []).length" class="empty" style="padding: 12px 0">
+              这一轮还没有可用的提示
+            </div>
+          </template>
+
+          <div v-else class="empty" style="padding: 12px 0">
+            <button class="btn sm ghost" @click="loadAssist(false)">打开辅助库</button>
           </div>
         </div>
 
@@ -849,6 +974,97 @@ const verdictOf = (t) => (t.typing ? '' : '');
 </template>
 
 <style scoped>
+/* ---------- B 方气泡：预留最终宽度，左边缘定住 ----------
+ * ghost 是全文（visibility:hidden），先把气泡撑到最终宽度；
+ * 可见前缀绝对定位覆盖在上面。于是可见部分从左往右长，
+ * 气泡宽度（进而左边缘）在整个出字过程中不变。
+ * 只对 B 方生效；A 方不渲染 ghost，行为与之前一致。 */
+.bub-in {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+.bub-ghost {
+  display: block;
+  visibility: hidden;
+  user-select: none;
+  pointer-events: none;
+  white-space: pre-wrap;
+}
+.bub-live {
+  position: absolute;
+  inset: 0;
+  white-space: pre-wrap;
+}
+@media (max-width: 520px) {
+  /* 375px：预留宽度不能把气泡撑出视口 */
+  .bub { max-width: 100%; overflow-wrap: anywhere; }
+  .bub-in { max-width: 100%; }
+}
+
+/* ---------- 席位条最右的「辅 AI」 ---------- */
+.sp.aux {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: #fff;
+  border-style: dashed;
+  text-align: left;
+}
+.sp.aux:hover,
+.sp.aux.on { border-color: #9db4f5; background: #f4f7ff; }
+.sp.aux .aux-av { background: #6b7280; }
+
+/* ---------- 辅助库面板 ---------- */
+.assist-card { min-width: 0; }
+.assist-meta { font-size: 11.5px; color: #8a909c; margin-bottom: 8px; }
+.assist-group { margin-bottom: 10px; }
+.assist-kind {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a909c;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.assist-hint {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: #fff;
+  border: 1px solid #efede6;
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.assist-hint:hover { border-color: #9db4f5; background: #f8faff; }
+.assist-tx { display: block; font-size: 11.5px; line-height: 1.6; color: #1a1d24; }
+.assist-basis { display: block; font-size: 10.5px; color: #a8adb8; margin-top: 3px; }
+.assist-src {
+  border: 1px solid #efede6;
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  color: #4a5568;
+}
+.assist-src-t { margin-right: 6px; }
+.assist-src-n { font-size: 10.5px; color: #a8adb8; margin-top: 3px; }
+.assist-err { font-size: 12.5px; color: #c0392b; padding: 10px 0; }
+.assist-err-d { font-size: 11.5px; color: #a8adb8; margin-top: 4px; overflow-wrap: anywhere; }
+.assist-sk i {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: #f1efe9;
+  margin-bottom: 8px;
+  animation: assistPulse 1.2s ease-in-out infinite;
+}
+.assist-sk i:nth-child(2) { width: 80%; }
+.assist-sk i:nth-child(3) { width: 60%; }
+@keyframes assistPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 /* 分段发言（发送 = 攒一段，结束发言 = 一次提交）——只作用于本页，不动 debate.css */
 .segs {
   border: 1px solid var(--line);

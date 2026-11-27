@@ -236,6 +236,12 @@ public class MatchService {
             return Map.of("ok", true, "step", step + 1, "total", steps.size(), "duplicate", true);
         }
 
+        // ③ 交接间隔：房间局里「上一位落库 → 下一位可以开口」至少 1.5 秒。
+        //    以前两个真人可以瞬间你一句我一句（甚至上一句还没渲染完），观感像抢麦；
+        //    AI 那边本来就有 4–7 秒的开口间隔，真人这边缺这一层。
+        //    幂等分支在上面先返回，所以客户端重试不会被这个闸门误伤。
+        requireHandoffGap(matchId, m);
+
         String text = content == null || content.isBlank() ? "（未发言）" : content.trim();
         // 敷衍发言（「11」「对」「嗯」）记为 EMPTY：不算内容，不计入评分文本，
         // 但对局照常推进——下一轮 AI 会明确点出「你这一轮没有回答问题」。
@@ -542,9 +548,11 @@ public class MatchService {
         // 导致「自定义 90 秒」只在第 1 步有效，第 2 步起悄悄回到 Pace 表的 300 秒。
         int turnSec = stepSeconds(ns, num(m.get("turn_sec")), str(m.get("pace")), str(m.get("kind")));
 
-        // 自由辩：先开一个抢话窗口，谁抢到谁上；其余环节按席次轮转
-        // 单人模式不抢拍：没有对手跟你抢，8 秒窗口只会把打字慢的人卡住
-        boolean isBuzz = !"solo".equalsIgnoreCase(str(m.get("kind"))) && "自由辩".equals(ns.seg());
+        // 自由辩不抢拍（2026-11-27 用户反馈）：真实自由辩是轮到的席位开口，抢拍在网页上
+        // 只会变成「谁手快谁抢到」，还容易两人都没点就整段卡住。这里一律按正常轮转推进：
+        // 轮到人 → 他发言；轮到 AI → tick 自动接话。buzz() 接口与 BUZZ 分支保留，
+        // 只是为了兼容升级前就停在 BUZZ 的老对局。
+        boolean isBuzz = false;
         Long deadline;
         int shownSec;
         if (isBuzz) {
@@ -1097,6 +1105,160 @@ public class MatchService {
         return Map.of("ok", true, "kind", "solo", "mySeats", seat, "step", step + 1);
     }
 
+    // ---------- 辅助库（AI 席位提示） ----------
+
+    /** 交接间隔：房间局两个真人之间，上一位落库到我可以开口至少 1.5 秒（不抢麦）。 */
+    private static final long HANDOFF_MS = 1_500;
+
+    /** 辅助库缓存：同一场·同一步·同一个人 30 秒内只生成一次，狂点不烧 token。 */
+    private static final long ASSIST_TTL_MS = 30_000;
+    /** key → {生成时间, 结果}。key 里带席位：房间里两个人各看各的提示。 */
+    private final Map<String, Object[]> assistCache = new ConcurrentHashMap<>();
+
+    /** 房间局里「上一位说完 → 我可以开口」的间隔闸门（单人局不适用）。 */
+    private void requireHandoffGap(String matchId, Map<String, Object> m) {
+        if ("solo".equalsIgnoreCase(str(m.get("kind")))) return;
+        List<Map<String, Object>> turns = store.turns(matchId);
+        if (turns.isEmpty()) return;
+        long lastAt = numLong(turns.get(turns.size() - 1).get("created_at"));   // Timestamp → 毫秒
+        if (lastAt <= 0) return;
+        long wait = lastAt + HANDOFF_MS - System.currentTimeMillis();
+        if (wait > 0)
+            throw new IllegalStateException("HANDOFF_WAIT: 距离上一位说完不到 1.5 秒，请再等 " + wait + " 毫秒");
+    }
+
+    /**
+     * 辅助库：我这轮能说什么。
+     *
+     * <p>有模型 key 走 {@link AiService#assist}（3–5 条可直接说出口的提示）；没 key 或失败时
+     * 走规则兜底——从对方最后一句话里抓「全称判断 / 因果 / 权威 / 定义」，给对应反驳句式，
+     * 再从论据卡里挑 1–2 条标「需核实」。结果 30 秒内缓存，避免狂点烧 token。
+     */
+    public Map<String, Object> assist(String matchId, String userId) throws Exception {
+        Map<String, Object> m = require(matchId);
+        if (!"RUNNING".equals(str(m.get("status"))))
+            throw new IllegalStateException("MATCH_NOT_RUNNING: 对局已结束（" + str(m.get("status")) + "）");
+
+        String seat = seatOfUser(m, userId);
+        if (seat == null || seat.isBlank())
+            throw new IllegalArgumentException("NOT_IN_MATCH: 你不在这场对局的席位上");
+
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")),
+                num(m.get("query_rounds")), num(m.get("free_rounds")));
+        int step = num(m.get("step"));
+        Format.Step cur = Format.stepAt(steps, step);
+        String seg = cur == null ? "" : cur.seg();
+
+        String cacheKey = matchId + "#" + step + "#" + seat;
+        Object[] hit = assistCache.get(cacheKey);
+        if (hit != null && System.currentTimeMillis() - (Long) hit[0] < ASSIST_TTL_MS) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> cached = (Map<String, Object>) hit[1];
+            return cached;
+        }
+
+        List<Map<String, Object>> turns = store.turns(matchId);
+        List<Map<String, Object>> recent = turns.size() <= 6 ? turns : turns.subList(turns.size() - 6, turns.size());
+
+        List<Map<String, Object>> hints = null;
+        String generatedBy = "rules";
+        if (ai != null) {
+            List<AiService.Hint> aiHints;
+            try {
+                aiHints = ai.assist(str(m.get("topic_title")), seg, seat, recent);
+            } catch (Exception e) {
+                log.warn("辅助库调用失败，回落规则：{}", e.toString());
+                aiHints = null;
+            }
+            if (aiHints != null && !aiHints.isEmpty()) {
+                hints = new ArrayList<>();
+                for (AiService.Hint h : aiHints) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("kind", h.kind());
+                    row.put("text", h.text());
+                    row.put("basis", h.basis());
+                    hints.add(row);
+                }
+                generatedBy = "ai";
+            }
+        }
+        if (hints == null || hints.isEmpty()) hints = ruleHints(recent, seat);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("seat", seat);
+        out.put("stage", seg);
+        out.put("hints", hints);
+        out.put("sources", assistSources(str(m.get("topic_id"))));
+        out.put("generatedBy", generatedBy);
+
+        if (assistCache.size() > 200) {
+            long now = System.currentTimeMillis();
+            assistCache.entrySet().removeIf(e -> now - (Long) e.getValue()[0] > ASSIST_TTL_MS);
+        }
+        assistCache.put(cacheKey, new Object[]{System.currentTimeMillis(), out});
+        return out;
+    }
+
+    /**
+     * 规则兜底：不看模型，也能给 3–5 条能直接念的提示。
+     *
+     * <p>抓的是辩论里最常见的四类破绽：把话说满（全称）、拿因果当结论、诉诸权威、偷换定义。
+     * 对方没说话（或全超时）时给三条「先立判准」的通用提示，不硬编对方原话。
+     */
+    private List<Map<String, Object>> ruleHints(List<Map<String, Object>> recent, String seat) {
+        String mySide = Format.side(seat);
+        String oppSide = "A".equals(mySide) ? "B" : "A";
+        String opp = "";
+        for (int i = recent.size() - 1; i >= 0; i--) {
+            String s = str(recent.get(i).get("seat"));
+            if (s.isBlank() || !Format.side(s).equals(oppSide)) continue;
+            String c = str(recent.get(i).get("content"));
+            if (!c.isBlank() && !c.contains("超时")) { opp = c; break; }
+        }
+        String basis = opp.isBlank() ? "对方还没有实质发言" : cut(opp, 40);
+        List<Map<String, Object>> out = new ArrayList<>();
+
+        if (!opp.isBlank() && opp.matches(".*(所有|全部|一律|从来没|绝对|人人都|谁都|没有人).*"))
+            out.add(hint("反驳", "对方把话说满了。举一个反例就够：现实里就有……这样的例外，所以「都/一律」不成立。", basis));
+        if (!opp.isBlank() && opp.matches(".*(因为|所以|因此|由于|导致|可见).*"))
+            out.add(hint("口径", "对方拿因果当结论了。请问机制是什么：A 通过什么路径导致 B？同期还有没有别的变量？", basis));
+        if (!opp.isBlank() && opp.matches(".*(专家|权威|大家都|研究表明|公认).*"))
+            out.add(hint("追问", "「专家说」不是论据。请问是哪份研究、样本多大、结论适用于什么范围？", basis));
+        if (!opp.isBlank() && opp.matches(".*(等于|就是|指的是|本质上|换句话说).*"))
+            out.add(hint("反驳", "对方把两件事当成一回事：A 不等于 B——前者说的是……，后者说的是……。", basis));
+        if (out.size() < 3)
+            out.add(hint("论据", "拿一条可核查的事实顶住：说清年份和出处，记不准的就别报数字（需核实）。", basis));
+        if (out.size() < 3)
+            out.add(hint("口径", "先把判准摆出来：我方判断成立的条件是……；对方要反驳，得先否定这个条件。", basis));
+        if (out.size() < 3)
+            out.add(hint("追问", "反问一句把举证责任推回去：请对方给出可核查的口径与数据来源。", basis));
+        return out.size() > 5 ? out.subList(0, 5) : out;
+    }
+
+    private Map<String, Object> hint(String kind, String text, String basis) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("kind", kind);
+        row.put("text", text);
+        row.put("basis", basis);
+        return row;
+    }
+
+    /** 论据卡里挑 1–2 条给选手「去核实」用；一条都没有就返回空数组。 */
+    private List<Map<String, Object>> assistSources(String topicId) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        if (topicId == null || topicId.isBlank()) return out;
+        List<Map<String, Object>> cards = store.evidence(topicId);
+        for (int i = 0; i < cards.size() && out.size() < 2; i++) {
+            String claim = str(cards.get(i).get("claim"));
+            if (claim.isBlank()) continue;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("title", cut(claim, 40));
+            row.put("note", "需核实");
+            out.add(row);
+        }
+        return out;
+    }
+
     // ---------- 工具 ----------
 
     private Map<String, Object> require(String matchId) {
@@ -1125,6 +1287,13 @@ public class MatchService {
     }
     private static String str(Object o) { return o == null ? "" : String.valueOf(o); }
     private static int num(Object o) { return o instanceof Number n ? n.intValue() : 0; }
+
+    /** 截断成「一句话片段」，用于引用对方原话/论据卡标题。 */
+    private static String cut(String s, int n) {
+        if (s == null) return "";
+        String t = s.replace("\n", " ").trim();
+        return t.length() <= n ? t : t.substring(0, n) + "…";
+    }
 
     /**
      * 读毫秒时间戳。

@@ -255,4 +255,25 @@ class MatchResumeTest {
                 () -> service.continueSolo(id, ME));
         assertTrue(ex.getMessage().contains("MATCH_NOT_RUNNING"), "实际: " + ex.getMessage());
     }
+
+    // ---------- ④ 房间局交接间隔 ----------
+
+    @Test
+    @DisplayName("房间局两个真人之间至少隔 1.5 秒（上一位落库 → 下一位可开口）")
+    void 房间局交接至少隔一秒半() throws Exception {
+        // 我占 B2、B3 两个席位；不带 userId 走老客户端路径（跳过席位反查，只验交接闸门）
+        String id = service.create(OTHER, TOPIC, "B2,B3", "FULL", 0, "normal", "novice", "room", "PRO", null);
+        jdbc.update("update sy_match set step=3 where id=?", id);          // 第 4 步 = B2
+        assertEquals(Boolean.TRUE, service.submit(id, "我方先答这一轮。", "kb", null).get("ok"));
+
+        jdbc.update("update sy_match set step=5 where id=?", id);          // 第 6 步 = B3，仍是我的席位
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> service.submit(id, "马上又接一句。", "kb", null),
+                "上一句刚落库不到 1.5 秒，这一句应当被挡住");
+        assertTrue(ex.getMessage().contains("HANDOFF_WAIT"), "实际: " + ex.getMessage());
+
+        Thread.sleep(1_700);
+        Map<String, Object> ok = service.submit(id, "等够了再说。", "kb", null);
+        assertEquals(Boolean.TRUE, ok.get("ok"), "过 1.5 秒就该放行: " + ok);
+    }
 }

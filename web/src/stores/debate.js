@@ -179,6 +179,8 @@ export const useDebateStore = defineStore('debate', {
     pollTimer: null,
     es: null,
     typeTimer: null,
+    /** 打字机「条间停顿」的截止时间戳：打完一条后停 1.2–2.0s 再放下一条 */
+    typeGapUntil: 0,
     clockTimer: null
   }),
 
@@ -264,20 +266,17 @@ export const useDebateStore = defineStore('debate', {
           })
           .filter(Boolean)
       );
-      // FE-1：列表始终渲染**全部** turns。
-      // 原来这里按 firstUntyped 把「第一条没打完之后的发言」整段过滤掉，
-      // 结果打字机一排队，用户看到的就是「上一句凭空消失 / 这一段没出现」。
-      // 现在只由「typing + shown」决定每条是占位、正在打、还是全文，不隐藏任何条目。
-      const list = streaming ? sorted.filter((x) => !hiddenByPreview.has(keyOf(x))) : sorted;
-      return list.map((t) => {
+      // 屏幕上限：**最多一个 pending**。
+      // 只把「下一条待打的」露出来（占位/正在打），它之后的待打条目先不渲染；
+      // 已经打完的、我说的、超时的、降级的照常全显示（这些不该被藏）。
+      // 用户反馈：之前的做法一次性冒出 3–4 个「…」，看着像坏了。
+      const rows = sorted.map((t) => {
         const me = s.mySeats.includes(t.seat);
         const timeout = t.status === 'TIMEOUT';
         const text = (t.content || '').trim() || '（这一轮没有说出内容）';
         const key = keyOf(t);
         const streamed = !!s.streamedKeys[key];
-        // 串行：还没打、又不是我 / 超时 / 降级 / 强制全文的条目 → 排队待打（界面显示占位）
         const typing = !me && !timeout && !streamed && !s.typed[key] && !forceFull.has(key);
-        const shown = typing ? Math.min(s.shown[key] || 0, text.length) : text.length;
         return {
           key,
           step: t.step,          // 漏洞卡要按 step 找"那句话打完没有"，必须带上
@@ -293,10 +292,16 @@ export const useDebateStore = defineStore('debate', {
           text,
           typing,
           /** 已经开始吐字了没有：false = 排队占位（界面显示「…」+ 灰底） */
-          started: shown > 0,
-          shown
+          started: typing ? Math.min(s.shown[key] || 0, text.length) > 0 : true,
+          shown: typing ? Math.min(s.shown[key] || 0, text.length) : text.length
         };
       });
+      let firstPending = -1;
+      rows.forEach((r, i) => { if (r.typing && firstPending < 0) firstPending = i; });
+      const list = streaming
+        ? rows.filter((r) => !hiddenByPreview.has(r.key))
+        : rows.filter((r, i) => !(r.typing && firstPending >= 0 && i > firstPending));
+      return list;
     }
   },
 
@@ -678,12 +683,19 @@ export const useDebateStore = defineStore('debate', {
       if (this.typeTimer) return;
       if (!(this.turnsView || []).some((x) => x.typing)) return;   // 没有待打的就别空转
       const pauses = {};
+      // 条与条之间要有「呼吸」：上一条打完后停 1.2–2.0s 再开下一条；全场首条停 400ms。
+      // 只影响前端播放节奏，不改服务端接话间隔（4–7s），两者不冲突。
+      const gapMs = () => 1200 + Math.round(Math.random() * 800);
+      if (!this.typeGapUntil || this.typeGapUntil < Date.now()) {
+        this.typeGapUntil = Date.now() + (Object.keys(this.typed || {}).length ? gapMs() : 400);
+      }
       this.typeTimer = setInterval(() => {
-        // 串行：只推进最靠前的那条未打完的（FE-1 之后列表里可能同时有多条待打，
+        // 串行：只推进最靠前的那条未打完的（列表里可能同时有多条待打，
         // 但这里永远只推进第一条，所以同一时刻只有一条在增长）
         const next = this.turnsView.find((x) => x.typing);
         if (!next) return;
         const now = Date.now();
+        if (now < (this.typeGapUntil || 0)) return;        // 条间停顿
         if (now < (pauses[next.key] || 0)) return;
         const idx = next.shown + 1;
         this.shown[next.key] = idx;
@@ -694,14 +706,15 @@ export const useDebateStore = defineStore('debate', {
         }
         if (idx >= next.text.length) {
           this.markTyped(next.key);
+          this.typeGapUntil = Date.now() + gapMs();        // 打完这一条 → 停一下再下一条
           return;
         }
         const ch = next.text.charAt(idx - 1);
-        // FE-2：整条 ≈3.2s 打完（原来 6.5s），标点停顿减半（句末 4× 上限 320ms、逗号 1.5× 上限 120ms）
-        const per = Math.min(120, Math.max(12, Math.round(3200 / Math.max(1, next.text.length))));
+        // 出字速度：整条 ≈4.2s 打完（再慢一档），句末 ≤420ms、逗号 ≤160ms
+        const per = Math.min(140, Math.max(15, Math.round(4200 / Math.max(1, next.text.length))));
         let d = per;
-        if (ch === '。' || ch === '！' || ch === '？') d = Math.min(320, per * 4);
-        else if (ch === '，' || ch === '；' || ch === '：') d = Math.min(120, per * 1.5);
+        if (ch === '。' || ch === '！' || ch === '？') d = Math.min(420, per * 4);
+        else if (ch === '，' || ch === '；' || ch === '：') d = Math.min(160, per * 1.5);
         else if (ch === '「' || ch === '」') d = Math.round(per * 1.25);
         pauses[next.key] = now + d;
       }, 40);

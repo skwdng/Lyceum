@@ -68,53 +68,37 @@ class AuditConcurrencyTest extends AuditSupport {
     }
 
     @Test
-    @DisplayName("全真人一侧的自由辩窗口过期后必须能推进（B2：aiSeat==null 且已过期 → 判超时并推进）")
+    @DisplayName("自由辩不再有 BUZZ 阶段：窗口过期后按轮转推进（原死锁缺陷已随「关掉抢拍」消失）")
     void 自由辩全真人时超时卡死() throws Exception {
-        // 正方四个席位全是真人 → 该侧没有 AI 可顶
+        // 正方四个席位全是真人——以前这里是死锁现场（该侧没有 AI 可顶，tick 直接 return）。
+        // 2026-11-27 起自由辩不再进 BUZZ（MatchService.advance 里 isBuzz 恒 false），
+        // 所以这一步就是普通一步：过期 → 记超时 → 推进。此用例改成锁「不再有 BUZZ」。
         String id = newMatch("A1,A2,A3,A4", "room");
         int free = firstFreeDebateStep(id);
         assertTrue(free > 0, "赛制里应有自由辩步");
 
-        jumpTo(id, free, "BUZZ", System.currentTimeMillis() - 5_000);
-        assertNull(row(id).get("buzz_seat"), "前置：还没人抢到");
-
+        jumpTo(id, free, "STEP", System.currentTimeMillis() - 5_000);
         service.tick();
 
-        Format.Step cur = stepList(id).get(step(id));
-        boolean stuck = "BUZZ".equals(String.valueOf(row(id).get("phase"))) && step(id) == free;
-        assertFalse(stuck, "抢拍窗口已过期，却什么也没做：" + cur.seg() + " 停在 " + cur.seat() + "，phase 仍 BUZZ");
-        assertEquals(free + 1, step(id), "应该判一次「抢拍超时」并推进到下一步");
+        Map<String, Object> m = row(id);
+        assertEquals("STEP", String.valueOf(m.get("phase")), "自由辩不该出现 BUZZ 阶段");
+        assertEquals(free + 1, step(id), "窗口过期后必须能推进（不卡住）");
         assertEquals(1, turnCount(id, free + 1), "超时也要留一条 TIMEOUT 记录给复盘");
     }
 
     @Test
-    @DisplayName("抢拍把发言权给抢拍的人，而不是 my_seats 集合的第一个元素（B2：buzz 带 userId）")
+    @DisplayName("抢拍接口保留，但正常推进下已无抢拍窗口")
     void 抢拍席位与轮转席位脱钩() throws Exception {
-        // 房间局：有人坐 A1，我坐 B2
+        // 抢占式自由辩已下线（详见 AuditOrderTest/产品决策），接口留着兼容老对局：
+        // 现在 phase 永远是 STEP，调用直接返回「现在不是抢拍时间」。
         String id = newMatch("A1,B2", "room");
         attachRoom(id, "R1", "B2");
+        int free = firstFreeDebateStep(id);
+        jumpTo(id, free, "STEP", System.currentTimeMillis() + 5_000);
 
-        List<Format.Step> ss = stepList(id);
-        int b2Step = -1, aStep = -1;
-        for (int i = 0; i < ss.size(); i++) {
-            if (!"自由辩".equals(ss.get(i).seg())) continue;
-            if ("B2".equals(ss.get(i).seat()) && b2Step < 0) b2Step = i;
-            if ("A2".equals(ss.get(i).seat()) && aStep < 0) aStep = i;
-        }
-        assertTrue(b2Step > 0 && aStep > 0, "应有 B2 / A2 的自由辩步");
-
-        // ① 该我这一侧接话（B2）：抢到的是 B2
-        jumpTo(id, b2Step, "BUZZ", System.currentTimeMillis() + 5_000);
         Map<String, Object> r = service.buzz(id, USER);
-        assertEquals(Boolean.TRUE, r.get("ok"), "抢拍应成功: " + r);
-        assertEquals("B2", String.valueOf(r.get("seat")), "应按抢拍者的真实席位定，而不是集合第一个");
-        assertEquals("B2", String.valueOf(row(id).get("buzz_seat")), "buzz_seat 要写回库，submit 才会认这个 speaker");
-
-        // ② 该对方接话时，我这侧不能抢
-        jumpTo(id, aStep, "BUZZ", System.currentTimeMillis() + 5_000);
-        Map<String, Object> denied = service.buzz(id, USER);
-        assertEquals(Boolean.FALSE, denied.get("ok"), "A 方的自由辩步，B 方不该能抢: " + denied);
-        assertTrue(String.valueOf(denied.get("reason")).contains("正方"), "实际: " + denied.get("reason"));
+        assertEquals(Boolean.FALSE, r.get("ok"), "没有 BUZZ 阶段就不该抢拍成功: " + r);
+        assertTrue(String.valueOf(r.get("reason")).contains("抢拍"), "实际: " + r.get("reason"));
     }
 
     @Test

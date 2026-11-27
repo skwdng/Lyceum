@@ -27,7 +27,12 @@ public class AiService {
             你是一名中文辩论赛选手，正在打 4v4 正式赛制。
             只输出你这一轮的发言，不要解释、不要自报身份、不要写「作为AI」。
             要求：第一句给判断，随后两到三条理由，结尾一句追问或收束。
-            禁止：编造具体数字和来源；人身攻击；复述对方原话超过一句。
+            事实硬约束（违反即视为不合格发言）：
+            1) 不得编造任何具体数字、百分比、年份、研究名、法条条号、机构名；
+            2) 需要数据或出处时，只能引用【可用论据】里的原文并写出处，否则必须写成「（需核实）」；
+            3) 引用对方原话必须逐字可回指（历史发言里找得到），否则不许加引号，改说「你刚才那个说法」；
+            4) 拿不准就不给数：改成「请对方给出可核查口径」。
+            禁止：人身攻击；复述对方原话超过一句。
             """;
 
     /** 模板库：按「阵营+环节」分，句子刻意写得像人话，用于模型不可用时兜底。 */
@@ -256,6 +261,10 @@ public class AiService {
     private final java.util.concurrent.atomic.AtomicLong quoteFabricatedTotal =
             new java.util.concurrent.atomic.AtomicLong();
 
+    /** 事实护栏拦下的「未核实数字/出处」累计处数（同上，给只返回 String 的入口用）。 */
+    private final java.util.concurrent.atomic.AtomicLong unsupportedTotal =
+            new java.util.concurrent.atomic.AtomicLong();
+
     public AiService(LlmClient llm, com.siyige.service.EvidenceService evidence,
                      com.siyige.service.UtteranceCheck utterance,
                      ConfigService cfg) {
@@ -286,6 +295,77 @@ public class AiService {
     public long tokensForMatch(String matchId) { return llm.tokensForMatch(matchId); }
     public void clearMatchUsage(String matchId) { llm.clearMatchUsage(matchId); }
 
+    // ------------------------------------------------------------ 辅助库（assist）
+
+    /** 辅助库里的一条提示：{@code kind} 只能是 反驳/口径/论据/追问。 */
+    public record Hint(String kind, String text, String basis) {}
+
+    /**
+     * 辅助库的「教练口吻」：只要**能直接说出口的一句话**，不许写分析文章，不许编数字。
+     */
+    private static final String ASSIST_SYSTEM = """
+            你是辩论赛的场边教练。选手正在场上，只有 10 秒能看一眼你的提示。
+            你只输出提示条目，每条一行，格式严格为：
+            类型|可以直接照着说出口的一句话|基于对方哪一句原话
+            类型的取值只能是：反驳 / 口径 / 论据 / 追问。
+            硬性要求：
+            1) 3–5 条，一条只说一件事，句子长度控制在 40 字以内，能直接念出来；
+            2) 必须扣住双方原话，第三条字段写清是哪句原话（引用片段即可）；
+            3) 不确定的事实必须在该条末尾加「（需核实）」，一律不许编造数字、年份、文件名；
+            4) 不要解释规则，不要开场白，不要编号以外的多余文字。
+            """;
+
+    /**
+     * 基于双方最近发言给 3–5 条可直接说出口的提示。
+     *
+     * <p>没配模型 key、或调用失败 → 返回 {@code null}，由调用方走规则兜底
+     * （辅助库是"锦上添花"，不能因为没 key 就整个功能不可用）。
+     */
+    public List<Hint> assist(String topicTitle, String seg, String seat, List<Map<String, Object>> recentTurns) {
+        if (!llm.enabled()) return null;
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("辩题：").append(topicTitle == null ? "" : topicTitle).append('\n');
+            sb.append("当前环节：").append(seg == null ? "" : seg).append('\n');
+            sb.append("我是：").append(seat == null ? "" : seat).append('\n');
+            sb.append("最近发言（按时间顺序，最后一条最新）：\n");
+            if (recentTurns != null) {
+                for (Map<String, Object> t : recentTurns) {
+                    String s = String.valueOf(t.get("seat"));
+                    String c = String.valueOf(t.get("content"));
+                    if (c.isBlank()) continue;
+                    sb.append('[').append(s).append("·").append(String.valueOf(t.get("seg"))).append("] ")
+                            .append(shorten(stripQuoteFrames(c), 200)).append('\n');
+                }
+            }
+            sb.append("\n请按系统约定输出 3–5 行提示。");
+            String raw = llm.chat(ASSIST_SYSTEM, sb.toString(), 0.3, 20);
+            return parseHints(raw);
+        } catch (Exception e) {
+            log.warn("辅助库生成失败：{}", e.toString());
+            return null;
+        }
+    }
+
+    /** 解析「类型|提示|依据」逐行格式。模型不听话时宁可少给，也不编。 */
+    static List<Hint> parseHints(String raw) {
+        List<Hint> out = new ArrayList<>();
+        if (raw == null || raw.isBlank()) return out;
+        for (String line : raw.split("\\r?\\n")) {
+            String s = line.trim().replaceFirst("^[-*\\d.、\\s]+", "").trim();
+            if (s.isEmpty() || s.startsWith("```")) continue;
+            String[] parts = s.split("\\s*[|｜]\\s*", 3);
+            if (parts.length < 2) continue;
+            String kind = parts[0].trim();
+            if (!kind.matches("反驳|口径|论据|追问")) kind = "论据";
+            String text = parts[1].trim();
+            String basis = parts.length > 2 ? parts[2].trim() : "";
+            if (text.isEmpty()) continue;
+            out.add(new Hint(kind, shorten(text, 120), shorten(basis, 60)));
+        }
+        return out.size() > 5 ? out.subList(0, 5) : out;
+    }
+
     // ------------------------------------------------------------ token 预算
 
     /** 本场预算（token）。 */
@@ -314,6 +394,11 @@ public class AiService {
     public long quoteFabricatedCount() { return quoteFabricatedTotal.get(); }
 
     public void resetQuoteFabricatedCount() { quoteFabricatedTotal.set(0); }
+
+    /** 事实护栏拦下的「未核实数字/出处」处数（累计，进程内）。 */
+    public long unsupportedCount() { return unsupportedTotal.get(); }
+
+    public void resetUnsupportedCount() { unsupportedTotal.set(0); }
 
     // ---------------------------------------------------------------- 主入口
 
@@ -352,7 +437,7 @@ public class AiService {
         } else {
             text = template(seat, seg, duty, mateLast, history);
         }
-        return guard(text, p, mateLast, oppLast, seat, seg, duty, history);
+        return guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history, topicTitle, topicId).text();
     }
 
     public String speak(String seat, String seg, String topicTitle) {
@@ -370,12 +455,14 @@ public class AiService {
      *   <li>{@code analysisStatus} —— 分析的真实状态：{@code ok} 有分析 / {@code degraded} 分析失败已降级 /
      *       {@code budget-exhausted} 本场预算用尽直接走模板 / {@code none} 没有可分析素材（对方还没说话）</li>
      *   <li>{@code fabricated} —— 本轮引用护栏拦下并改写的「编造引用」条数</li>
+     *   <li>{@code unsupported} —— 本轮事实护栏拦下的「未核实数字/出处」处数（数字已被改成「（需核实）」）</li>
      * </ul>
      *
      * <p>为什么要单独给 {@code analysisStatus}：复盘要能区分「这一轮 AI 真的听了对方再回应」和
      * 「分析挂了、它是在盲说」。只看 {@code analysis} 空不空分不出来——没有素材时本来就是空的。
      */
-    public record Speech(String text, boolean degraded, String analysis, String analysisStatus, int fabricated) {
+    public record Speech(String text, boolean degraded, String analysis, String analysisStatus, int fabricated,
+                         int unsupported) {
 
         /** 分析成功，生成阶段用上了这份分析。 */
         public static final String ANALYSIS_OK = "ok";
@@ -389,7 +476,12 @@ public class AiService {
         /** 兼容旧构造：只给三段时按有无分析内容推断状态。 */
         public Speech(String text, boolean degraded, String analysis) {
             this(text, degraded, analysis,
-                    analysis == null || analysis.isBlank() ? ANALYSIS_NONE : ANALYSIS_OK, 0);
+                    analysis == null || analysis.isBlank() ? ANALYSIS_NONE : ANALYSIS_OK, 0, 0);
+        }
+
+        /** 兼容旧的五段构造（facts 护栏上线前）。 */
+        public Speech(String text, boolean degraded, String analysis, String analysisStatus, int fabricated) {
+            this(text, degraded, analysis, analysisStatus, fabricated, 0);
         }
 
         public boolean analysisOk() { return ANALYSIS_OK.equals(analysisStatus); }
@@ -474,8 +566,8 @@ public class AiService {
             text = template(seat, seg, duty, mateLast, history);
             degraded = true;
         }
-        GuardResult g = guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history);
-        return new Speech(g.text(), degraded, analysis, analysisStatus, g.fabricated());
+        GuardResult g = guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history, topicTitle, topicId);
+        return new Speech(g.text(), degraded, analysis, analysisStatus, g.fabricated(), g.unsupported());
     }
 
     /**
@@ -545,8 +637,8 @@ public class AiService {
             text = template(seat, seg, duty, mateLast, history);
             degraded = true;
         }
-        GuardResult g = guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history);
-        return new Speech(g.text(), degraded, analysis, analysisStatus, g.fabricated());
+        GuardResult g = guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history, topicTitle, topicId);
+        return new Speech(g.text(), degraded, analysis, analysisStatus, g.fabricated(), g.unsupported());
     }
 
     /** 只做分析：把对方上一句拆成 主张/论据/漏洞/弱点。 */
@@ -718,7 +810,13 @@ public class AiService {
         }
         sb.append("4. 不要重复【我方已说过】里已经讲过的论点，要往前推。\n");
         sb.append("5. 需要数据时只能引用【可用论据】里的内容，并把出处写出来（如「据《某某法》」）。\n");
-        sb.append("   绝对不许编造具体数字、比例、机构名称；没有可引用的就写「请对方给出可核查口径」。\n");
+        sb.append("   绝对不许编造具体数字、比例、年份、研究名、法条条号、机构名称；没有可引用的就写「请对方给出可核查口径」。\n");
+        // 事实硬约束：用户投诉过「AI 说得很像真的，但数字全是编的」。prompt 先压，输出侧还有事实护栏兜底。
+        sb.append("6. 事实硬约束（这一条比修辞重要）：\n");
+        sb.append("   ① 任何具体数字/百分比/年份/研究名/法条条号/机构名都必须能在【可用论据】里找到原文，否则不许写；\n");
+        sb.append("   ② 必须提数据又拿不到出处时，写成「（需核实）」，例如「据公开报道（需核实）」；\n");
+        sb.append("   ③ 引用对方原话要逐字可回指（上面【对方最近说】里有的字），否则不要加引号，改说「你刚才那个说法」；\n");
+        sb.append("   ④ 不确定就换成「请对方给出可核查口径」——宁可少一个数，不要多一个假数。\n");
         return sb.toString();
     }
 
@@ -932,10 +1030,12 @@ public class AiService {
 
     // ---------------------------------------------------------------- 护栏
 
-    /** 护栏结果：可直接落库的正文 + 引用护栏拦下的编造引用条数。 */
-    record GuardResult(String text, int fabricated) { }
+    /** 护栏结果：可直接落库的正文 + 引用护栏条数 + 事实护栏条数。 */
+    record GuardResult(String text, int fabricated, int unsupported) {
+        GuardResult(String text, int fabricated) { this(text, fabricated, 0); }
+    }
 
-    /** 输出后处理：承接检查 + 去 AI 味 + 长度截断 + 引用真实性核查。 */
+    /** 输出后处理：承接检查 + 去 AI 味 + 长度截断 + 引用真实性核查 + 事实核查。 */
     String guard(String text, Personas.Persona p, String mateLast, String oppLast, String seat, String seg, String duty, List<Map<String, Object>> history) {
         return guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history).text();
     }
@@ -946,6 +1046,18 @@ public class AiService {
      * <p>只是加一个返回值，原有 {@code guard(...)} 的签名和行为保持不变——上下游都不必改。
      */
     GuardResult guardDetailed(String text, Personas.Persona p, String mateLast, String oppLast, String seat, String seg, String duty, List<Map<String, Object>> history) {
+        return guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history, null, null);
+    }
+
+    /**
+     * 带事实核查的版本。
+     *
+     * @param topicTitle 辩题标题（标题里的年份/数字算"有出处"）
+     * @param topicId    辩题 id，用来取本场论据卡（卡里的数字算"有出处"）
+     */
+    GuardResult guardDetailed(String text, Personas.Persona p, String mateLast, String oppLast, String seat,
+                              String seg, String duty, List<Map<String, Object>> history,
+                              String topicTitle, String topicId) {
         String t = text == null ? "" : text.trim();
         t = t.replaceAll("(?i)作为(一个)?(AI|人工智能|语言模型)[，,]?", "")
              .replaceAll("(?i)I'?m an AI\\.?", "")
@@ -1016,7 +1128,194 @@ public class AiService {
         }
         // 截断/改写都可能留下半个引号，这里统一收口（不管有没有 fabricated 都要做）
         t = QuoteGuard.dropDangling(qg.text());
-        return new GuardResult(t, qg.fabricated());
+
+        // 事实护栏：数字/年份/法条号/书名号出处，在「论据卡 + 辩题标题 + 历史发言」里找不到 → 标「（需核实）」
+        List<String> facts = factSources(seat, topicTitle, topicId, history, oppLast, mateLast);
+        FactResult fr = checkFacts(t, facts);
+        if (fr.unsupported() > 0) {
+            unsupportedTotal.addAndGet(fr.unsupported());
+            log.info("事实护栏：{} 处未核实数字/出处已标注（席位 {}·{}）", fr.unsupported(), seat, seg);
+        }
+        return new GuardResult(fr.text(), qg.fabricated(), fr.unsupported());
+    }
+
+    // ---------------------------------------------------------------- 事实护栏
+
+    /** 事实护栏结果：正文 + 被标注处数。 */
+    record FactResult(String text, int unsupported) { }
+
+    /** 一处待核实的"事实断言"在原文本里的位置与替换文案。 */
+    record FactHit(int start, int end, String token, String replacement) { }
+
+    /** 一回合最多标注几处（避免把整段发言改花）。 */
+    private static final int MAX_FACT_MARKS = 6;
+
+    /** 需要核实的模式：百分比、百分点、倍数、年份、阿拉伯数字法条条号、书名号出处。 */
+    private static final List<java.util.regex.Pattern> FACT_PATTERNS = List.of(
+            java.util.regex.Pattern.compile("\\d+(?:\\.\\d+)?\\s*(?:%|％)"),
+            java.util.regex.Pattern.compile("百分之\\s*\\d+(?:\\.\\d+)?"),
+            java.util.regex.Pattern.compile("\\d+(?:\\.\\d+)?\\s*个百分点"),
+            java.util.regex.Pattern.compile("\\d+(?:\\.\\d+)?\\s*倍"),
+            java.util.regex.Pattern.compile("(?:19|20)\\d{2}\\s*年"),
+            java.util.regex.Pattern.compile("第\\s*\\d{1,4}\\s*条"),
+            java.util.regex.Pattern.compile("《[^》]{1,30}》")
+    );
+
+    /**
+     * 中文数字条号（第四条 / 第四十一条）。
+     *
+     * <p>它和普通序数（「第一条先立住」「三条缺一不可」）长得一模一样，所以**必须带法律语境**才查：
+     * 前后 16 字里出现《》/法/规定/条例/办法/司法/细则/章程 才当法条条号。否则「我方判准第一条」
+     * 会被误标成「（需核实）」，那就成了新的假阳性。
+     */
+    private static final java.util.regex.Pattern CN_TIAO =
+            java.util.regex.Pattern.compile("第\\s*[一二三四五六七八九十百千零]{1,6}\\s*条");
+
+    /** 「法条语境」关键词。 */
+    private static final java.util.regex.Pattern LEGAL_HINT =
+            java.util.regex.Pattern.compile("《[^》]{0,30}》|[法规定例释]|条例|办法|细则|章程|司法|款|项");
+
+    /** 「据/根据 + 机构研究 + 显示/统计」这种出处短语。 */
+    private static final java.util.regex.Pattern SOURCE_PHRASE = java.util.regex.Pattern.compile(
+            "(?:据|根据|按照)\\s*([^，。；：、「」《》]{2,12}?)\\s*(?:的)?\\s*(?:统计|研究|调查|报告|显示|表明|指出)");
+
+    /** 数字/年份/条号只留数字参与比对（37% → 37；2023 年 → 2023；第四十一条 → 四十一条）。 */
+    private static final java.util.regex.Pattern DIGITS = java.util.regex.Pattern.compile("\\d+(?:\\.\\d+)?");
+
+    /**
+     * 事实护栏（纯函数）。
+     *
+     * <p>只看「带单位的具体事实」：百分比、百分点、倍数、年份、法条条号、书名号出处、据…统计/研究。
+     * 每个都要能在 {@code sources}（论据卡 + 辩题标题 + 历史发言原文）里找到，
+     * 找不到就说明是模型编的——把这一段替换成「（需核实）」，主张保留、数字不落地。
+     *
+     * <p>为什么不能只靠 prompt：模型被要求"给个数字"时会编，编出来的数字看着最可信。
+     * 为什么不能只靠 QuoteGuard：它只管引号里的引用，裸数字根本不在引号里。
+     *
+     * @param text    已过引用护栏的正文
+     * @param sources 允许的事实来源（原文，未归一化）
+     */
+    static FactResult checkFacts(String text, List<String> sources) {
+        String src = text == null ? "" : text;
+        if (src.isEmpty()) return new FactResult(src, 0);
+
+        List<String> corpus = new ArrayList<>();
+        if (sources != null) {
+            for (String s : sources) {
+                if (s == null || s.isBlank()) continue;
+                String norm = QuoteGuard.normalize(s);
+                if (!norm.isEmpty()) corpus.add(norm);
+            }
+        }
+
+        List<FactHit> hits = factHits(src, corpus);
+        if (hits.isEmpty()) return new FactResult(src, 0);
+
+        List<FactHit> use = hits.subList(0, Math.min(MAX_FACT_MARKS, hits.size()));
+        StringBuilder sb = new StringBuilder(src);
+        for (int i = use.size() - 1; i >= 0; i--) {         // 右到左替换，左侧下标不失效
+            FactHit h = use.get(i);
+            sb.replace(h.start(), h.end(), h.replacement());
+        }
+        String out = sb.toString()
+                .replaceAll("\\s+（需核实）", "（需核实）")
+                .replaceAll("(?:（需核实）[、，,]?\\s*){2,}", "（需核实）")
+                .trim();
+        return new FactResult(out, use.size());
+    }
+
+    /** 找出所有对不上账的事实断言（不改写，便于单测/日志）。 */
+    static List<FactHit> factHits(String text, List<String> corpusNorm) {
+        List<FactHit> hits = new ArrayList<>();
+        if (text == null || text.isEmpty()) return hits;
+
+        for (java.util.regex.Pattern pat : FACT_PATTERNS) {
+            java.util.regex.Matcher m = pat.matcher(text);
+            while (m.find()) {
+                if (overlaps(hits, m.start(), m.end())) continue;
+                String token = m.group();
+                String probe = token.contains("《")
+                        ? QuoteGuard.normalize(token)                  // 书名号：整段比对
+                        : (token.contains("条")
+                            ? QuoteGuard.normalize(token)              // 条号：第四十一条 / 第 41 条
+                            : digitsOf(token));                        // 数字：只比数字本身
+                if (probe.isEmpty() || !corpusHas(corpusNorm, probe)) {
+                    hits.add(new FactHit(m.start(), m.end(), token, "（需核实）"));
+                }
+            }
+        }
+
+        // 「据 XX 统计/研究」：出处名对不上账 → 整段换成"据可核查资料（需核实）"
+        java.util.regex.Matcher sm = SOURCE_PHRASE.matcher(text);
+        while (sm.find()) {
+            if (overlaps(hits, sm.start(), sm.end())) continue;
+            String name = QuoteGuard.normalize(sm.group(1));
+            if (name.isEmpty()) continue;
+            boolean known = corpusHas(corpusNorm, name) || looksGenericSource(name);
+            if (!known) hits.add(new FactHit(sm.start(), sm.end(), sm.group(), "据可核查资料（需核实）"));
+        }
+
+        // 中文数字条号：只有带法律语境时才算"法条引用"
+        java.util.regex.Matcher cm = CN_TIAO.matcher(text);
+        while (cm.find()) {
+            if (overlaps(hits, cm.start(), cm.end())) continue;
+            int from = Math.max(0, cm.start() - 16);
+            int to = Math.min(text.length(), cm.end() + 16);
+            String window = text.substring(from, to);
+            if (!LEGAL_HINT.matcher(window).find()) continue;      // 「第一条先立住」这类序数不查
+            String probe = QuoteGuard.normalize(cm.group());
+            if (!corpusHas(corpusNorm, probe)) hits.add(new FactHit(cm.start(), cm.end(), cm.group(), "（需核实）"));
+        }
+
+        hits.sort(java.util.Comparator.comparingInt(FactHit::start));
+        return hits;
+    }
+
+    /** 出处名本身很泛（"研究""调查""统计"）时不算编造，避免误伤"据一项调查显示"这种正常表达。 */
+    private static boolean looksGenericSource(String normalizedName) {
+        return normalizedName.matches("(?:某项|一项|有关|相关)?(?:研究|调查|统计|报告|数据)");
+    }
+
+    private static String digitsOf(String token) {
+        java.util.regex.Matcher m = DIGITS.matcher(QuoteGuard.normalize(token));
+        return m.find() ? m.group() : QuoteGuard.normalize(token);
+    }
+
+    private static boolean corpusHas(List<String> corpusNorm, String probe) {
+        for (String c : corpusNorm) if (c.contains(probe)) return true;
+        return false;
+    }
+
+    private static boolean overlaps(List<FactHit> hits, int start, int end) {
+        for (FactHit h : hits) {
+            if (start < h.end() && end > h.start()) return true;
+        }
+        return false;
+    }
+
+    /** 本场允许的事实来源：论据卡原文 + 辩题标题 + 历史发言（含对方/队友最近一条）。 */
+    private List<String> factSources(String seat, String topicTitle, String topicId,
+                                     List<Map<String, Object>> history, String oppLast, String mateLast) {
+        List<String> out = new ArrayList<>();
+        if (topicTitle != null && !topicTitle.isBlank()) out.add(topicTitle);
+        if (topicId != null && !topicId.isBlank() && evidence != null) {
+            try {
+                String cards = evidence.promptBlock(topicId, Format.side(seat));
+                if (cards != null && !cards.isBlank()) out.add(cards);
+            } catch (Exception e) {
+                log.debug("取论据卡失败（事实护栏将只认历史发言）：{}", e.toString());
+            }
+        }
+        if (history != null) {
+            for (Map<String, Object> turn : history) {
+                if (turn == null) continue;
+                Object c = turn.get("content");
+                if (c != null) out.add(String.valueOf(c));
+            }
+        }
+        out.add(oppLast);
+        out.add(mateLast);
+        return out;
     }
 
     /**

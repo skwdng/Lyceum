@@ -199,6 +199,16 @@ public class ApiController {
         return matches.continueSolo(id, userId);
     }
 
+    /**
+     * 辅助库：我这轮能说什么（3–5 条可直接说出口的提示 + 需核实的论据卡）。
+     * 有 key 走模型、没 key/失败走规则，结果按场·步·席位缓存 30 秒。
+     */
+    @GetMapping("/matches/{id}/assist")
+    public Map<String, Object> assist(@PathVariable String id) throws Exception {
+        String userId = guard(id);
+        return matches.assist(id, userId);
+    }
+
     /** 单人模式「催一下」：跳过 AI 的 10–15 秒思考 */
     @PostMapping("/matches/{id}/skip")
     public Map<String, Object> skip(@PathVariable String id) {

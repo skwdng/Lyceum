@@ -77,15 +77,127 @@
 .mymeta[data-v-a6bca1d2] { font-size: 11.5px; color: #8a909c; margin-top: 3px;
 }
 
+/* ---------- B 方气泡：预留最终宽度，左边缘定住 ----------
+ * ghost 是全文（visibility:hidden），先把气泡撑到最终宽度；
+ * 可见前缀绝对定位覆盖在上面。于是可见部分从左往右长，
+ * 气泡宽度（进而左边缘）在整个出字过程中不变。
+ * 只对 B 方生效；A 方不渲染 ghost，行为与之前一致。 */
+.bub-in[data-v-da60eaab] {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+}
+.bub-ghost[data-v-da60eaab] {
+  display: block;
+  visibility: hidden;
+  user-select: none;
+  pointer-events: none;
+  white-space: pre-wrap;
+}
+.bub-live[data-v-da60eaab] {
+  position: absolute;
+  inset: 0;
+  white-space: pre-wrap;
+}
+@media (max-width: 520px) {
+  /* 375px：预留宽度不能把气泡撑出视口 */
+.bub[data-v-da60eaab] { max-width: 100%; overflow-wrap: anywhere;
+}
+.bub-in[data-v-da60eaab] { max-width: 100%;
+}
+}
+
+/* ---------- 席位条最右的「辅 AI」 ---------- */
+.sp.aux[data-v-da60eaab] {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: #fff;
+  border-style: dashed;
+  text-align: left;
+}
+.sp.aux[data-v-da60eaab]:hover,
+.sp.aux.on[data-v-da60eaab] { border-color: #9db4f5; background: #f4f7ff;
+}
+.sp.aux .aux-av[data-v-da60eaab] { background: #6b7280;
+}
+
+/* ---------- 辅助库面板 ---------- */
+.assist-card[data-v-da60eaab] { min-width: 0;
+}
+.assist-meta[data-v-da60eaab] { font-size: 11.5px; color: #8a909c; margin-bottom: 8px;
+}
+.assist-group[data-v-da60eaab] { margin-bottom: 10px;
+}
+.assist-kind[data-v-da60eaab] {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a909c;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.assist-hint[data-v-da60eaab] {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: #fff;
+  border: 1px solid #efede6;
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.assist-hint[data-v-da60eaab]:hover { border-color: #9db4f5; background: #f8faff;
+}
+.assist-tx[data-v-da60eaab] { display: block; font-size: 11.5px; line-height: 1.6; color: #1a1d24;
+}
+.assist-basis[data-v-da60eaab] { display: block; font-size: 10.5px; color: #a8adb8; margin-top: 3px;
+}
+.assist-src[data-v-da60eaab] {
+  border: 1px solid #efede6;
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+  color: #4a5568;
+}
+.assist-src-t[data-v-da60eaab] { margin-right: 6px;
+}
+.assist-src-n[data-v-da60eaab] { font-size: 10.5px; color: #a8adb8; margin-top: 3px;
+}
+.assist-err[data-v-da60eaab] { font-size: 12.5px; color: #c0392b; padding: 10px 0;
+}
+.assist-err-d[data-v-da60eaab] { font-size: 11.5px; color: #a8adb8; margin-top: 4px; overflow-wrap: anywhere;
+}
+.assist-sk i[data-v-da60eaab] {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: #f1efe9;
+  margin-bottom: 8px;
+  animation: assistPulse-da60eaab 1.2s ease-in-out infinite;
+}
+.assist-sk i[data-v-da60eaab]:nth-child(2) { width: 80%;
+}
+.assist-sk i[data-v-da60eaab]:nth-child(3) { width: 60%;
+}
+@keyframes assistPulse-da60eaab {
+0%, 100% { opacity: 1;
+}
+50% { opacity: 0.45;
+}
+}
 /* 分段发言（发送 = 攒一段，结束发言 = 一次提交）——只作用于本页，不动 debate.css */
-.segs[data-v-186b1444] {
+.segs[data-v-da60eaab] {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fbfcfe;
   padding: 8px 10px 10px;
   margin-bottom: 8px;
 }
-.segs-hd[data-v-186b1444] {
+.segs-hd[data-v-da60eaab] {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -94,9 +206,9 @@
   color: #8a909c;
   margin-bottom: 6px;
 }
-.segs-hd b[data-v-186b1444] { font-size: 12.5px; color: #1a1d24;
+.segs-hd b[data-v-da60eaab] { font-size: 12.5px; color: #1a1d24;
 }
-.seg[data-v-186b1444] {
+.seg[data-v-da60eaab] {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -107,9 +219,9 @@
   margin-bottom: 6px;
   min-width: 0;
 }
-.seg[data-v-186b1444]:last-child { margin-bottom: 0;
+.seg[data-v-da60eaab]:last-child { margin-bottom: 0;
 }
-.seg-no[data-v-186b1444] {
+.seg-no[data-v-da60eaab] {
   flex: 0 0 18px;
   height: 18px;
   border-radius: 5px;
@@ -121,7 +233,7 @@
   align-items: center;
   justify-content: center;
 }
-.seg-tx[data-v-186b1444] {
+.seg-tx[data-v-da60eaab] {
   flex: 1;
   min-width: 0;
   font-size: 12.5px;
@@ -130,7 +242,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.seg-del[data-v-186b1444] {
+.seg-del[data-v-da60eaab] {
   flex: 0 0 auto;
   width: 22px;
   height: 22px;
@@ -139,10 +251,10 @@
   color: #a8adb8;
   font-size: 15px;
 }
-.seg-del[data-v-186b1444]:hover { background: var(--red-w); color: var(--red);
+.seg-del[data-v-da60eaab]:hover { background: var(--red-w); color: var(--red);
 }
 @media (max-width: 520px) {
-.seg-tx[data-v-186b1444] { font-size: 12px;
+.seg-tx[data-v-da60eaab] { font-size: 12px;
 }
 }
 /* ============================================================================
