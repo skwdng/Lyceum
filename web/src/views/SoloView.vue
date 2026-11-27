@@ -176,6 +176,11 @@ function abandonMatch() {
 }
 
 async function startFromPanel() {
+  if (!debate.mySeats.length) {
+    seatOpen.value = true;                     // 没有席位就停在选座面板，不放行
+    toast('先选一个席位，再进入对局');
+    return;
+  }
   seatOpen.value = false;
   if (!auth.user) {
     toast('登录后才能开始辩论');
@@ -474,13 +479,18 @@ function errText(e) {
       </div>
 
       <div class="sum">
-        已选：<b>{{ [...debate.mySeats].sort().join(' ') }}</b> · 本场你将发言
-        <b>{{ debate.myTurnCount }}</b> 次 · 节奏 <b>{{ paceName }}</b> · 档位 <b>{{ tierName }}</b>
+        <template v-if="debate.mySeats.length">
+          已选：<b>{{ [...debate.mySeats].sort().join(' ') }}</b> · 本场你将发言
+          <b>{{ debate.myTurnCount }}</b> 次 · 节奏 <b>{{ paceName }}</b> · 档位 <b>{{ tierName }}</b>
+        </template>
+        <span v-else style="color: #C2671E">还没选席位 —— 点上面的席位卡选一个（可多选）才能进入对局</span>
       </div>
 
       <div class="row" style="justify-content: flex-end; margin-top: 16px">
         <button class="btn ghost" @click="seatOpen = false">取消</button>
-        <button class="btn primary" @click="startFromPanel">进入对局</button>
+        <button class="btn primary" :disabled="!debate.mySeats.length"
+                :title="debate.mySeats.length ? '' : '先选一个席位'"
+                @click="startFromPanel">进入对局</button>
       </div>
     </div>
   </div>

@@ -24,13 +24,9 @@ const LS = {
 };
 
 function readSeats() {
-  try {
-    const raw = localStorage.getItem(LS.seats);
-    const arr = raw ? JSON.parse(raw) : null;
-    return Array.isArray(arr) && arr.length ? arr : ['A1'];
-  } catch (e) {
-    return ['A1'];
-  }
+  // 用户口径：**不预选任何席位**，必须先选才能开局（默认给 A1/B2 会让人莫名其妙站在某个位置上打）。
+  // 续打时这里会被服务端返回的 my_seats 覆盖，所以不影响恢复对局。
+  return [];
 }
 
 /** 席位固定顺序：排序不依赖到达顺序（旧版同款） */

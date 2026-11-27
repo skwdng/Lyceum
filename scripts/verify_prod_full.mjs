@@ -102,6 +102,9 @@ import('node:fs').then(async (fs) => {
   const sheetOpened = await ev(`!!document.querySelector('.mask')`);
   ok('点辩题后弹出开局面板', !!sheetOpened);
 
+  // 席位不再预选：先点 B2 席位卡，「进入对局」才可点
+  await ev(`(()=>{ const s=[...document.querySelectorAll('.seat')].find(x=>x.innerText.includes('B2')); if(s) s.click(); })()`);
+  await sleep(300);
   await ev(`(()=>{ const b=[...document.querySelectorAll('.mask button')].find(x=>/开始|开练|进入/.test(x.textContent)); if(b) b.click(); })()`);
   await sleep(3500);
   const inMatch = await ev(`location.hash.includes('/match')`);

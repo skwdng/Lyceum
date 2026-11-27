@@ -135,8 +135,9 @@ public class ApiController {
         String mode = String.valueOf(body.getOrDefault("mode", "FULL"));
         String seats = body.get("seats") instanceof List<?> l
                 ? String.join(",", l.stream().map(String::valueOf).toList())
-                : String.valueOf(body.getOrDefault("seats", "A1"));
+                : String.valueOf(body.getOrDefault("seats", ""));
 
+        if (seats.isBlank()) throw new IllegalArgumentException("SEATS_REQUIRED: 先选一个席位再开局");
         String topicId = body.get("topicId") == null ? null : String.valueOf(body.get("topicId"));
         if (topicId == null || topicId.isBlank()) {
             String title = String.valueOf(body.getOrDefault("title", ""));
