@@ -7,6 +7,11 @@ import './chat.css';       // 批 2 的聊天样式（旧 .soc-chat 那套）
 import './debate.css';     // 批 2 的辩论样式（对局舞台 / 选座位 / 复盘）
 import './community.css';  // 批 3 的社区样式（整段从旧 app.css 搬过来）
 import './video.css';      // 批 3 的视频样式（竖滑信息流 / 抽屉）
+import './themes.css';     // 皮肤（设置 → 皮肤，默认不生效）
+import { applySavedSkin } from './skins.js';
+
+// 皮肤要在挂载前上屏，避免首屏闪一下默认色
+applySavedSkin();
 
 const app = createApp(App);
 

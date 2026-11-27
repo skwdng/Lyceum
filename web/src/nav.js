@@ -14,6 +14,7 @@ export const NAV = [
   { g: '我的' },
   { k: 'diag', n: '能力分析' },
   { k: 'records', n: '辩论记录' },
+  { k: 'settings', n: '设置' },
   { g: '社区' },
   { k: 'community', n: '讨论社区' },
   { g: '视频' },

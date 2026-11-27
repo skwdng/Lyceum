@@ -5,6 +5,7 @@ import { getAdminToken } from './api.js';
 import { trackView } from './utils/track.js';
 import LoginView from './views/LoginView.vue';
 import MeView from './views/MeView.vue';
+import SettingsView from './views/SettingsView.vue';
 import NotifyView from './views/NotifyView.vue';
 import FriendsView from './views/FriendsView.vue';
 import HotView from './views/HotView.vue';
@@ -45,6 +46,7 @@ const routes = [
   // ---- 批 0：已经迁移 ----
   { path: '/login', name: 'login', component: LoginView },
   { path: '/me', name: 'me', component: MeView },
+  { path: '/settings', name: 'settings', component: SettingsView },
 
   // ---- 批 1：已迁移（通知/好友/热辩榜/记录/诊断/钱包）----
   { path: '/notify', name: 'notify', component: NotifyView, meta: { requiresAuth: true } },

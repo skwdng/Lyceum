@@ -54,6 +54,46 @@
 .pwd-title[data-v-a05d490c] { font-size: 14px; font-weight: 600; margin-bottom: 4px;
 }
 
+.wrap[data-v-7864e74e] { max-width: 980px; margin: 0 auto; padding: 22px 24px 40px;
+}
+.pg[data-v-7864e74e] { font-size: 22px; margin-bottom: 4px;
+}
+.skins[data-v-7864e74e] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.skin[data-v-7864e74e] {
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.skin[data-v-7864e74e]:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+.skin.on[data-v-7864e74e] { outline: 2px solid var(--blue); outline-offset: 1px;
+}
+.sw[data-v-7864e74e] { display: flex; height: 34px; border-radius: 8px; overflow: hidden; border: 1px solid var(--line);
+}
+.sw i[data-v-7864e74e] { flex: 1;
+}
+.nm[data-v-7864e74e] { margin-top: 9px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;
+}
+.ds[data-v-7864e74e] { margin-top: 3px; font-size: 11.5px; color: var(--sub); line-height: 1.6;
+}
+code[data-v-7864e74e] { font-family: Consolas, monospace; font-size: 11px; background: var(--blue-w); padding: 1px 4px; border-radius: 4px;
+}
+@media (max-width: 520px) {
+.wrap[data-v-7864e74e] { padding: 16px;
+}
+.skins[data-v-7864e74e] { grid-template-columns: 1fr;
+}
+}
+
 /* 标题旁的「查看全部 →」：跳到独立的对局板块 */
 .see-all[data-v-41918f33] { font-size: 12px; color: #2f5bea; cursor: pointer; white-space: nowrap;
 }
@@ -1555,4 +1595,177 @@ table.t tr:last-child td { border-bottom: none; }
 .vsearch-input{flex:1;min-width:0;background:#14161d;border:1px solid #262b36;border-radius:10px;
   padding:8px 12px;color:#e8eaf0;font-size:13.5px;outline:none}
 .vsearch-input:focus{border-color:#3a63ff}
-.vsearch-input::placeholder{color:#6b7180}
+.vsearch-input::placeholder{color:#6b7180}/* ============================================================
+ * 皮肤（视觉方向稿落地）
+ *
+ * · 只有 <html data-skin="…"> 时才生效；默认皮肤不写属性，完全保持现状。
+ * · 只覆盖「色/字/圆角/背景质感」这类表层，不改布局与信息结构。
+ * · 对局页的 scoped 样式用 !important 压一下，免得 data-v 特异性更高。
+ * ============================================================ */
+
+/* ---------- A 庭辩现场 ---------- */
+html[data-skin='chamber'] {
+  --ink: #ece2d4; --sub: #a99a86; --line: #3a3029; --bg: #1b1714; --card: #241e19;
+  --blue: #c9a227; --blue-w: #332a1c; --org: #b7791f; --org-w: #3a2c14;
+  --grn: #7aa86a; --grn-w: #22301f; --red: #8c2f39; --red-w: #33161a;
+}
+
+/* ---------- B 思辨仪器 ---------- */
+html[data-skin='instrument'] {
+  --ink: #dbe9ee; --sub: #7b919b; --line: #1d2c34; --bg: #0b0f12; --card: #111a20;
+  --blue: #b6ff3b; --blue-w: #16251a; --org: #ffb020; --org-w: #2a2110;
+  --grn: #22d3ee; --grn-w: #10262b; --red: #ff5d5d; --red-w: #2c1414;
+}
+
+/* ---------- C 纸上推演 ---------- */
+html[data-skin='paper'] {
+  --ink: #221d17; --sub: #7a6f60; --line: #e2d8c4; --bg: #f4eee2; --card: #fffdf6;
+  --blue: #b93b2e; --blue-w: #f6e4dc; --org: #a8641c; --org-w: #f7ead9;
+  --grn: #3f7a4f; --grn-w: #e7f2e7; --red: #b93b2e; --red-w: #f8e3df;
+}
+
+/* ---------- D 深夜电台 ---------- */
+html[data-skin='radio'] {
+  --ink: #eef0fb; --sub: #9aa0c3; --line: rgba(255, 255, 255, 0.10); --bg: #0d0f1e; --card: #1c2038;
+  --blue: #ffb347; --blue-w: rgba(255, 179, 71, 0.15); --org: #ffb347; --org-w: rgba(255, 179, 71, 0.12);
+  --grn: #6ee7b7; --grn-w: rgba(110, 231, 183, 0.12); --red: #ff6b6b; --red-w: rgba(255, 107, 107, 0.12);
+}
+
+/* ---------- E 竞技场 ---------- */
+html[data-skin='arena'] {
+  --ink: #f4f4f5; --sub: #8b8b90; --line: #262626; --bg: #080808; --card: #141414;
+  --blue: #ff3b30; --blue-w: #2a0f0d; --org: #ffd60a; --org-w: #2a2408;
+  --grn: #2f6bff; --grn-w: #0d1a33; --red: #ff3b30; --red-w: #2a0f0d;
+}
+
+/* ---------- 共用表层覆盖（只对非默认皮肤生效） ---------- */
+html[data-skin] body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+html[data-skin] .sb {
+  background: var(--card) !important;
+  border-right-color: var(--line) !important;
+}
+html[data-skin] .logo .m { background: var(--blue); color: #fff; }
+html[data-skin] .logo b { color: var(--ink); }
+html[data-skin] .logo span, html[data-skin] .nav .g, html[data-skin] .sub, html[data-skin] .desc,
+html[data-skin] .empty { color: var(--sub) !important; }
+html[data-skin] .nav a { color: var(--sub); }
+html[data-skin] .nav a:hover { background: var(--blue-w); color: var(--ink); }
+html[data-skin] .nav a.on { background: var(--blue-w); color: var(--blue); }
+
+html[data-skin] .card,
+html[data-skin] .panel,
+html[data-skin] .auth-card,
+html[data-skin] .sum,
+html[data-skin] .codebox {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+html[data-skin] .card b, html[data-skin] .card strong { color: var(--ink); }
+html[data-skin] .panel h2, html[data-skin] .card h2, html[data-skin] .card h3 { color: var(--ink); }
+
+html[data-skin] .btn {
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 10px;
+}
+html[data-skin] .btn:hover { background: var(--blue-w); }
+html[data-skin] .btn.primary {
+  background: var(--blue) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+html[data-skin] .btn.primary:hover { filter: brightness(1.05); }
+html[data-skin] .btn.ghost { color: var(--sub); }
+
+html[data-skin] input, html[data-skin] textarea, html[data-skin] select {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 10px;
+}
+html[data-skin] input::placeholder, html[data-skin] textarea::placeholder { color: var(--sub); }
+html[data-skin] table th { color: var(--sub); border-bottom-color: var(--line); }
+html[data-skin] table td { border-bottom-color: var(--line); }
+html[data-skin] .tag { background: var(--blue-w); color: var(--blue); }
+html[data-skin] .heatbar i, html[data-skin] .heatbar > i { background: var(--blue) !important; }
+
+/* 对局页：气泡 / 输入区 / 席位条（scoped 样式要用 !important 压住） */
+html[data-skin] .chat .msg .bub,
+html[data-skin] .msg .bub {
+  background: var(--card) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--line) !important;
+}
+html[data-skin] .chat .msg.b .bub { background: var(--blue-w) !important; }
+html[data-skin] .composer {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
+}
+html[data-skin] .composer textarea { background: transparent !important; border: none !important; }
+html[data-skin] .strip .sp {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--sub);
+}
+html[data-skin] .strip .sp.on, html[data-skin] .strip .sp.cur {
+  border-color: var(--blue);
+  color: var(--ink);
+}
+html[data-skin] .mask { background: rgba(0, 0, 0, 0.45); }
+
+/* ---------- 各皮肤的「质感」差异 ---------- */
+html[data-skin='chamber'] body {
+  background:
+    radial-gradient(1200px 500px at 20% -10%, rgba(201, 162, 39, 0.10), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 3px),
+    var(--bg);
+  font-family: "Songti SC", "Source Han Serif SC", Georgia, serif;
+}
+html[data-skin='chamber'] .card, html[data-skin='chamber'] .bub { border-radius: 4px !important; }
+html[data-skin='chamber'] .btn.primary { box-shadow: 0 2px 0 #7a6116; }
+
+html[data-skin='instrument'] body {
+  background:
+    linear-gradient(90deg, rgba(182, 255, 59, 0.05) 1px, transparent 1px) 0 0 / 64px 64px,
+    linear-gradient(0deg, rgba(182, 255, 59, 0.05) 1px, transparent 1px) 0 0 / 64px 64px,
+    var(--bg);
+}
+html[data-skin='instrument'] .card, html[data-skin='instrument'] .bub { border-radius: 2px !important; }
+html[data-skin='instrument'] .chat .msg .bub { border-left: 2px solid var(--blue) !important; }
+html[data-skin='instrument'] .btn.primary { color: #0b0f12 !important; }
+
+html[data-skin='paper'] body {
+  background: radial-gradient(900px 400px at 80% -20%, rgba(185, 59, 46, 0.06), transparent 60%), var(--bg);
+  font-family: "Songti SC", "Source Han Serif SC", Georgia, serif;
+}
+html[data-skin='paper'] .chat .msg .bub { box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.06) !important; }
+html[data-skin='paper'] .card { box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.05); }
+
+html[data-skin='radio'] body {
+  background:
+    radial-gradient(700px 380px at 15% 0%, rgba(124, 92, 255, 0.25), transparent 60%),
+    radial-gradient(700px 380px at 85% 10%, rgba(255, 179, 71, 0.16), transparent 60%),
+    var(--bg);
+}
+html[data-skin='radio'] .card, html[data-skin='radio'] .bub, html[data-skin='radio'] .composer {
+  backdrop-filter: blur(12px);
+  border-radius: 16px !important;
+}
+
+html[data-skin='arena'] body {
+  background: linear-gradient(180deg, #0a0a0a, #050505);
+  font-family: "Arial Narrow", "Bebas Neue", "PingFang SC", sans-serif;
+}
+html[data-skin='arena'] h1, html[data-skin='arena'] .pg, html[data-skin='arena'] .h1 {
+  letter-spacing: 0.03em;
+  text-transform: none;
+}
+html[data-skin='arena'] .chat .msg .bub { border-left: 4px solid var(--blue) !important; border-radius: 6px !important; }
+html[data-skin='arena'] .chat .msg.b .bub { border-left: none !important; border-right: 4px solid #2f6bff !important; }
