@@ -70,6 +70,23 @@ function removeSegment(i) {
   segments.value = segments.value.filter((_, idx) => idx !== i);
 }
 
+/**
+ * 键盘口径（用户定的）：**回车 = 发言（攒一段）**，Shift+回车 = 换行；
+ * 只有点「结束发言」才真正结束这一轮（Ctrl/Cmd+回车保留为快捷结束，方便老手）。
+ * 输入法组合状态下的回车不能当成发送（否则选词会把半句话发出去）。
+ */
+function onComposerKeydown(e) {
+  if (e.isComposing || e.keyCode === 229) return;   // 输入法正在组合
+  if (e.key !== 'Enter') return;
+  if (e.shiftKey) return;                           // Shift+Enter 换行
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    endSpeech();                                    // 快捷结束（与按钮同一动作）
+    return;
+  }
+  sendSegment();                                    // 默认：回车 = 发言
+}
+
 // 草稿按对局存在本地：刷新、切页回来都不该让用户重打一遍
 const draftKey = () => (debate.matchId ? 'sy_draft_' + debate.matchId : '');
 function saveDraft() {
@@ -725,11 +742,10 @@ const verdictOf = (t) => (t.typing ? '' : '');
           <textarea
             v-model="draft"
             :disabled="recOn"
-            :placeholder="debate.waiting ? '写下这一段…（发送 = 攒段，Ctrl+Enter = 结束发言）' : '对方还在说 —— 先写这一段，轮到你就能结束发言（Ctrl+Enter）'"
+            :placeholder="debate.waiting ? '写下这一段…（回车 = 发言，Shift+回车 = 换行，点「结束发言」结束）' : '对方还在说 —— 先写这一段，轮到你就能结束发言'"
             @input="onType"
             @paste="onPaste"
-            @keydown.enter.ctrl="endSpeech"
-            @keydown.enter.meta="endSpeech"
+            @keydown="onComposerKeydown"
           ></textarea>
           <div class="count">
             <span :class="{ warn: totalLen > MAX_DRAFT }">{{ totalLen }} / {{ MAX_DRAFT }} 字</span>

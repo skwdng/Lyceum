@@ -78,14 +78,14 @@
 }
 
 /* 分段发言（发送 = 攒一段，结束发言 = 一次提交）——只作用于本页，不动 debate.css */
-.segs[data-v-8b8fa7eb] {
+.segs[data-v-186b1444] {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fbfcfe;
   padding: 8px 10px 10px;
   margin-bottom: 8px;
 }
-.segs-hd[data-v-8b8fa7eb] {
+.segs-hd[data-v-186b1444] {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -94,9 +94,9 @@
   color: #8a909c;
   margin-bottom: 6px;
 }
-.segs-hd b[data-v-8b8fa7eb] { font-size: 12.5px; color: #1a1d24;
+.segs-hd b[data-v-186b1444] { font-size: 12.5px; color: #1a1d24;
 }
-.seg[data-v-8b8fa7eb] {
+.seg[data-v-186b1444] {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -107,9 +107,9 @@
   margin-bottom: 6px;
   min-width: 0;
 }
-.seg[data-v-8b8fa7eb]:last-child { margin-bottom: 0;
+.seg[data-v-186b1444]:last-child { margin-bottom: 0;
 }
-.seg-no[data-v-8b8fa7eb] {
+.seg-no[data-v-186b1444] {
   flex: 0 0 18px;
   height: 18px;
   border-radius: 5px;
@@ -121,7 +121,7 @@
   align-items: center;
   justify-content: center;
 }
-.seg-tx[data-v-8b8fa7eb] {
+.seg-tx[data-v-186b1444] {
   flex: 1;
   min-width: 0;
   font-size: 12.5px;
@@ -130,7 +130,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.seg-del[data-v-8b8fa7eb] {
+.seg-del[data-v-186b1444] {
   flex: 0 0 auto;
   width: 22px;
   height: 22px;
@@ -139,10 +139,10 @@
   color: #a8adb8;
   font-size: 15px;
 }
-.seg-del[data-v-8b8fa7eb]:hover { background: var(--red-w); color: var(--red);
+.seg-del[data-v-186b1444]:hover { background: var(--red-w); color: var(--red);
 }
 @media (max-width: 520px) {
-.seg-tx[data-v-8b8fa7eb] { font-size: 12px;
+.seg-tx[data-v-186b1444] { font-size: 12px;
 }
 }
 /* ============================================================================
