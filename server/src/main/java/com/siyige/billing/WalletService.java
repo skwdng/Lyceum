@@ -6,6 +6,7 @@ import com.siyige.ai.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -85,17 +86,18 @@ public class WalletService {
 
     public long balance(String userId) { return repo.balance(userId); }
 
-    /** 首次使用自动开钱包并赠送体验金（只送一次）。 */
+    /**
+     * 首次使用自动开钱包并赠送体验金（只送一次）。
+     *
+     * <p>整段放在一个事务里，由 WalletRepo.grantIfNoHistory 用行锁串起来：
+     * 原来是「查历史为空 -> 送礼 -> 记一笔」，同一用户并发首次使用时两个线程都能查到空，
+     * 结果是**送两次体验金**。H2 下几乎撞不上，MySQL 下很容易复现（2026-11-27 实测）。
+     */
+    @Transactional
     public long ensureWallet(String userId) {
-        long bal = repo.balance(userId);
-        List<Map<String, Object>> h = repo.history(userId, 5);
-        if (h.isEmpty()) {
-            long grant = welcomeGrantCents();
-            repo.add(userId, grant);
-            bal = repo.balance(userId);
-            repo.log(userId, "GRANT", grant, bal, null, "新用户体验金");
-        }
-        return bal;
+        repo.ensureRow(userId);
+        repo.grantIfNoHistory(userId, welcomeGrantCents(), "新用户体验金");
+        return repo.balance(userId);
     }
 
     public Map<String, Object> recharge(String userId, long amountCents) {

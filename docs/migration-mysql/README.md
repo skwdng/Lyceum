@@ -154,3 +154,58 @@ POST /api/matches { mode:'FULL', seats:['A1','B1'], topicId:'t3', kind:'room' } 
 
 2026-11-27 实测（mysql profile）：`kind=room` 对局 turns 1→2→3，无异常；
 重启后数据仍在（14 用户 / 12 对局 / 127→128 发言），H2 下同样的重启会归零。
+---
+
+## 7. 2026-11-27 并发验证：MySQL 下抓到两个真 bug（已修）
+
+H2 内存库把写操作串行化了，很多竞态在 H2 下几乎撞不上；换 MySQL 后是**必现**。
+下面是这批实测出来的两处，都在钱包里。
+
+### 7.1 `sy_wallet` 建行撞主键 -> 并发开局 500
+
+```text
+现象：同一用户并发开 5 局，4 个 500
+日志：Duplicate entry 'xxx' for key 'sy_wallet.PRIMARY'
+原因：WalletRepo.ensure 是「先 count 为 0，再 insert」，两个线程都数到 0 就都去 insert
+改法：ensureRow 吞掉 DuplicateKeyException（行已经在了就达到目的）
+```
+
+### 7.2 体验金重复赠送（金额翻 10 倍）
+
+```text
+现象：全新用户 10 个并发请求 /api/wallet -> 送了 10 次体验金（余额 1000 而不是 100）
+原因：WalletService.ensureWallet 是「查历史为空 -> 送礼 -> 记一笔」，
+      两个线程都能查到空；而且 MySQL 默认 REPEATABLE READ —— 
+      事务快照在第一次普通 select 时就定了，普通 count 看不到别人刚提交的流水
+改法：WalletRepo.grantIfNoHistory 上加 @Transactional，先在钱包行 for update 排队，
+      再用**锁定读**（select ... limit 1 for update）判断有没有流水，最后才赠送
+```
+
+### 7.3 修复后实测（mysql profile）
+
+| 场景 | 修复前 | 修复后 |
+|---|---|---|
+| 全新用户 10 个并发 `/api/wallet` | 10 条 GRANT，余额 1000 | **1 条 GRANT，余额 100** |
+| 同一用户并发开 5 局 | 1 成功 + 4 个 500 | 1 成功 + 4 个 409（余额不足，正确的业务拒绝） |
+| 并发充值 10 次 × 100 分 | — | 余额 1100 = 体验金 100 + 充值 1000，**一分不差** |
+
+单测：`WalletGrantRaceTest`（8 线程同时首用，断言只有 1 条 GRANT）。
+注意它在 H2 上**没修也能过**（H2 写串行），真正的证据是上面的 MySQL 实测。
+
+### 7.4 两套 schema 的一致性守卫
+
+`SchemaParityTest`：用真的 H2 跑一遍 16 个 `schema-*.sql`，再解析 `schema-mysql-full.sql`，
+逐表逐列比对，并检查 MySQL 里每个索引引用的列都真实存在。
+故意删掉一列验证过能被抓到（2026-11-27）。
+
+### 7.5 功能回归脚本
+
+`server/scripts/selftest_mysql.mjs`（44 条）：社区（发帖/标签/评论/楼中楼/点赞/举报/打码）、
+视频、钱包、对局、管理台各页、以及参数与屏蔽词的热更。
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=mysql
+node scripts/selftest_mysql.mjs
+```
+
+2026-11-27 在 mysql profile 下 **44/44 全绿**。
