@@ -894,12 +894,12 @@ export const useDebateStore = defineStore('debate', {
       if (this.kind !== 'solo') return false;
       if (this.waiting) return false;            // 轮到我说，没什么可催
       if (this.skipBusy) return false;
+      // 只要有字还在打字机里，按钮就必须在：这时它的含义是「显示全文」，
+      // 不能被「本步已催过 / 上一步催过」挡住（历史 bug：点一次之后就再也点不到）。
+      if (this.hasTyping()) return true;
       const step = Number((this.match && this.match.step) || 0);
-      // FE-5：催过一次只在**冷却期内**藏按钮。原来用的是「本步永不再给」，
-      // 一旦服务端受理了却没真正开说（AI 还在生成），按钮就永久消失、用户以为催坏了。
+      // 催过一次只在**冷却期内**藏按钮（服务端受理了但 AI 还在生成时，别让按钮消失）
       if (this.skipStep === step && Date.now() < this.skipUntil) return false;
-      // 刚催完、上一轮的字还在吐：也先别弹，等这段说完（避免"刚点完又冒出来"）
-      if (this.skipStep === step - 1 && this.hasTyping()) return false;
       return true;
     },
 
@@ -917,14 +917,14 @@ export const useDebateStore = defineStore('debate', {
       if (this.skipBusy) return;
       const step = Number((this.match && this.match.step) || 0);
       if (this.hasTyping()) {
-        // 把还没打的字一次性补齐：标 typed + shown 拉满，打字机自然停下
+        // 把还没打的字一次性补齐：标 typed + shown 拉满，打字机自然停下。
+        // 注意：**不要**把 skipStep 记成本步——否则「显示全文」之后按钮就消失，
+        // 用户再也点不到下一次（历史 bug：催一下/显示全文共用一个按钮，点一次就没了）。
         const typing = (this.turnsView || []).filter((t) => t.typing);
         const shown = { ...this.shown };
         typing.forEach((t) => { shown[t.key] = t.text.length; });
         this.shown = shown;
         typing.forEach((t) => this.markTyped(t.key));
-        this.skipStep = step;
-        this.skipUntil = Date.now() + 3000;
         toast('已显示完整发言');
         return;
       }

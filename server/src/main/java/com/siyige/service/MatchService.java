@@ -1021,8 +1021,13 @@ public class MatchService {
         }
         out.sort((a, b) -> Long.compare(
                 ((Number) b.get("updatedAt")).longValue(), ((Number) a.get("updatedAt")).longValue()));
+        // 未完成对局默认保留最近 20 条（用户口径）；更早的仍在库里，只是不在这个列表里
+        if (out.size() > MAX_RUNNING_LIST) return new ArrayList<>(out.subList(0, MAX_RUNNING_LIST));
         return out;
     }
+
+    /** 「进行中的对局」列表上限：默认保留 20 条。 */
+    private static final int MAX_RUNNING_LIST = 20;
 
     /**
      * 删除（放弃）一场对局。

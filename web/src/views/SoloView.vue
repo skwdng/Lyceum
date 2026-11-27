@@ -262,7 +262,10 @@ function errText(e) {
   <div v-if="myMatches.length" class="card" style="margin-bottom: 14px">
     <div class="row" style="justify-content: space-between; align-items: baseline">
       <b style="font-size: 13px">进行中的对局</b>
-      <span style="font-size: 11.5px; color: #8a909c">共 {{ myMatches.length }} 场 · 换设备也能接着打</span>
+      <span style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
+        <span style="font-size: 11.5px; color: #8a909c">共 {{ myMatches.length }} 场 · 换设备也能接着打</span>
+        <a class="see-all" @click="router.push({ name: 'matches' })">查看全部 →</a>
+      </span>
     </div>
     <div
       v-for="m in myMatches"
@@ -513,6 +516,10 @@ function errText(e) {
   </div>
 </template>
 <style scoped>
+/* 标题旁的「查看全部 →」：跳到独立的对局板块 */
+.see-all { font-size: 12px; color: #2f5bea; cursor: pointer; white-space: nowrap; }
+.see-all:hover { text-decoration: underline; }
+
 /* 进行中的对局列表（只在单人页生效） */
 .myrow {
   display: flex;

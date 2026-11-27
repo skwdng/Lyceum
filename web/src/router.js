@@ -17,6 +17,7 @@ import OfflineView from './views/OfflineView.vue';
 import MatchView from './views/MatchView.vue';
 import ReviewView from './views/ReviewView.vue';
 import RoomView from './views/RoomView.vue';
+import MatchesView from './views/MatchesView.vue';
 import CommunityView from './views/CommunityView.vue';
 import PostDetailView from './views/PostDetailView.vue';
 import VideoView from './views/VideoView.vue';
@@ -57,6 +58,8 @@ const routes = [
   { path: '/solo', name: 'solo', component: SoloView, meta: { requiresAuth: true } },
   { path: '/offline', name: 'offline', component: OfflineView, meta: { requiresAuth: true } },
   { path: '/room', name: 'room', component: RoomView, meta: { requiresAuth: true } },
+  // 独立的「对局」板块：未完成的对局列表（继续 / 删除）
+  { path: '/matches', name: 'matches', component: MatchesView, meta: { requiresAuth: true } },
   { path: '/chat', name: 'chat', component: ChatView, meta: { requiresAuth: true } },
   { path: '/match', name: 'match', component: MatchView, meta: { requiresAuth: true } },
   { path: '/review', name: 'review', component: ReviewView, meta: { requiresAuth: true } },

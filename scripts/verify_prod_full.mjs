@@ -137,7 +137,7 @@ import('node:fs').then(async (fs) => {
       const b=[...document.querySelectorAll('button')].find(x=>/催一下|直接显示全文/.test(x.textContent));
       return b ? {text:b.textContent.trim(), disabled:b.disabled} : {gone:true};
     })()`);
-    ok('催一下点完后按钮置灰/隐藏（每步只生效一次）', !!(afterNudge && (afterNudge.disabled || afterNudge.gone)), JSON.stringify(afterNudge));
+    ok('催一下点完后按钮不消失（冷却中置灰 / 打字中变「直接显示全文」）', !!(afterNudge && !afterNudge.gone), JSON.stringify(afterNudge));
   }
 
   // ---------- 6. 轮到我：提示 + 语音按钮 ----------
