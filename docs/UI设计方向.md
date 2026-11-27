@@ -1,4 +1,4 @@
-> **落地状态（2026-11-27）**：五套已做成皮肤，入口在「设置 → 皮肤」，默认 = 现在的纸白皮肤；实现见 `web/src/skins.js` + `web/src/themes.css`，截图见 `docs/mockups/shots/skin-*.png`。
+> **落地状态（2026-11-27）**：保留 **庭辩现场 / 纸上推演 / 深夜电台** 三套（思辨仪器、竞技场已下线），入口在「设置 → 皮肤」，默认 = 现在的纸白皮肤；实现见 `web/src/skins.js` + `web/src/themes.css`，对局页截图见 `docs/mockups/shots/skin-match-*.png`。
 
 # 思弈阁 · 五个 UI 方向（供选择）
 

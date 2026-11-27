@@ -20,13 +20,7 @@ export const SKINS = [
     hint: '正式、有仪式感；深色长文要盯对比度',
     sw: ['#1b1714', '#241e19', '#c9a227', '#ece2d4']
   },
-  {
-    id: 'instrument',
-    name: '思辨仪器',
-    desc: '石墨底 + 荧光绿 + 等宽字，把对局做成仪表',
-    hint: '最像 AI 训练工具；荧光色别大面积用',
-    sw: ['#0b0f12', '#111a20', '#b6ff3b', '#dbe9ee']
-  },
+
   {
     id: 'paper',
     name: '纸上推演',
@@ -41,13 +35,7 @@ export const SKINS = [
     hint: '陪伴感和语音输入最搭；低端机少用模糊',
     sw: ['#0d0f1e', '#1c203a', '#ffb347', '#eef0fb']
   },
-  {
-    id: 'arena',
-    name: '竞技场',
-    desc: '纯黑 + 红蓝队色 + 窄体大标题',
-    hint: '对抗感、适合赛事与排行榜',
-    sw: ['#080808', '#141414', '#ff3b30', '#f4f4f5']
-  }
+
 ];
 
 const KEY = 'sy_skin';

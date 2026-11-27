@@ -1,59 +1,40 @@
 /* ============================================================
- * 皮肤（视觉方向稿落地）
+ * 皮肤：庭辩现场 / 纸上推演 / 深夜电台（+ 默认纸白，不写 data-skin）
  *
- * · 只有 <html data-skin="…"> 时才生效；默认皮肤不写属性，完全保持现状。
- * · 只覆盖「色/字/圆角/背景质感」这类表层，不改布局与信息结构。
- * · 对局页的 scoped 样式用 !important 压一下，免得 data-v 特异性更高。
+ * 原则：
+ * · 只覆盖「色 / 字 / 质感 / 半径 / 阴影」，不动布局与信息结构；
+ * · 每套有一个明确的气质：铜牌与判词 / 便签与印章 / 玻璃与呼吸灯；
+ * · 伪元素只用做装饰（纹理、胶带、指示灯），不承载任何内容；
+ * · 动效全部包在 prefers-reduced-motion 之外。
  * ============================================================ */
 
-/* ---------- A 庭辩现场 ---------- */
+/* ---------------- Tokens ---------------- */
 html[data-skin='chamber'] {
   --ink: #ece2d4; --sub: #a99a86; --line: #3a3029; --bg: #1b1714; --card: #241e19;
   --blue: #c9a227; --blue-w: #332a1c; --org: #b7791f; --org-w: #3a2c14;
   --grn: #7aa86a; --grn-w: #22301f; --red: #8c2f39; --red-w: #33161a;
 }
-
-/* ---------- B 思辨仪器 ---------- */
-html[data-skin='instrument'] {
-  --ink: #dbe9ee; --sub: #7b919b; --line: #1d2c34; --bg: #0b0f12; --card: #111a20;
-  --blue: #b6ff3b; --blue-w: #16251a; --org: #ffb020; --org-w: #2a2110;
-  --grn: #22d3ee; --grn-w: #10262b; --red: #ff5d5d; --red-w: #2c1414;
-}
-
-/* ---------- C 纸上推演 ---------- */
 html[data-skin='paper'] {
   --ink: #221d17; --sub: #7a6f60; --line: #e2d8c4; --bg: #f4eee2; --card: #fffdf6;
   --blue: #b93b2e; --blue-w: #f6e4dc; --org: #a8641c; --org-w: #f7ead9;
   --grn: #3f7a4f; --grn-w: #e7f2e7; --red: #b93b2e; --red-w: #f8e3df;
 }
-
-/* ---------- D 深夜电台 ---------- */
 html[data-skin='radio'] {
   --ink: #eef0fb; --sub: #9aa0c3; --line: rgba(255, 255, 255, 0.10); --bg: #0d0f1e; --card: #1c2038;
   --blue: #ffb347; --blue-w: rgba(255, 179, 71, 0.15); --org: #ffb347; --org-w: rgba(255, 179, 71, 0.12);
   --grn: #6ee7b7; --grn-w: rgba(110, 231, 183, 0.12); --red: #ff6b6b; --red-w: rgba(255, 107, 107, 0.12);
 }
 
-/* ---------- E 竞技场 ---------- */
-html[data-skin='arena'] {
-  --ink: #f4f4f5; --sub: #8b8b90; --line: #262626; --bg: #080808; --card: #141414;
-  --blue: #ff3b30; --blue-w: #2a0f0d; --org: #ffd60a; --org-w: #2a2408;
-  --grn: #2f6bff; --grn-w: #0d1a33; --red: #ff3b30; --red-w: #2a0f0d;
-}
+/* ---------------- 共用表层 ---------------- */
+html[data-skin] body { background: var(--bg); color: var(--ink); }
 
-/* ---------- 共用表层覆盖（只对非默认皮肤生效） ---------- */
-html[data-skin] body {
-  background: var(--bg);
-  color: var(--ink);
-}
-
-html[data-skin] .sb {
-  background: var(--card) !important;
-  border-right-color: var(--line) !important;
-}
+html[data-skin] .sb { background: var(--card) !important; border-right-color: var(--line) !important; }
 html[data-skin] .logo .m { background: var(--blue); color: #fff; }
 html[data-skin] .logo b { color: var(--ink); }
-html[data-skin] .logo span, html[data-skin] .nav .g, html[data-skin] .sub, html[data-skin] .desc,
+html[data-skin] .logo span,
+html[data-skin] .nav .g,
+html[data-skin] .sub,
+html[data-skin] .desc,
 html[data-skin] .empty { color: var(--sub) !important; }
 html[data-skin] .nav a { color: var(--sub); }
 html[data-skin] .nav a:hover { background: var(--blue-w); color: var(--ink); }
@@ -68,8 +49,11 @@ html[data-skin] .codebox {
   border-color: var(--line) !important;
   color: var(--ink) !important;
 }
-html[data-skin] .card b, html[data-skin] .card strong { color: var(--ink); }
-html[data-skin] .panel h2, html[data-skin] .card h2, html[data-skin] .card h3 { color: var(--ink); }
+html[data-skin] .card b,
+html[data-skin] .card strong { color: var(--ink); }
+html[data-skin] .panel h2,
+html[data-skin] .card h2,
+html[data-skin] .card h3 { color: var(--ink); }
 
 html[data-skin] .btn {
   white-space: nowrap;
@@ -79,12 +63,8 @@ html[data-skin] .btn {
   border-radius: 10px;
 }
 html[data-skin] .btn:hover { background: var(--blue-w); }
-html[data-skin] .btn.primary {
-  background: var(--blue) !important;
-  color: #fff !important;
-  border-color: transparent !important;
-}
-html[data-skin] .btn.primary:hover { filter: brightness(1.05); }
+html[data-skin] .btn.primary { background: var(--blue) !important; color: #fff !important; border-color: transparent !important; }
+html[data-skin] .btn.primary:hover { filter: brightness(1.06); }
 html[data-skin] .btn.ghost { color: var(--sub); }
 
 html[data-skin] input, html[data-skin] textarea, html[data-skin] select {
@@ -99,7 +79,6 @@ html[data-skin] table td { border-bottom-color: var(--line); }
 html[data-skin] .tag { background: var(--blue-w); color: var(--blue); }
 html[data-skin] .heatbar i, html[data-skin] .heatbar > i { background: var(--blue) !important; }
 
-/* 对局页：气泡 / 输入区 / 席位条（scoped 样式要用 !important 压住） */
 html[data-skin] .chat .msg .bub,
 html[data-skin] .msg .bub {
   background: var(--card) !important;
@@ -107,68 +86,274 @@ html[data-skin] .msg .bub {
   border: 1px solid var(--line) !important;
 }
 html[data-skin] .chat .msg.b .bub { background: var(--blue-w) !important; }
-html[data-skin] .composer {
+html[data-skin] .composer { background: var(--card) !important; border-color: var(--line) !important; }
+html[data-skin] .composer textarea { background: transparent !important; border: none !important; }
+html[data-skin] .strip .sp { background: var(--card); border-color: var(--line); color: var(--sub); }
+html[data-skin] .strip .sp.on, html[data-skin] .strip .sp.cur { border-color: var(--blue); color: var(--ink); }
+html[data-skin] .mask { background: rgba(0, 0, 0, 0.45); }
+html[data-skin] .chat {
   background: var(--card) !important;
   border-color: var(--line) !important;
 }
-html[data-skin] .composer textarea { background: transparent !important; border: none !important; }
-html[data-skin] .strip .sp {
-  background: var(--card);
-  border-color: var(--line);
-  color: var(--sub);
+html[data-skin] .strip {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
 }
-html[data-skin] .strip .sp.on, html[data-skin] .strip .sp.cur {
-  border-color: var(--blue);
+html[data-skin] .topic,
+html[data-skin] .hitem {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
   color: var(--ink);
 }
-html[data-skin] .mask { background: rgba(0, 0, 0, 0.45); }
+html[data-skin] .hitem:hover { background: var(--blue-w) !important; }
+html[data-skin] .sys span {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
+  color: var(--sub);
+}
+html[data-skin] .plan { color: var(--sub); }
+html[data-skin] .plan .cur,
+html[data-skin] .plan b { color: var(--ink); }
+html[data-skin] .assist-hint {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+html[data-skin] .assist-hint,
+html[data-skin] .assist-hint * { color: var(--ink) !important; }
+html[data-skin] .assist-hint:hover { background: var(--blue-w) !important; }
+html[data-skin] .assist-hint .basis,
+html[data-skin] .assist-hint .src,
+html[data-skin] .assist-hint .meta { color: var(--sub) !important; }
+html[data-skin] .seg {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+}
+html[data-skin] .segs-hd { color: var(--sub) !important; }
+html[data-skin] .sp.aux.on { background: var(--blue-w) !important; }
 
-/* ---------- 各皮肤的「质感」差异 ---------- */
+/* ============================================================
+ * A 庭辩现场：铜牌席位 + 稿纸 + 判词
+ * ============================================================ */
 html[data-skin='chamber'] body {
   background:
-    radial-gradient(1200px 500px at 20% -10%, rgba(201, 162, 39, 0.10), transparent 60%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.015) 0 1px, transparent 1px 3px),
+    radial-gradient(1200px 520px at 18% -12%, rgba(201, 162, 39, 0.10), transparent 62%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px),
     var(--bg);
-  font-family: "Songti SC", "Source Han Serif SC", Georgia, serif;
+  font-family: "Songti SC", "Source Han Serif SC", "Noto Serif SC", Georgia, serif;
 }
-html[data-skin='chamber'] .card, html[data-skin='chamber'] .bub { border-radius: 4px !important; }
-html[data-skin='chamber'] .btn.primary { box-shadow: 0 2px 0 #7a6116; }
-
-html[data-skin='instrument'] body {
-  background:
-    linear-gradient(90deg, rgba(182, 255, 59, 0.05) 1px, transparent 1px) 0 0 / 64px 64px,
-    linear-gradient(0deg, rgba(182, 255, 59, 0.05) 1px, transparent 1px) 0 0 / 64px 64px,
-    var(--bg);
+html[data-skin='chamber'] .sb {
+  box-shadow: inset -22px 0 30px -30px #000;
 }
-html[data-skin='instrument'] .card, html[data-skin='instrument'] .bub { border-radius: 2px !important; }
-html[data-skin='instrument'] .chat .msg .bub { border-left: 2px solid var(--blue) !important; }
-html[data-skin='instrument'] .btn.primary { color: #0b0f12 !important; }
+html[data-skin='chamber'] .nav a { border-left: 2px solid transparent; border-radius: 2px; }
+html[data-skin='chamber'] .nav a.on {
+  border-left-color: var(--blue);
+  background: linear-gradient(90deg, rgba(201, 162, 39, 0.16), transparent 80%);
+  color: #ecd9a8;
+}
+html[data-skin='chamber'] h1,
+html[data-skin='chamber'] .pg {
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.28);
+}
+html[data-skin='chamber'] .card,
+html[data-skin='chamber'] .panel {
+  border-radius: 3px !important;
+  border-top: 2px solid rgba(201, 162, 39, 0.5) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+html[data-skin='chamber'] .strip .sp {
+  border-radius: 2px;
+  background: linear-gradient(180deg, #332a20, #241e19);
+  border-color: #4a3b2b;
+  letter-spacing: 0.06em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html[data-skin='chamber'] .strip .sp.on,
+html[data-skin='chamber'] .strip .sp.cur {
+  border-color: var(--blue);
+  color: #f2e7cf;
+  box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35), inset 0 0 18px rgba(201, 162, 39, 0.12);
+}
+html[data-skin='chamber'] .chat .msg .bub {
+  border-radius: 2px !important;
+  background-image: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 27px) !important;
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 39, 0.10);
+}
+html[data-skin='chamber'] .btn.primary {
+  background: linear-gradient(180deg, #d9b239, #b3901f) !important;
+  color: #1b1714 !important;
+  border-radius: 3px !important;
+  letter-spacing: 0.1em;
+  box-shadow: 0 2px 0 #6f5712;
+}
+html[data-skin='chamber'] .score { font-family: "Songti SC", Georgia, serif; letter-spacing: 0.04em; }
+html[data-skin='chamber'] .card h3::before { content: '◆ '; color: rgba(201, 162, 39, 0.7); font-size: 10px; }
 
+/* ============================================================
+ * C 纸上推演：便签 + 印章 + 横线纸
+ * ============================================================ */
 html[data-skin='paper'] body {
-  background: radial-gradient(900px 400px at 80% -20%, rgba(185, 59, 46, 0.06), transparent 60%), var(--bg);
+  background:
+    radial-gradient(900px 420px at 82% -18%, rgba(185, 59, 46, 0.06), transparent 62%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.012) 0 1px, transparent 1px 4px),
+    var(--bg);
   font-family: "Songti SC", "Source Han Serif SC", Georgia, serif;
 }
-html[data-skin='paper'] .chat .msg .bub { box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.06) !important; }
-html[data-skin='paper'] .card { box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.05); }
+html[data-skin='paper'] .nav a.on {
+  background: #f1e7d6;
+  color: #8f2f24;
+  border-left: 3px solid var(--blue);
+}
+html[data-skin='paper'] .nav a { border-left: 3px solid transparent; }
+html[data-skin='paper'] h1,
+html[data-skin='paper'] .pg {
+  font-family: "Kaiti SC", "STKaiti", "Songti SC", serif;
+  letter-spacing: 0.04em;
+  position: relative;
+  padding-bottom: 8px;
+}
+html[data-skin='paper'] h1::after,
+html[data-skin='paper'] .pg::after {
+  content: '';
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 68px; height: 2px;
+  background: var(--blue);
+  opacity: 0.65;
+}
+html[data-skin='paper'] .card,
+html[data-skin='paper'] .panel {
+  border-radius: 3px !important;
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+html[data-skin='paper'] .card::before {
+  content: '';
+  position: absolute;
+  top: -5px; left: 20px;
+  width: 44px; height: 12px;
+  background: rgba(185, 59, 46, 0.10);
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+html[data-skin='paper'] .strip .sp {
+  border-radius: 2px;
+  background: var(--card);
+  box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.05);
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 12.5px;
+}
+html[data-skin='paper'] .strip .sp.on,
+html[data-skin='paper'] .strip .sp.cur {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 1px rgba(185, 59, 46, 0.25), 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+html[data-skin='paper'] .chat .msg .bub {
+  border-radius: 3px !important;
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.07) !important;
+  transform: rotate(-0.15deg);
+}
+html[data-skin='paper'] .chat .msg.b .bub { transform: rotate(0.15deg); }
+html[data-skin='paper'] .btn.primary {
+  background: var(--blue) !important;
+  color: #fff !important;
+  border-radius: 3px !important;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  letter-spacing: 0.14em;
+  transform: rotate(-0.6deg);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.16);
+}
+html[data-skin='paper'] .composer {
+  background-image: repeating-linear-gradient(0deg, transparent 0 26px, #ece2cf 26px 27px) !important;
+  background-color: var(--card) !important;
+}
+html[data-skin='paper'] .card h3::after { content: ' 印'; color: rgba(185, 59, 46, 0.35); font-size: 10px; }
 
+/* ============================================================
+ * D 深夜电台：玻璃 + 呼吸灯 + 频率刻度
+ * ============================================================ */
 html[data-skin='radio'] body {
   background:
-    radial-gradient(700px 380px at 15% 0%, rgba(124, 92, 255, 0.25), transparent 60%),
-    radial-gradient(700px 380px at 85% 10%, rgba(255, 179, 71, 0.16), transparent 60%),
+    radial-gradient(720px 400px at 14% 0%, rgba(124, 92, 255, 0.26), transparent 60%),
+    radial-gradient(720px 400px at 86% 8%, rgba(255, 179, 71, 0.16), transparent 60%),
     var(--bg);
 }
-html[data-skin='radio'] .card, html[data-skin='radio'] .bub, html[data-skin='radio'] .composer {
-  backdrop-filter: blur(12px);
+html[data-skin='radio'] .card,
+html[data-skin='radio'] .panel,
+html[data-skin='radio'] .composer,
+html[data-skin='radio'] .bub {
+  background: rgba(28, 32, 58, 0.62) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
   border-radius: 16px !important;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.26);
 }
+html[data-skin='radio'] .chat .msg.b .bub {
+  background: rgba(255, 179, 71, 0.10) !important;
+  border-color: rgba(255, 179, 71, 0.28) !important;
+}
+html[data-skin='radio'] .nav a.on {
+  background: rgba(124, 92, 255, 0.22);
+  color: #ffd9a1;
+  border-left: 2px solid var(--blue);
+}
+html[data-skin='radio'] .nav a { border-left: 2px solid transparent; }
+html[data-skin='radio'] .pg::before {
+  content: '● ON AIR';
+  display: inline-block;
+  margin-right: 10px;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--blue);
+  vertical-align: middle;
+  animation: onair 2.4s ease-in-out infinite;
+}
+@keyframes onair { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+html[data-skin='radio'] .strip .sp {
+  border-radius: 999px;
+  padding-left: 20px;
+  position: relative;
+  background: rgba(255, 255, 255, 0.04);
+}
+html[data-skin='radio'] .strip .sp::before {
+  content: '';
+  position: absolute;
+  left: 9px; top: 50%;
+  width: 6px; height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+html[data-skin='radio'] .strip .sp.cur::before {
+  background: var(--blue);
+  box-shadow: 0 0 10px var(--blue);
+}
+html[data-skin='radio'] .strip .sp.on {
+  background: rgba(255, 179, 71, 0.10);
+  border-color: rgba(255, 179, 71, 0.55);
+  color: #fff;
+}
+html[data-skin='radio'] .btn.primary {
+  background: linear-gradient(180deg, #ffc46a, #f39a25) !important;
+  color: #231604 !important;
+  box-shadow: 0 0 18px rgba(255, 179, 71, 0.35);
+}
+html[data-skin='radio'] .composer { position: relative; overflow: hidden; }
+html[data-skin='radio'] .composer::after {
+  content: '';
+  position: absolute;
+  left: 14px; right: 14px; bottom: 6px;
+  height: 14px;
+  background-image: repeating-linear-gradient(90deg, rgba(255, 179, 71, 0.30) 0 2px, transparent 2px 6px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+html[data-skin='radio'] .score { color: var(--blue); text-shadow: 0 0 22px rgba(255, 179, 71, 0.35); }
 
-html[data-skin='arena'] body {
-  background: linear-gradient(180deg, #0a0a0a, #050505);
-  font-family: "Arial Narrow", "Bebas Neue", "PingFang SC", sans-serif;
+@media (prefers-reduced-motion: reduce) {
+  html[data-skin='radio'] .pg::before { animation: none; }
 }
-html[data-skin='arena'] h1, html[data-skin='arena'] .pg, html[data-skin='arena'] .h1 {
-  letter-spacing: 0.03em;
-  text-transform: none;
-}
-html[data-skin='arena'] .chat .msg .bub { border-left: 4px solid var(--blue) !important; border-radius: 6px !important; }
-html[data-skin='arena'] .chat .msg.b .bub { border-left: none !important; border-right: 4px solid #2f6bff !important; }
