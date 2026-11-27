@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 
 /**
@@ -58,17 +59,16 @@ public class MatchService {
     private final ConfigService cfg;
 
     /**
-     * AI 接话的基础间隔（毫秒）。
-     *
-     * <p>用户反馈：1–2 秒就接上一个人的话，像抢麦。默认 3500ms 起（听—想—开口的间隙），
-     * 线上可用 siyige.pace.ai-gap-ms 调；直接 new 出来的单测实例也有默认值。
+     * AI 接话的基础间隔（毫秒）。产品口径 4–7 秒（见 {@link #aiDeadline(String)}），
+     * 这里给 4000 起的下界，抖动 3000 让区间落在 4–7；线上可用 siyige.pace.ai-gap-ms 微调，
+     * 但最终仍会被夹回 [4s, 7s]。
      */
-    @Value("${siyige.pace.ai-gap-ms:3500}")
-    private long aiGapMs = 3500;
+    @Value("${siyige.pace.ai-gap-ms:4000}")
+    private long aiGapMs = 4000;
 
     /** 接话间隔的随机抖动（毫秒）：同一场里间隔不该一模一样。 */
-    @Value("${siyige.pace.ai-gap-jitter-ms:2500}")
-    private long aiGapJitterMs = 2500;
+    @Value("${siyige.pace.ai-gap-jitter-ms:3000}")
+    private long aiGapJitterMs = 3000;
 
     public MatchService(Store store, AiService ai, ScoreService scorer, HotRank hot, SseHub hub, FlawService flaw,
                         ObjectMapper json,
@@ -419,12 +419,15 @@ public class MatchService {
                 ai.bind(id);
                 applyTier(m);
                 AiService.Speech sp;
+                long genStartedAt = System.currentTimeMillis();
                 try {
                     sp = aiLineFor(m, seat, cur.seg(), cur.duty());
                 } finally {
                     ai.clearOwnProfile();
                     ai.unbind();
                 }
+                // 记下本场生成耗时：下一次 AI 接话的 deadline 会扣掉它，保证「可见间隔」是 4–7 秒
+                lastGenMs.put(id, System.currentTimeMillis() - genStartedAt);
                 String line = sp.text();
                 // 「AI 为什么是这个样子」要能复盘：分析状态落库（ok/degraded/budget-exhausted/none），
                 // 玩家发言那条路径不写这个字段。
@@ -551,9 +554,9 @@ public class MatchService {
             deadline = deadlineFor(turnSec);
             shownSec = turnSec;
         } else {
-            // AI 回合的等待时间是 aiDeadline 算出来的（3.5–6s），事件里别写死 2 秒，
-            // 否则前端倒计时和真实 deadline 是两套数字。
-            long at = aiDeadline(ns.seat());
+            // AI 回合的等待时间是 aiDeadline 算出来的（目标 4–7s 可见间隔，已扣掉生成耗时），
+            // 事件里别写死 2 秒，否则前端倒计时和真实 deadline 是两套数字。
+            long at = aiDeadline(matchId, ns.seat());
             deadline = Long.valueOf(at);
             shownSec = (int) Math.max(1, Math.round((at - System.currentTimeMillis()) / 1000.0));
         }
@@ -619,27 +622,29 @@ public class MatchService {
 
     /** AI 的"思考"停顿：按席位人设不同（快攻 0.9s、价值派 1.7s），再加抖动。 */
     /**
-     * AI 接话的思考时间。
+     * AI 接话的停顿：产品口径 **可见间隔 4–7 秒**（从上一句落库到下一句出现）。
      *
-     * <p>原来写死 10–15 秒：一句说完要干等十几秒才有下一句，训练节奏被拖成一节 20 分钟。
-     * 改成 1.2–2.2 秒——只留"接话"的呼吸感；想更慢就用 ai-delay-scale 放大（线上可调）。
-     * 想更慢就用 siyige.pace.ai-delay-scale 放大（线上可调，不用改代码）。
+     * <p>注意「deadline」只是等到什么时候开始生成，模型还要再跑 2–3 秒才出字。
+     * 如果直接给 4–7 秒的 deadline，用户实际看到的是 6–10 秒。所以这里先取目标间隔
+     * （4–7 秒，按席位 ±10%），再减掉本场最近一次生成耗时，夹到 [0.8s, 7s]。
      */
-    private long aiDeadline(String seat) {
-        // 之前 1.2–2.2 秒，用户反馈"接上一个人的话太快"，像抢麦。
-        // 现在默认 3.5–6.0 秒：留出"听—想—开口"的间隙；按席位再叠一点人设差异
-        // （快攻派手快、价值派慢条斯理），线上可用 siyige.pace.ai-delay-scale 整体放大缩小。
-        long base = aiGapMs;
-        long jitter = aiGapJitterMs;
-        long pick = base + (long) (jitter * Math.random());
-        // 快攻派（A2/B2）说话更急，归谬/价值派（A3/B4）更慢
-        if ("A2".equals(seat) || "B2".equals(seat)) pick = (long) (pick * 0.85);
-        if ("B4".equals(seat) || "A3".equals(seat)) pick = (long) (pick * 1.25);
-        long ms = Math.max(600, (long) (pick * Math.max(0.05, aiDelayScale())));
-        return System.currentTimeMillis() + ms;
+    private static final long AI_GAP_MIN_MS = 4_000L;
+    private static final long AI_GAP_MAX_MS = 7_000L;
+    /** 本场最近一次 AI 生成耗时（毫秒），用来把「等 deadline + 生成」对账成 4–7 秒。 */
+    private final Map<String, Long> lastGenMs = new ConcurrentHashMap<>();
+
+    private long aiDeadline(String matchId, String seat) {
+        long pick = aiGapMs + (long) (aiGapJitterMs * Math.random());
+        // 快攻派（A2/B2）说话稍急，归谬/价值派（A3/B4）稍慢
+        if ("A2".equals(seat) || "B2".equals(seat)) pick = (long) (pick * 0.9);
+        if ("B4".equals(seat) || "A3".equals(seat)) pick = (long) (pick * 1.1);
+        long target = Math.max(AI_GAP_MIN_MS, Math.min(AI_GAP_MAX_MS, (long) (pick * Math.max(0.05, aiDelayScale()))));
+        long gen = lastGenMs.getOrDefault(matchId, 2_200L);   // 没有历史时按 2.2 秒估
+        long wait = Math.max(800L, Math.min(7_000L, target - gen));
+        return System.currentTimeMillis() + wait;
     }
 
-    private long aiDeadline() { return aiDeadline("A1"); }
+    private long aiDeadline() { return aiDeadline("", "A1"); }
 
     /** 开场第一句：不等 10–15 秒，1.2 秒就开口。 */
     private long openingDelay() {
