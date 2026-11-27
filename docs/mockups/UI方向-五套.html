@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>思弈阁 · 五个 UI 方向</title>
+<style>
+  :root { --font-ui: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0b0d; color: #ddd; font-family: var(--font-ui); }
+  .tabs { display: flex; gap: 8px; padding: 14px 20px; background: #111; border-bottom: 1px solid #222; position: sticky; top: 0; z-index: 9; }
+  .tabs button { padding: 8px 14px; border-radius: 8px; border: 1px solid #333; background: #181818; color: #bbb; cursor: pointer; font-size: 13px; }
+  .tabs button.on { background: #fff; color: #111; border-color: #fff; }
+  .hint { margin-left: auto; color: #777; font-size: 12px; align-self: center; }
+  .stage { display: none; min-height: 100vh; }
+  .stage.on { display: block; }
+
+  /* ============ 共用骨架（每套主题只换变量与质感） ============ */
+  .app { display: grid; grid-template-columns: 220px 1fr 320px; min-height: 100vh; }
+  .rail { padding: 20px 14px; border-right: 1px solid var(--line); }
+  .brand { color: var(--ink); font-weight: 700; letter-spacing: .08em; font-size: 15px; margin-bottom: 18px; }
+  .nav a { display: block; padding: 8px 10px; border-radius: 8px; color: var(--muted); font-size: 13px; margin-bottom: 2px; text-decoration: none; }
+  .nav a.on { color: var(--ink); background: var(--sel); }
+  .main { padding: 22px 26px; }
+  .kicker { font-size: 12px; color: var(--muted); letter-spacing: .12em; }
+  .h1 { font-size: 26px; margin: 6px 0 14px; color: var(--ink); }
+  .strip { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .seat { padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; color: var(--muted); background: var(--panel); }
+  .seat.me { color: var(--ink); border-color: var(--accent); }
+  .seat.cur { box-shadow: 0 0 0 1px var(--accent) inset; }
+  .msg { display: flex; gap: 12px; margin: 16px 0; }
+  .msg.b { flex-direction: row-reverse; }
+  .av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--panel-2); color: var(--muted); flex: none; }
+  .bub { max-width: 76%; padding: 12px 14px; border-radius: 14px; background: var(--panel); color: var(--ink); font-size: 14px; line-height: 1.85; border: 1px solid var(--line); }
+  .msg.b > div:last-child { text-align: right; }
+  .msg.b .bub { display: inline-block; text-align: left; }
+  .msg > div:last-child { min-width: 0; }
+  .msg.b .bub { background: var(--panel-2); }
+  .meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .composer { margin-top: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); padding: 12px; }
+  .composer .ph { color: var(--muted); font-size: 13px; min-height: 54px; }
+  .composer .bar { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 6px; }
+  .btn { padding: 8px 14px; border-radius: 10px; font-size: 13px; border: 1px solid var(--line); background: transparent; color: var(--ink); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700; }
+  .side { border-left: 1px solid var(--line); padding: 20px 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+  .card h3 { margin: 0 0 10px; font-size: 13px; color: var(--ink); letter-spacing: .04em; }
+  .hint-line { display: flex; gap: 8px; font-size: 12.5px; color: var(--ink); line-height: 1.7; margin-bottom: 8px; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 6px; background: var(--chip); color: var(--accent); flex: none; }
+  .score { font-size: 30px; color: var(--ink); font-weight: 700; }
+  .score small { font-size: 12px; color: var(--muted); font-weight: 400; }
+
+  /* A 庭辩现场 */
+  .themeA {
+    --bg:#1b1714; --panel:#241e19; --panel-2:#2b241d; --ink:#ece2d4; --muted:#a99a86;
+    --line:#3a3029; --accent:#c9a227; --accent-ink:#1b1714; --sel:#30281f; --chip:#3a3029;
+    background:
+      radial-gradient(1200px 500px at 20% -10%, rgba(201,162,39,.10), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 3px),
+      var(--bg);
+    font-family: "Songti SC", "Source Han Serif SC", Georgia, serif;
+  }
+  .themeA .h1 { letter-spacing: .06em; }
+  .themeA .bub { border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(201,162,39,.12); }
+  .themeA .seat.me { background: linear-gradient(180deg,#3a2f1f,#241e19); }
+  .themeA .btn.primary { box-shadow: 0 2px 0 #7a6116; }
+
+  /* B 思辨仪器 */
+  .themeB {
+    --bg:#0b0f12; --panel:#111a20; --panel-2:#0f171c; --ink:#dbe9ee; --muted:#7b919b;
+    --line:#1d2c34; --accent:#b6ff3b; --accent-ink:#0b0f12; --sel:#14222a; --chip:#1d2c34;
+    background:
+      linear-gradient(90deg, rgba(182,255,59,.05) 1px, transparent 1px) 0 0/64px 64px,
+      linear-gradient(0deg, rgba(182,255,59,.05) 1px, transparent 1px) 0 0/64px 64px,
+      var(--bg);
+    font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  }
+  .themeB .h1 { font-size: 22px; letter-spacing: .02em; }
+  .themeB .bub { border-radius: 2px; border-left: 2px solid var(--accent); }
+  .themeB .score { font-variant-numeric: tabular-nums; color: var(--accent); }
+  .themeB .tag { border: 1px solid var(--accent); background: transparent; }
+
+  /* C 纸上推演 */
+  .themeC {
+    --bg:#f4eee2; --panel:#fffdf6; --panel-2:#fbf6ea; --ink:#221d17; --muted:#7a6f60;
+    --line:#e2d8c4; --accent:#b93b2e; --accent-ink:#fff; --sel:#efe6d4; --chip:#efe6d4;
+    background:
+      radial-gradient(900px 400px at 80% -20%, rgba(185,59,46,.06), transparent 60%),
+      var(--bg);
+    font-family: "Kaiti SC", "STKaiti", "Songti SC", serif;
+  }
+  .themeC .bub { border-radius: 3px; box-shadow: 2px 3px 0 rgba(0,0,0,.07); transform: rotate(-.15deg); }
+  .themeC .msg:nth-child(odd) .bub { transform: rotate(.2deg); }
+  .themeC .btn.primary { transform: rotate(-.6deg); box-shadow: 2px 2px 0 rgba(0,0,0,.15); }
+  .themeC .card { box-shadow: 2px 3px 0 rgba(0,0,0,.06); }
+
+  /* D 深夜电台 */
+  .themeD {
+    --bg:#0d0f1e; --panel:rgba(28,32,58,.72); --panel-2:rgba(38,42,76,.72); --ink:#eef0fb; --muted:#9aa0c3;
+    --line:rgba(255,255,255,.10); --accent:#ffb347; --accent-ink:#231604; --sel:rgba(124,92,255,.22); --chip:rgba(255,179,71,.12);
+    background:
+      radial-gradient(700px 380px at 15% 0%, rgba(124,92,255,.25), transparent 60%),
+      radial-gradient(700px 380px at 85% 10%, rgba(255,179,71,.16), transparent 60%),
+      var(--bg);
+    font-family: "Inter", "PingFang SC", sans-serif;
+    backdrop-filter: blur(2px);
+  }
+  .themeD .card, .themeD .composer { backdrop-filter: blur(14px); }
+  .themeD .bub { backdrop-filter: blur(10px); border-radius: 16px; }
+  .themeD .onair { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--accent); letter-spacing: .16em; }
+  .themeD .onair i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+
+  /* E 竞技场 */
+  .themeE {
+    --bg:#080808; --panel:#141414; --panel-2:#1b1b1b; --ink:#f4f4f5; --muted:#8b8b90;
+    --line:#262626; --accent:#ff3b30; --accent-ink:#fff; --sel:#1f1f1f; --chip:#2a0f0d;
+    background: linear-gradient(180deg,#0a0a0a,#050505);
+    font-family: "Arial Narrow", "Bebas Neue", "PingFang SC", sans-serif;
+  }
+  .themeE .h1 { font-size: 30px; text-transform: uppercase; letter-spacing: .04em; }
+  .themeE .bub { border-radius: 6px; border-left: 4px solid var(--accent); }
+  .themeE .msg.b .bub { border-left: none; border-right: 4px solid #2f6bff; }
+  .themeE .score { font-size: 42px; }
+  .themeE .seat.me { background: #2a0f0d; }
+
+  .ribbon { padding: 10px 24px; font-size: 12px; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<div class="tabs">
+  <button data-t="A" class="on">A 庭辩现场</button>
+  <button data-t="B">B 思辨仪器</button>
+  <button data-t="C">C 纸上推演</button>
+  <button data-t="D">D 深夜电台</button>
+  <button data-t="E">E 竞技场</button>
+  <span class="hint">← 这是方向稿，只演示「对局页」一套骨架在五种视觉语言下的样子</span>
+</div>
+
+<template id="tpl">
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">思弈阁</div>
+      <nav class="nav">
+        <a class="on" href="#">单人辩论</a>
+        <a href="#">多人辩论</a>
+        <a href="#">对局</a>
+        <a href="#">热辩榜</a>
+        <a href="#">能力分析</a>
+        <a href="#">社区</a>
+      </nav>
+    </aside>
+    <main class="main">
+      <div class="ribbon" data-ribbon>第 3 / 19 步 · 驳立论 · 你坐 B2</div>
+      <div class="kicker">大数据算法推荐是否加剧了信息茧房</div>
+      <div class="h1">立论要有判准，反驳要有回指</div>
+      <div class="strip">
+        <div class="seat">A1 正一</div><div class="seat cur">A2 正二</div><div class="seat">A3 正三</div>
+        <div class="seat">B1 反一</div><div class="seat me">B2 反二 · 你</div><div class="seat">B3 反三</div>
+        <div class="seat" data-aux>辅 AI</div>
+      </div>
+      <div class="msg a">
+        <div class="av">A2</div>
+        <div><div class="meta">正方二辩 · 驳立论</div>
+          <div class="bub">对方说「推荐是结构性偏向」，这一点我不反对；但「结构偏向」推不出「茧房加剧」——中间缺一条「用户接触面确实收窄」的证据链。</div>
+        </div>
+      </div>
+      <div class="msg b">
+        <div class="av">B2</div>
+        <div><div class="meta">你 · 反方二辩</div>
+          <div class="bub">我方判准只有两条：一看接触面是否收窄，二看用户是否有实质退出。第一，协同过滤会把长尾内容推给从未主动搜索的用户，接触面在扩；第二，关闭个性化只需两步，退出是实的。</div>
+        </div>
+      </div>
+      <div class="msg a">
+        <div class="av">A3</div>
+        <div><div class="meta">正方三辩 · 质询</div>
+          <div class="bub">请对方给出「接触面在扩」的可核查口径：哪个平台、哪份公开说明、在哪个时间点认定它扩了？</div>
+        </div>
+      </div>
+      <div class="composer">
+        <div class="ph">写下这一段……回车 = 发言，Shift+回车 = 换行，点「结束发言」结束</div>
+        <div class="bar"><span style="font-size:11px;color:var(--muted)">0 / 1800 字</span><button class="btn">发送</button><button class="btn primary">结束发言</button></div>
+      </div>
+    </main>
+    <aside class="side">
+      <div class="card"><h3>辅助 · AI 席位</h3>
+        <div class="hint-line"><span class="tag">反驳</span><span>对方把「结构偏向」当结论，让他补「接触面收窄」的证据。</span></div>
+        <div class="hint-line"><span class="tag">口径</span><span>要求给出平台、时间点、指标三项。</span></div>
+        <div class="hint-line"><span class="tag">论据</span><span>可引「关闭推荐入口」的制度事实。<span style="color:var(--muted)">（需核实）</span></span></div>
+      </div>
+      <div class="card"><h3>本场</h3>
+        <div class="score">82<small> / 100 预估</small></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">立论 78 · 论证 84 · 应变 80 · 表达 86 · 论据 74</div>
+      </div>
+      <div class="card"><h3>节奏</h3>
+        <div style="font-size:12px;color:var(--muted)">对方发言 4–7 秒后接话；本条已打 60%。</div>
+      </div>
+    </aside>
+  </div>
+</template>
+
+<div id="host"></div>
+
+<script>
+  const host = document.getElementById('host');
+  const tpl = document.getElementById('tpl').innerHTML;
+  const names = { A: '庭辩现场', B: '思辨仪器', C: '纸上推演', D: '深夜电台', E: '竞技场' };
+  function render(t) {
+    host.innerHTML = `<section class="stage theme${t} on">${tpl}</section>`;
+    const ribbon = host.querySelector('[data-ribbon]');
+    if (ribbon) ribbon.textContent = `${names[t]} · 第 3 / 19 步 · 驳立论 · 你坐 B2`;
+    document.title = `思弈阁 · ${names[t]}`;
+  }
+  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on'); render(b.dataset.t);
+  }));
+  const fromHash = (location.hash || '#A').slice(1).toUpperCase();
+  render(names[fromHash] ? fromHash : 'A');
+  if (names[fromHash]) document.querySelector(`.tabs button[data-t="${fromHash}"]`).classList.add('on');
+</script>
+</body>
+</html>
