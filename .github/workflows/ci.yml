@@ -1,9 +1,23 @@
 name: ci
 
+# 门槛约定：
+#   · 后端 `mvn -B test` 里任何单测失败 → 整个 workflow 失败（不加 -DskipTests / -Dmaven.test.failure.ignore）
+#   · 前端 `npm run build` 产物必须与仓库里的 static/v2 一致（产物该提交，不许偷偷漂移）
+#   · 冒烟在打包后真起进程探活，探不通即失败
+
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MAVEN_ARGS: '-B -ntp'
+  NODE_OPTIONS: '--max-old-space-size=4096'
 
 jobs:
   backend:
@@ -16,35 +30,76 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: 编译 + 全部单测
-        run: mvn -f server/pom.xml -B test
+          cache-dependency-path: server/pom.xml
+      # setup-java 的 cache 只负责 ~/.m2，这里再兜一层打包依赖，避免 pom 没变也全量下载
+      - name: 缓存本地 Maven 仓库
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ runner.os }}-${{ hashFiles('server/pom.xml') }}
+          restore-keys: |
+            m2-${{ runner.os }}-
+      - name: 编译 + 全部单测（任一单测失败即失败）
+        run: mvn -f server/pom.xml ${{ env.MAVEN_ARGS }} test
       - name: 覆盖率（JaCoCo，核心模块需 ≥60%）
-        run: mvn -f server/pom.xml -B jacoco:report
+        if: always()
+        run: mvn -f server/pom.xml ${{ env.MAVEN_ARGS }} jacoco:report
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: surefire-reports
-          path: server/target/surefire-reports/
+          path: |
+            server/target/surefire-reports/
+            server/target/site/jacoco/
+          if-no-files-found: ignore
+          retention-days: 14
 
   frontend:
-    name: 前端 · 构建
+    name: 前端 · 构建（node ${{ matrix.node }}）
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: 安装依赖
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: 安装依赖（有 lock 用 npm ci，缺 lock 才退化到 install）
         working-directory: web
-        run: npm ci || npm install
-      - name: 构建（产物进 server/src/main/resources/static/v2）
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: 构建（产物落到 server/src/main/resources/static/v2）
         working-directory: web
         run: npm run build
       - name: 产物存在性检查（防止构建静默失败）
-        run: test -f server/src/main/resources/static/v2/index.html && echo "v2/index.html ok"
+        run: |
+          test -f server/src/main/resources/static/v2/index.html || { echo "缺 v2/index.html：vite outDir/base 配置被改坏了？"; exit 1; }
+          test -d server/src/main/resources/static/v2/assets || { echo "缺 v2/assets：构建没产出资源"; exit 1; }
+          du -sh server/src/main/resources/static/v2
+      - name: 产物与仓库一致性（构建产物该提交，diff 说明有人只改了源码没同步产物）
+        if: matrix.node == '20'
+        run: |
+          git status --porcelain -- server/src/main/resources/static/v2 | tee /tmp/artifact-diff.txt
+          if [ -s /tmp/artifact-diff.txt ]; then
+            echo "::error file=server/src/main/resources/static/v2::前端产物与源码不同步：本地跑 npm run build 后把 static/v2 一起提交"
+            git --no-pager diff --stat -- server/src/main/resources/static/v2 | tail -20
+            exit 1
+          fi
+          echo "产物与仓库一致"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-static-v2-node${{ matrix.node }}
+          path: server/src/main/resources/static/v2/
+          if-no-files-found: ignore
+          retention-days: 7
 
   smoke:
-    name: 冒烟 · 起服务跑健康检查
+    name: 冒烟 · 打包后起服务探活
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     steps:
@@ -54,14 +109,45 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-      - name: 打包
-        run: mvn -f server/pom.xml -B package -DskipTests
+          cache-dependency-path: server/pom.xml
+      - name: 缓存本地 Maven 仓库
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: m2-${{ runner.os }}-${{ hashFiles('server/pom.xml') }}
+          restore-keys: |
+            m2-${{ runner.os }}-
+      - name: 打包（跳过单测，单测已在 backend 跑过）
+        run: mvn -f server/pom.xml ${{ env.MAVEN_ARGS }} package -DskipTests
       - name: 启动并探活（H2 内存库，不依赖外部服务）
         run: |
-          java -jar server/target/siyige-backend-0.1.0.jar --server.port=18080 \
-            --siyige.redis.enabled=false --siyige.llm.speech-enabled=false &
+          set -e
+          JAR=server/target/siyige-backend-0.1.0.jar
+          test -f "$JAR" || { echo "没打出 jar：$JAR"; exit 1; }
+          java -jar "$JAR" --server.port=18080 \
+            --siyige.redis.enabled=false --siyige.llm.speech-enabled=false > /tmp/app.log 2>&1 &
+          APP_PID=$!
+          ok=0
           for i in $(seq 1 60); do
             sleep 2
-            if curl -sf http://127.0.0.1:18080/api/health; then echo "healthy"; exit 0; fi
+            if curl -sf http://127.0.0.1:18080/api/health | grep -q '"ok":true'; then ok=1; break; fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then echo "进程已退出"; break; fi
           done
-          echo "服务没起来"; exit 1
+          if [ "$ok" != "1" ]; then
+            echo "服务没起来，末 80 行日志："
+            tail -80 /tmp/app.log || true
+            exit 1
+          fi
+          echo "health ok"
+      - name: 静态产物可访问（种子产物的 /v2 路径）
+        run: |
+          set -e
+          code=$(curl -s -o /tmp/index.html -w '%{http_code}' http://127.0.0.1:18080/v2/index.html)
+          size=$(wc -c < /tmp/index.html)
+          echo "v2/index.html code=$code size=$size"
+          test "$code" = "200" && test "$size" -gt 500
+      - name: 收尾（打印日志并停进程）
+        if: always()
+        run: |
+          tail -50 /tmp/app.log || true
+          pkill -f 'siyige-backend-0.1.0.jar' || true

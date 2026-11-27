@@ -5,10 +5,12 @@
  * 「本场费用」直接用批 1 抽好的 `<BillStrip>`（旧版是 wallet.js 的 billHTML），
  * 避免两处金额口径不一致。
  */
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useDebateStore } from '../stores/debate.js';
 import { useAuthStore } from '../stores/auth.js';
+import { debateApi } from '../api.js';
+import '../assets/tokens.css';   // 设计 tokens（--warn-ink / --accent-weak / --muted-3 …）：新样式只写 var()
 import BillStrip from '../components/BillStrip.vue';
 
 const route = useRoute();
@@ -35,13 +37,146 @@ const billPayer = computed(() => {
   return '房主';
 });
 
-const DIMS = [
-  ['立论', 'matter', '25%'],
-  ['论证', 'method', '30%'],
-  ['表达', 'manner', '15%'],
-  ['应变', 'adapt', '20%'],
-  ['论据', 'evidence', '10%']
-];
+/** 五维的唯一来源：顺序 / 名称 / 权重都从这里取，口径面板与条形图不会对不上 */
+const DIM_META = {
+  matter: { name: '立论', weight: 25 },
+  method: { name: '论证', weight: 30 },
+  manner: { name: '表达', weight: 15 },
+  adapt: { name: '应变', weight: 20 },
+  evidence: { name: '论据', weight: 10 }
+};
+const DIM_ORDER = ['matter', 'method', 'manner', 'adapt', 'evidence'];
+const DIMS = DIM_ORDER.map((k) => [DIM_META[k].name, k, DIM_META[k].weight + '%']);
+
+/* ==================== 评分口径（后端 rubric） ====================
+ *
+ * 后端 /api/matches/{id}/review 的 score 上会带：
+ *   rubric = { version, dims:[{key,name,weight,score,basis,evidence}], focus:{key,name,score,action,reason} }
+ * 这是**灰度字段**：没落地时整段缺失，面板要降级成「现有五维分数」，不能报错、不能白屏。
+ * 所有读取都走下面的 normalize：字段类型不对（weight 是字符串、dims 是对象、score 是 null）一律当作缺失。
+ */
+
+function asText(v) {
+  if (v === null || v === undefined) return '';
+  return typeof v === 'string' ? v.trim() : String(v).trim();
+}
+
+function asNum(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** 权重可能给 25（百分数）/ 0.25（小数）/ "25%"，统一成 `25%`；拿不到就用本地兜底权重 */
+function weightText(v, fallback) {
+  let pct = asNum(v);
+  if (pct === null && typeof v === 'string' && v.trim().endsWith('%')) pct = asNum(v.trim().slice(0, -1));
+  if (pct === null) pct = asNum(fallback);
+  if (pct === null) return '—';
+  if (pct > 0 && pct <= 1) pct *= 100;
+  const rounded = Math.round(pct * 10) / 10;
+  return (Number.isInteger(rounded) ? rounded : rounded.toFixed(1)) + '%';
+}
+
+function scoreText(v) {
+  const n = asNum(v);
+  if (n === null) return '—';
+  const rounded = Math.round(n * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
+/** rubric 本体：非对象（null / 数组 / 字符串）一律当没有 */
+const rubricRaw = computed(() => {
+  const raw = r.value && r.value.rubric;
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : null;
+});
+
+const rubricVersion = computed(() => asText(rubricRaw.value && rubricRaw.value.version));
+/** 后端没给 version 时用当前口径版本兜底（面板标题行常显版本，见设计稿 §9.4） */
+const RUBRIC_VERSION_FALLBACK = 'v3-2026-11';
+const rubricVersionLabel = computed(() => rubricVersion.value || RUBRIC_VERSION_FALLBACK);
+
+function normDim(d, fallbackKey, synthetic) {
+  const src = d && typeof d === 'object' ? d : {};
+  const key = asText(src.key) || fallbackKey || '';
+  const meta = DIM_META[key] || { name: key || '维度', weight: null };
+  const basis = asText(src.basis);
+  const evidence = asText(src.evidence);
+  const scoreNum = asNum(src.score);
+  return {
+    key: key || 'dim',
+    name: asText(src.name) || meta.name,
+    weight: weightText(src.weight, meta.weight),
+    score: scoreText(src.score),
+    scoreNum,
+    low: scoreNum !== null && scoreNum < 60,
+    hasBasis: !!basis,
+    hasEvidence: !!evidence,
+    basis: basis || '本场未命中该判据',
+    evidence: evidence || (basis ? '本条判据未附原话证据' : '本场未命中该判据'),
+    fromRubric: !synthetic && !!d && typeof d === 'object'
+  };
+}
+
+/** 面板永远按五维顺序出；rubric 只给了部分维度，其余用现有分数补位（不报错、不消失） */
+const rubricRows = computed(() => {
+  const raw = rubricRaw.value;
+  const list = raw && Array.isArray(raw.dims) ? raw.dims.filter((d) => d && typeof d === 'object') : [];
+  const byKey = new Map();
+  const extra = [];
+  list.forEach((d) => {
+    const k = asText(d.key);
+    if (DIM_META[k] && !byKey.has(k)) byKey.set(k, d);
+    else extra.push(d);
+  });
+  const rows = DIM_ORDER.map((k) => {
+    const hit = byKey.get(k);
+    if (hit) return normDim(hit, k);
+    return normDim({ key: k, name: DIM_META[k].name, weight: DIM_META[k].weight, score: r.value ? r.value[k] : null }, k, true);
+  });
+  extra.forEach((d, i) => rows.push(normDim(d, 'extra' + i)));
+  return rows;
+});
+
+/** 后端到底给没给明细：决定面板顶部那句降级提示 */
+const hasRubricDims = computed(() => {
+  const raw = rubricRaw.value;
+  return !!(raw && Array.isArray(raw.dims) && raw.dims.some((d) => d && typeof d === 'object'));
+});
+
+/** 权重合计：本地兜底权重也是 100%，所以两种情况下都是 100%（设计稿要求标题行常显） */
+const rubricWeightSum = computed(() => {
+  const sum = rubricRows.value.reduce((acc, d) => {
+    const n = asNum(String(d.weight).replace('%', ''));
+    return acc + (n === null ? 0 : n);
+  }, 0);
+  return Math.round(sum * 10) / 10;
+});
+
+/** 顶部「本场最该改的一件事」：没有 focus / focus 全空 → 整块不渲染 */
+const focusCard = computed(() => {
+  const f = rubricRaw.value && rubricRaw.value.focus;
+  if (!f || typeof f !== 'object' || Array.isArray(f)) return null;
+  const action = asText(f.action);
+  const reason = asText(f.reason);
+  if (!action && !reason) return null;
+  const key = asText(f.key);
+  const score = asNum(f.score);
+  const row = rubricRows.value.find((d) => d.key === key);
+  return {
+    name: asText(f.name) || (DIM_META[key] ? DIM_META[key].name : ''),
+    score: score === null ? '' : scoreText(f.score),
+    weight: row ? row.weight : '',
+    action: action || reason,
+    reason: action ? reason : ''
+  };
+});
+
+/** 口径面板折叠：自己管状态（button + aria-expanded，键盘可达） */
+const rubricOpen = ref(false);
+function toggleRubric() {
+  rubricOpen.value = !rubricOpen.value;
+}
 
 const PANEL_COLORS = { 结构裁判: '#3A63FF', 交锋裁判: '#C0392B', 表达裁判: '#0E9F6E', 论据裁判: '#C2671E' };
 
@@ -60,7 +195,7 @@ onMounted(async () => {
   if (!debate.match && debate.matchId) {
     // 复盘页也要 topic_title / my_seats，但不需要轮询
     try {
-      const d = await (await import('../api.js')).debateApi.match(debate.matchId);
+      const d = await debateApi.match(debate.matchId);
       debate.match = d.match;
     } catch (e) {
       /* 拿不到就用空壳渲染 */
@@ -82,11 +217,25 @@ function verdictClass(v) {
       {{ match.topic_title || '' }} · 你占 {{ match.my_seats || '' }} · 发言 {{ r.turns }} 次{{ r.timeout ? ' · 超时 ' + r.timeout + ' 次' : '' }}
     </p>
 
+    <!-- 本场最该改的一件事：来自 score.rubric.focus（没有就不渲染），位置在「问题 / 改成这样」之前 -->
+    <section v-if="focusCard" class="focus-card" aria-labelledby="focus-title">
+      <div class="focus-kicker">
+        <span>本场最该改的一件事</span>
+        <span v-if="focusCard.name" class="focus-tag">{{ focusCard.name }}</span>
+      </div>
+      <div class="focus-hd">
+        <h2 id="focus-title" class="focus-title">{{ focusCard.action }}</h2>
+        <span v-if="focusCard.score" class="focus-score">{{ focusCard.score }}<i>分</i></span>
+        <span v-if="focusCard.weight" class="focus-weight">权重 {{ focusCard.weight }}</span>
+      </div>
+      <p v-if="focusCard.reason" class="focus-reason">为什么是它：{{ focusCard.reason }}</p>
+    </section>
+
     <div class="card">
       <div class="row" style="align-items: flex-end; gap: 30px; flex-wrap: wrap">
         <div>
           <div class="big score-color">{{ r.total == null ? '待出分' : r.total }}<small v-if="r.total != null">分</small></div>
-          <div style="font-size: 12px; color: #8a909c; margin-top: 4px">三维加权 · 已写入记录</div>
+          <div class="score-note">五维加权 · 已写入记录（{{ rubricVersionLabel }}）</div>
         </div>
         <div style="flex: 1; min-width: 240px">
           <div v-for="d in DIMS" :key="d[1]" class="dim">
@@ -134,29 +283,72 @@ function verdictClass(v) {
         <span style="font-size: 11.5px; color: #8a909c">对方故意埋的逻辑漏洞，你抓对了几处</span>
       </div>
 
+      <!-- 评分口径：可展开；rubric 未落地时降级成现有五维分数（不报错） -->
+      <section class="rubric">
+        <button
+          type="button"
+          class="rubric-toggle"
+          aria-controls="rubric-body"
+          :aria-expanded="rubricOpen ? 'true' : 'false'"
+          @click="toggleRubric"
+        >
+          <span class="rubric-caret" aria-hidden="true">{{ rubricOpen ? '▾' : '▸' }}</span>
+          <span class="rubric-title">评分口径</span>
+          <span class="rubric-meta">
+            <span class="nowrap">口径 {{ rubricVersionLabel }}</span>
+            <span class="nowrap">权重合计 {{ rubricWeightSum }}%</span>
+          </span>
+          <span class="rubric-hint">{{ rubricOpen ? '收起' : '展开' }}</span>
+        </button>
+        <div v-show="rubricOpen" id="rubric-body" class="rubric-body">
+          <p v-if="!hasRubricDims" class="rubric-note">
+            本场未返回评分口径明细（后端 rubric 字段还没有落地），下面是本场五维分数与固定权重。
+          </p>
+          <ul class="rubric-list">
+            <li v-for="d in rubricRows" :key="d.key" class="rubric-row">
+              <div class="rubric-head">
+                <b class="rubric-name">{{ d.name }}</b>
+                <span class="rubric-score" :class="{ low: d.low }">{{ d.score }}<i v-if="d.score !== '—'">分</i></span>
+                <span class="rubric-weight">{{ d.weight }}</span>
+              </div>
+              <div class="rubric-line">
+                <span class="rubric-key">命中依据</span>
+                <span class="rubric-val" :class="{ miss: !d.hasBasis }">{{ d.basis }}</span>
+              </div>
+              <div class="rubric-line">
+                <span class="rubric-key">原话证据</span>
+                <span class="rubric-val" :class="d.hasEvidence ? 'quote' : 'miss'">{{ d.evidence }}</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <!-- 逐回合点评 -->
       <div v-if="(r.perTurn || []).length" style="margin-top: 14px">
         <b style="font-size: 12.5px">逐回合点评</b>
-        <table class="t" style="margin-top: 6px">
-          <thead>
-            <tr>
-              <th style="width: 46px">步</th>
-              <th style="width: 64px">环节</th>
-              <th style="width: 56px">字数</th>
-              <th style="width: 64px">判定</th>
-              <th>说明</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(p, i) in r.perTurn || []" :key="i">
-              <td class="mono">{{ p.step }}</td>
-              <td>{{ p.seg }}</td>
-              <td class="mono">{{ p.chars }}</td>
-              <td><span class="tag" :class="verdictClass(p.verdict)">{{ p.verdict }}</span></td>
-              <td style="font-size: 12px; color: #4a5568">{{ p.note }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="tbl-wrap">
+          <table class="t" style="margin-top: 6px">
+            <thead>
+              <tr>
+                <th style="width: 46px">步</th>
+                <th style="width: 64px">环节</th>
+                <th style="width: 56px">字数</th>
+                <th style="width: 64px">判定</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(p, i) in r.perTurn || []" :key="i">
+                <td class="mono">{{ p.step }}</td>
+                <td>{{ p.seg }}</td>
+                <td class="mono">{{ p.chars }}</td>
+                <td><span class="tag" :class="verdictClass(p.verdict)">{{ p.verdict }}</span></td>
+                <td style="font-size: 12px; color: #4a5568">{{ p.note }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <!-- 证据 -->
@@ -272,3 +464,241 @@ function verdictClass(v) {
     </div>
   </template>
 </template>
+
+<style scoped>
+/* 只写本批新增的两块（focus 卡 + 评分口径面板）；其余沿用 style.css 的 .card / .dim / .tag */
+
+/* ---------- 总分卡注脚 ---------- */
+.score-note {
+  margin-top: var(--space-1);
+  font-size: var(--fs-12);
+  color: var(--muted-3);
+}
+
+/* ---------- 本场最该改的一件事（对照 docs/mockups/复盘页-口径面板.html） ---------- */
+.focus-card {
+  background: var(--accent-weak);
+  border: 1px solid var(--accent-line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) 18px;
+  margin-bottom: var(--space-3);
+  min-width: 0;
+}
+.focus-kicker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semi);
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+.focus-kicker::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.focus-tag {
+  font-size: var(--fs-12);
+  font-weight: var(--fw-normal);
+  letter-spacing: 0;
+  color: var(--warn-ink);
+  background: var(--warn-weak);
+  border-radius: var(--radius-sm);
+  padding: 0 6px;
+}
+.focus-hd {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+.focus-title {
+  font-size: var(--fs-16);
+  line-height: 1.45;
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.focus-score {
+  font-family: var(--font-mono);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-bold);
+  color: var(--accent);
+}
+.focus-score i {
+  font-style: normal;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-normal);
+  color: var(--muted);
+  margin-left: 1px;
+}
+.focus-weight {
+  font-size: var(--fs-12);
+  color: var(--warn-ink);
+  background: var(--warn-weak);
+  border-radius: var(--radius-sm);
+  padding: 1px 8px;
+}
+.focus-reason {
+  margin-top: var(--space-2);
+  font-size: var(--fs-13);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ---------- 评分口径 ---------- */
+.rubric {
+  margin-top: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+  overflow: hidden;
+  min-width: 0;
+}
+.rubric-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  font-size: var(--fs-13);
+  line-height: 1.5;
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.rubric-toggle:hover { background: var(--accent-weak); }
+.rubric-toggle:focus-visible {
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+.rubric-caret { width: 10px; flex-shrink: 0; color: var(--muted); }
+.rubric-title { flex-shrink: 0; font-weight: var(--fw-semi); }
+.rubric-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  font-size: var(--fs-12);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.rubric-hint { flex-shrink: 0; font-size: var(--fs-12); color: var(--accent); }
+.nowrap { white-space: nowrap; }
+.rubric-body { padding: 0 var(--space-3) var(--space-3); }
+.rubric-note {
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-12);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.rubric-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.rubric-row {
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  min-width: 0;
+}
+.rubric-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.rubric-name { font-size: var(--fs-13); color: var(--text); }
+.rubric-score {
+  font-family: var(--font-mono);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-bold);
+  color: var(--accent);
+}
+.rubric-score.low { color: var(--warn-ink); }
+.rubric-score i {
+  font-style: normal;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-normal);
+  color: var(--muted);
+  margin-left: 1px;
+}
+.rubric-weight { margin-left: auto; font-size: var(--fs-12); color: var(--muted); }
+.rubric-weight::before { content: "权重"; margin-right: var(--space-1); }
+.rubric-line {
+  display: flex;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: var(--fs-12);
+  line-height: var(--lh-body);
+  min-width: 0;
+}
+.rubric-key { flex-shrink: 0; width: 52px; color: var(--muted); }
+.rubric-val {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.rubric-val.quote {
+  background: var(--panel-3);
+  border-left: 2px solid var(--line-strong);
+  border-radius: 2px;
+  padding-left: 6px;
+}
+.rubric-val.miss { color: var(--muted-3); }
+
+/* 原句 / 复盘正文里的超长串不撑破容器 */
+.ev { overflow-wrap: anywhere; word-break: break-word; }
+
+/* ---------- 窄屏（375px）：口径表降级成卡片，每维竖排，不横向滚 ---------- */
+@media (max-width: 520px) {
+  .focus-card { padding: var(--space-3) var(--space-4); }
+  .rubric-head { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .rubric-weight { margin-left: 0; }
+  /* 竖排时补出「分数」标签，去掉「分」后缀，避免重复 */
+  .rubric-score::before {
+    content: "分数";
+    font-family: var(--font-sans);
+    font-size: var(--fs-12);
+    font-weight: var(--fw-normal);
+    color: var(--muted);
+    margin-right: var(--space-1);
+  }
+  .rubric-score i { display: none; }
+  /* 逐回合点评：固定列宽在 375px 下会溢出，改成按内容分配 + 兜底横向滚动 */
+  .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tbl-wrap table.t { font-size: var(--fs-12); }
+  .tbl-wrap table.t th,
+  .tbl-wrap table.t td { padding: 6px 4px; }
+  .tbl-wrap table.t th { width: auto !important; white-space: nowrap; }
+  .tbl-wrap table.t th:last-child { white-space: normal; }
+  /* 「有交锋 / 太短」这类短标签不要被挤成竖排 */
+  .tbl-wrap .tag { white-space: nowrap; }
+}
+</style>

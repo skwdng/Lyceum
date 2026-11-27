@@ -1,0 +1,95 @@
+# 思弈阁 · 容器编排（server + redis）
+#
+# 用法：
+#   docker compose build            # 构建镜像
+#   docker compose up -d            # 起 redis + server（server 等 redis healthy）
+#   docker compose ps               # 两个服务都该是 healthy
+#   docker compose logs -f server   # 跟踪日志
+#
+# 说明：
+#   · redis 只在内网可达（不映射宿主端口），应用通过服务名 redis 连接
+#   · server/config 只读挂载：线上那份 application.yml 必须 redis.enabled: true、pace.time-scale: 1.0
+#     （宿主文件里的 dev 值会被 compose 的 SIYIGE_* 环境变量覆盖，环境变量优先级最高）
+#   · H2 默认是内存库（application.yml 里 jdbc:h2:mem），data 目录先挂好，
+#     要真持久化再按下面注释打开文件库模式
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: siyige-redis
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${SIYIGE_REDIS_PASSWORD:-siyige123456}
+      - --appendonly
+      - 'yes'
+      - --maxmemory-policy
+      - noeviction
+    environment:
+      TZ: Asia/Shanghai
+      # 供 healthcheck 里的 redis-cli -a 使用（compose 里 $$ 才是容器内变量）
+      SIYIGE_REDIS_PASSWORD: ${SIYIGE_REDIS_PASSWORD:-siyige123456}
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a "$$SIYIGE_REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '5'
+    networks: [siyige-net]
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: siyige-server:${TAG:-local}
+    container_name: siyige-server
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - '8080:8080'
+    environment:
+      TZ: Asia/Shanghai
+      SIYIGE_REDIS_ENABLED: 'true'
+      SIYIGE_REDIS_HOST: redis
+      SIYIGE_REDIS_PORT: '6379'
+      SIYIGE_REDIS_PASSWORD: ${SIYIGE_REDIS_PASSWORD:-siyige123456}
+      # 上线必须换成真实密钥，走宿主环境变量或 .env，不要写进镜像
+      SIYIGE_LLM_API_KEY: ${SIYIGE_LLM_API_KEY:-}
+      # —— 需要 H2 落盘时再打开（两行要一起改）——
+      # SPRING_DATASOURCE_URL: 'jdbc:h2:file:/app/data/siyige;AUTO_SERVER=TRUE'
+      # SPRING_SQL_INIT_MODE: 'always'   # 首次建库用 always，之后改成 never，否则每次启动重跑 schema
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./server/config:/app/config:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -fsS --max-time 4 http://127.0.0.1:8080/api/health | grep -q '"ok":true' || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: '20m'
+        max-file: '5'
+    networks: [siyige-net]
+
+volumes:
+  redis-data:
+
+networks:
+  siyige-net:
+    driver: bridge

@@ -407,14 +407,40 @@ public class MatchService {
         });
     }
 
-    /** 抓漏：玩家指出某一轮 AI 发言的逻辑漏洞。 */
+    /**
+     * 抓漏：玩家指出某一轮 AI 发言的逻辑漏洞。
+     *
+     * <p>**每轮只能答一次**。原来这里既把 {@code correct} 直接回给客户端，又没有作答次数限制：
+     * 客户端拿 correct 或者反复换 type 重试，总能拿到 hit=true，抓漏分（+3/次、上限 +9）
+     * 等于白送，理论上能刷到满分。
+     *
+     * <p>现在：已作答（hit 非空）就直接返回 {@code already-answered} + 原 hit，不覆盖、不再加分；
+     * 只有**首次**作答才返回 {@code correct}（留给「答错后告诉你正确答案」的教学用法）。
+     */
     public Map<String, Object> point(String matchId, int step, String type) {
         require(matchId);
         String planted = store.flawType(matchId, step);
         if (planted == null) return Map.of("ok", false, "reason", "这一轮没有漏洞可抓");
+
+        Object prior = answeredHit(matchId, step);
+        if (prior != null) {
+            return Map.of("ok", false, "reason", "already-answered", "hit", prior);
+        }
+
         boolean hit = planted.equals(type);
         store.markFlaw(matchId, step, hit);
         return Map.of("ok", true, "hit", hit, "correct", planted, "chosen", type);
+    }
+
+    /** 这一轮已经作答过就返回当时的 hit（Boolean），没作答返回 null。 */
+    private Object answeredHit(String matchId, int step) {
+        for (Map<String, Object> r : store.flaws(matchId)) {
+            if (num(r.get("step")) != step) continue;
+            Object h = r.get("hit");
+            if (h == null) continue;            // 没作答的不算
+            return h;
+        }
+        return null;
     }
 
     /** 打字续命：玩家正在输入时把本步 deadline 往后推，每步最多 3 次。 */
@@ -774,10 +800,8 @@ public class MatchService {
         store.insertRecord(str(m.get("user_id")), matchId, str(m.get("topic_title")),
                 str(m.get("my_seats")), sc.total(), sc.turns(), json.writeValueAsString(now));
 
-        hub.emit(matchId, "match.end", Map.of(
-                "total", sc.total(), "matter", sc.matter(), "method", sc.method(), "manner", sc.manner(),
-                "turns", sc.turns(), "timeout", sc.timeout()));
-
+        // 只发一次：之前这里连着两段一模一样的 Map.of，前端会收到两条 match.end，
+        // 复盘页被触发两次（弹两次结算、埋点双记）。收尾事件必须是幂等的单发点。
         hub.emit(matchId, "match.end", Map.of(
                 "total", sc.total(), "matter", sc.matter(), "method", sc.method(), "manner", sc.manner(),
                 "turns", sc.turns(), "timeout", sc.timeout()));
@@ -821,6 +845,9 @@ public class MatchService {
         Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
         ScoreService.Score sc = scorer.score(turns, mine, str(m.get("topic_id")), store.flaws(matchId));
         Map<String, Object> out = new LinkedHashMap<>();
+        // score 是 Score record，字段没动、只在末尾加了 rubric，Jackson 按 record 组件序列化，
+        // 所以 /matches/{id}/review 的 JSON 里自然带上 rubric（含 dims 与 focus），
+        // 既有 total/matter/…/problem/improve 一个不少。
         out.put("score", sc);
         // 按席位分别给分：占两个位置时能看出每个位置打得怎么样
         out.put("seatScores", scorer.scorePerSeat(turns, mine, str(m.get("topic_id")), store.flaws(matchId)));

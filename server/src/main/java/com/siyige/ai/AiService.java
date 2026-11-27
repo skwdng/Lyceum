@@ -202,6 +202,23 @@ public class AiService {
     private final boolean speechEnabled;
     private final Random random = new Random();
 
+    /**
+     * 单场 token 预算（默认 40000，配置项 {@code siyige.ai.match-token-budget}）。
+     *
+     * <p>为什么要有：一场 4v4 是 20+ 轮，每轮「分析 + 生成」两次调用，遇上模型退化重试还会翻倍。
+     * 预算用尽后**本场后续轮次直接走模板**（并为复盘标注 budget-exhausted），
+     * 宁可这一场话说得糙，也不能让一场对局把当天额度烧穿。
+     */
+    @org.springframework.beans.factory.annotation.Value("${siyige.ai.match-token-budget:40000}")
+    private long matchTokenBudget = 40000;
+
+    /** 当前线程正在为哪一场生成（bind 时记下，用于查本场用量）。 */
+    private volatile String currentMatchId;
+
+    /** 引用护栏拦下的编造引用累计条数（speak 这种只返回 String 的入口靠它把计数交出去）。 */
+    private final java.util.concurrent.atomic.AtomicLong quoteFabricatedTotal =
+            new java.util.concurrent.atomic.AtomicLong();
+
     public AiService(LlmClient llm, com.siyige.service.EvidenceService evidence,
                      com.siyige.service.UtteranceCheck utterance,
                      @Value("${siyige.llm.speech-enabled:true}") boolean speechEnabled) {
@@ -214,7 +231,7 @@ public class AiService {
     public boolean llmEnabled() { return llm.enabled() && speechEnabled; }
 
     /** 把本轮模型调用归到某场对局（计费用）。 */
-    public void bind(String matchId) { llm.bindMatch(matchId); }
+    public void bind(String matchId) { llm.bindMatch(matchId); this.currentMatchId = matchId; }
 
     /** 如果该用户配了自己的模型，这一轮就用他的 key。 */
     public void useOwnProfile(String userId, com.siyige.billing.UserLlmService userLlm) {
@@ -227,9 +244,38 @@ public class AiService {
 
     /** 基础版：切到本地 ollama 的配置。 */
     public void useProfile(com.siyige.ai.LlmClient.Profile p) { llm.useProfile(p); }
-    public void unbind() { llm.unbindMatch(); }
+    public void unbind() { llm.unbindMatch(); this.currentMatchId = null; }
     public long tokensForMatch(String matchId) { return llm.tokensForMatch(matchId); }
     public void clearMatchUsage(String matchId) { llm.clearMatchUsage(matchId); }
+
+    // ------------------------------------------------------------ token 预算
+
+    /** 本场预算（token）。 */
+    public long matchTokenBudget() { return matchTokenBudget; }
+
+    /** 设置本场预算；传 ≤0 视为关掉预算（回到默认值的语义由调用方决定）。 */
+    public void setMatchTokenBudget(long budget) { this.matchTokenBudget = budget; }
+
+    /** 本场已用 token。单独抽出来是为了让单测能注入用量，不必真发请求。 */
+    long usedTokens() {
+        String id = currentMatchId;
+        return id == null || id.isBlank() ? 0 : llm.tokensForMatch(id);
+    }
+
+    /** 纯函数版预算判定：≤0 的预算视为不限。 */
+    static boolean budgetExceeded(long used, long budget) { return budget > 0 && used >= budget; }
+
+    /** 本场预算是否已经用尽（没有绑定对局时一律 false）。 */
+    public boolean budgetExhausted() {
+        String id = currentMatchId;
+        if (id == null || id.isBlank()) return false;
+        return budgetExceeded(usedTokens(), matchTokenBudget);
+    }
+
+    /** 引用护栏拦下的编造引用条数（累计，进程内）。 */
+    public long quoteFabricatedCount() { return quoteFabricatedTotal.get(); }
+
+    public void resetQuoteFabricatedCount() { quoteFabricatedTotal.set(0); }
 
     // ---------------------------------------------------------------- 主入口
 
@@ -255,7 +301,10 @@ public class AiService {
         String mine = myKeyLines(history, seat);
 
         String text;
-        if (llmEnabled()) {
+        if (budgetExhausted()) {
+            log.warn("本场 token 预算用尽（{}≥{}），本轮直接走模板", usedTokens(), matchTokenBudget);
+            text = template(seat, seg, mateLast, history);
+        } else if (llmEnabled()) {
             try {
                 text = llm.chat(SYSTEM, buildPrompt(seat, seg, duty, topicTitle, topicId, difficulty, p, mateLast, oppLast, mine, history, ""), p.temperature(), 25);
             } catch (Exception e) {
@@ -272,8 +321,53 @@ public class AiService {
         return speak(seat, seg, topicTitle, List.of());
     }
 
-    /** 一条发言的结果：正文 + 是否降级到模板 + 用过的结构化分析。 */
-    public record Speech(String text, boolean degraded, String analysis) {}
+    /**
+     * 一条发言的结果。
+     *
+     * <p>字段说明（后两个是新增的，原来的三参构造仍然可用）：
+     * <ul>
+     *   <li>{@code text} —— 落库正文（已经过输出护栏与引用核查）</li>
+     *   <li>{@code degraded} —— 本轮是否降级成模板</li>
+     *   <li>{@code analysis} —— 两段式第一步的结构化分析（JSON 原文，失败时为空串）</li>
+     *   <li>{@code analysisStatus} —— 分析的真实状态：{@code ok} 有分析 / {@code degraded} 分析失败已降级 /
+     *       {@code budget-exhausted} 本场预算用尽直接走模板 / {@code none} 没有可分析素材（对方还没说话）</li>
+     *   <li>{@code fabricated} —— 本轮引用护栏拦下并改写的「编造引用」条数</li>
+     * </ul>
+     *
+     * <p>为什么要单独给 {@code analysisStatus}：复盘要能区分「这一轮 AI 真的听了对方再回应」和
+     * 「分析挂了、它是在盲说」。只看 {@code analysis} 空不空分不出来——没有素材时本来就是空的。
+     */
+    public record Speech(String text, boolean degraded, String analysis, String analysisStatus, int fabricated) {
+
+        /** 分析成功，生成阶段用上了这份分析。 */
+        public static final String ANALYSIS_OK = "ok";
+        /** 分析阶段失败，本轮按无分析生成（复盘标「降级」）。 */
+        public static final String ANALYSIS_DEGRADED = "degraded";
+        /** 本场 token 预算用尽，本轮直接走模板。 */
+        public static final String ANALYSIS_BUDGET = "budget-exhausted";
+        /** 没有可分析素材（对方还没发言 / 内容空泛），不算失败。 */
+        public static final String ANALYSIS_NONE = "none";
+
+        /** 兼容旧构造：只给三段时按有无分析内容推断状态。 */
+        public Speech(String text, boolean degraded, String analysis) {
+            this(text, degraded, analysis,
+                    analysis == null || analysis.isBlank() ? ANALYSIS_NONE : ANALYSIS_OK, 0);
+        }
+
+        public boolean analysisOk() { return ANALYSIS_OK.equals(analysisStatus); }
+        public boolean analysisDegraded() { return ANALYSIS_DEGRADED.equals(analysisStatus); }
+        public boolean budgetExhausted() { return ANALYSIS_BUDGET.equals(analysisStatus); }
+
+        /** 复盘/日志里直接显示的中文标注。 */
+        public String analysisLabel() {
+            return switch (analysisStatus == null ? ANALYSIS_NONE : analysisStatus) {
+                case ANALYSIS_OK -> "有分析";
+                case ANALYSIS_DEGRADED -> "分析失败·已降级";
+                case ANALYSIS_BUDGET -> "预算用尽·模板兜底";
+                default -> "无分析素材";
+            };
+        }
+    }
 
     private static final String ANALYST = """
             你是辩论分析器。只做拆解，不写回应、不给建议、不评价输赢。
@@ -304,19 +398,32 @@ public class AiService {
         String oppLast = lastOpposite(history, seat);
         String mine = myKeyLines(history, seat);
 
+        boolean budgetOut = budgetExhausted();
         String analysis = "";
-        if (llmEnabled() && oppLast != null && !oppLast.isBlank()
+        String analysisStatus = Speech.ANALYSIS_NONE;
+        if (!budgetOut && llmEnabled() && oppLast != null && !oppLast.isBlank()
                 && !(utterance != null && utterance.vacuous(oppLast))) {
             try {
                 analysis = analyze(oppLast, topicTitle, seg);
+                // 返回了空串也等于没分析：复盘必须能看出「这一轮是盲说的」
+                analysisStatus = (analysis == null || analysis.isBlank())
+                        ? Speech.ANALYSIS_DEGRADED : Speech.ANALYSIS_OK;
             } catch (Exception e) {
                 log.warn("对手发言分析失败，本轮按无分析生成：{}", e.toString());
+                analysis = "";
+                analysisStatus = Speech.ANALYSIS_DEGRADED;
             }
         }
 
         boolean degraded = false;
         String text;
-        if (llmEnabled()) {
+        if (budgetOut) {
+            log.warn("本场 token 预算用尽（{}≥{}），本轮直接走模板", usedTokens(), matchTokenBudget);
+            text = template(seat, seg, mateLast, history);
+            degraded = true;
+            analysis = "";
+            analysisStatus = Speech.ANALYSIS_BUDGET;
+        } else if (llmEnabled()) {
             try {
                 text = llm.chat(SYSTEM, buildPrompt(seat, seg, duty, topicTitle, topicId, difficulty, p,
                         mateLast, oppLast, mine, history, analysis), p.temperature(), 25);
@@ -329,7 +436,8 @@ public class AiService {
             text = template(seat, seg, mateLast, history);
             degraded = true;
         }
-        return new Speech(guard(text, p, mateLast, oppLast, seat, seg, duty, history), degraded, analysis);
+        GuardResult g = guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history);
+        return new Speech(g.text(), degraded, analysis, analysisStatus, g.fabricated());
     }
 
     /**
@@ -355,19 +463,31 @@ public class AiService {
         String oppLast = lastOpposite(history, seat);
         String mine = myKeyLines(history, seat);
 
+        boolean budgetOut = budgetExhausted();
         String analysis = "";
-        if (llmEnabled() && oppLast != null && !oppLast.isBlank()
+        String analysisStatus = Speech.ANALYSIS_NONE;
+        if (!budgetOut && llmEnabled() && oppLast != null && !oppLast.isBlank()
                 && !(utterance != null && utterance.vacuous(oppLast))) {
             try {
                 analysis = analyze(oppLast, topicTitle, seg);
+                analysisStatus = (analysis == null || analysis.isBlank())
+                        ? Speech.ANALYSIS_DEGRADED : Speech.ANALYSIS_OK;
             } catch (Exception e) {
                 log.warn("对手发言分析失败，本轮按无分析生成：{}", e.toString());
+                analysis = "";
+                analysisStatus = Speech.ANALYSIS_DEGRADED;
             }
         }
 
         boolean degraded = false;
         String text;
-        if (llmEnabled()) {
+        if (budgetOut) {
+            log.warn("本场 token 预算用尽（{}≥{}），本轮直接走模板（流式）", usedTokens(), matchTokenBudget);
+            text = template(seat, seg, mateLast, history);
+            degraded = true;
+            analysis = "";
+            analysisStatus = Speech.ANALYSIS_BUDGET;
+        } else if (llmEnabled()) {
             try {
                 text = llm.chatStream(SYSTEM, buildPrompt(seat, seg, duty, topicTitle, topicId, difficulty, p,
                         mateLast, oppLast, mine, history, analysis), p.temperature(), 25, onDelta);
@@ -387,7 +507,8 @@ public class AiService {
             text = template(seat, seg, mateLast, history);
             degraded = true;
         }
-        return new Speech(guard(text, p, mateLast, oppLast, seat, seg, duty, history), degraded, analysis);
+        GuardResult g = guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history);
+        return new Speech(g.text(), degraded, analysis, analysisStatus, g.fabricated());
     }
 
     /** 只做分析：把对方上一句拆成 主张/论据/漏洞/弱点。 */
@@ -720,8 +841,20 @@ public class AiService {
 
     // ---------------------------------------------------------------- 护栏
 
-    /** 输出后处理：承接检查 + 去 AI 味 + 长度截断。 */
+    /** 护栏结果：可直接落库的正文 + 引用护栏拦下的编造引用条数。 */
+    record GuardResult(String text, int fabricated) { }
+
+    /** 输出后处理：承接检查 + 去 AI 味 + 长度截断 + 引用真实性核查。 */
     String guard(String text, Personas.Persona p, String mateLast, String oppLast, String seat, String seg, String duty, List<Map<String, Object>> history) {
+        return guardDetailed(text, p, mateLast, oppLast, seat, seg, duty, history).text();
+    }
+
+    /**
+     * 同 {@link #guard}，但把「引用护栏改写了多少条」一并交给调用方。
+     *
+     * <p>只是加一个返回值，原有 {@code guard(...)} 的签名和行为保持不变——上下游都不必改。
+     */
+    GuardResult guardDetailed(String text, Personas.Persona p, String mateLast, String oppLast, String seat, String seg, String duty, List<Map<String, Object>> history) {
         String t = text == null ? "" : text.trim();
         t = t.replaceAll("(?i)作为(一个)?(AI|人工智能|语言模型)[，,]?", "")
              .replaceAll("(?i)I'?m an AI\\.?", "")
@@ -783,7 +916,16 @@ public class AiService {
             int cut = t.lastIndexOf('。', cap);
             t = cut > cap * 0.6 ? t.substring(0, cut + 1) : t.substring(0, cap) + '。';
         }
-        return t;
+
+        // 最后一道：引用真实性。模型很爱写「对方说『……』」，而那句对方根本没说过。
+        // 放在截断之后做——否则刚改写好的句子可能又被字数上限切一刀。
+        QuoteGuard.Result qg = QuoteGuard.scrub(t, history, oppLast, mateLast);
+        if (qg.fabricated() > 0) {
+            quoteFabricatedTotal.addAndGet(qg.fabricated());
+            log.info("引用护栏：{} 条引文在历史里对不上，已改写（席位 {}·{}，共核对 {} 条）",
+                    qg.fabricated(), seat, seg, qg.quoted());
+        }
+        return new GuardResult(qg.text(), qg.fabricated());
     }
 
     /**

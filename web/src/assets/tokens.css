@@ -1,0 +1,182 @@
+/* ============================================================================
+ * 思弈阁设计 tokens —— Lyceum Design Tokens v1
+ * ----------------------------------------------------------------------------
+ * 唯一取值来源：web/src/style.css 的 `:root`（--ink/--sub/--line/--bg/--card/
+ * --blue/--blue-w/--org/--org-w/--grn/--grn-w/--red/--red-w），以及 style.css /
+ * debate.css / community.css 里已经在用的字面色值。**没有新增任何色相。**
+ *
+ * 唯一的「派生值」是两档加深文字色 --ok-ink / --warn-ink：
+ *   现有 --grn #0e9f6e 在白底只有 3.39:1、--org #c2671e 只有 3.97:1，
+ *   12–13px 正文达不到 4.5:1。加深后仍是同一色相（绿 159° / 橙 26°），
+ *   只提可读性，不换颜色。原色继续用于填充条、图标、描边。
+ *
+ * 加载顺序无副作用：与 style.css 重名的 --bg / --accent 等值**完全相同**，
+ * 先加载谁都不影响现有页面。本文件目前**没有被 main.js import**（按约定只新增
+ * 文件、不动现有入口），接线由前端在对应迭代里补一行 import 决定。
+ *
+ * 用法：新组件只写 var(--token)，禁止再写字面色值。
+ * 规范全文见 docs/设计规范.md。
+ * ========================================================================== */
+
+:root {
+  /* ---------- 底色 / 面板 ---------- */
+  --bg: #f6f4ef;            /* 页面底：#f6f4ef（= style.css --bg） */
+  --panel: #ffffff;         /* 卡片、侧栏、弹层（= --card） */
+  --panel-2: #fbfaf7;       /* 二级底：聊天区 / 证据块 / 热辩榜行（.chat .ev .hitem） */
+  --panel-3: #fcfbf8;       /* 输入框底（.auth-field input .composer textarea .seat） */
+  --panel-hover: #fafaf7;   /* 行 hover（.notify-row:hover） */
+  --panel-on: #f2f3f5;      /* 选中 / 未读底（.notify-row.unread） */
+
+  /* ---------- 描边 ---------- */
+  --line: #e6e3dc;          /* 默认 1px 分隔线（= --line） */
+  --line-soft: #f3f1eb;     /* 表格行内细线、卡片内分隔（table.t td） */
+  --line-strong: #8a909c;   /* 可交互边界：输入框/选中框，白底 3.13:1 达 1.4.11 */
+
+  /* ---------- 控件底槽 ---------- */
+  --track: #f1efe9;         /* 五维条 / 热辩榜条底槽（.dim .dbar .heatbar） */
+
+  /* ---------- 文字 ---------- */
+  --text: #1a1d24;          /* 主文字（= --ink）白底 16.9:1 */
+  --text-2: #4a5568;        /* 正文/次要说明 白底 7.5:1、--bg 上 6.9:1 */
+  --muted: #6b7280;         /* 弱化文字（= --sub）白底 4.90:1；--bg 上 4.46:1 → 见规范 §3.2 */
+  --muted-3: #8a909c;       /* 只有 ≥14px 或非正文才用（白底 3.13:1） */
+  --text-inverse: #ffffff;  /* 实色主色/深底上的文字 */
+  --text-on-dark: #d6deeb;  /* .codebox 深底正文 */
+
+  /* ---------- 主色（品牌蓝） ---------- */
+  --accent: #2f5bea;        /* = --blue，白底 5.52:1、--accent-weak 上 4.88:1 */
+  --accent-weak: #edf1fe;   /* = --blue-w，选中底 / 标签底 */
+  --accent-line: #b9c9f7;   /* = .sp.me 的描边色 */
+  --accent-hover: #244bcf;  /* = .btn.primary:hover */
+  --accent-ring: rgba(47, 91, 234, 0.28); /* focus ring，比现有 0.1 更可见 */
+
+  /* ---------- 语义色（三档：实色 / 弱底 / 文字加深） ---------- */
+  --ok: #0e9f6e;            /* = --grn，填充条与图标 */
+  --ok-weak: #e8f8f2;       /* = --grn-w */
+  --ok-ink: #087a52;        /* 同色相加深：白底 5.36:1、弱底 4.89:1 */
+
+  --warn: #c2671e;          /* = --org，填充条与图标 */
+  --warn-weak: #fdf0e6;     /* = --org-w */
+  --warn-ink: #a85212;      /* 同色相加深：白底 5.41:1、弱底 4.84:1 */
+
+  --danger: #c0392b;        /* = --red，白底 5.44:1、弱底 4.75:1（可直接当文字色） */
+  --danger-weak: #fdecea;   /* = --red-w */
+  --danger-ink: #c0392b;    /* 与实色同值，保留命名对称 */
+
+  /* ---------- 裁判视角色（照抄 ReviewView.vue PANEL_COLORS） ---------- */
+  --judge-1: #3a63ff;       /* 结构裁判 */
+  --judge-2: #c0392b;       /* 交锋裁判 */
+  --judge-3: #0e9f6e;       /* 表达裁判 */
+  --judge-4: #c2671e;       /* 论据裁判 */
+
+  /* ---------- 圆角 ---------- */
+  --radius-sm: 6px;         /* 标签、chip、小徽章（5/6/7 归并） */
+  --radius-md: 9px;         /* 按钮、输入框（= .btn .inp .auth-field input） */
+  --radius-lg: 12px;        /* 卡片、舞台、表外框（= .card .chat .strip） */
+  --radius-xl: 16px;        /* 弹层（= .panel）；.cm-modal 14px 归并到此 */
+  --radius-pill: 999px;     /* 胶囊（.preset .wchip 20px 归并） */
+
+  /* ---------- 间距（4 的倍数） ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* ---------- 字体 ---------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+    "Segoe UI", Roboto, sans-serif;                        /* = body 的字体栈 */
+  --font-mono: ui-monospace, Menlo, Consolas, monospace;   /* = .mono */
+
+  --fs-12: 12px;            /* 注释、标签、表头 */
+  --fs-13: 13px;            /* 表格正文、次要正文 */
+  --fs-14: 14px;            /* 正文基准（body 14px） */
+  --fs-16: 16px;            /* 卡片内小标题、弹层小节 */
+  --fs-20: 20px;            /* 页面标题（h1.pg） */
+  --fs-28: 28px;            /* 区块大数字（复盘总分、评审团均分） */
+  --fs-38: 38px;            /* 展示级：评审团均分（现有值，只在复盘出现） */
+  --fs-48: 48px;            /* 展示级：总分（.big，现有值，只在复盘出现） */
+
+  --lh-tight: 1.35;         /* 标题、单行标签 */
+  --lh-body: 1.65;          /* body 基准 */
+  --lh-loose: 1.85;         /* 长段落、证据引用（.ev .post-body） */
+
+  --fw-normal: 400;
+  --fw-medium: 500;
+  --fw-semi: 600;
+  --fw-bold: 700;
+  --fw-black: 800;          /* = .big / .logo .m */
+
+  /* ---------- 动效 ---------- */
+  --dur-1: 150ms;           /* hover / 颜色过渡（现有 .15s） */
+  --dur-2: 200ms;           /* 气泡进场、展开（现有 .2s / .16s） */
+  --dur-3: 240ms;           /* 卡片位移、抽屉 */
+  --dur-4: 320ms;           /* 弹层进场、骨架切换 */
+  --ease-standard: ease;                            /* 现有默认 */
+  --ease-out: cubic-bezier(0.2, 0.9, 0.3, 1);       /* 通用减速 */
+  --ease-pop: cubic-bezier(0.2, 0.9, 0.3, 1.2);     /* = .cm-modal 的 cmpop 回弹 */
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---------- 阴影 ---------- */
+  --shadow-1: 0 1px 2px rgba(26, 29, 36, 0.06);                     /* 卡片默认，几不可见 */
+  --shadow-2: 0 4px 14px rgba(26, 29, 36, 0.10);                    /* hover 抬起（= .hitem 量级，改中性色） */
+  --shadow-accent: 0 8px 22px rgba(47, 91, 234, 0.10);              /* = .topic:hover 主色投影 */
+  --shadow-3: 0 16px 48px rgba(0, 0, 0, 0.18);                      /* = .cm-modal */
+  --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.20);                  /* = .panel */
+  --shadow-toast: 0 8px 22px rgba(0, 0, 0, 0.20);                   /* = .tst */
+
+  /* ---------- 布局 / 可达性 ---------- */
+  --sb-w: 196px;            /* 侧栏宽（= .sb） */
+  --stage-side: 288px;      /* 对局右侧栏（= .stage 第二列） */
+  --g2-side: 320px;         /* 通用两栏右列（= .g2） */
+  --content-max: 1120px;    /* 内容区最大宽 */
+  --tap-min: 44px;          /* 触控最小边长（所有可点区域，含按钮内高） */
+  --focus-w: 2px;           /* focus 轮廓宽 */
+  --focus-offset: 2px;      /* focus 轮廓外距，避免贴边看不清 */
+  --bp-sm: 375px;           /* 断点参考值：媒体查询里写字面量，见规范 §10 */
+  --bp-md: 768px;
+  --bp-lg: 860px;           /* 现有 .sb / .stage 的折叠点 */
+
+  /* ---------- 层级 ---------- */
+  --z-sticky: 5;
+  --z-mask: 80;
+  --z-drawer: 90;
+  --z-pop: 120;
+  --z-toast: 99;
+}
+
+/* ----------------------------------------------------------------------------
+ * focus 可见（WCAG 2.4.7 / 2.4.13）
+ * 只对键盘焦点生效，用 outline 不占布局、不加盒模型高度；
+ * 由 .tokens-a11y 容器或全站 import 后自动生效（本文件未接线时无副作用）。
+ * -------------------------------------------------------------------------- */
+:where(a, button, [role="button"], [tabindex], input, textarea, select, summary):focus-visible {
+  outline: var(--focus-w) solid var(--accent);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--radius-sm);
+}
+
+/* 现有组件的浅淡 box-shadow 保留不动，只补一层更实的 ring */
+:where(.btn, .inp, .auth-field input, .composer textarea, .seat, .preset):focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* 动效降级：只改 token，不动任何硬编码 transition 的既有组件 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 1ms;
+    --dur-2: 1ms;
+    --dur-3: 1ms;
+    --dur-4: 1ms;
+    --ease-pop: linear;
+  }
+}
+
+/* 高对比度模式下保证描边可见 */
+@media (forced-colors: active) {
+  :where(a, button, [role="button"], input, textarea, select):focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
+  }
+}

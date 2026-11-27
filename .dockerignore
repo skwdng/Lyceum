@@ -1,0 +1,56 @@
+# Docker 构建上下文排除清单
+# 目标：镜像里只留构建必需的东西，且**绝不把密钥**打进去。
+
+# 版本库与 CI
+.git
+.git/**
+.github
+
+# 依赖与产物（镜像内会重新装/重新编）
+**/node_modules
+web/.vite
+web/dist
+**/target
+*.jar
+*.class
+
+# 前端产物：容器构建时用 node 阶段重新产出，避免把陈旧产物打进镜像
+server/src/main/resources/static/v2
+
+# 本地配置（含 DeepSeek API Key）：运行时由 compose 只读挂载
+server/config/application.yml
+
+# 运行期数据 / 备份 / 日志（不能进镜像，也不能进构建上下文）
+data
+backups
+logs
+**/*.log
+server/_*.txt
+server/_*.log
+server/_*.err
+
+# 一次性调试脚本 / 截图 / 与本服务无关的目录
+scripts/_*
+scripts/verify_*.mjs
+server/scripts/_*
+demo
+预览截图
+docs/images
+docs/shots
+**/shots
+comicweaver
+comicweaver-handoff
+miniprogram
+prompts
+comicweaver/**
+
+# 杂项
+.DS_Store
+.idea
+.vscode
+*.zip
+_remote
+_remote2
+dump_docx.py
+report_dump.txt
+思弈阁-原型.html

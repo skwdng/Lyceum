@@ -1,4 +1,4 @@
-﻿# ---- 构建产物 ----
+# ---- 构建产物 ----
 server/target/
 *.jar
 *.class
@@ -46,3 +46,11 @@ web/.vite/
 web/dist/
 _remote/
 _remote2/
+
+# ---- 构建锁 / 本地部署产物（不入库）----
+/.build.lock
+/target/
+web/.review-mock/
+/backups/
+/data/
+/logs/
