@@ -163,6 +163,41 @@ public class ApiController {
         return matches.detail(id);
     }
 
+    /**
+     * 单人页「进行中的对局」：只列 RUNNING，且只列跟我有关系的（owner 或房间席位）。
+     *
+     * <p>注意放在 {@code /matches/{id}} 之前不冲突：Spring 的路径匹配把 {@code mine} 当字面量，
+     * 但为保险起见这里仍用独立路径 {@code /matches/mine}（无变量模板歧义）。
+     */
+    @GetMapping("/matches/mine")
+    public List<Map<String, Object>> myMatches() {
+        return matches.mine(UserContext.requireId());
+    }
+
+    /**
+     * 删除（放弃）一场对局。
+     *
+     * <p>先判存在再判归属：不存在的要 404，别人的才 403。顺序反了的话
+     * {@link MatchAccess#requireAccess} 会先把「不存在」也判成 403（它只数得到 0 行）。
+     */
+    @DeleteMapping("/matches/{id}")
+    public Map<String, Object> deleteMatch(@PathVariable String id) {
+        String userId = UserContext.requireId();
+        if (store.match(id) == null) throw new IllegalArgumentException("对局不存在: " + id);
+        matchAccess.requireAccess(id, userId);
+        return matches.abandon(id);
+    }
+
+    /**
+     * 房间局「重新加入继续打」：这场收缩成单人局，除我之外的席位全部交给 AI。
+     * 已经是单人局时是幂等操作（my_seats 收敛成我的席位）。
+     */
+    @PostMapping("/matches/{id}/continue-solo")
+    public Map<String, Object> continueSolo(@PathVariable String id) throws Exception {
+        String userId = guard(id);
+        return matches.continueSolo(id, userId);
+    }
+
     /** 单人模式「催一下」：跳过 AI 的 10–15 秒思考 */
     @PostMapping("/matches/{id}/skip")
     public Map<String, Object> skip(@PathVariable String id) {

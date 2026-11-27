@@ -84,7 +84,10 @@ function startPoll() {
       const d = await roomApi.detail(roomCode.value);
       room.value = d;
       // 房主开局 / 别人把所有位置占满开局 → 直接进对局
-      if (d && d.room && d.room.status === 'RUNNING' && d.room.match_id) {
+      // 只在「本会话刚点过开始」时自动跳：否则进房间页会一直把我弹进对局，
+      // 「继续进行中的对局」那个入口就永远看不到（B4 新加的手动继续入口需要它）。
+      if (d && d.room && d.room.status === 'RUNNING' && d.room.match_id && autoEnter.value) {
+        autoEnter.value = false;
         stopPoll();
         await enterMatch(d.room.match_id);
       }
@@ -106,6 +109,37 @@ async function enterMatch(matchId) {
   await debate.load(true);
   debate.startPoll();
   router.push({ name: 'match' });
+}
+
+/* ==================== 继续进行中的对局（其余席位 AI 补齐） ====================
+ *
+ * 场景：房间开局了，但我离开/刷新/队友散了。房间 detail 里带 match_id，
+ * 只要我还在席位里，就能把这一场转成单人局接着打（后端 POST /continue-solo）。
+ * 房间状态由 1.2s 轮询维护，`seats` 里能找到我的 seat_key 就说明我确实在场上。
+ */
+const continuing = ref(false);
+/** 只在「我刚点开始辩论」后才自动跳进对局；刷新/回房间页时留给手动「继续这一场」 */
+const autoEnter = ref(false);
+const canContinue = computed(() => {
+  const mid = String(r.value.match_id || '');
+  if (!mid || r.value.status !== 'RUNNING') return false;
+  if (!mySeat.value) return false;
+  return seats.value.some((s) => String(s.seat_key || s.seat || '') === String(mySeat.value));
+});
+
+async function continueSolo() {
+  const mid = String(r.value.match_id || '');
+  if (!mid || continuing.value) return;
+  continuing.value = true;
+  try {
+    await debateApi.continueSolo(mid);
+    toast('已转成单人局，其余席位由 AI 补齐');
+    await enterMatch(mid);
+  } catch (e) {
+    toast('继续失败：' + errText(e));
+  } finally {
+    continuing.value = false;
+  }
 }
 
 async function createRoom() {
@@ -158,6 +192,7 @@ async function toggleReady() {
 async function startRoom() {
   try {
     const res = await roomApi.start(roomCode.value);
+    autoEnter.value = true;          // 我刚开局：轮询看到 RUNNING 就直接进对局
     stopPoll();
     await enterMatch(res.matchId);
   } catch (e) {
@@ -276,6 +311,23 @@ function roleTag(s) {
         </button>
         <button v-else class="btn primary" @click="toggleReady">{{ myReady ? '取消准备' : '准备' }}</button>
       </div>
+    </div>
+
+    <!-- 房间里已有进行中的对局、我也在席位里 → 可以把它转成单人局接着打（其余席位 AI 补齐） -->
+    <div
+      v-if="canContinue"
+      class="card"
+      style="margin-bottom: 12px; border-color: #d6e0ff; background: #fbfcfe; display: flex; align-items: center; gap: 12px; flex-wrap: wrap"
+    >
+      <div style="flex: 1; min-width: 200px">
+        <b style="font-size: 12.5px">这一场还能接着打</b>
+        <div style="font-size: 11.5px; color: #8a909c; margin-top: 3px">
+          房间已开局 · 你坐 {{ mySeat }} · 继续后其余席位自动由 AI 补齐
+        </div>
+      </div>
+      <button class="btn primary sm" :disabled="continuing" @click="continueSolo">
+        {{ continuing ? '正在开始…' : '继续这一场（其余席位 AI 补齐）' }}
+      </button>
     </div>
 
     <div class="card" style="margin-bottom: 12px">

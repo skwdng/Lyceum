@@ -140,6 +140,39 @@ public class Store {
         return lowerAll(jdbc.queryForList("select * from sy_match where status='RUNNING'"));
     }
 
+    /** 我作为 owner 的进行中对局（单人页「进行中的对局」列表用）。 */
+    public List<Map<String, Object>> runningMatchesOwnedBy(String userId) {
+        return lowerAll(jdbc.queryForList(
+                "select * from sy_match where status='RUNNING' and user_id=? "
+                        + "order by last_active_at desc", userId));
+    }
+
+    /**
+     * 我坐在席位上的房间局（进行中）。
+     *
+     * <p>房间局只有一条 match，owner 是房主；其他人靠 sy_seat 反查自己在这场里坐哪。
+     * 少了这条，除房主外的人在「进行中的对局」里看不到自己正在打的房间局。
+     */
+    public List<Map<String, Object>> runningRoomMatchesOf(String userId) {
+        return lowerAll(jdbc.queryForList(
+                "select m.* from sy_match m "
+                        + " join sy_room r on r.match_id = m.id "
+                        + " join sy_seat s on s.room_code = r.code "
+                        + " where m.status='RUNNING' and s.user_id=? "
+                        + " order by m.last_active_at desc", userId));
+    }
+
+    /**
+     * 房间局「重新加入继续打」：把这场收缩成单人局。
+     *
+     * <p>只保留我一个人占席，其余席位从此由 AI 补位（MatchService.pickAiSeat 按 my_seats 判谁是 AI）。
+     * 顺手把抢拍状态清干净——单人局没有抢拍。
+     */
+    public void makeSolo(String id, String mySeat) {
+        jdbc.update("update sy_match set kind='solo', my_seats=?, phase='STEP', buzz_seat=null, "
+                + "last_active_at=? where id=?", mySeat, System.currentTimeMillis(), id);
+    }
+
     /**
      * CAS 推进：只有「库里当前的 step 还是我以为的 step」时才推进到 next。
      *

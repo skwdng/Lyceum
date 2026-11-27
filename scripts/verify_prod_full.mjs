@@ -141,17 +141,18 @@ import('node:fs').then(async (fs) => {
   }
 
   // ---------- 6. 轮到我：提示 + 语音按钮 ----------
-  // 输入框现在常驻（对方说话时也能先写），所以判断"轮到我"要看发送按钮变「发送」
+  // 输入框常驻；「发送」任何时候都能用（只是攒段落），所以判断「轮到我」要看「结束发言」是否可点
   let myTurn = false;
   for (let i = 0; i < 90; i++) {
     await sleep(1000);
     myTurn = await ev(`(()=>{
-      const b=[...document.querySelectorAll('button')].find(x=>/^发送$|等我回合/.test(x.textContent.trim()));
-      return !!(b && b.textContent.trim() === '发送');
+      const b=[...document.querySelectorAll('button')].find(x=>/^结束发言$/.test(x.textContent.trim()));
+      // 按钮没内容时是 disabled，所以按「文案变成结束发言」判断轮到我，而不是按可点
+      return !!(b && b.textContent.trim() === '结束发言');
     })()`);
     if (myTurn) break;
   }
-  ok('轮到我时发送按钮可用（输入框常驻）', myTurn);
+  ok('轮到我时「结束发言」可用（输入框常驻）', myTurn);
 
   const ui = await ev(`(()=>{
     const chips=[...document.querySelectorAll('.hint-chip')].map(x=>x.textContent.trim());
@@ -183,7 +184,11 @@ import('node:fs').then(async (fs) => {
   })()`);
   ok('刷新后对局与草稿都还在', restored.draft > 0 && restored.msgs > 0, JSON.stringify(restored));
 
-  await ev(`(()=>{ const b=[...document.querySelectorAll('button')].find(x=>/发送/.test(x.textContent)); if(b) b.click(); })()`);
+  // 新交互：发送=攒一个分段（清空输入框），结束发言=提交整段
+  await ev(`(()=>{ const b=[...document.querySelectorAll('button')].find(x=>/^发送$/.test(x.textContent.trim())); if(b) b.click(); })()`);
+  await sleep(800);
+  const segCount = await ev(`(()=>document.querySelectorAll('[data-seg], .seg-item, .segment').length)()`);
+  await ev(`(()=>{ const b=[...document.querySelectorAll('button')].find(x=>/结束发言/.test(x.textContent)); if(b) b.click(); })()`);
   await sleep(4000);
   const sent = await ev(`(async()=>{
     const base='${BASE}'; const tk=localStorage.getItem('sy_jwt');

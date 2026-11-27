@@ -23,6 +23,53 @@ const draft = ref('');
 const MAX_DRAFT = 1800;                     // 与后端截断口径一致（content 列 4000，留余量）
 const draftLen = computed(() => (draft.value || '').length);
 
+/* ==================== 分段发言（用户口径：发送 ≠ 说完） ====================
+ *
+ * 用户原话：「发送是发送，点结束才能结束自己的发言，之后 AI 再查看并回答」。
+ * · 发送：把当前输入框里的内容追加成一段，**立刻清空输入框与草稿**，可以接着写下一段；
+ * · 结束发言：把各段按空行拼起来一次性提交（没有分段时用输入框内容），只有轮到我时才可用；
+ * · 合计受 1800 字上限约束，超了截断并提示。
+ */
+const segments = ref([]);
+const segJoinedLen = computed(() => segments.value.join('\n\n').length);
+const totalLen = computed(() => {
+  const parts = segments.value.slice();
+  if ((draft.value || '').trim()) parts.push(draft.value);
+  return parts.join('\n\n').length;
+});
+const canEndSpeech = computed(() => !!debate.waiting && totalLen.value > 0);
+const speechText = computed(() => {
+  const parts = segments.value.length
+    ? segments.value.slice()
+    : ((draft.value || '').trim() ? [cleanPasted(draft.value)] : []);
+  return parts.join('\n\n').slice(0, MAX_DRAFT);
+});
+
+function sendSegment() {
+  const text = cleanPasted(draft.value).trim();
+  if (!text) return toast('先写点内容再发送');
+  const head = segJoinedLen.value ? segJoinedLen.value + 2 : 0;    // 已有分段的长度 + 分隔空行
+  const room = MAX_DRAFT - head;
+  if (room <= 0) {
+    toast('已经到 ' + MAX_DRAFT + ' 字上限，先点「结束发言」吧');
+    return;
+  }
+  const cut = text.length > room ? text.slice(0, room) : text;
+  segments.value = segments.value.concat(cut);
+  if (cut.length < text.length) toast('已到 ' + MAX_DRAFT + ' 字上限，多出来的部分没放进去');
+  // 发送即清空（草稿也一起清）——用户报的 bug 就是这里没清
+  draft.value = '';
+  saveDraft();
+  nextTick(() => {
+    const ta = document.querySelector('.composer textarea');
+    if (ta) ta.focus();
+  });
+}
+
+function removeSegment(i) {
+  segments.value = segments.value.filter((_, idx) => idx !== i);
+}
+
 // 草稿按对局存在本地：刷新、切页回来都不该让用户重打一遍
 const draftKey = () => (debate.matchId ? 'sy_draft_' + debate.matchId : '');
 function saveDraft() {
@@ -314,15 +361,33 @@ function startVoice() {
 
 onBeforeUnmount(() => stopVoice());
 
-async function submit() {
-  const text = cleanPasted(draft.value).slice(0, MAX_DRAFT);
+/**
+ * 结束发言：把全部分段（没有分段就用输入框内容）按空行拼起来一次性提交。
+ * · 只有轮到我时可用；
+ * · 成功 / duplicate 都会清空分段与输入框（用户报的 bug：之前只在 ok 时清）；
+ * · 真失败（网络断、离线兜底）保留内容，提示再点一次。
+ */
+async function endSpeech() {
   if (!debate.waiting) return toast('还没轮到你——写好的内容会留着，轮到你就能发');
+  const text = speechText.value;
   if (!text) return toast('说点什么再发');
-  // 先发请求，成功才清空（失败时把用户打的字原样留着）
+  if (totalLen.value > MAX_DRAFT) toast('超过 ' + MAX_DRAFT + ' 字，已截断到上限');
   const ok = await debate.submitTurn(text, usedVoice ? 'voice' : 'kb');
-  if (ok) { draft.value = ''; usedVoice = false; }
-  await nextTick();
-  scrollBottom();
+  if (ok) {
+    segments.value = [];
+    draft.value = '';
+    usedVoice = false;
+    saveDraft();
+    await nextTick();
+    scrollBottom();
+  } else {
+    toast('提交失败，内容已保留，可以再点一次「结束发言」');
+  }
+}
+
+/** 兼容旧入口：Ctrl/Cmd+Enter = 结束发言（和按钮同一个动作） */
+function submit() {
+  return endSpeech();
 }
 
 /**
@@ -644,23 +709,36 @@ const verdictOf = (t) => (t.typing ? '' : '');
           <div v-if="recOn" class="recbar">正在录音 {{ recSec }}s / 90s · 说完点「停止」，文本可编辑后再发送</div>
           <div v-else-if="recErr" class="recbar err">{{ recErr }}</div>
 
+          <!-- 分段发言：发送只是「攒这一段」，点「结束发言」才真正提交 -->
+          <div v-if="segments.length" class="segs">
+            <div class="segs-hd">
+              <b>本次发言 {{ segments.length }} 段</b>
+              <span>{{ segJoinedLen }} 字 · 结束后一起发给对方</span>
+            </div>
+            <div v-for="(s, i) in segments" :key="i" class="seg">
+              <span class="seg-no">{{ i + 1 }}</span>
+              <div class="seg-tx">{{ s }}</div>
+              <button type="button" class="seg-del" title="删掉这一段" @click="removeSegment(i)">×</button>
+            </div>
+          </div>
+
           <textarea
             v-model="draft"
             :disabled="recOn"
-            :placeholder="debate.waiting ? '写下你的发言…（语音可用，Ctrl+Enter 发送）' : '对方还在说 —— 你可以先写好，轮到你直接发（Ctrl+Enter）'"
+            :placeholder="debate.waiting ? '写下这一段…（发送 = 攒段，Ctrl+Enter = 结束发言）' : '对方还在说 —— 先写这一段，轮到你就能结束发言（Ctrl+Enter）'"
             @input="onType"
             @paste="onPaste"
-            @keydown.enter.ctrl="submit"
-            @keydown.enter.meta="submit"
+            @keydown.enter.ctrl="endSpeech"
+            @keydown.enter.meta="endSpeech"
           ></textarea>
           <div class="count">
-            <span :class="{ warn: draftLen > 1800 }">{{ draftLen }} 字</span>
-            <span v-if="draftLen > 1800" style="color: #C0392B">建议 1800 字内，超出会被截断</span>
+            <span :class="{ warn: totalLen > MAX_DRAFT }">{{ totalLen }} / {{ MAX_DRAFT }} 字</span>
+            <span v-if="totalLen > MAX_DRAFT" style="color: #C0392B">超出上限，结束发言时会截断</span>
           </div>
 
           <div class="row" style="margin-top: 8px">
             <span style="font-size: 11.5px; color: #a8adb8">
-              {{ debate.waiting ? (debate.extendUsed ? '已自动续命 ' + debate.extendUsed + ' 次' : '打字时会自动续时') : '先写好，轮到你就能发' }}
+              {{ debate.waiting ? (debate.extendUsed ? '已自动续命 ' + debate.extendUsed + ' 次' : '打字时会自动续时') : '先写好，轮到你就能结束发言' }}
             </span>
             <button
               v-if="debate.kind === 'solo'"
@@ -677,12 +755,19 @@ const verdictOf = (t) => (t.typing ? '' : '');
               @click="recOn ? stopVoice() : startVoice()"
             >{{ recOn ? '● 录音 ' + recSec + 's' : '🎤 语音' }}</button>
             <button
+              class="btn sm ghost"
+              style="margin-left: 8px"
+              :disabled="!draft.trim()"
+              title="把这一段加进本次发言（立刻清空输入框，随时可用）"
+              @click="sendSegment"
+            >发送</button>
+            <button
               class="btn sm primary"
               style="margin-left: 8px"
-              :disabled="!debate.waiting || !draft.trim()"
-              :title="debate.waiting ? '发送（Ctrl+Enter）' : '还没轮到你，先写好，轮到你就能发'"
-              @click="submit"
-            >{{ debate.waiting ? '发送' : '等我回合' }}</button>
+              :disabled="!canEndSpeech"
+              :title="debate.waiting ? '结束发言，一次提交本次所有分段（Ctrl+Enter）' : '还没轮到你，先攒着，轮到你就能结束发言'"
+              @click="endSpeech"
+            >{{ debate.waiting ? '结束发言' : '等我回合' }}</button>
           </div>
         </div>
       </div>
@@ -746,3 +831,70 @@ const verdictOf = (t) => (t.typing ? '' : '');
     </div>
   </template>
 </template>
+
+<style scoped>
+/* 分段发言（发送 = 攒一段，结束发言 = 一次提交）——只作用于本页，不动 debate.css */
+.segs {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcfe;
+  padding: 8px 10px 10px;
+  margin-bottom: 8px;
+}
+.segs-hd {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: #8a909c;
+  margin-bottom: 6px;
+}
+.segs-hd b { font-size: 12.5px; color: #1a1d24; }
+.seg {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 9px;
+  margin-bottom: 6px;
+  min-width: 0;
+}
+.seg:last-child { margin-bottom: 0; }
+.seg-no {
+  flex: 0 0 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--blue-w);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.seg-tx {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #4a5568;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.seg-del {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  border-radius: 6px;
+  color: #a8adb8;
+  font-size: 15px;
+}
+.seg-del:hover { background: var(--red-w); color: var(--red); }
+@media (max-width: 520px) {
+  .seg-tx { font-size: 12px; }
+}
+</style>

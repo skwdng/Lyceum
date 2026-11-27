@@ -39,6 +39,74 @@ const paceHintText = computed(() =>
 );
 const paceName = computed(() => (debate.pace === 'tight' ? '紧凑' : debate.pace === 'loose' ? '宽松' : '标准'));
 
+/* ==================== 进行中的对局 ====================
+ *
+ * 「继续这一场」只有内存里的那一场（离开页面才丢）；这里补一份**服务端**列表，
+ * 换设备 / 清了本地缓存 / 开过好几局之后还能找回。
+ * 后端没上线时静默失败（不显示区块，不弹错）。
+ */
+const myMatches = ref([]);
+const myMatchesBusy = ref(false);
+
+async function loadMyMatches() {
+  if (!auth.user) return;
+  myMatchesBusy.value = true;
+  try {
+    const d = await debateApi.mine();
+    const list = Array.isArray(d) ? d : ((d && (d.items || d.matches)) || []);
+    myMatches.value = list;
+  } catch (e) {
+    myMatches.value = [];          // 静默：接口还没上线就不显示
+  } finally {
+    myMatchesBusy.value = false;
+  }
+}
+
+/** 继续某一局：先让 store 认下这个 matchId，再进对局页 */
+async function resumeFromList(m) {
+  const id = String((m && (m.id || m.matchId)) || '');
+  if (!id) return;
+  // 房间局续打：先转成「单人 + 其余席位 AI」，再进对局页（队友不在也能打完）
+  if (m && m.kind === 'room') {
+    try {
+      await debateApi.continueSolo(id);
+      toast('已转成单人续打，其余席位由 AI 补齐');
+    } catch (e) {
+      toast('转换失败：' + ((e && e.message) || '请重试'));
+      return;
+    }
+  }
+  await debate.start(id);
+  router.push({ name: 'match' });
+}
+
+/** 删除某一局：确认后删，刷新列表；删的是当前这一场就一起清本地状态 */
+async function deleteMatch(m) {
+  const id = String((m && (m.id || m.matchId)) || '');
+  if (!id) return;
+  if (!window.confirm('删除这一场对局？\n\n列表里不再显示，已结算的费用不受影响，不可恢复。')) return;
+  try {
+    await debateApi.remove(id);
+    if (debate.matchId === id) debate.reset();
+    toast('已删除');
+    await loadMyMatches();
+  } catch (e) {
+    toast('删除失败：' + ((e && e.message) || ''));
+  }
+}
+
+/** 列表里的更新时间：只显示到分钟，超过一天显示日期 */
+function fmtUpdated(s) {
+  const t = Number(s) || 0;
+  if (!t) return '';
+  const d = new Date(t < 1e12 ? t * 1000 : t);
+  const diff = Date.now() - d.getTime();
+  if (diff < 60 * 1000) return '刚刚';
+  if (diff < 3600 * 1000) return Math.floor(diff / 60000) + ' 分钟前';
+  if (diff < 24 * 3600 * 1000) return Math.floor(diff / 3600000) + ' 小时前';
+  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
 onMounted(async () => {
   try {
     const [t, h] = await Promise.all([debateApi.topics(), baseApi.hot(12)]);
@@ -47,6 +115,8 @@ onMounted(async () => {
   } catch (e) {
     err.value = (e && e.message) || '加载失败';
   }
+  // 进行中的对局：独立加载，失败不影响题库
+  loadMyMatches();
   // 从热辩榜「开辩」带题进来：#/solo?topic=t3 → 直接把选座面板打开
   if (route.query.topic) openSeat(String(route.query.topic));
 });
@@ -187,6 +257,33 @@ function errText(e) {
   </div>
 
   <div v-if="err" class="card"><div class="empty">{{ err }}</div></div>
+
+  <!-- 进行中的对局：服务端列表（换设备/清了本地缓存也能找回），空列表整块不显示 -->
+  <div v-if="myMatches.length" class="card" style="margin-bottom: 14px">
+    <div class="row" style="justify-content: space-between; align-items: baseline">
+      <b style="font-size: 13px">进行中的对局</b>
+      <span style="font-size: 11.5px; color: #8a909c">共 {{ myMatches.length }} 场 · 换设备也能接着打</span>
+    </div>
+    <div
+      v-for="m in myMatches"
+      :key="m.id || m.matchId"
+      class="myrow"
+    >
+      <div class="mymain">
+        <div class="mytt">{{ m.topic_title || m.topicTitle || '（未命名辩题）' }}</div>
+        <div class="mymeta">
+          第 {{ m.step != null ? Number(m.step) + 1 : '?' }} 步
+          <span v-if="m.my_seats || m.mySeats"> · 席位 {{ m.my_seats || m.mySeats }}</span>
+          <span v-if="m.room_code || m.roomCode"> · 房间 {{ m.room_code || m.roomCode }}</span>
+          <span v-if="fmtUpdated(m.updated_at || m.updatedAt)"> · {{ fmtUpdated(m.updated_at || m.updatedAt) }}</span>
+        </div>
+      </div>
+      <div class="row" style="gap: 8px; flex-shrink: 0">
+        <button class="btn primary sm" @click="resumeFromList(m)">继续</button>
+        <button class="btn ghost sm" @click="deleteMatch(m)">删除</button>
+      </div>
+    </div>
+  </div>
 
   <template v-else>
     <div class="grid g2" style="margin-bottom: 16px">
@@ -415,3 +512,18 @@ function errText(e) {
     </div>
   </div>
 </template>
+<style scoped>
+/* 进行中的对局列表（只在单人页生效） */
+.myrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+  border-top: 1px solid #f3f1eb;
+  margin-top: 8px;
+}
+.mymain { flex: 1; min-width: 180px; }
+.mytt { font-size: 13px; color: #1a1d24; overflow-wrap: anywhere; }
+.mymeta { font-size: 11.5px; color: #8a909c; margin-top: 3px; }
+</style>

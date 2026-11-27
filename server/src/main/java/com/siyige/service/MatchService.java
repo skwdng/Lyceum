@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -975,6 +976,120 @@ public class MatchService {
         out.put("queryRounds", num(m.get("query_rounds")));
         out.put("freeRounds", num(m.get("free_rounds")));
         return out;
+    }
+
+    // ---------- 进行中的对局：列表 / 删除 / 重新加入继续打 ----------
+
+    /**
+     * 单人页「进行中的对局」。
+     *
+     * <p>两条来源合并去重：① 我是 owner 的对局；② 我坐在席位上的房间局（房间局 owner 是房主，
+     * 不看 sy_seat 的话其他人永远看不到自己正在打的房）。
+     *
+     * @return 按「最后活跃时间」倒序；{@code step} 是给人看的 1-based 步号，{@code stepIndex} 是库里的 0-based
+     */
+    public List<Map<String, Object>> mine(String userId) {
+        Map<String, Map<String, Object>> byId = new LinkedHashMap<>();
+        for (Map<String, Object> row : store.runningMatchesOwnedBy(userId)) {
+            byId.put(str(row.get("id")), row);
+        }
+        for (Map<String, Object> row : store.runningRoomMatchesOf(userId)) {
+            byId.putIfAbsent(str(row.get("id")), row);
+        }
+
+        List<Map<String, Object>> out = new ArrayList<>(byId.size());
+        for (Map<String, Object> row : byId.values()) {
+            String matchId = str(row.get("id"));
+            int total = Format.stepsOf(str(row.get("mode")),
+                    num(row.get("query_rounds")), num(row.get("free_rounds"))).size();
+            int stepIndex = num(row.get("step"));
+            String roomCode = roomStore == null ? null : roomStore.codeOfMatch(matchId);
+
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("matchId", matchId);
+            item.put("topicTitle", str(row.get("topic_title")));
+            item.put("mode", str(row.get("mode")));
+            item.put("kind", str(row.get("kind")));
+            item.put("step", Math.min(stepIndex + 1, Math.max(1, total)));   // 1-based，给界面显示
+            item.put("stepIndex", stepIndex);                                // 0-based，给续打用
+            item.put("totalSteps", total);
+            item.put("mySeats", str(row.get("my_seats")));
+            item.put("roomCode", roomCode);          // 单人局为 null
+            item.put("updatedAt", numLong(row.get("last_active_at")));   // epoch 毫秒
+            item.put("status", str(row.get("status")));
+            out.add(item);
+        }
+        out.sort((a, b) -> Long.compare(
+                ((Number) b.get("updatedAt")).longValue(), ((Number) a.get("updatedAt")).longValue()));
+        return out;
+    }
+
+    /**
+     * 删除（放弃）一场对局。
+     *
+     * <p>幂等：已结束的直接把原状态返回，不重复结算。RUNNING 的用 CAS 抢「收尾权」再结算，
+     * 和僵尸回收走同一条 settle 路径，避免两边各扣一次。
+     */
+    public Map<String, Object> abandon(String matchId) {
+        Map<String, Object> m = require(matchId);
+        String status = str(m.get("status"));
+        if (!"RUNNING".equals(status)) return Map.of("ok", true, "status", status);
+
+        if (store.finishMatchIfRunning(matchId, "ABANDONED", 0) == 0) {
+            // 另一条路径（tick 超时 / 僵尸回收）刚刚收过尾，按它的结果返回
+            return Map.of("ok", true, "status", str(require(matchId).get("status")));
+        }
+        settleBilling(matchId, m);       // 预扣的按实际用量结掉，不留挂账
+        hub.emit(matchId, "match.end", Map.of("abandoned", true));
+        attempts.keySet().removeIf(k -> k.startsWith(matchId + "#"));
+        return Map.of("ok", true, "status", "ABANDONED");
+    }
+
+    /**
+     * 房间局「重新加入继续打」：把这场转成单人续打——只留我一个真人席位，其余全部由 AI 补位。
+     *
+     * <p>为什么不是「重开一场」：步数、发言记录、抓漏记录都在这条 match 上，
+     * 重开等于把已经打过的半场丢掉。这里只改 kind / my_seats，历史原样保留。
+     *
+     * <p>非房间局也允许：已经是单人的话这就是幂等操作（my_seats 会收敛成我自己的席位）。
+     */
+    public Map<String, Object> continueSolo(String matchId, String userId) throws Exception {
+        Map<String, Object> m = require(matchId);
+        if (!"RUNNING".equals(str(m.get("status"))))
+            throw new IllegalStateException("MATCH_NOT_RUNNING: 对局已结束（" + str(m.get("status")) + "）");
+
+        // 我是这场里的哪个席位：房间局查 sy_seat，单人局回落到 my_seats
+        String seat = seatOfUser(m, userId);
+        if (seat == null || seat.isBlank())
+            throw new IllegalArgumentException("NOT_IN_MATCH: 你不在这场对局的席位上");
+
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")),
+                num(m.get("query_rounds")), num(m.get("free_rounds")));
+        int step = num(m.get("step"));
+        Format.Step cur = Format.stepAt(steps, step);
+        if (cur == null) throw new IllegalStateException("对局已结束");
+
+        // ① 收缩成单人局：my_seats 只留我 → pickAiSeat 之后会把其余席位全判给 AI
+        store.makeSolo(matchId, seat);
+
+        // ② 当前这一步按单人规则重算 deadline：我的回合不限时，AI 回合给它正常的接话间隔
+        boolean myTurn = TurnEngine.isMine(Set.of(seat), cur.seat());
+        Long deadline;
+        int shownSec;
+        if (myTurn) {
+            deadline = deadlineFor(stepSeconds(cur, num(m.get("turn_sec")), str(m.get("pace")), "solo"));
+            shownSec = 0;                       // 单人 = 不限时
+        } else {
+            long at = aiDeadline(matchId, cur.seat());
+            deadline = Long.valueOf(at);
+            shownSec = (int) Math.max(1, Math.round((at - System.currentTimeMillis()) / 1000.0));
+        }
+        store.updateStep(matchId, step, deadline);
+
+        hub.emit(matchId, "step", Map.of(
+                "step", Math.min(step + 1, steps.size()), "seg", cur.seg(), "seat", cur.seat(),
+                "seconds", shownSec, "mine", myTurn, "phase", "STEP", "resumed", true));
+        return Map.of("ok", true, "kind", "solo", "mySeats", seat, "step", step + 1);
     }
 
     // ---------- 工具 ----------

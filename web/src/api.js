@@ -191,6 +191,15 @@ export const debateApi = {
   aiTiers: () => http.get('/api/ai-tiers'),
   createMatch: (payload) => http.post('/api/matches', payload),
   match: (matchId) => http.get('/api/matches/' + matchId),
+  /** 我的对局（进行中/最近）：单人页「进行中的对局」区块用 */
+  mine: () => http.get('/api/matches/mine'),
+  /** 删除一场对局（本地列表里清掉，不动已结算的费用） */
+  remove: (matchId) => http.del('/api/matches/' + matchId),
+  /**
+   * 多人房重开成单人局：其余席位由 AI 补齐。
+   * 前端用 `POST /api/matches/{id}/continue-solo`（后端同批上线）。
+   */
+  continueSolo: (matchId) => http.post('/api/matches/' + matchId + '/continue-solo', {}),
   submitTurn: (matchId, content) =>
     http.post('/api/matches/' + matchId + '/turns', { content, inputType: 'kb' }),
   keepalive: (matchId) => http.post('/api/matches/' + matchId + '/keepalive'),

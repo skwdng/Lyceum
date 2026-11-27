@@ -1,4 +1,4 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-B5_zGZdJ.js","./alert-Bu2CjWks.js","./postDrawer-CHaRsi4P.js","./userPop-P9Z-iBa4.js","./ModerationBar-D-01avH6.js","./ModerationBar-V0nw-A5Y.css","./AdminLayout-C5pRuABb.css","./ChangePasswordView-iCfZji_i.js","./ChangePasswordView-pt4N0wj3.css","./DashboardView-D7mFqdan.js","./LineChart-DkHaQHPQ.js","./LineChart-DIduibKn.css","./DashboardView-mb_5vD9g.css","./AnalyticsView-BHq9KKsY.js","./exportFile-CtxxMoyb.js","./AnalyticsView-B9DMcokn.css","./ReportsView-B3hPfWxt.js","./ReportsView-DmrvUC01.css","./UsersView-DSgYgq1U.js","./BatchActions-V-Eu68bS.js","./BatchActions-DGPuvbYY.css","./ContentPostsView-Dq8lt7ss.js","./ContentPostsView-CcgzItfj.css","./ContentCommentsView-Cj0wcNNg.js","./ContentCommentsView-CYHRwmcW.css","./TagsView-DZW5qGIz.js","./TagsView-Cl52_Na6.css","./AlertsView-JJBNpBv5.js","./AlertsView-cnSsL2K_.css","./VideoAuditView-BPJ0Dn9c.js","./VideoAuditView-GsF68b1j.css","./TopicReviewView-BYwRQsCI.js","./TopicReviewView-Bl3ZItHQ.css","./AuditView-Czr9pJGs.js","./AuditView-B40lvPYA.css","./AdminsView-jelgysr1.js","./AdminsView-C-jswO-_.css","./ConfigView-jv4QVh6b.js","./ConfigView-Gv3seAUY.css","./WordsView-BkyBmMtW.js","./WordsView-B2vPOHr6.css","./SettingsView-DgeEokQw.js","./SettingsView-B-UJ8Tc-.css"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-BVlwB_IZ.js","./alert-wbFCl_OI.js","./postDrawer-BHu9GRMS.js","./userPop-CjXqXRtH.js","./ModerationBar-B76714V-.js","./ModerationBar-V0nw-A5Y.css","./AdminLayout-C5pRuABb.css","./ChangePasswordView-Cyx2Yk6y.js","./ChangePasswordView-pt4N0wj3.css","./DashboardView-nIoRBzB8.js","./LineChart-CkJWwkeu.js","./LineChart-DIduibKn.css","./DashboardView-mb_5vD9g.css","./AnalyticsView-CPUF3auy.js","./exportFile-BT-ZA7wB.js","./AnalyticsView-B9DMcokn.css","./ReportsView-CtspZogr.js","./ReportsView-DmrvUC01.css","./UsersView-BytuZQwK.js","./BatchActions-Dc8-9fUC.js","./BatchActions-DGPuvbYY.css","./ContentPostsView-3QCzYiFl.js","./ContentPostsView-CcgzItfj.css","./ContentCommentsView-C-QPu_ws.js","./ContentCommentsView-CYHRwmcW.css","./TagsView-Yd0Tcxi5.js","./TagsView-Cl52_Na6.css","./AlertsView-2jjWUVmo.js","./AlertsView-cnSsL2K_.css","./VideoAuditView-DNhfhPpn.js","./VideoAuditView-GsF68b1j.css","./TopicReviewView-t3KHhTOs.js","./TopicReviewView-Bl3ZItHQ.css","./AuditView-C-kJ2ERi.js","./AuditView-B40lvPYA.css","./AdminsView-BMZ_0eal.js","./AdminsView-C-jswO-_.css","./ConfigView-B1l1xKNf.js","./ConfigView-Gv3seAUY.css","./WordsView-DoSYC8gb.js","./WordsView-B2vPOHr6.css","./SettingsView-DQdlV6GI.js","./SettingsView-B-UJ8Tc-.css"])))=>i.map(i=>d[i]);
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -9227,6 +9227,15 @@ const debateApi = {
   aiTiers: () => http.get("/api/ai-tiers"),
   createMatch: (payload) => http.post("/api/matches", payload),
   match: (matchId) => http.get("/api/matches/" + matchId),
+  /** 我的对局（进行中/最近）：单人页「进行中的对局」区块用 */
+  mine: () => http.get("/api/matches/mine"),
+  /** 删除一场对局（本地列表里清掉，不动已结算的费用） */
+  remove: (matchId) => http.del("/api/matches/" + matchId),
+  /**
+   * 多人房重开成单人局：其余席位由 AI 补齐。
+   * 前端用 `POST /api/matches/{id}/continue-solo`（后端同批上线）。
+   */
+  continueSolo: (matchId) => http.post("/api/matches/" + matchId + "/continue-solo", {}),
   submitTurn: (matchId, content) => http.post("/api/matches/" + matchId + "/turns", { content, inputType: "kb" }),
   keepalive: (matchId) => http.post("/api/matches/" + matchId + "/keepalive"),
   buzz: (matchId) => http.post("/api/matches/" + matchId + "/buzz"),
@@ -13867,110 +13876,132 @@ const _hoisted_4$d = {
 };
 const _hoisted_5$d = { class: "empty" };
 const _hoisted_6$d = {
+  key: 2,
+  class: "card",
+  style: { "margin-bottom": "14px" }
+};
+const _hoisted_7$d = {
+  class: "row",
+  style: { "justify-content": "space-between", "align-items": "baseline" }
+};
+const _hoisted_8$c = { style: { "font-size": "11.5px", "color": "#8a909c" } };
+const _hoisted_9$b = { class: "mymain" };
+const _hoisted_10$b = { class: "mytt" };
+const _hoisted_11$b = { class: "mymeta" };
+const _hoisted_12$b = { key: 0 };
+const _hoisted_13$b = { key: 1 };
+const _hoisted_14$a = { key: 2 };
+const _hoisted_15$a = {
+  class: "row",
+  style: { "gap": "8px", "flex-shrink": "0" }
+};
+const _hoisted_16$9 = ["onClick"];
+const _hoisted_17$9 = ["onClick"];
+const _hoisted_18$9 = {
   class: "grid g2",
   style: { "margin-bottom": "16px" }
 };
-const _hoisted_7$d = {
+const _hoisted_19$7 = {
   class: "card",
   style: { "display": "flex", "gap": "16px", "align-items": "flex-end", "flex-wrap": "wrap" }
 };
-const _hoisted_8$c = { style: { "flex": "1", "min-width": "240px" } };
-const _hoisted_9$b = { class: "card" };
-const _hoisted_10$b = { style: { "font-size": "12.5px", "color": "#4a5568", "margin-top": "6px", "line-height": "1.8" } };
-const _hoisted_11$b = { style: { "color": "#2f5bea" } };
-const _hoisted_12$b = { style: { "color": "#2f5bea" } };
-const _hoisted_13$b = {
+const _hoisted_20$7 = { style: { "flex": "1", "min-width": "240px" } };
+const _hoisted_21$7 = { class: "card" };
+const _hoisted_22$7 = { style: { "font-size": "12.5px", "color": "#4a5568", "margin-top": "6px", "line-height": "1.8" } };
+const _hoisted_23$7 = { style: { "color": "#2f5bea" } };
+const _hoisted_24$6 = { style: { "color": "#2f5bea" } };
+const _hoisted_25$6 = {
   class: "row",
   style: { "margin-top": "8px" }
 };
-const _hoisted_14$a = { class: "grid g2" };
-const _hoisted_15$a = {
+const _hoisted_26$6 = { class: "grid g2" };
+const _hoisted_27$6 = {
   class: "grid gauto",
   style: { "margin-top": "10px" }
 };
-const _hoisted_16$9 = ["onClick"];
-const _hoisted_17$9 = { class: "row" };
-const _hoisted_18$9 = { class: "tag" };
-const _hoisted_19$7 = { class: "tag" };
-const _hoisted_20$7 = { class: "meta" };
-const _hoisted_21$7 = {
+const _hoisted_28$6 = ["onClick"];
+const _hoisted_29$6 = { class: "row" };
+const _hoisted_30$6 = { class: "tag" };
+const _hoisted_31$6 = { class: "tag" };
+const _hoisted_32$6 = { class: "meta" };
+const _hoisted_33$6 = {
   key: 0,
   class: "empty"
 };
-const _hoisted_22$7 = { class: "card" };
-const _hoisted_23$7 = {
+const _hoisted_34$6 = { class: "card" };
+const _hoisted_35$6 = {
   class: "row",
   style: { "justify-content": "space-between", "margin-bottom": "10px" }
 };
-const _hoisted_24$6 = { class: "hot" };
-const _hoisted_25$6 = ["onClick"];
-const _hoisted_26$6 = { class: "rk" };
-const _hoisted_27$6 = { style: { "flex": "1", "min-width": "0" } };
-const _hoisted_28$6 = { class: "tt" };
-const _hoisted_29$6 = { class: "heatbar" };
-const _hoisted_30$6 = { class: "sc" };
-const _hoisted_31$6 = { style: { "font-size": "11px", "color": "#a8adb8", "margin-top": "10px" } };
-const _hoisted_32$6 = { class: "mono" };
-const _hoisted_33$6 = { class: "panel" };
-const _hoisted_34$6 = { class: "seats" };
-const _hoisted_35$6 = { class: "seat-grid" };
-const _hoisted_36$6 = ["onClick"];
-const _hoisted_37$6 = { class: "k" };
-const _hoisted_38$6 = { class: "r" };
-const _hoisted_39$6 = { class: "seat-grid" };
-const _hoisted_40$6 = ["onClick"];
-const _hoisted_41$5 = { class: "k" };
-const _hoisted_42$5 = { class: "r" };
-const _hoisted_43$4 = { class: "presets" };
-const _hoisted_44$4 = {
+const _hoisted_36$6 = { class: "hot" };
+const _hoisted_37$6 = ["onClick"];
+const _hoisted_38$6 = { class: "rk" };
+const _hoisted_39$6 = { style: { "flex": "1", "min-width": "0" } };
+const _hoisted_40$6 = { class: "tt" };
+const _hoisted_41$5 = { class: "heatbar" };
+const _hoisted_42$5 = { class: "sc" };
+const _hoisted_43$4 = { style: { "font-size": "11px", "color": "#a8adb8", "margin-top": "10px" } };
+const _hoisted_44$4 = { class: "mono" };
+const _hoisted_45$4 = { class: "panel" };
+const _hoisted_46$4 = { class: "seats" };
+const _hoisted_47$4 = { class: "seat-grid" };
+const _hoisted_48$4 = ["onClick"];
+const _hoisted_49$4 = { class: "k" };
+const _hoisted_50$3 = { class: "r" };
+const _hoisted_51$3 = { class: "seat-grid" };
+const _hoisted_52$3 = ["onClick"];
+const _hoisted_53$3 = { class: "k" };
+const _hoisted_54$3 = { class: "r" };
+const _hoisted_55$3 = { class: "presets" };
+const _hoisted_56$3 = {
   class: "row",
   style: { "margin-top": "14px", "gap": "8px" }
 };
-const _hoisted_45$4 = ["title", "onClick"];
-const _hoisted_46$3 = { style: { "font-size": "11.5px", "color": "#8a909c" } };
-const _hoisted_47$3 = {
+const _hoisted_57$3 = ["title", "onClick"];
+const _hoisted_58$3 = { style: { "font-size": "11.5px", "color": "#8a909c" } };
+const _hoisted_59$3 = {
   class: "row",
   style: { "margin-top": "10px", "gap": "8px" }
 };
-const _hoisted_48$3 = ["title", "onClick"];
-const _hoisted_49$3 = { style: { "margin-top": "10px", "padding-top": "10px", "border-top": "1px solid #f3f1eb" } };
-const _hoisted_50$3 = {
+const _hoisted_60$3 = ["title", "onClick"];
+const _hoisted_61$3 = { style: { "margin-top": "10px", "padding-top": "10px", "border-top": "1px solid #f3f1eb" } };
+const _hoisted_62$3 = {
   class: "row",
   style: { "gap": "8px", "align-items": "center", "flex-wrap": "wrap" }
 };
-const _hoisted_51$3 = ["title", "onClick"];
-const _hoisted_52$3 = { style: { "font-size": "11.5px", "color": "#a8adb8", "margin-top": "6px", "line-height": "1.6" } };
-const _hoisted_53$3 = { class: "sum" };
-const _hoisted_54$3 = {
+const _hoisted_63$3 = ["title", "onClick"];
+const _hoisted_64$3 = { style: { "font-size": "11.5px", "color": "#a8adb8", "margin-top": "6px", "line-height": "1.6" } };
+const _hoisted_65$3 = { class: "sum" };
+const _hoisted_66$3 = {
   class: "row",
   style: { "justify-content": "flex-end", "margin-top": "16px" }
 };
-const _hoisted_55$3 = {
+const _hoisted_67$2 = {
   class: "panel",
   style: { "width": "min(560px, 100%)" }
 };
-const _hoisted_56$3 = {
+const _hoisted_68$2 = {
   class: "row",
   style: { "gap": "10px", "margin-bottom": "6px" }
 };
-const _hoisted_57$3 = { style: { "font-size": "22px" } };
-const _hoisted_58$3 = {
+const _hoisted_69$2 = { style: { "font-size": "22px" } };
+const _hoisted_70$2 = {
   key: 0,
   class: "tag"
 };
-const _hoisted_59$3 = { class: "desc" };
-const _hoisted_60$3 = {
+const _hoisted_71$2 = { class: "desc" };
+const _hoisted_72$2 = {
   key: 0,
   class: "sum"
 };
-const _hoisted_61$3 = { class: "sum" };
-const _hoisted_62$3 = {
+const _hoisted_73$2 = { class: "sum" };
+const _hoisted_74$2 = {
   key: 0,
   style: { "margin-top": "12px", "font-size": "12.5px", "color": "#6b7280" }
 };
-const _hoisted_63$3 = { style: { "flex": "1", "font-size": "13px" } };
-const _hoisted_64$3 = ["onClick"];
-const _hoisted_65$3 = {
+const _hoisted_75$2 = { style: { "flex": "1", "font-size": "13px" } };
+const _hoisted_76$2 = ["onClick"];
+const _hoisted_77$2 = {
   class: "row",
   style: { "justify-content": "flex-end", "margin-top": "16px" }
 };
@@ -13997,6 +14028,59 @@ const _sfc_main$d = {
       () => debate.pace === "tight" ? "较短" : debate.pace === "loose" ? "较长" : "标准"
     );
     const paceName = computed(() => debate.pace === "tight" ? "紧凑" : debate.pace === "loose" ? "宽松" : "标准");
+    const myMatches = /* @__PURE__ */ ref([]);
+    const myMatchesBusy = /* @__PURE__ */ ref(false);
+    async function loadMyMatches() {
+      if (!auth.user) return;
+      myMatchesBusy.value = true;
+      try {
+        const d = await debateApi.mine();
+        const list = Array.isArray(d) ? d : d && (d.items || d.matches) || [];
+        myMatches.value = list;
+      } catch (e) {
+        myMatches.value = [];
+      } finally {
+        myMatchesBusy.value = false;
+      }
+    }
+    async function resumeFromList(m) {
+      const id = String(m && (m.id || m.matchId) || "");
+      if (!id) return;
+      if (m && m.kind === "room") {
+        try {
+          await debateApi.continueSolo(id);
+          toast("已转成单人续打，其余席位由 AI 补齐");
+        } catch (e) {
+          toast("转换失败：" + (e && e.message || "请重试"));
+          return;
+        }
+      }
+      await debate.start(id);
+      router2.push({ name: "match" });
+    }
+    async function deleteMatch(m) {
+      const id = String(m && (m.id || m.matchId) || "");
+      if (!id) return;
+      if (!window.confirm("删除这一场对局？\n\n列表里不再显示，已结算的费用不受影响，不可恢复。")) return;
+      try {
+        await debateApi.remove(id);
+        if (debate.matchId === id) debate.reset();
+        toast("已删除");
+        await loadMyMatches();
+      } catch (e) {
+        toast("删除失败：" + (e && e.message || ""));
+      }
+    }
+    function fmtUpdated(s) {
+      const t = Number(s) || 0;
+      if (!t) return "";
+      const d = new Date(t < 1e12 ? t * 1e3 : t);
+      const diff = Date.now() - d.getTime();
+      if (diff < 60 * 1e3) return "刚刚";
+      if (diff < 3600 * 1e3) return Math.floor(diff / 6e4) + " 分钟前";
+      if (diff < 24 * 3600 * 1e3) return Math.floor(diff / 36e5) + " 小时前";
+      return d.getMonth() + 1 + "/" + d.getDate() + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    }
     onMounted(async () => {
       try {
         const [t, h2] = await Promise.all([debateApi.topics(), baseApi.hot(12)]);
@@ -14005,6 +14089,7 @@ const _sfc_main$d = {
       } catch (e) {
         err.value = e && e.message || "加载失败";
       }
+      loadMyMatches();
       if (route.query.topic) openSeat(String(route.query.topic));
     });
     function diffClass(d) {
@@ -14092,8 +14177,8 @@ const _sfc_main$d = {
     }
     return (_ctx, _cache) => {
       return openBlock(), createElementBlock(Fragment, null, [
-        _cache[40] || (_cache[40] = createBaseVNode("h1", { class: "pg" }, "单人辩论", -1)),
-        _cache[41] || (_cache[41] = createBaseVNode("p", { class: "sub" }, "选一道题（或自己填）→ 选位置 → 直接开打。不建房、不等人，缺的席位由 AI 补齐。", -1)),
+        _cache[41] || (_cache[41] = createBaseVNode("h1", { class: "pg" }, "单人辩论", -1)),
+        _cache[42] || (_cache[42] = createBaseVNode("p", { class: "sub" }, "选一道题（或自己填）→ 选位置 → 直接开打。不建房、不等人，缺的席位由 AI 补齐。", -1)),
         running.value ? (openBlock(), createElementBlock("div", _hoisted_1$d, [
           createBaseVNode("div", _hoisted_2$d, [
             _cache[16] || (_cache[16] = createBaseVNode("b", { style: { "font-size": "13px" } }, "有一场还没打完", -1)),
@@ -14115,15 +14200,47 @@ const _sfc_main$d = {
         ])) : createCommentVNode("", true),
         err.value ? (openBlock(), createElementBlock("div", _hoisted_4$d, [
           createBaseVNode("div", _hoisted_5$d, toDisplayString(err.value), 1)
-        ])) : (openBlock(), createElementBlock(Fragment, { key: 2 }, [
-          createBaseVNode("div", _hoisted_6$d, [
-            createBaseVNode("div", _hoisted_7$d, [
-              createBaseVNode("div", _hoisted_8$c, [
-                _cache[17] || (_cache[17] = createBaseVNode("b", { style: { "font-size": "13px" } }, [
+        ])) : createCommentVNode("", true),
+        myMatches.value.length ? (openBlock(), createElementBlock("div", _hoisted_6$d, [
+          createBaseVNode("div", _hoisted_7$d, [
+            _cache[17] || (_cache[17] = createBaseVNode("b", { style: { "font-size": "13px" } }, "进行中的对局", -1)),
+            createBaseVNode("span", _hoisted_8$c, "共 " + toDisplayString(myMatches.value.length) + " 场 · 换设备也能接着打", 1)
+          ]),
+          (openBlock(true), createElementBlock(Fragment, null, renderList(myMatches.value, (m) => {
+            return openBlock(), createElementBlock("div", {
+              key: m.id || m.matchId,
+              class: "myrow"
+            }, [
+              createBaseVNode("div", _hoisted_9$b, [
+                createBaseVNode("div", _hoisted_10$b, toDisplayString(m.topic_title || m.topicTitle || "（未命名辩题）"), 1),
+                createBaseVNode("div", _hoisted_11$b, [
+                  createTextVNode(" 第 " + toDisplayString(m.step != null ? Number(m.step) + 1 : "?") + " 步 ", 1),
+                  m.my_seats || m.mySeats ? (openBlock(), createElementBlock("span", _hoisted_12$b, " · 席位 " + toDisplayString(m.my_seats || m.mySeats), 1)) : createCommentVNode("", true),
+                  m.room_code || m.roomCode ? (openBlock(), createElementBlock("span", _hoisted_13$b, " · 房间 " + toDisplayString(m.room_code || m.roomCode), 1)) : createCommentVNode("", true),
+                  fmtUpdated(m.updated_at || m.updatedAt) ? (openBlock(), createElementBlock("span", _hoisted_14$a, " · " + toDisplayString(fmtUpdated(m.updated_at || m.updatedAt)), 1)) : createCommentVNode("", true)
+                ])
+              ]),
+              createBaseVNode("div", _hoisted_15$a, [
+                createBaseVNode("button", {
+                  class: "btn primary sm",
+                  onClick: ($event) => resumeFromList(m)
+                }, "继续", 8, _hoisted_16$9),
+                createBaseVNode("button", {
+                  class: "btn ghost sm",
+                  onClick: ($event) => deleteMatch(m)
+                }, "删除", 8, _hoisted_17$9)
+              ])
+            ]);
+          }), 128))
+        ])) : (openBlock(), createElementBlock(Fragment, { key: 3 }, [
+          createBaseVNode("div", _hoisted_18$9, [
+            createBaseVNode("div", _hoisted_19$7, [
+              createBaseVNode("div", _hoisted_20$7, [
+                _cache[18] || (_cache[18] = createBaseVNode("b", { style: { "font-size": "13px" } }, [
                   createTextVNode("自己出一个辩题 "),
                   createBaseVNode("span", { class: "tag b" }, "AI 审核")
                 ], -1)),
-                _cache[18] || (_cache[18] = createBaseVNode("div", { style: { "font-size": "11.5px", "color": "#8a909c", "margin": "4px 0 8px" } }, " 写一句你关心的问题，会先过可辩性审核 ", -1)),
+                _cache[19] || (_cache[19] = createBaseVNode("div", { style: { "font-size": "11.5px", "color": "#8a909c", "margin": "4px 0 8px" } }, " 写一句你关心的问题，会先过可辩性审核 ", -1)),
                 withDirectives(createBaseVNode("input", {
                   "onUpdate:modelValue": _cache[0] || (_cache[0] = ($event) => customTopic.value = $event),
                   class: "btn ghost",
@@ -14143,15 +14260,15 @@ const _sfc_main$d = {
                 onClick: goOffline
               }, "离线对练")
             ]),
-            createBaseVNode("div", _hoisted_9$b, [
-              _cache[22] || (_cache[22] = createBaseVNode("b", { style: { "font-size": "13px" } }, "当前席位", -1)),
-              createBaseVNode("div", _hoisted_10$b, [
-                createBaseVNode("b", _hoisted_11$b, toDisplayString(unref(debate).mySeats.join("、")), 1),
-                _cache[19] || (_cache[19] = createTextVNode(" · 本场发言 ", -1)),
-                createBaseVNode("b", _hoisted_12$b, toDisplayString(unref(debate).myTurnCount), 1),
-                _cache[20] || (_cache[20] = createTextVNode(" 次 ", -1))
+            createBaseVNode("div", _hoisted_21$7, [
+              _cache[23] || (_cache[23] = createBaseVNode("b", { style: { "font-size": "13px" } }, "当前席位", -1)),
+              createBaseVNode("div", _hoisted_22$7, [
+                createBaseVNode("b", _hoisted_23$7, toDisplayString(unref(debate).mySeats.join("、")), 1),
+                _cache[20] || (_cache[20] = createTextVNode(" · 本场发言 ", -1)),
+                createBaseVNode("b", _hoisted_24$6, toDisplayString(unref(debate).myTurnCount), 1),
+                _cache[21] || (_cache[21] = createTextVNode(" 次 ", -1))
               ]),
-              createBaseVNode("div", _hoisted_13$b, [
+              createBaseVNode("div", _hoisted_25$6, [
                 createBaseVNode("button", {
                   class: "btn sm ghost",
                   onClick: _cache[3] || (_cache[3] = ($event) => openSeat(null))
@@ -14160,7 +14277,7 @@ const _sfc_main$d = {
                   "onUpdate:modelValue": _cache[4] || (_cache[4] = ($event) => unref(debate).mode = $event),
                   class: "btn sm ghost",
                   onChange: _cache[5] || (_cache[5] = ($event) => unref(debate).setMode(unref(debate).mode))
-                }, [..._cache[21] || (_cache[21] = [
+                }, [..._cache[22] || (_cache[22] = [
                   createBaseVNode("option", { value: "FULL" }, "全流程 12 步", -1),
                   createBaseVNode("option", { value: "SPRINT" }, "快速 8 步", -1)
                 ])], 544), [
@@ -14169,10 +14286,10 @@ const _sfc_main$d = {
               ])
             ])
           ]),
-          createBaseVNode("div", _hoisted_14$a, [
+          createBaseVNode("div", _hoisted_26$6, [
             createBaseVNode("div", null, [
-              _cache[24] || (_cache[24] = createBaseVNode("b", { style: { "font-size": "13px" } }, "题库", -1)),
-              createBaseVNode("div", _hoisted_15$a, [
+              _cache[25] || (_cache[25] = createBaseVNode("b", { style: { "font-size": "13px" } }, "题库", -1)),
+              createBaseVNode("div", _hoisted_27$6, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(topics.value, (t) => {
                   return openBlock(), createElementBlock("div", {
                     key: t.id,
@@ -14180,110 +14297,110 @@ const _sfc_main$d = {
                     onClick: ($event) => openSeat(t.id)
                   }, [
                     createBaseVNode("h3", null, toDisplayString(t.title), 1),
-                    createBaseVNode("div", _hoisted_17$9, [
-                      createBaseVNode("span", _hoisted_18$9, toDisplayString(t.cat), 1),
+                    createBaseVNode("div", _hoisted_29$6, [
+                      createBaseVNode("span", _hoisted_30$6, toDisplayString(t.cat), 1),
                       createBaseVNode("span", {
                         class: normalizeClass(["tag", diffClass(t.diff)])
                       }, toDisplayString(t.diff), 3),
-                      createBaseVNode("span", _hoisted_19$7, "🔥 " + toDisplayString(t.hot), 1)
+                      createBaseVNode("span", _hoisted_31$6, "🔥 " + toDisplayString(t.hot), 1)
                     ]),
-                    createBaseVNode("div", _hoisted_20$7, [
+                    createBaseVNode("div", _hoisted_32$6, [
                       createBaseVNode("span", null, "已辩 " + toDisplayString(t.plays) + " 场" + toDisplayString(t.source === "custom" ? " · 自定义" : ""), 1),
-                      _cache[23] || (_cache[23] = createBaseVNode("span", { class: "go" }, "开练 →", -1))
+                      _cache[24] || (_cache[24] = createBaseVNode("span", { class: "go" }, "开练 →", -1))
                     ])
-                  ], 8, _hoisted_16$9);
+                  ], 8, _hoisted_28$6);
                 }), 128)),
-                !topics.value.length ? (openBlock(), createElementBlock("div", _hoisted_21$7, "题库加载中…")) : createCommentVNode("", true)
+                !topics.value.length ? (openBlock(), createElementBlock("div", _hoisted_33$6, "题库加载中…")) : createCommentVNode("", true)
               ])
             ]),
             createBaseVNode("div", null, [
-              createBaseVNode("div", _hoisted_22$7, [
-                createBaseVNode("div", _hoisted_23$7, [
-                  _cache[25] || (_cache[25] = createBaseVNode("b", { style: { "font-size": "13px" } }, "🔥 热辩榜", -1)),
+              createBaseVNode("div", _hoisted_34$6, [
+                createBaseVNode("div", _hoisted_35$6, [
+                  _cache[26] || (_cache[26] = createBaseVNode("b", { style: { "font-size": "13px" } }, "🔥 热辩榜", -1)),
                   createBaseVNode("a", {
                     style: { "font-size": "12px", "color": "#2f5bea", "cursor": "pointer" },
                     onClick: _cache[6] || (_cache[6] = ($event) => unref(router2).push({ name: "hot" }))
                   }, " 完整榜单 → ")
                 ]),
-                createBaseVNode("div", _hoisted_24$6, [
+                createBaseVNode("div", _hoisted_36$6, [
                   (openBlock(true), createElementBlock(Fragment, null, renderList(hotList.value, (x, i) => {
                     return openBlock(), createElementBlock("div", {
                       key: x.topicId,
                       class: normalizeClass(["hitem", { top1: i === 0 }]),
                       onClick: ($event) => openSeat(x.topicId)
                     }, [
-                      createBaseVNode("div", _hoisted_26$6, toDisplayString(x.rank), 1),
-                      createBaseVNode("div", _hoisted_27$6, [
-                        createBaseVNode("div", _hoisted_28$6, toDisplayString(x.title), 1),
-                        createBaseVNode("div", _hoisted_29$6, [
+                      createBaseVNode("div", _hoisted_38$6, toDisplayString(x.rank), 1),
+                      createBaseVNode("div", _hoisted_39$6, [
+                        createBaseVNode("div", _hoisted_40$6, toDisplayString(x.title), 1),
+                        createBaseVNode("div", _hoisted_41$5, [
                           createBaseVNode("i", {
                             style: normalizeStyle({ width: Math.min(100, x.score / 2) + "%" })
                           }, null, 4)
                         ])
                       ]),
-                      createBaseVNode("div", _hoisted_30$6, toDisplayString(x.score), 1)
-                    ], 10, _hoisted_25$6);
+                      createBaseVNode("div", _hoisted_42$5, toDisplayString(x.score), 1)
+                    ], 10, _hoisted_37$6);
                   }), 128))
                 ]),
-                createBaseVNode("div", _hoisted_31$6, [
-                  _cache[26] || (_cache[26] = createTextVNode(" Redis ", -1)),
-                  createBaseVNode("span", _hoisted_32$6, "ZSET · " + toDisplayString(hotKey.value), 1)
+                createBaseVNode("div", _hoisted_43$4, [
+                  _cache[27] || (_cache[27] = createTextVNode(" Redis ", -1)),
+                  createBaseVNode("span", _hoisted_44$4, "ZSET · " + toDisplayString(hotKey.value), 1)
                 ])
               ])
             ])
           ])
         ], 64)),
         seatOpen.value ? (openBlock(), createElementBlock("div", {
-          key: 3,
+          key: 4,
           class: "mask",
           onClick: _cache[13] || (_cache[13] = withModifiers(($event) => seatOpen.value = false, ["self"]))
         }, [
-          createBaseVNode("div", _hoisted_33$6, [
-            _cache[37] || (_cache[37] = createBaseVNode("h2", null, "你要坐哪几个位置？", -1)),
-            _cache[38] || (_cache[38] = createBaseVNode("div", { class: "desc" }, "选中的席位由你发言，其余自动由 AI 占满。多个位置 = 一个人分饰多角。", -1)),
-            createBaseVNode("div", _hoisted_34$6, [
+          createBaseVNode("div", _hoisted_45$4, [
+            _cache[38] || (_cache[38] = createBaseVNode("h2", null, "你要坐哪几个位置？", -1)),
+            _cache[39] || (_cache[39] = createBaseVNode("div", { class: "desc" }, "选中的席位由你发言，其余自动由 AI 占满。多个位置 = 一个人分饰多角。", -1)),
+            createBaseVNode("div", _hoisted_46$4, [
               createBaseVNode("div", null, [
-                _cache[27] || (_cache[27] = createBaseVNode("div", {
+                _cache[28] || (_cache[28] = createBaseVNode("div", {
                   class: "row",
                   style: { "margin-bottom": "7px" }
                 }, [
                   createBaseVNode("span", { class: "tag b" }, "正方")
                 ], -1)),
-                createBaseVNode("div", _hoisted_35$6, [
+                createBaseVNode("div", _hoisted_47$4, [
                   (openBlock(true), createElementBlock(Fragment, null, renderList(unref(SEATS).filter((x) => x.side === "A"), (s) => {
                     return openBlock(), createElementBlock("div", {
                       key: s.k,
                       class: normalizeClass(["seat", { on: unref(debate).mySeats.includes(s.k) }]),
                       onClick: ($event) => unref(debate).toggleSeat(s.k)
                     }, [
-                      createBaseVNode("div", _hoisted_37$6, toDisplayString(s.k), 1),
-                      createBaseVNode("div", _hoisted_38$6, toDisplayString(s.role), 1)
-                    ], 10, _hoisted_36$6);
+                      createBaseVNode("div", _hoisted_49$4, toDisplayString(s.k), 1),
+                      createBaseVNode("div", _hoisted_50$3, toDisplayString(s.role), 1)
+                    ], 10, _hoisted_48$4);
                   }), 128))
                 ])
               ]),
               createBaseVNode("div", null, [
-                _cache[28] || (_cache[28] = createBaseVNode("div", {
+                _cache[29] || (_cache[29] = createBaseVNode("div", {
                   class: "row",
                   style: { "margin-bottom": "7px" }
                 }, [
                   createBaseVNode("span", { class: "tag o" }, "反方")
                 ], -1)),
-                createBaseVNode("div", _hoisted_39$6, [
+                createBaseVNode("div", _hoisted_51$3, [
                   (openBlock(true), createElementBlock(Fragment, null, renderList(unref(SEATS).filter((x) => x.side === "B"), (s) => {
                     return openBlock(), createElementBlock("div", {
                       key: s.k,
                       class: normalizeClass(["seat", { on: unref(debate).mySeats.includes(s.k) }]),
                       onClick: ($event) => unref(debate).toggleSeat(s.k)
                     }, [
-                      createBaseVNode("div", _hoisted_41$5, toDisplayString(s.k), 1),
-                      createBaseVNode("div", _hoisted_42$5, toDisplayString(s.role), 1)
-                    ], 10, _hoisted_40$6);
+                      createBaseVNode("div", _hoisted_53$3, toDisplayString(s.k), 1),
+                      createBaseVNode("div", _hoisted_54$3, toDisplayString(s.role), 1)
+                    ], 10, _hoisted_52$3);
                   }), 128))
                 ])
               ])
             ]),
-            createBaseVNode("div", _hoisted_43$4, [
+            createBaseVNode("div", _hoisted_55$3, [
               createBaseVNode("button", {
                 class: normalizeClass(["preset", { on: unref(debate).mySeats.join() === "A1" }]),
                 onClick: _cache[7] || (_cache[7] = ($event) => unref(debate).setSeats(["A1"]))
@@ -14305,55 +14422,55 @@ const _sfc_main$d = {
                 onClick: _cache[11] || (_cache[11] = ($event) => unref(debate).setSeats(["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4"]))
               }, "正反全占", 2)
             ]),
-            createBaseVNode("div", _hoisted_44$4, [
-              _cache[29] || (_cache[29] = createBaseVNode("span", { style: { "font-size": "12.5px", "color": "#4a5568" } }, "节奏", -1)),
+            createBaseVNode("div", _hoisted_56$3, [
+              _cache[30] || (_cache[30] = createBaseVNode("span", { style: { "font-size": "12.5px", "color": "#4a5568" } }, "节奏", -1)),
               (openBlock(), createElementBlock(Fragment, null, renderList([["tight", "紧凑", "赶时间，练单点"], ["normal", "标准", "一次完整论证"], ["loose", "宽松", "慢慢想、写足"]], (p2) => {
                 return createBaseVNode("button", {
                   key: p2[0],
                   class: normalizeClass(["preset", { on: unref(debate).pace === p2[0] }]),
                   title: p2[2],
                   onClick: ($event) => unref(debate).setPace(p2[0])
-                }, toDisplayString(p2[1]), 11, _hoisted_45$4);
+                }, toDisplayString(p2[1]), 11, _hoisted_57$3);
               }), 64)),
-              createBaseVNode("span", _hoisted_46$3, "各环节时长不同：立论 " + toDisplayString(paceHintText.value), 1)
+              createBaseVNode("span", _hoisted_58$3, "各环节时长不同：立论 " + toDisplayString(paceHintText.value), 1)
             ]),
-            createBaseVNode("div", _hoisted_47$3, [
-              _cache[30] || (_cache[30] = createBaseVNode("span", { style: { "font-size": "12.5px", "color": "#4a5568" } }, "陪练强度", -1)),
+            createBaseVNode("div", _hoisted_59$3, [
+              _cache[31] || (_cache[31] = createBaseVNode("span", { style: { "font-size": "12.5px", "color": "#4a5568" } }, "陪练强度", -1)),
               (openBlock(), createElementBlock(Fragment, null, renderList([["novice", "新手", "给你台阶，不抓漏洞"], ["pro", "进阶", "正常对抗"], ["contest", "竞赛", "专抓你的漏洞，会埋雷"]], (p2) => {
                 return createBaseVNode("button", {
                   key: p2[0],
                   class: normalizeClass(["preset", { on: unref(debate).difficulty === p2[0] }]),
                   title: p2[2],
                   onClick: ($event) => unref(debate).setDifficulty(p2[0])
-                }, toDisplayString(p2[1]), 11, _hoisted_48$3);
+                }, toDisplayString(p2[1]), 11, _hoisted_60$3);
               }), 64)),
-              _cache[31] || (_cache[31] = createBaseVNode("span", { style: { "font-size": "11.5px", "color": "#8a909c" } }, "竞赛难度会故意犯逻辑错误，等你抓", -1))
+              _cache[32] || (_cache[32] = createBaseVNode("span", { style: { "font-size": "11.5px", "color": "#8a909c" } }, "竞赛难度会故意犯逻辑错误，等你抓", -1))
             ]),
-            createBaseVNode("div", _hoisted_49$3, [
-              createBaseVNode("div", _hoisted_50$3, [
-                _cache[32] || (_cache[32] = createBaseVNode("span", { style: { "font-size": "12.5px", "color": "#4a5568" } }, "AI 档位", -1)),
+            createBaseVNode("div", _hoisted_61$3, [
+              createBaseVNode("div", _hoisted_62$3, [
+                _cache[33] || (_cache[33] = createBaseVNode("span", { style: { "font-size": "12.5px", "color": "#4a5568" } }, "AI 档位", -1)),
                 (openBlock(true), createElementBlock(Fragment, null, renderList(tierList.value, (t) => {
                   return openBlock(), createElementBlock("button", {
                     key: t.key,
                     class: normalizeClass(["preset", { on: unref(debate).tier === t.key }]),
                     title: t.note || "",
                     onClick: ($event) => pickTier(t)
-                  }, toDisplayString(t.label), 11, _hoisted_51$3);
+                  }, toDisplayString(t.label), 11, _hoisted_63$3);
                 }), 128))
               ]),
-              createBaseVNode("div", _hoisted_52$3, toDisplayString(curTier.value && curTier.value.note || ""), 1)
+              createBaseVNode("div", _hoisted_64$3, toDisplayString(curTier.value && curTier.value.note || ""), 1)
             ]),
-            createBaseVNode("div", _hoisted_53$3, [
-              _cache[33] || (_cache[33] = createTextVNode(" 已选：", -1)),
+            createBaseVNode("div", _hoisted_65$3, [
+              _cache[34] || (_cache[34] = createTextVNode(" 已选：", -1)),
               createBaseVNode("b", null, toDisplayString([...unref(debate).mySeats].sort().join(" ")), 1),
-              _cache[34] || (_cache[34] = createTextVNode(" · 本场你将发言 ", -1)),
+              _cache[35] || (_cache[35] = createTextVNode(" · 本场你将发言 ", -1)),
               createBaseVNode("b", null, toDisplayString(unref(debate).myTurnCount), 1),
-              _cache[35] || (_cache[35] = createTextVNode(" 次 · 节奏 ", -1)),
+              _cache[36] || (_cache[36] = createTextVNode(" 次 · 节奏 ", -1)),
               createBaseVNode("b", null, toDisplayString(paceName.value), 1),
-              _cache[36] || (_cache[36] = createTextVNode(" · 档位 ", -1)),
+              _cache[37] || (_cache[37] = createTextVNode(" · 档位 ", -1)),
               createBaseVNode("b", null, toDisplayString(tierName.value), 1)
             ]),
-            createBaseVNode("div", _hoisted_54$3, [
+            createBaseVNode("div", _hoisted_66$3, [
               createBaseVNode("button", {
                 class: "btn ghost",
                 onClick: _cache[12] || (_cache[12] = ($event) => seatOpen.value = false)
@@ -14366,40 +14483,40 @@ const _sfc_main$d = {
           ])
         ])) : createCommentVNode("", true),
         audit.value ? (openBlock(), createElementBlock("div", {
-          key: 4,
+          key: 5,
           class: "mask",
           onClick: _cache[15] || (_cache[15] = withModifiers(($event) => audit.value = null, ["self"]))
         }, [
-          createBaseVNode("div", _hoisted_55$3, [
-            createBaseVNode("div", _hoisted_56$3, [
-              createBaseVNode("span", _hoisted_57$3, toDisplayString(audit.value.loading ? "⏳" : audit.value.result === "REJECT" ? "⛔" : "✏️"), 1),
+          createBaseVNode("div", _hoisted_67$2, [
+            createBaseVNode("div", _hoisted_68$2, [
+              createBaseVNode("span", _hoisted_69$2, toDisplayString(audit.value.loading ? "⏳" : audit.value.result === "REJECT" ? "⛔" : "✏️"), 1),
               createBaseVNode("h2", {
                 style: normalizeStyle({ margin: 0, color: audit.value.loading ? "#8A909C" : audit.value.result === "REJECT" ? "#C0392B" : "#C2671E" })
               }, toDisplayString(audit.value.loading ? "AI 审核中…" : "需要修改"), 5),
-              audit.value.cached ? (openBlock(), createElementBlock("span", _hoisted_58$3, "命中缓存")) : createCommentVNode("", true)
+              audit.value.cached ? (openBlock(), createElementBlock("span", _hoisted_70$2, "命中缓存")) : createCommentVNode("", true)
             ]),
-            createBaseVNode("div", _hoisted_59$3, "「" + toDisplayString(audit.value.title) + "」", 1),
-            audit.value.loading ? (openBlock(), createElementBlock("div", _hoisted_60$3, "正在判断：是否可辩 · 正反是否平衡 · 是否合规")) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
-              createBaseVNode("div", _hoisted_61$3, [
-                _cache[39] || (_cache[39] = createBaseVNode("b", null, "结论：", -1)),
+            createBaseVNode("div", _hoisted_71$2, "「" + toDisplayString(audit.value.title) + "」", 1),
+            audit.value.loading ? (openBlock(), createElementBlock("div", _hoisted_72$2, "正在判断：是否可辩 · 正反是否平衡 · 是否合规")) : (openBlock(), createElementBlock(Fragment, { key: 1 }, [
+              createBaseVNode("div", _hoisted_73$2, [
+                _cache[40] || (_cache[40] = createBaseVNode("b", null, "结论：", -1)),
                 createTextVNode(toDisplayString(audit.value.reason), 1)
               ]),
-              (audit.value.suggestions || []).length ? (openBlock(), createElementBlock("div", _hoisted_62$3, " 试试这些改写： ")) : createCommentVNode("", true),
+              (audit.value.suggestions || []).length ? (openBlock(), createElementBlock("div", _hoisted_74$2, " 试试这些改写： ")) : createCommentVNode("", true),
               (openBlock(true), createElementBlock(Fragment, null, renderList(audit.value.suggestions || [], (s, i) => {
                 return openBlock(), createElementBlock("div", {
                   key: i,
                   class: "row",
                   style: { "margin-top": "6px" }
                 }, [
-                  createBaseVNode("span", _hoisted_63$3, toDisplayString(s), 1),
+                  createBaseVNode("span", _hoisted_75$2, toDisplayString(s), 1),
                   createBaseVNode("button", {
                     class: "btn sm ghost",
                     onClick: ($event) => adopt(s)
-                  }, "用这个", 8, _hoisted_64$3)
+                  }, "用这个", 8, _hoisted_76$2)
                 ]);
               }), 128))
             ], 64)),
-            createBaseVNode("div", _hoisted_65$3, [
+            createBaseVNode("div", _hoisted_77$2, [
               createBaseVNode("button", {
                 class: "btn ghost",
                 onClick: _cache[14] || (_cache[14] = ($event) => audit.value = null)
@@ -14411,6 +14528,7 @@ const _sfc_main$d = {
     };
   }
 };
+const SoloView = /* @__PURE__ */ _export_sfc(_sfc_main$d, [["__scopeId", "data-v-6268a179"]]);
 const _hoisted_1$c = { class: "pg-wrap" };
 const _hoisted_2$c = {
   class: "card",
@@ -14725,13 +14843,13 @@ const _hoisted_45$3 = {
   key: 0,
   class: "waiting"
 };
-const _hoisted_46$2 = ["disabled", "title"];
-const _hoisted_47$2 = {
+const _hoisted_46$3 = ["disabled", "title"];
+const _hoisted_47$3 = {
   key: 1,
   class: "hints"
 };
-const _hoisted_48$2 = ["title"];
-const _hoisted_49$2 = {
+const _hoisted_48$3 = ["title"];
+const _hoisted_49$3 = {
   key: 2,
   class: "recbar"
 };
@@ -14739,70 +14857,79 @@ const _hoisted_50$2 = {
   key: 3,
   class: "recbar err"
 };
-const _hoisted_51$2 = ["disabled", "placeholder", "onKeydown"];
-const _hoisted_52$2 = { class: "count" };
-const _hoisted_53$2 = {
+const _hoisted_51$2 = {
+  key: 4,
+  class: "segs"
+};
+const _hoisted_52$2 = { class: "segs-hd" };
+const _hoisted_53$2 = { class: "seg-no" };
+const _hoisted_54$2 = { class: "seg-tx" };
+const _hoisted_55$2 = ["onClick"];
+const _hoisted_56$2 = ["disabled", "placeholder", "onKeydown"];
+const _hoisted_57$2 = { class: "count" };
+const _hoisted_58$2 = {
   key: 0,
   style: { "color": "#C0392B" }
 };
-const _hoisted_54$2 = {
+const _hoisted_59$2 = {
   class: "row",
   style: { "margin-top": "8px" }
 };
-const _hoisted_55$2 = { style: { "font-size": "11.5px", "color": "#a8adb8" } };
-const _hoisted_56$2 = {
+const _hoisted_60$2 = { style: { "font-size": "11.5px", "color": "#a8adb8" } };
+const _hoisted_61$2 = {
   key: 0,
   class: "btn sm ghost",
   disabled: "",
   style: { "margin-left": "10px" },
   title: "轮到你说，没法催"
 };
-const _hoisted_57$2 = ["disabled", "title"];
-const _hoisted_58$2 = ["disabled", "title"];
-const _hoisted_59$2 = { class: "card" };
-const _hoisted_60$2 = {
+const _hoisted_62$2 = ["disabled", "title"];
+const _hoisted_63$2 = ["disabled"];
+const _hoisted_64$2 = ["disabled", "title"];
+const _hoisted_65$2 = { class: "card" };
+const _hoisted_66$2 = {
   class: "row",
   style: { "justify-content": "space-between", "margin-bottom": "8px" }
 };
-const _hoisted_61$2 = { style: { "font-size": "11.5px", "color": "#8a909c" } };
-const _hoisted_62$2 = { class: "steps" };
-const _hoisted_63$2 = { class: "no" };
-const _hoisted_64$2 = {
+const _hoisted_67$1 = { style: { "font-size": "11.5px", "color": "#8a909c" } };
+const _hoisted_68$1 = { class: "steps" };
+const _hoisted_69$1 = { class: "no" };
+const _hoisted_70$1 = {
   class: "card",
   style: { "margin-top": "12px" }
 };
-const _hoisted_65$2 = {
+const _hoisted_71$1 = {
   class: "row",
   style: { "justify-content": "space-between" }
 };
-const _hoisted_66$2 = { class: "tag" };
-const _hoisted_67$1 = { style: { "max-height": "230px", "overflow": "auto" } };
-const _hoisted_68$1 = ["onClick"];
-const _hoisted_69$1 = { style: { "font-size": "11.5px", "line-height": "1.6" } };
-const _hoisted_70$1 = { style: { "font-size": "10.5px", "color": "#a8adb8", "margin-top": "3px" } };
-const _hoisted_71$1 = {
+const _hoisted_72$1 = { class: "tag" };
+const _hoisted_73$1 = { style: { "max-height": "230px", "overflow": "auto" } };
+const _hoisted_74$1 = ["onClick"];
+const _hoisted_75$1 = { style: { "font-size": "11.5px", "line-height": "1.6" } };
+const _hoisted_76$1 = { style: { "font-size": "10.5px", "color": "#a8adb8", "margin-top": "3px" } };
+const _hoisted_77$1 = {
   key: 0,
   class: "tag g",
   style: { "font-size": "9.5px" }
 };
-const _hoisted_72$1 = {
+const _hoisted_78$1 = {
   key: 1,
   class: "tag o",
   style: { "font-size": "9.5px" }
 };
-const _hoisted_73$1 = {
+const _hoisted_79$1 = {
   key: 0,
   class: "empty"
 };
-const _hoisted_74$1 = {
+const _hoisted_80$1 = {
   class: "card",
   style: { "margin-top": "12px" }
 };
-const _hoisted_75$1 = { style: { "margin-top": "8px" } };
-const _hoisted_76$1 = { class: "kv" };
-const _hoisted_77$1 = { class: "kv" };
-const _hoisted_78$1 = { class: "kv" };
-const _hoisted_79$1 = {
+const _hoisted_81 = { style: { "margin-top": "8px" } };
+const _hoisted_82 = { class: "kv" };
+const _hoisted_83 = { class: "kv" };
+const _hoisted_84 = { class: "kv" };
+const _hoisted_85 = {
   key: 0,
   class: "kv"
 };
@@ -14816,7 +14943,40 @@ const _sfc_main$b = {
     const debate = useDebateStore();
     const auth = useAuthStore();
     const draft = /* @__PURE__ */ ref("");
-    const draftLen = computed(() => (draft.value || "").length);
+    const segments = /* @__PURE__ */ ref([]);
+    const segJoinedLen = computed(() => segments.value.join("\n\n").length);
+    const totalLen = computed(() => {
+      const parts = segments.value.slice();
+      if ((draft.value || "").trim()) parts.push(draft.value);
+      return parts.join("\n\n").length;
+    });
+    const canEndSpeech = computed(() => !!debate.waiting && totalLen.value > 0);
+    const speechText = computed(() => {
+      const parts = segments.value.length ? segments.value.slice() : (draft.value || "").trim() ? [cleanPasted(draft.value)] : [];
+      return parts.join("\n\n").slice(0, MAX_DRAFT);
+    });
+    function sendSegment() {
+      const text = cleanPasted(draft.value).trim();
+      if (!text) return toast("先写点内容再发送");
+      const head = segJoinedLen.value ? segJoinedLen.value + 2 : 0;
+      const room = MAX_DRAFT - head;
+      if (room <= 0) {
+        toast("已经到 " + MAX_DRAFT + " 字上限，先点「结束发言」吧");
+        return;
+      }
+      const cut = text.length > room ? text.slice(0, room) : text;
+      segments.value = segments.value.concat(cut);
+      if (cut.length < text.length) toast("已到 " + MAX_DRAFT + " 字上限，多出来的部分没放进去");
+      draft.value = "";
+      saveDraft();
+      nextTick(() => {
+        const ta = document.querySelector(".composer textarea");
+        if (ta) ta.focus();
+      });
+    }
+    function removeSegment(i) {
+      segments.value = segments.value.filter((_, idx) => idx !== i);
+    }
     const draftKey = () => debate.matchId ? "sy_draft_" + debate.matchId : "";
     function saveDraft() {
       try {
@@ -15048,17 +15208,22 @@ const _sfc_main$b = {
       }, 1e3);
     }
     onBeforeUnmount(() => stopVoice());
-    async function submit() {
-      const text = cleanPasted(draft.value).slice(0, MAX_DRAFT);
+    async function endSpeech() {
       if (!debate.waiting) return toast("还没轮到你——写好的内容会留着，轮到你就能发");
+      const text = speechText.value;
       if (!text) return toast("说点什么再发");
+      if (totalLen.value > MAX_DRAFT) toast("超过 " + MAX_DRAFT + " 字，已截断到上限");
       const ok = await debate.submitTurn(text, usedVoice ? "voice" : "kb");
       if (ok) {
+        segments.value = [];
         draft.value = "";
         usedVoice = false;
+        saveDraft();
+        await nextTick();
+        scrollBottom();
+      } else {
+        toast("提交失败，内容已保留，可以再点一次「结束发言」");
       }
-      await nextTick();
-      scrollBottom();
     }
     function cleanPasted(raw) {
       return String(raw || "").replace(/[\u200b\u200c\u200d\ufeff]/g, "").replace(/\r\n?/g, "\n").replace(/\u00a0|\u3000/g, " ").replace(/\n{3,}/g, "\n\n").trim();
@@ -15356,9 +15521,9 @@ const _sfc_main$b = {
                   disabled: unref(debate).skipBusy || !unref(debate).canSkip(),
                   title: unref(debate).canSkip() ? "让对方立刻开口，或立刻显示全文" : "这一轮已经催过了，等下一步",
                   onClick: _cache[5] || (_cache[5] = ($event) => unref(debate).nudge())
-                }, toDisplayString(unref(debate).skipBusy ? "催中…" : unref(debate).hasTyping() ? "直接显示全文" : "催一下"), 9, _hoisted_46$2)) : createCommentVNode("", true)
+                }, toDisplayString(unref(debate).skipBusy ? "催中…" : unref(debate).hasTyping() ? "直接显示全文" : "催一下"), 9, _hoisted_46$3)) : createCommentVNode("", true)
               ])) : createCommentVNode("", true),
-              unref(debate).waiting && rebutHints.value.length ? (openBlock(), createElementBlock("div", _hoisted_47$2, [
+              unref(debate).waiting && rebutHints.value.length ? (openBlock(), createElementBlock("div", _hoisted_47$3, [
                 _cache[20] || (_cache[20] = createBaseVNode("span", { class: "hint-label" }, "可以从这儿下手", -1)),
                 (openBlock(true), createElementBlock(Fragment, null, renderList(rebutHints.value, (h2) => {
                   return openBlock(), createElementBlock("span", {
@@ -15368,106 +15533,134 @@ const _sfc_main$b = {
                   }, [
                     createBaseVNode("b", null, toDisplayString(h2.k), 1),
                     createTextVNode(toDisplayString(h2.v), 1)
-                  ], 8, _hoisted_48$2);
+                  ], 8, _hoisted_48$3);
                 }), 128))
               ])) : createCommentVNode("", true),
-              recOn.value ? (openBlock(), createElementBlock("div", _hoisted_49$2, "正在录音 " + toDisplayString(recSec.value) + "s / 90s · 说完点「停止」，文本可编辑后再发送", 1)) : recErr.value ? (openBlock(), createElementBlock("div", _hoisted_50$2, toDisplayString(recErr.value), 1)) : createCommentVNode("", true),
+              recOn.value ? (openBlock(), createElementBlock("div", _hoisted_49$3, "正在录音 " + toDisplayString(recSec.value) + "s / 90s · 说完点「停止」，文本可编辑后再发送", 1)) : recErr.value ? (openBlock(), createElementBlock("div", _hoisted_50$2, toDisplayString(recErr.value), 1)) : createCommentVNode("", true),
+              segments.value.length ? (openBlock(), createElementBlock("div", _hoisted_51$2, [
+                createBaseVNode("div", _hoisted_52$2, [
+                  createBaseVNode("b", null, "本次发言 " + toDisplayString(segments.value.length) + " 段", 1),
+                  createBaseVNode("span", null, toDisplayString(segJoinedLen.value) + " 字 · 结束后一起发给对方", 1)
+                ]),
+                (openBlock(true), createElementBlock(Fragment, null, renderList(segments.value, (s, i) => {
+                  return openBlock(), createElementBlock("div", {
+                    key: i,
+                    class: "seg"
+                  }, [
+                    createBaseVNode("span", _hoisted_53$2, toDisplayString(i + 1), 1),
+                    createBaseVNode("div", _hoisted_54$2, toDisplayString(s), 1),
+                    createBaseVNode("button", {
+                      type: "button",
+                      class: "seg-del",
+                      title: "删掉这一段",
+                      onClick: ($event) => removeSegment(i)
+                    }, "×", 8, _hoisted_55$2)
+                  ]);
+                }), 128))
+              ])) : createCommentVNode("", true),
               withDirectives(createBaseVNode("textarea", {
                 "onUpdate:modelValue": _cache[6] || (_cache[6] = ($event) => draft.value = $event),
                 disabled: recOn.value,
-                placeholder: unref(debate).waiting ? "写下你的发言…（语音可用，Ctrl+Enter 发送）" : "对方还在说 —— 你可以先写好，轮到你直接发（Ctrl+Enter）",
+                placeholder: unref(debate).waiting ? "写下这一段…（发送 = 攒段，Ctrl+Enter = 结束发言）" : "对方还在说 —— 先写这一段，轮到你就能结束发言（Ctrl+Enter）",
                 onInput: onType,
                 onPaste,
                 onKeydown: [
-                  withKeys(withModifiers(submit, ["ctrl"]), ["enter"]),
-                  withKeys(withModifiers(submit, ["meta"]), ["enter"])
+                  withKeys(withModifiers(endSpeech, ["ctrl"]), ["enter"]),
+                  withKeys(withModifiers(endSpeech, ["meta"]), ["enter"])
                 ]
-              }, null, 40, _hoisted_51$2), [
+              }, null, 40, _hoisted_56$2), [
                 [vModelText, draft.value]
               ]),
-              createBaseVNode("div", _hoisted_52$2, [
+              createBaseVNode("div", _hoisted_57$2, [
                 createBaseVNode("span", {
-                  class: normalizeClass({ warn: draftLen.value > 1800 })
-                }, toDisplayString(draftLen.value) + " 字", 3),
-                draftLen.value > 1800 ? (openBlock(), createElementBlock("span", _hoisted_53$2, "建议 1800 字内，超出会被截断")) : createCommentVNode("", true)
+                  class: normalizeClass({ warn: totalLen.value > MAX_DRAFT })
+                }, toDisplayString(totalLen.value) + " / " + toDisplayString(MAX_DRAFT) + " 字", 3),
+                totalLen.value > MAX_DRAFT ? (openBlock(), createElementBlock("span", _hoisted_58$2, "超出上限，结束发言时会截断")) : createCommentVNode("", true)
               ]),
-              createBaseVNode("div", _hoisted_54$2, [
-                createBaseVNode("span", _hoisted_55$2, toDisplayString(unref(debate).waiting ? unref(debate).extendUsed ? "已自动续命 " + unref(debate).extendUsed + " 次" : "打字时会自动续时" : "先写好，轮到你就能发"), 1),
-                unref(debate).kind === "solo" ? (openBlock(), createElementBlock("button", _hoisted_56$2, "催一下")) : createCommentVNode("", true),
+              createBaseVNode("div", _hoisted_59$2, [
+                createBaseVNode("span", _hoisted_60$2, toDisplayString(unref(debate).waiting ? unref(debate).extendUsed ? "已自动续命 " + unref(debate).extendUsed + " 次" : "打字时会自动续时" : "先写好，轮到你就能结束发言"), 1),
+                unref(debate).kind === "solo" ? (openBlock(), createElementBlock("button", _hoisted_61$2, "催一下")) : createCommentVNode("", true),
                 _cache[21] || (_cache[21] = createBaseVNode("span", { style: { "flex": "1" } }, null, -1)),
                 createBaseVNode("button", {
                   class: "btn sm ghost",
                   disabled: !recSupported.value || !unref(debate).waiting,
                   title: recSupported.value ? unref(debate).waiting ? "语音输入（最长 90 秒）" : "轮到你才能录音" : "当前浏览器不支持语音识别",
                   onClick: _cache[7] || (_cache[7] = ($event) => recOn.value ? stopVoice() : startVoice())
-                }, toDisplayString(recOn.value ? "● 录音 " + recSec.value + "s" : "🎤 语音"), 9, _hoisted_57$2),
+                }, toDisplayString(recOn.value ? "● 录音 " + recSec.value + "s" : "🎤 语音"), 9, _hoisted_62$2),
+                createBaseVNode("button", {
+                  class: "btn sm ghost",
+                  style: { "margin-left": "8px" },
+                  disabled: !draft.value.trim(),
+                  title: "把这一段加进本次发言（立刻清空输入框，随时可用）",
+                  onClick: sendSegment
+                }, "发送", 8, _hoisted_63$2),
                 createBaseVNode("button", {
                   class: "btn sm primary",
                   style: { "margin-left": "8px" },
-                  disabled: !unref(debate).waiting || !draft.value.trim(),
-                  title: unref(debate).waiting ? "发送（Ctrl+Enter）" : "还没轮到你，先写好，轮到你就能发",
-                  onClick: submit
-                }, toDisplayString(unref(debate).waiting ? "发送" : "等我回合"), 9, _hoisted_58$2)
+                  disabled: !canEndSpeech.value,
+                  title: unref(debate).waiting ? "结束发言，一次提交本次所有分段（Ctrl+Enter）" : "还没轮到你，先攒着，轮到你就能结束发言",
+                  onClick: endSpeech
+                }, toDisplayString(unref(debate).waiting ? "结束发言" : "等我回合"), 9, _hoisted_64$2)
               ])
             ])
           ]),
           createBaseVNode("div", null, [
-            createBaseVNode("div", _hoisted_59$2, [
-              createBaseVNode("div", _hoisted_60$2, [
+            createBaseVNode("div", _hoisted_65$2, [
+              createBaseVNode("div", _hoisted_66$2, [
                 _cache[22] || (_cache[22] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "赛制进度", -1)),
-                createBaseVNode("span", _hoisted_61$2, toDisplayString(unref(debate).stepNo) + "/" + toDisplayString(unref(debate).totalSteps), 1)
+                createBaseVNode("span", _hoisted_67$1, toDisplayString(unref(debate).stepNo) + "/" + toDisplayString(unref(debate).totalSteps), 1)
               ]),
-              createBaseVNode("div", _hoisted_62$2, [
+              createBaseVNode("div", _hoisted_68$1, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(unref(debate).plan && unref(debate).plan.length ? unref(debate).plan : [], (step, i) => {
                   return openBlock(), createElementBlock("div", {
                     key: _ctx.n,
                     class: normalizeClass(["st", { done: i + 1 < unref(debate).stepNo, cur: i + 1 === unref(debate).stepNo }])
                   }, [
-                    createBaseVNode("span", _hoisted_63$2, toDisplayString(i + 1), 1),
+                    createBaseVNode("span", _hoisted_69$1, toDisplayString(i + 1), 1),
                     createBaseVNode("span", null, toDisplayString(step.seg) + " · " + toDisplayString(step.seat) + toDisplayString(unref(debate).mySeats.includes(step.seat) ? " · 你" : ""), 1)
                   ], 2);
                 }), 128))
               ])
             ]),
-            createBaseVNode("div", _hoisted_64$2, [
-              createBaseVNode("div", _hoisted_65$2, [
+            createBaseVNode("div", _hoisted_70$1, [
+              createBaseVNode("div", _hoisted_71$1, [
                 _cache[23] || (_cache[23] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "论据卡", -1)),
-                createBaseVNode("span", _hoisted_66$2, toDisplayString((unref(debate).cards || []).length) + " 张", 1)
+                createBaseVNode("span", _hoisted_72$1, toDisplayString((unref(debate).cards || []).length) + " 张", 1)
               ]),
               _cache[24] || (_cache[24] = createBaseVNode("div", { style: { "font-size": "11.5px", "color": "#8a909c", "margin": "6px 0 8px" } }, " 点一下插入到发言框。标「需核实」的自己查证过再用。 ", -1)),
-              createBaseVNode("div", _hoisted_67$1, [
+              createBaseVNode("div", _hoisted_73$1, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(unref(debate).cards || [], (c, i) => {
                   return openBlock(), createElementBlock("div", {
                     key: i,
                     style: { "border": "1px solid #efede6", "border-radius": "8px", "padding": "7px 9px", "margin-bottom": "6px", "cursor": "pointer" },
                     onClick: ($event) => insertCard(c)
                   }, [
-                    createBaseVNode("div", _hoisted_69$1, toDisplayString(c.claim), 1),
-                    createBaseVNode("div", _hoisted_70$1, [
+                    createBaseVNode("div", _hoisted_75$1, toDisplayString(c.claim), 1),
+                    createBaseVNode("div", _hoisted_76$1, [
                       createTextVNode(toDisplayString(c.source) + " " + toDisplayString(c.year || "") + " ", 1),
-                      c.verified ? (openBlock(), createElementBlock("span", _hoisted_71$1, "已核实")) : (openBlock(), createElementBlock("span", _hoisted_72$1, "需核实"))
+                      c.verified ? (openBlock(), createElementBlock("span", _hoisted_77$1, "已核实")) : (openBlock(), createElementBlock("span", _hoisted_78$1, "需核实"))
                     ])
-                  ], 8, _hoisted_68$1);
+                  ], 8, _hoisted_74$1);
                 }), 128)),
-                !(unref(debate).cards || []).length ? (openBlock(), createElementBlock("div", _hoisted_73$1, "这道题暂无论据卡")) : createCommentVNode("", true)
+                !(unref(debate).cards || []).length ? (openBlock(), createElementBlock("div", _hoisted_79$1, "这道题暂无论据卡")) : createCommentVNode("", true)
               ])
             ]),
-            createBaseVNode("div", _hoisted_74$1, [
+            createBaseVNode("div", _hoisted_80$1, [
               _cache[29] || (_cache[29] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "本场", -1)),
-              createBaseVNode("div", _hoisted_75$1, [
-                createBaseVNode("div", _hoisted_76$1, [
+              createBaseVNode("div", _hoisted_81, [
+                createBaseVNode("div", _hoisted_82, [
                   _cache[25] || (_cache[25] = createBaseVNode("span", null, "你的席位", -1)),
                   createBaseVNode("b", null, toDisplayString(m.value.my_seats), 1)
                 ]),
-                createBaseVNode("div", _hoisted_77$1, [
+                createBaseVNode("div", _hoisted_83, [
                   _cache[26] || (_cache[26] = createBaseVNode("span", null, "已记录发言", -1)),
                   createBaseVNode("b", null, toDisplayString(unref(debate).turns.length), 1)
                 ]),
-                createBaseVNode("div", _hoisted_78$1, [
+                createBaseVNode("div", _hoisted_84, [
                   _cache[27] || (_cache[27] = createBaseVNode("span", null, "AI 档位", -1)),
                   createBaseVNode("b", null, toDisplayString(tierLabel.value), 1)
                 ]),
-                payerLabel.value ? (openBlock(), createElementBlock("div", _hoisted_79$1, [
+                payerLabel.value ? (openBlock(), createElementBlock("div", _hoisted_85, [
                   _cache[28] || (_cache[28] = createBaseVNode("span", null, "费用", -1)),
                   createBaseVNode("b", null, "由" + toDisplayString(payerLabel.value) + "承担", 1)
                 ])) : createCommentVNode("", true)
@@ -15479,6 +15672,7 @@ const _sfc_main$b = {
     };
   }
 };
+const MatchView = /* @__PURE__ */ _export_sfc(_sfc_main$b, [["__scopeId", "data-v-8b8fa7eb"]]);
 const _hoisted_1$a = {
   key: 0,
   class: "bill-strip"
@@ -15650,13 +15844,13 @@ const _hoisted_45$2 = {
   key: 3,
   style: { "margin-top": "14px" }
 };
-const _hoisted_46$1 = { class: "tbl-wrap" };
-const _hoisted_47$1 = {
+const _hoisted_46$2 = { class: "tbl-wrap" };
+const _hoisted_47$2 = {
   class: "t",
   style: { "margin-top": "6px" }
 };
-const _hoisted_48$1 = { class: "mono" };
-const _hoisted_49$1 = { class: "mono" };
+const _hoisted_48$2 = { class: "mono" };
+const _hoisted_49$2 = { class: "mono" };
 const _hoisted_50$1 = { style: { "font-size": "12px", "color": "#4a5568" } };
 const _hoisted_51$1 = { class: "ev" };
 const _hoisted_52$1 = {
@@ -16041,8 +16235,8 @@ const _sfc_main$9 = {
           ]),
           (r.value.perTurn || []).length ? (openBlock(), createElementBlock("div", _hoisted_45$2, [
             _cache[16] || (_cache[16] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "逐回合点评", -1)),
-            createBaseVNode("div", _hoisted_46$1, [
-              createBaseVNode("table", _hoisted_47$1, [
+            createBaseVNode("div", _hoisted_46$2, [
+              createBaseVNode("table", _hoisted_47$2, [
                 _cache[15] || (_cache[15] = createBaseVNode("thead", null, [
                   createBaseVNode("tr", null, [
                     createBaseVNode("th", { style: { "width": "46px" } }, "步"),
@@ -16055,9 +16249,9 @@ const _sfc_main$9 = {
                 createBaseVNode("tbody", null, [
                   (openBlock(true), createElementBlock(Fragment, null, renderList(r.value.perTurn || [], (p2, i) => {
                     return openBlock(), createElementBlock("tr", { key: i }, [
-                      createBaseVNode("td", _hoisted_48$1, toDisplayString(p2.step), 1),
+                      createBaseVNode("td", _hoisted_48$2, toDisplayString(p2.step), 1),
                       createBaseVNode("td", null, toDisplayString(p2.seg), 1),
-                      createBaseVNode("td", _hoisted_49$1, toDisplayString(p2.chars), 1),
+                      createBaseVNode("td", _hoisted_49$2, toDisplayString(p2.chars), 1),
                       createBaseVNode("td", null, [
                         createBaseVNode("span", {
                           class: normalizeClass(["tag", verdictClass(p2.verdict)])
@@ -16249,78 +16443,86 @@ const _hoisted_12$7 = { class: "mono" };
 const _hoisted_13$7 = { class: "row" };
 const _hoisted_14$6 = ["disabled"];
 const _hoisted_15$6 = {
+  key: 0,
+  class: "card",
+  style: { "margin-bottom": "12px", "border-color": "#d6e0ff", "background": "#fbfcfe", "display": "flex", "align-items": "center", "gap": "12px", "flex-wrap": "wrap" }
+};
+const _hoisted_16$6 = { style: { "flex": "1", "min-width": "200px" } };
+const _hoisted_17$6 = { style: { "font-size": "11.5px", "color": "#8a909c", "margin-top": "3px" } };
+const _hoisted_18$6 = ["disabled"];
+const _hoisted_19$4 = {
   class: "card",
   style: { "margin-bottom": "12px" }
 };
-const _hoisted_16$6 = {
+const _hoisted_20$4 = {
   class: "mono",
   style: { "margin-left": "10px", "font-size": "16px", "letter-spacing": "2px", "color": "#2f5bea", "background": "#edf1fe", "border-radius": "7px", "padding": "3px 10px" }
 };
-const _hoisted_17$6 = {
+const _hoisted_21$4 = {
   class: "card",
   style: { "margin-bottom": "12px", "display": "flex", "align-items": "center", "gap": "10px", "flex-wrap": "wrap" }
 };
-const _hoisted_18$6 = { style: { "font-size": "12.5px", "color": "#4a5568" } };
-const _hoisted_19$4 = { style: { "font-size": "11.5px", "color": "#8a909c" } };
-const _hoisted_20$4 = { class: "strip" };
-const _hoisted_21$4 = { class: "nm" };
-const _hoisted_22$4 = { class: "rl" };
-const _hoisted_23$4 = { class: "card" };
-const _hoisted_24$3 = {
+const _hoisted_22$4 = { style: { "font-size": "12.5px", "color": "#4a5568" } };
+const _hoisted_23$4 = { style: { "font-size": "11.5px", "color": "#8a909c" } };
+const _hoisted_24$3 = { class: "strip" };
+const _hoisted_25$3 = { class: "nm" };
+const _hoisted_26$3 = { class: "rl" };
+const _hoisted_27$3 = { class: "card" };
+const _hoisted_28$3 = {
   class: "t",
   style: { "margin-top": "8px" }
 };
-const _hoisted_25$3 = { class: "mono" };
-const _hoisted_26$3 = {
+const _hoisted_29$3 = { class: "mono" };
+const _hoisted_30$3 = {
   key: 1,
   class: "tag"
 };
-const _hoisted_27$3 = {
+const _hoisted_31$3 = {
   key: 2,
   style: { "color": "#a8adb8" }
 };
-const _hoisted_28$3 = {
+const _hoisted_32$3 = {
   key: 0,
   class: "tag g"
 };
-const _hoisted_29$3 = {
+const _hoisted_33$3 = {
   key: 1,
   class: "tag g"
 };
-const _hoisted_30$3 = {
+const _hoisted_34$3 = {
   key: 2,
   class: "tag"
 };
-const _hoisted_31$3 = { class: "iv-box" };
-const _hoisted_32$3 = { class: "iv-head" };
-const _hoisted_33$3 = {
+const _hoisted_35$3 = { class: "iv-box" };
+const _hoisted_36$3 = { class: "iv-head" };
+const _hoisted_37$3 = {
   class: "sub",
   style: { "margin": "0 0 10px" }
 };
-const _hoisted_34$3 = { class: "mono" };
-const _hoisted_35$3 = { class: "iv-list" };
-const _hoisted_36$3 = {
+const _hoisted_38$3 = { class: "mono" };
+const _hoisted_39$3 = { class: "iv-list" };
+const _hoisted_40$3 = {
   key: 0,
   class: "empty",
   style: { "padding": "24px" }
 };
-const _hoisted_37$3 = {
+const _hoisted_41$2 = {
   key: 1,
   class: "empty",
   style: { "padding": "24px" }
 };
-const _hoisted_38$3 = { class: "fr-av" };
-const _hoisted_39$3 = { class: "fr-main" };
-const _hoisted_40$3 = { class: "fr-name" };
-const _hoisted_41$2 = { class: "fr-id" };
-const _hoisted_42$2 = { class: "fr-act" };
-const _hoisted_43$1 = {
+const _hoisted_42$2 = { class: "fr-av" };
+const _hoisted_43$1 = { class: "fr-main" };
+const _hoisted_44$1 = { class: "fr-name" };
+const _hoisted_45$1 = { class: "fr-id" };
+const _hoisted_46$1 = { class: "fr-act" };
+const _hoisted_47$1 = {
   key: 0,
   class: "btn ghost",
   disabled: ""
 };
-const _hoisted_44$1 = ["onClick"];
-const _hoisted_45$1 = {
+const _hoisted_48$1 = ["onClick"];
+const _hoisted_49$1 = {
   key: 3,
   class: "empty",
   style: { "padding": "24px" }
@@ -16379,7 +16581,8 @@ const _sfc_main$8 = {
         try {
           const d = await roomApi.detail(roomCode.value);
           room.value = d;
-          if (d && d.room && d.room.status === "RUNNING" && d.room.match_id) {
+          if (d && d.room && d.room.status === "RUNNING" && d.room.match_id && autoEnter.value) {
+            autoEnter.value = false;
             stopPoll();
             await enterMatch(d.room.match_id);
           }
@@ -16398,6 +16601,28 @@ const _sfc_main$8 = {
       await debate.load(true);
       debate.startPoll();
       router2.push({ name: "match" });
+    }
+    const continuing = /* @__PURE__ */ ref(false);
+    const autoEnter = /* @__PURE__ */ ref(false);
+    const canContinue = computed(() => {
+      const mid = String(r.value.match_id || "");
+      if (!mid || r.value.status !== "RUNNING") return false;
+      if (!mySeat.value) return false;
+      return seats.value.some((s) => String(s.seat_key || s.seat || "") === String(mySeat.value));
+    });
+    async function continueSolo() {
+      const mid = String(r.value.match_id || "");
+      if (!mid || continuing.value) return;
+      continuing.value = true;
+      try {
+        await debateApi.continueSolo(mid);
+        toast("已转成单人局，其余席位由 AI 补齐");
+        await enterMatch(mid);
+      } catch (e) {
+        toast("继续失败：" + errText2(e));
+      } finally {
+        continuing.value = false;
+      }
     }
     async function createRoom() {
       try {
@@ -16444,6 +16669,7 @@ const _sfc_main$8 = {
     async function startRoom() {
       try {
         const res = await roomApi.start(roomCode.value);
+        autoEnter.value = true;
         stopPoll();
         await enterMatch(res.matchId);
       } catch (e) {
@@ -16581,17 +16807,28 @@ const _sfc_main$8 = {
               }, toDisplayString(myReady.value ? "取消准备" : "准备"), 1))
             ])
           ]),
-          createBaseVNode("div", _hoisted_15$6, [
-            _cache[12] || (_cache[12] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "房间号", -1)),
-            createBaseVNode("span", _hoisted_16$6, toDisplayString(roomCode.value), 1),
-            _cache[13] || (_cache[13] = createBaseVNode("span", { style: { "margin-left": "12px", "font-size": "11.5px", "color": "#8a909c" } }, " 队友在「多人辩论 → 房间号加入」里输入这一串 ", -1))
+          canContinue.value ? (openBlock(), createElementBlock("div", _hoisted_15$6, [
+            createBaseVNode("div", _hoisted_16$6, [
+              _cache[12] || (_cache[12] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "这一场还能接着打", -1)),
+              createBaseVNode("div", _hoisted_17$6, " 房间已开局 · 你坐 " + toDisplayString(mySeat.value) + " · 继续后其余席位自动由 AI 补齐 ", 1)
+            ]),
+            createBaseVNode("button", {
+              class: "btn primary sm",
+              disabled: continuing.value,
+              onClick: continueSolo
+            }, toDisplayString(continuing.value ? "正在开始…" : "继续这一场（其余席位 AI 补齐）"), 9, _hoisted_18$6)
+          ])) : createCommentVNode("", true),
+          createBaseVNode("div", _hoisted_19$4, [
+            _cache[13] || (_cache[13] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "房间号", -1)),
+            createBaseVNode("span", _hoisted_20$4, toDisplayString(roomCode.value), 1),
+            _cache[14] || (_cache[14] = createBaseVNode("span", { style: { "margin-left": "12px", "font-size": "11.5px", "color": "#8a909c" } }, " 队友在「多人辩论 → 房间号加入」里输入这一串 ", -1))
           ]),
-          createBaseVNode("div", _hoisted_17$6, [
-            _cache[14] || (_cache[14] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "费用", -1)),
-            createBaseVNode("span", _hoisted_18$6, "本场费用由房主承担 · 档位 高级版(" + toDisplayString(roomTier.value) + ")", 1),
-            createBaseVNode("span", _hoisted_19$4, " 其余席位不扣费；账单记在房主名下" + toDisplayString(room.value && room.value.isHost ? "（你是房主）" : ""), 1)
+          createBaseVNode("div", _hoisted_21$4, [
+            _cache[15] || (_cache[15] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "费用", -1)),
+            createBaseVNode("span", _hoisted_22$4, "本场费用由房主承担 · 档位 高级版(" + toDisplayString(roomTier.value) + ")", 1),
+            createBaseVNode("span", _hoisted_23$4, " 其余席位不扣费；账单记在房主名下" + toDisplayString(room.value && room.value.isHost ? "（你是房主）" : ""), 1)
           ]),
-          createBaseVNode("div", _hoisted_20$4, [
+          createBaseVNode("div", _hoisted_24$3, [
             (openBlock(true), createElementBlock(Fragment, null, renderList(seats.value, (s) => {
               return openBlock(), createElementBlock("div", {
                 key: s.seat_key,
@@ -16601,22 +16838,22 @@ const _sfc_main$8 = {
                   class: normalizeClass(["av", s.side === "A" ? "a" : "b"])
                 }, toDisplayString(s.seat_key === mySeat.value ? "我" : String(s.occupant === "USER" ? s.user_name || "?" : s.occupant === "AI" ? "AI" : "空").slice(0, 1)), 3),
                 createBaseVNode("div", null, [
-                  createBaseVNode("div", _hoisted_21$4, [
+                  createBaseVNode("div", _hoisted_25$3, [
                     createTextVNode(toDisplayString(s.occupant === "USER" ? s.user_name || "未知" : s.occupant === "AI" ? s.user_name || "AI" : "空位") + " ", 1),
                     roleTag(s) ? (openBlock(), createElementBlock("span", {
                       key: 0,
                       class: normalizeClass(roleTag(s).cls)
                     }, toDisplayString(roleTag(s).text), 3)) : createCommentVNode("", true)
                   ]),
-                  createBaseVNode("div", _hoisted_22$4, toDisplayString(s.side === "A" ? "正方" : "反方") + toDisplayString(s.role) + toDisplayString(s.ready ? " · 已准备" : ""), 1)
+                  createBaseVNode("div", _hoisted_26$3, toDisplayString(s.side === "A" ? "正方" : "反方") + toDisplayString(s.role) + toDisplayString(s.ready ? " · 已准备" : ""), 1)
                 ])
               ], 2);
             }), 128))
           ]),
-          createBaseVNode("div", _hoisted_23$4, [
-            _cache[16] || (_cache[16] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "席位", -1)),
-            createBaseVNode("table", _hoisted_24$3, [
-              _cache[15] || (_cache[15] = createBaseVNode("thead", null, [
+          createBaseVNode("div", _hoisted_27$3, [
+            _cache[17] || (_cache[17] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "席位", -1)),
+            createBaseVNode("table", _hoisted_28$3, [
+              _cache[16] || (_cache[16] = createBaseVNode("thead", null, [
                 createBaseVNode("tr", null, [
                   createBaseVNode("th", null, "席位"),
                   createBaseVNode("th", null, "辩位"),
@@ -16629,7 +16866,7 @@ const _sfc_main$8 = {
                   return openBlock(), createElementBlock("tr", {
                     key: s.seat_key
                   }, [
-                    createBaseVNode("td", _hoisted_25$3, toDisplayString(s.seat_key), 1),
+                    createBaseVNode("td", _hoisted_29$3, toDisplayString(s.seat_key), 1),
                     createBaseVNode("td", null, toDisplayString(s.role), 1),
                     createBaseVNode("td", null, [
                       s.occupant === "USER" ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
@@ -16638,13 +16875,13 @@ const _sfc_main$8 = {
                           key: 0,
                           class: normalizeClass(roleTag(s).cls)
                         }, toDisplayString(roleTag(s).text), 3)) : createCommentVNode("", true),
-                        s.seat_key === mySeat.value ? (openBlock(), createElementBlock("span", _hoisted_26$3, "你")) : createCommentVNode("", true)
+                        s.seat_key === mySeat.value ? (openBlock(), createElementBlock("span", _hoisted_30$3, "你")) : createCommentVNode("", true)
                       ], 64)) : s.occupant === "AI" ? (openBlock(), createElementBlock(Fragment, { key: 1 }, [
                         createTextVNode("AI")
-                      ], 64)) : (openBlock(), createElementBlock("span", _hoisted_27$3, "空位（开局补 AI）"))
+                      ], 64)) : (openBlock(), createElementBlock("span", _hoisted_31$3, "空位（开局补 AI）"))
                     ]),
                     createBaseVNode("td", null, [
-                      s.occupant === "AI" ? (openBlock(), createElementBlock("span", _hoisted_28$3, "就绪")) : s.ready ? (openBlock(), createElementBlock("span", _hoisted_29$3, "已准备")) : (openBlock(), createElementBlock("span", _hoisted_30$3, "未准备"))
+                      s.occupant === "AI" ? (openBlock(), createElementBlock("span", _hoisted_32$3, "就绪")) : s.ready ? (openBlock(), createElementBlock("span", _hoisted_33$3, "已准备")) : (openBlock(), createElementBlock("span", _hoisted_34$3, "未准备"))
                     ])
                   ]);
                 }), 128))
@@ -16657,39 +16894,39 @@ const _sfc_main$8 = {
           class: "mask",
           onClick: _cache[4] || (_cache[4] = withModifiers(($event) => invite.value.open = false, ["self"]))
         }, [
-          createBaseVNode("div", _hoisted_31$3, [
-            createBaseVNode("div", _hoisted_32$3, [
-              _cache[17] || (_cache[17] = createBaseVNode("b", null, "邀请好友加入", -1)),
+          createBaseVNode("div", _hoisted_35$3, [
+            createBaseVNode("div", _hoisted_36$3, [
+              _cache[18] || (_cache[18] = createBaseVNode("b", null, "邀请好友加入", -1)),
               createBaseVNode("button", {
                 class: "btn ghost sm",
                 onClick: _cache[3] || (_cache[3] = ($event) => invite.value.open = false)
               }, "关闭")
             ]),
-            createBaseVNode("p", _hoisted_33$3, [
-              _cache[18] || (_cache[18] = createTextVNode(" 房间 ", -1)),
-              createBaseVNode("span", _hoisted_34$3, toDisplayString(roomCode.value), 1),
-              _cache[19] || (_cache[19] = createTextVNode(" · 对方会收到一张卡片，点一下就能进 ", -1))
+            createBaseVNode("p", _hoisted_37$3, [
+              _cache[19] || (_cache[19] = createTextVNode(" 房间 ", -1)),
+              createBaseVNode("span", _hoisted_38$3, toDisplayString(roomCode.value), 1),
+              _cache[20] || (_cache[20] = createTextVNode(" · 对方会收到一张卡片，点一下就能进 ", -1))
             ]),
-            createBaseVNode("div", _hoisted_35$3, [
-              invite.value.loading ? (openBlock(), createElementBlock("div", _hoisted_36$3, "加载好友…")) : invite.value.error ? (openBlock(), createElementBlock("div", _hoisted_37$3, toDisplayString(invite.value.error), 1)) : invite.value.friends.length ? (openBlock(true), createElementBlock(Fragment, { key: 2 }, renderList(invite.value.friends, (f) => {
+            createBaseVNode("div", _hoisted_39$3, [
+              invite.value.loading ? (openBlock(), createElementBlock("div", _hoisted_40$3, "加载好友…")) : invite.value.error ? (openBlock(), createElementBlock("div", _hoisted_41$2, toDisplayString(invite.value.error), 1)) : invite.value.friends.length ? (openBlock(true), createElementBlock(Fragment, { key: 2 }, renderList(invite.value.friends, (f) => {
                 return openBlock(), createElementBlock("div", {
                   key: f.id,
                   class: "fr-row"
                 }, [
-                  createBaseVNode("div", _hoisted_38$3, toDisplayString(String(f.name || "?").slice(0, 1)), 1),
-                  createBaseVNode("div", _hoisted_39$3, [
-                    createBaseVNode("div", _hoisted_40$3, toDisplayString(f.name), 1),
-                    createBaseVNode("div", _hoisted_41$2, "@" + toDisplayString(f.id), 1)
+                  createBaseVNode("div", _hoisted_42$2, toDisplayString(String(f.name || "?").slice(0, 1)), 1),
+                  createBaseVNode("div", _hoisted_43$1, [
+                    createBaseVNode("div", _hoisted_44$1, toDisplayString(f.name), 1),
+                    createBaseVNode("div", _hoisted_45$1, "@" + toDisplayString(f.id), 1)
                   ]),
-                  createBaseVNode("div", _hoisted_42$2, [
-                    invite.value.sent[f.id] ? (openBlock(), createElementBlock("button", _hoisted_43$1, "已邀请")) : (openBlock(), createElementBlock("button", {
+                  createBaseVNode("div", _hoisted_46$1, [
+                    invite.value.sent[f.id] ? (openBlock(), createElementBlock("button", _hoisted_47$1, "已邀请")) : (openBlock(), createElementBlock("button", {
                       key: 1,
                       class: "btn primary",
                       onClick: ($event) => sendInvite(f)
-                    }, "邀请", 8, _hoisted_44$1))
+                    }, "邀请", 8, _hoisted_48$1))
                   ])
                 ]);
-              }), 128)) : (openBlock(), createElementBlock("div", _hoisted_45$1, [..._cache[20] || (_cache[20] = [
+              }), 128)) : (openBlock(), createElementBlock("div", _hoisted_49$1, [..._cache[21] || (_cache[21] = [
                 createTextVNode(" 还没有好友", -1),
                 createBaseVNode("br", null, null, -1),
                 createBaseVNode("span", { class: "sub" }, "先去「好友」页搜人加好友，再回来邀请", -1)
@@ -19513,11 +19750,11 @@ const routes = [
   { path: "/diag", name: "diag", component: _sfc_main$h, meta: { requiresAuth: true } },
   { path: "/wallet", name: "wallet", component: _sfc_main$f, meta: { requiresAuth: true } },
   // ---- 批 2：单人/对局/复盘已迁移，房间待迁 ----
-  { path: "/solo", name: "solo", component: _sfc_main$d, meta: { requiresAuth: true } },
+  { path: "/solo", name: "solo", component: SoloView, meta: { requiresAuth: true } },
   { path: "/offline", name: "offline", component: _sfc_main$c, meta: { requiresAuth: true } },
   { path: "/room", name: "room", component: _sfc_main$8, meta: { requiresAuth: true } },
   { path: "/chat", name: "chat", component: _sfc_main$e, meta: { requiresAuth: true } },
-  { path: "/match", name: "match", component: _sfc_main$b, meta: { requiresAuth: true } },
+  { path: "/match", name: "match", component: MatchView, meta: { requiresAuth: true } },
   { path: "/review", name: "review", component: ReviewView, meta: { requiresAuth: true } },
   // ---- 批 3 ----
   { path: "/community", name: "community", component: _sfc_main$4 },
@@ -19533,39 +19770,39 @@ const routes = [
   {
     path: "/admin",
     meta: { bare: true },
-    component: () => __vitePreload(() => import("./AdminLayout-B5_zGZdJ.js"), true ? __vite__mapDeps([0,1,2,3,4,5,6]) : void 0, import.meta.url),
+    component: () => __vitePreload(() => import("./AdminLayout-BVlwB_IZ.js"), true ? __vite__mapDeps([0,1,2,3,4,5,6]) : void 0, import.meta.url),
     children: [
       { path: "", redirect: "/admin/dashboard" },
-      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-CFpO4UYw.js"), true ? [] : void 0, import.meta.url), meta: { guest: true } },
+      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-C8OCDAzv.js"), true ? [] : void 0, import.meta.url), meta: { guest: true } },
       // 首登 / 重置密码后强制改密：这条路由**不受 mustChangePwd 拦截**（否则就是死锁）
       {
         path: "change-password",
         name: "admin-change-password",
-        component: () => __vitePreload(() => import("./ChangePasswordView-iCfZji_i.js"), true ? __vite__mapDeps([7,8]) : void 0, import.meta.url),
+        component: () => __vitePreload(() => import("./ChangePasswordView-Cyx2Yk6y.js"), true ? __vite__mapDeps([7,8]) : void 0, import.meta.url),
         meta: { title: "修改密码", pwdChangeAllowed: true }
       },
-      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-D7mFqdan.js"), true ? __vite__mapDeps([9,10,11,12]) : void 0, import.meta.url), meta: { title: "概览", perm: "analytics:read" } },
-      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-BHq9KKsY.js"), true ? __vite__mapDeps([13,10,11,14,15]) : void 0, import.meta.url), meta: { title: "报表分析", perm: "analytics:read" } },
+      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-nIoRBzB8.js"), true ? __vite__mapDeps([9,10,11,12]) : void 0, import.meta.url), meta: { title: "概览", perm: "analytics:read" } },
+      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-CPUF3auy.js"), true ? __vite__mapDeps([13,10,11,14,15]) : void 0, import.meta.url), meta: { title: "报表分析", perm: "analytics:read" } },
       {
         path: "reports",
         name: "admin-reports",
-        component: () => __vitePreload(() => import("./ReportsView-B3hPfWxt.js"), true ? __vite__mapDeps([16,3,2,17]) : void 0, import.meta.url),
+        component: () => __vitePreload(() => import("./ReportsView-CtspZogr.js"), true ? __vite__mapDeps([16,3,2,17]) : void 0, import.meta.url),
         meta: { title: "举报处理", badge: "pendingReports", perm: "report:read" }
       },
-      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-DSgYgq1U.js"), true ? __vite__mapDeps([18,3,19,20]) : void 0, import.meta.url), meta: { title: "用户管理", perm: "user:read" } },
-      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-Dq8lt7ss.js"), true ? __vite__mapDeps([21,4,5,19,20,3,2,22]) : void 0, import.meta.url), meta: { title: "帖子管理", perm: "content:read" } },
-      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-Cj0wcNNg.js"), true ? __vite__mapDeps([23,4,5,19,20,3,2,24]) : void 0, import.meta.url), meta: { title: "评论管理", perm: "content:read" } },
-      { path: "tags", name: "admin-tags", component: () => __vitePreload(() => import("./TagsView-DZW5qGIz.js"), true ? __vite__mapDeps([25,26]) : void 0, import.meta.url), meta: { title: "标签管理", perm: "content:moderate" } },
-      { path: "alerts", name: "admin-alerts", component: () => __vitePreload(() => import("./AlertsView-JJBNpBv5.js"), true ? __vite__mapDeps([27,1,3,2,28]) : void 0, import.meta.url), meta: { title: "告警", perm: "analytics:read" } },
-      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-BPJ0Dn9c.js"), true ? __vite__mapDeps([29,3,30]) : void 0, import.meta.url), meta: { title: "视频复核", perm: "video:read" } },
-      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-BYwRQsCI.js"), true ? __vite__mapDeps([31,32]) : void 0, import.meta.url), meta: { title: "辩题审核", perm: "topic:read" } },
-      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-Czr9pJGs.js"), true ? __vite__mapDeps([33,3,2,34]) : void 0, import.meta.url), meta: { title: "处理记录", perm: "audit:read" } },
-      { path: "admins", name: "admin-admins", component: () => __vitePreload(() => import("./AdminsView-jelgysr1.js"), true ? __vite__mapDeps([35,36]) : void 0, import.meta.url), meta: { title: "管理员管理", perm: "admin:manage" } },
+      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-BytuZQwK.js"), true ? __vite__mapDeps([18,3,19,20]) : void 0, import.meta.url), meta: { title: "用户管理", perm: "user:read" } },
+      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-3QCzYiFl.js"), true ? __vite__mapDeps([21,4,5,19,20,3,2,22]) : void 0, import.meta.url), meta: { title: "帖子管理", perm: "content:read" } },
+      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-C-QPu_ws.js"), true ? __vite__mapDeps([23,4,5,19,20,3,2,24]) : void 0, import.meta.url), meta: { title: "评论管理", perm: "content:read" } },
+      { path: "tags", name: "admin-tags", component: () => __vitePreload(() => import("./TagsView-Yd0Tcxi5.js"), true ? __vite__mapDeps([25,26]) : void 0, import.meta.url), meta: { title: "标签管理", perm: "content:moderate" } },
+      { path: "alerts", name: "admin-alerts", component: () => __vitePreload(() => import("./AlertsView-2jjWUVmo.js"), true ? __vite__mapDeps([27,1,3,2,28]) : void 0, import.meta.url), meta: { title: "告警", perm: "analytics:read" } },
+      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-DNhfhPpn.js"), true ? __vite__mapDeps([29,3,30]) : void 0, import.meta.url), meta: { title: "视频复核", perm: "video:read" } },
+      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-t3KHhTOs.js"), true ? __vite__mapDeps([31,32]) : void 0, import.meta.url), meta: { title: "辩题审核", perm: "topic:read" } },
+      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-C-kJ2ERi.js"), true ? __vite__mapDeps([33,3,2,34]) : void 0, import.meta.url), meta: { title: "处理记录", perm: "audit:read" } },
+      { path: "admins", name: "admin-admins", component: () => __vitePreload(() => import("./AdminsView-BMZ_0eal.js"), true ? __vite__mapDeps([35,36]) : void 0, import.meta.url), meta: { title: "管理员管理", perm: "admin:manage" } },
       // 参数管理（第一批 10 项）：与管理员管理同一档权限 —— 参数影响钱与功能开关，只给超管
-      { path: "config", name: "admin-config", component: () => __vitePreload(() => import("./ConfigView-jv4QVh6b.js"), true ? __vite__mapDeps([37,38]) : void 0, import.meta.url), meta: { title: "参数管理", perm: "admin:manage" } },
+      { path: "config", name: "admin-config", component: () => __vitePreload(() => import("./ConfigView-B1l1xKNf.js"), true ? __vite__mapDeps([37,38]) : void 0, import.meta.url), meta: { title: "参数管理", perm: "admin:manage" } },
       // 屏蔽词（W3）：审核员就能改（content:moderate），改完立即重建内存词表，不用重启
-      { path: "words", name: "admin-words", component: () => __vitePreload(() => import("./WordsView-BkyBmMtW.js"), true ? __vite__mapDeps([39,14,40]) : void 0, import.meta.url), meta: { title: "屏蔽词", perm: "content:moderate" } },
-      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-DgeEokQw.js"), true ? __vite__mapDeps([41,42]) : void 0, import.meta.url), meta: { title: "设置" } }
+      { path: "words", name: "admin-words", component: () => __vitePreload(() => import("./WordsView-DoSYC8gb.js"), true ? __vite__mapDeps([39,14,40]) : void 0, import.meta.url), meta: { title: "屏蔽词", perm: "content:moderate" } },
+      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-DQdlV6GI.js"), true ? __vite__mapDeps([41,42]) : void 0, import.meta.url), meta: { title: "设置" } }
     ]
   },
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）
