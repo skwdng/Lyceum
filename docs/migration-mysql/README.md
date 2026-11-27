@@ -209,3 +209,22 @@ node scripts/selftest_mysql.mjs
 ```
 
 2026-11-27 在 mysql profile 下 **44/44 全绿**。
+### 7.6 切默认库之前必须做的一步：把测试钉回 H2（已就绪）
+
+827 个测试里凡是 `@SpringBootTest` 都要连数据库，而现在它们连的是**默认 profile（H2）**。
+把 `application.yml` 的 datasource 改成 MySQL 的那一刻，这些测试会跟着去连 MySQL ——
+本地没起容器、CI 上没有 MySQL，就是整片红。
+
+已经准备好的东西（2026-11-27）：
+
+| 文件 | 作用 |
+|---|---|
+| `src/test/resources/application-test.yml` | test profile：H2 内存库 + 那 16 个建表脚本（顺序与 application.yml 一致） |
+| `src/test/resources/application.properties` | `spring.profiles.active=test` —— 所有 Spring 测试自动叠加 |
+| `TestProfileGuardTest` | 断言「激活的 profile 含 test」且「JDBC URL 以 jdbc:h2 开头」，防止被谁改掉 |
+
+**验证方式**：把 `application.yml` 临时改成 MySQL（url/username/password/driver + `schema-locations: classpath:schema-mysql-full.sql`），
+再跑 `TestProfileGuardTest,WalletGrantRaceTest,AdminRbacTest,ConfigServiceTest` ——
+**44 个用例全绿、且都跑在 H2 上**（2026-11-27 实测），说明切库那天测试不会被带走。之后已还原 application.yml。
+
+也就是说：切默认库这件事，改 `application.yml` 一处即可，测试侧不用再动。
