@@ -1,0 +1,40 @@
+# ============================================================================
+# 单测专用 profile：**把 827 个测试钉死在 H2 内存库上**。
+#
+# 为什么需要它：现在默认 profile 还是 H2，所以这事暂时看不出必要性；
+# 但只要哪天把 application.yml 的 datasource 改成 MySQL（切库），
+# 所有 @SpringBootTest 都会去连 MySQL —— 本地和 CI 上没有 MySQL 就整片红。
+# 有了这个文件，切库那天只需要改 application.yml，测试自动还在 H2 上跑。
+#
+# 生效方式：src/test/resources/application.properties 里写了 spring.profiles.active=test，
+# 所以每个 Spring 测试都会叠加这个 profile（命令行 -Dspring.profiles.active=mysql 可临时覆盖）。
+#
+# 建表脚本必须与 application.yml 里的 16 个文件、同样的顺序一致；
+# 顺序有意义（后面的文件会 alter 前面建的表）。SchemaParityTest 守着两套 schema 不漂移。
+# ============================================================================
+spring:
+  datasource:
+    url: jdbc:h2:mem:siyige-test;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: >-
+        classpath:schema.sql,
+        classpath:schema-community.sql,
+        classpath:schema-tag.sql,
+        classpath:schema-video.sql,
+        classpath:schema-auth.sql,
+        classpath:schema-admin.sql,
+        classpath:schema-security.sql,
+        classpath:schema-pay.sql,
+        classpath:schema-userllm.sql,
+        classpath:schema-notify.sql,
+        classpath:schema-ai.sql,
+        classpath:schema-social.sql,
+        classpath:schema-analytics.sql,
+        classpath:schema-alert.sql,
+        classpath:schema-config.sql,
+        classpath:schema-word.sql

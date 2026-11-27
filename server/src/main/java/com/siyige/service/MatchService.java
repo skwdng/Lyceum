@@ -10,6 +10,7 @@ import com.siyige.domain.Format;
 import com.siyige.engine.TurnEngine;
 import com.siyige.hot.HotRank;
 import com.siyige.repo.Store;
+import com.siyige.repo.Times;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -338,7 +339,8 @@ public class MatchService {
         String id = str(m.get("id"));
         Object dl = m.get("deadline_at");
         if (dl == null) return;
-        Instant deadline = ((java.sql.Timestamp) dl).toInstant();
+        // 不要强转 Timestamp：MySQL 驱动给的是 LocalDateTime（见 com.siyige.repo.Times）
+        Instant deadline = Times.toInstant(dl);
         long leftSec = java.time.Duration.between(Instant.now(), deadline).getSeconds();
 
         // 快结束了先推一条预警（只推一次）
@@ -960,7 +962,7 @@ public class MatchService {
         out.put("unlimited", "solo".equalsIgnoreCase(str(m.get("kind"))));
         out.put("extendUsed", num(m.get("extend_count")));
         Object dl = m.get("deadline_at");
-        long left = dl == null ? 0 : java.time.Duration.between(Instant.now(), ((java.sql.Timestamp) dl).toInstant()).getSeconds();
+        long left = dl == null ? 0 : java.time.Duration.between(Instant.now(), Times.toInstant(dl)).getSeconds();
         out.put("remainingSec", Math.max(0, left));   // 房间模式下前端据此判断是不是自己
         out.put("turns", store.turns(matchId));
         return out;
