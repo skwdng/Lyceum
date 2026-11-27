@@ -622,7 +622,7 @@ public class AiService {
 
         sb.append("【表达要求】直接回应内容本身：**不要用**「对方刚才说……」「顺着我方刚才那句……」这类复述套话开头；")
           .append("引用对方原话不超过一次、且只引关键词。同一句话不要在相邻两轮里重复讲。\n");
-        int capHint = Format.segCharCap(seg, duty);
+        int capHint = charCap(seg, duty, p);
         sb.append("【字数】这一环节最多 ").append(capHint).append(" 字（超过会被截断），说重点，不要凑字数。\n");
         sb.append("【你的推理方式】").append(p.strategy()).append("\n");
         sb.append("【陪练强度】").append(switch (difficulty == null ? "pro" : difficulty.toLowerCase()) {
@@ -668,7 +668,8 @@ public class AiService {
         }
 
         sb.append("\n【本轮要求】\n");
-        sb.append("1. 输出 ").append(segChars(seg, p)).append(" 字，最多 3 段。\n");
+        // 字数只在这里与【字数】那一行给出，且都取 charCap() 的同一个数（见 docs/audit/02-ai-speech.md A1）
+        sb.append("1. 控制在 ").append(capHint).append(" 字以内，最多 3 段；超过上限会被截断。\n");
         sb.append("2. 环节结构（必须照做）：\n").append(SEG_GUIDE.getOrDefault(seg, "正常发言即可。")).append("\n");
         List<String> vs = SEG_VARIANTS.get(seg);
         if (vs != null && !vs.isEmpty())
@@ -718,25 +719,15 @@ public class AiService {
         return String.join("、", set);
     }
 
-    /** 截断上限：按环节放宽，避免把半句话切掉。 */
-    private static int segCap(String text) {
-        int n = text == null ? 0 : text.length();
-        if (n > 340) return 400;
-        if (n > 280) return 320;
-        if (n > 200) return 260;
-        return 180;
-    }
-
-    /** 每个环节的字数区间：立论最长，自由辩最短。 */
-    private static String segChars(String seg, Personas.Persona p) {
-        return switch (seg) {
-            case "立论" -> "220–320";
-            case "驳立论" -> "150–220";
-            case "质询" -> "60–110";
-            case "自由辩" -> "60–100";
-            case "总结" -> "200–280";
-            default -> p.minChars() + "–" + p.maxChars();
-        };
+    /**
+     * 本环节**唯一**的字数上限：人设上限与环节上限取小。
+     *
+     * <p>prompt 引导与护栏截断必须用同一个数。旧实现是两套数：prompt 让模型写「220–320 字」、
+     * 护栏按 260 切，于是模型每次都写到 320 再被砍掉尾巴（docs/audit/02-ai-speech.md A1）。
+     */
+    static int charCap(String seg, String duty, Personas.Persona p) {
+        int cap = Math.min(p == null ? 260 : p.maxChars(), Format.segCharCap(seg, duty));
+        return Math.max(40, cap);
     }
 
     // ---------------------------------------------------------------- 兜底
@@ -913,22 +904,83 @@ public class AiService {
         // 先剪掉模型自己重复的段落（退化循环），再按字数截断
         t = cutRepeats(t);
 
-        // 上限取「人设上限」和「环节上限」的较小值：质询答最多 120 字，立论可以 260 字
-        int cap = Math.min(p.maxChars(), Format.segCharCap(seg, duty));
-        if (t.length() > cap) {
-            int cut = t.lastIndexOf('。', cap);
-            t = cut > cap * 0.6 ? t.substring(0, cut + 1) : t.substring(0, cap) + '。';
-        }
+        // 上限只有一个来源：charCap()（prompt 引导与这里用同一个数）。
+        // 截断走句读/逗号/省略号，绝不凭空补一个句号把半句话伪装成完整句。
+        int cap = charCap(seg, duty, p);
+        t = clipToCap(t, cap);
 
         // 最后一道：引用真实性。模型很爱写「对方说『……』」，而那句对方根本没说过。
         // 放在截断之后做——否则刚改写好的句子可能又被字数上限切一刀。
         QuoteGuard.Result qg = QuoteGuard.scrub(t, history, oppLast, mateLast);
         if (qg.fabricated() > 0) {
             quoteFabricatedTotal.addAndGet(qg.fabricated());
-            log.info("引用护栏：{} 条引文在历史里对不上，已改写（席位 {}·{}，共核对 {} 条）",
-                    qg.fabricated(), seat, seg, qg.quoted());
+            log.info("引用护栏：{} 条引文在历史里对不上或指纹不一致，已改写（席位 {}·{}，共核对 {} 条，其中指纹不符 {} 条）",
+                    qg.fabricated(), seat, seg, qg.quoted(), qg.mismatched());
         }
-        return new GuardResult(qg.text(), qg.fabricated());
+        // 截断/改写都可能留下半个引号，这里统一收口（不管有没有 fabricated 都要做）
+        t = QuoteGuard.dropDangling(qg.text());
+        return new GuardResult(t, qg.fabricated());
+    }
+
+    /**
+     * 按字数上限收尾：最近句读（。！？；）→ 最近逗号（，、：）→ 82% 处加省略号。
+     *
+     * <p>三条硬约束：
+     * <ul>
+     *   <li>不凭空造句号（旧实现 {@code substring(0,cap)+'。'} 会让半句话看起来说完了）；</li>
+     *   <li>不把句子切在一个词的中间：退到最近的句读/逗号；一个都没有才退到 82% 并写明省略号；</li>
+     *   <li>不切进引号内部：切口落在未闭合的引号里时，退回到那个开引号之前。</li>
+     * </ul>
+     */
+    static String clipToCap(String text, int cap) {
+        String t = text == null ? "" : text;
+        if (cap <= 0 || t.length() <= cap) return t;
+
+        int floor = Math.max(20, (int) (cap * 0.6));
+        int cut = lastBoundary(t, cap, "。！？；");
+        if (cut >= floor) return safePrefix(t, cut + 1, "");
+        cut = lastBoundary(t, cap, "，、：,");
+        if (cut >= floor) return safePrefix(t, cut, "……");
+        return safePrefix(t, Math.max(1, (int) Math.round(cap * 0.82)), "……");
+    }
+
+    /** 在 [0, cap) 里从后往前找第一个出现在 marks 里的字符。 */
+    private static int lastBoundary(String t, int cap, String marks) {
+        for (int i = Math.min(cap, t.length()) - 1; i >= 0; i--) {
+            if (marks.indexOf(t.charAt(i)) >= 0) return i;
+        }
+        return -1;
+    }
+
+    /** 取前缀并按需加省略号；若切口落在引号内部，退回到那个开引号之前。 */
+    private static String safePrefix(String t, int end, String tail) {
+        int stop = Math.min(Math.max(0, end), t.length());
+        String head = t.substring(0, stop);
+        int opener = unclosedOpener(head);
+        if (opener >= 0) head = head.substring(0, opener);
+        head = head.trim();
+        if (head.isEmpty()) head = t.substring(0, Math.min(t.length(), Math.max(1, stop))).trim();
+        return tail.isEmpty() ? head : head + tail;
+    }
+
+    /** 前缀里最后一个没闭合的开引号位置（没有返回 -1）。 */
+    static int unclosedOpener(String s) {
+        java.util.ArrayDeque<Integer> stack = new java.util.ArrayDeque<>();
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '「', '『', '“', '‘' -> stack.push(i);
+                case '」', '』', '”', '’' -> {
+                    if (!stack.isEmpty()) stack.pop();
+                }
+                case '"' -> {
+                    if (!stack.isEmpty() && s.charAt(stack.peek()) == '"') stack.pop();
+                    else stack.push(i);
+                }
+                default -> { }
+            }
+        }
+        return stack.isEmpty() ? -1 : stack.peek();
     }
 
     /**

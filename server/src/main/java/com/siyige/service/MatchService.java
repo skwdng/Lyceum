@@ -182,9 +182,12 @@ public class MatchService {
 
         store.incPlays(topicId);
         hot.zincrby(topicId, 1);   // 开辩 +1
+        // 开场事件里的秒数必须和 advance 用同一个口径（stepSeconds → Pace.secondsFor），
+        // 不能再发 Format.Step.sec()：那个字段是历史表的静态值（立论 180），
+        // 与实际 deadline（立论 300）对不上，前端倒计时会一开局就错。
         hub.emit(id, "match.start", Map.of(
                 "step", 1, "seg", steps.get(0).seg(), "seat", steps.get(0).seat(),
-                "seconds", steps.get(0).sec(), "mySeats", TurnEngine.joinSeats(seats)));
+                "seconds", turnSec, "mySeats", TurnEngine.joinSeats(seats)));
         return id;
     }
 
@@ -204,6 +207,11 @@ public class MatchService {
      */
     public Map<String, Object> submit(String matchId, String content, String inputType, String userId) throws Exception {
         Map<String, Object> m = require(matchId);
+        // ① 状态闸门：被回收（ABANDONED）/ 已结算（FINISHED）的对局不能再写发言。
+        //    以前只判 cur == null，于是僵尸对局被回收后客户端重发还能往里塞内容并推进一步。
+        if (!"RUNNING".equals(str(m.get("status"))))
+            throw new IllegalStateException("MATCH_NOT_RUNNING: 对局已结束（" + str(m.get("status")) + "）");
+
         List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
         int step = num(m.get("step"));
         Format.Step cur = Format.stepAt(steps, step);
@@ -221,6 +229,12 @@ public class MatchService {
             throw new IllegalStateException("NOT_YOUR_TURN: 现在是 " + speaker + " 的回合，你坐 " + mySeat);
         }
 
+        // ② 逐步唯一：这一步已经有发言了（双击 / 网络重试 / 与 tick 超时撞车）→ 幂等返回，
+        //    既不写第二条，也不再推进。席位校验放在前面，所以「别人抢着说」仍然报 NOT_YOUR_TURN。
+        if (store.hasTurn(matchId, step + 1)) {
+            return Map.of("ok", true, "step", step + 1, "total", steps.size(), "duplicate", true);
+        }
+
         String text = content == null || content.isBlank() ? "（未发言）" : content.trim();
         // 敷衍发言（「11」「对」「嗯」）记为 EMPTY：不算内容，不计入评分文本，
         // 但对局照常推进——下一轮 AI 会明确点出「你这一轮没有回答问题」。
@@ -230,7 +244,7 @@ public class MatchService {
                 inputType == null ? "kb" : inputType);
         hot.zincrby(str(m.get("topic_id")), 2);   // 发言 +2
         hub.emit(matchId, "turn", Map.of(
-                "seat", cur.seat(), "seg", cur.seg(), "who", "me", "content", text));
+                "seat", recordSeat, "seg", cur.seg(), "who", "me", "content", text));
 
         advance(matchId, m, steps, step);
         return Map.of("ok", true, "step", step + 1, "total", steps.size());
@@ -303,7 +317,8 @@ public class MatchService {
 
                 String id = str(row.get("id"));
                 log.info("回收僵尸对局 {}（{} 分钟无推进）", id, (now - anchorTs) / 60000);
-                store.finishMatch(id, "ABANDONED", 0);
+                // CAS 收尾：抢不到说明正常结算已经把它改完了，这时绝不能再结算一次
+                if (store.finishMatchIfRunning(id, "ABANDONED", 0) == 0) continue;
                 settleBilling(id, row);          // 预扣的按实际用量结掉，不留挂账
                 hub.emit(id, "match.end", Map.of("abandoned", true));
             } catch (Exception e) {
@@ -343,7 +358,19 @@ public class MatchService {
             boolean aiGrabs = remainingMs < windowMs * 0.35 && Math.random() < 0.3;
             if (!expired && !aiGrabs) return;
             String aiSeat = pickAiSeat(m, cur);
-            if (aiSeat == null) return;                     // 全是玩家席位，等玩家抢
+            if (aiSeat == null) {
+                // 该席位是玩家、同侧又没有 AI 可顶 → 以前这里直接 return，
+                // 于是「全真人一侧」的自由辩永远卡在 BUZZ，只能等 15 分钟僵尸回收。
+                if (!expired) return;                     // 窗口内还是等玩家抢
+                if (!store.hasTurn(id, step + 1)) {
+                    store.insertTurn(id, step + 1, cur.seat(), cur.seg(),
+                            "（抢拍超时未发言）", "TIMEOUT", "timeout");
+                    hub.emit(id, "turn", Map.of("seat", cur.seat(), "seg", cur.seg(), "who", "me",
+                            "content", "（抢拍超时未发言）", "timeout", true));
+                }
+                advance(id, m, steps, step);
+                return;
+            }
             submitAi(id, m, steps, step, cur, aiSeat, true);
             return;
         }
@@ -352,9 +379,13 @@ public class MatchService {
         String speaker = buzzSeat2.isBlank() ? cur.seat() : buzzSeat2;   // 抢拍后以抢到的人为准
 
         if (TurnEngine.isMine(mine, speaker)) {
-            store.insertTurn(id, step + 1, speaker, cur.seg(), "（超时未发言）", "TIMEOUT", "timeout");
-            hub.emit(id, "turn", Map.of("seat", speaker, "seg", cur.seg(), "who", "me",
-                    "content", "（超时未发言）", "timeout", true));
+            // 超时也要去重：玩家可能刚刚在同一毫秒提交成功（submit 已插一条 OK 发言），
+            // 这里再插 TIMEOUT 就会变成「这一轮说了两次」。
+            if (!store.hasTurn(id, step + 1)) {
+                store.insertTurn(id, step + 1, speaker, cur.seg(), "（超时未发言）", "TIMEOUT", "timeout");
+                hub.emit(id, "turn", Map.of("seat", speaker, "seg", cur.seg(), "who", "me",
+                        "content", "（超时未发言）", "timeout", true));
+            }
         } else {
             submitAi(id, m, steps, step, cur, cur.seat(), false);
             return;                       // 由异步任务推进，tick 不再阻塞
@@ -498,20 +529,41 @@ public class MatchService {
         if (next >= steps.size()) { finish(matchId, m); return; }
         Format.Step ns = steps.get(next);
         boolean mine = TurnEngine.isMine(TurnEngine.parseSeats(str(m.get("my_seats"))), ns.seat());
-        int turnSec = stepSeconds(ns, 0, str(m.get("pace")), str(m.get("kind")));
+        // 用户自定义的每步时长（存在 turn_sec）要一直生效；以前这里恒传 0，
+        // 导致「自定义 90 秒」只在第 1 步有效，第 2 步起悄悄回到 Pace 表的 300 秒。
+        int turnSec = stepSeconds(ns, num(m.get("turn_sec")), str(m.get("pace")), str(m.get("kind")));
 
         // 自由辩：先开一个抢话窗口，谁抢到谁上；其余环节按席次轮转
         // 单人模式不抢拍：没有对手跟你抢，8 秒窗口只会把打字慢的人卡住
         boolean isBuzz = !"solo".equalsIgnoreCase(str(m.get("kind"))) && "自由辩".equals(ns.seg());
-        Long deadline = isBuzz
-                ? Long.valueOf(System.currentTimeMillis() + buzzWindowMs())
-                : (mine ? deadlineFor(turnSec) : Long.valueOf(aiDeadline(ns.seat())));
-        store.updateStep(matchId, next, deadline);
+        Long deadline;
+        int shownSec;
+        if (isBuzz) {
+            long w = buzzWindowMs();
+            deadline = Long.valueOf(System.currentTimeMillis() + w);
+            shownSec = (int) (w / 1000);
+        } else if (mine) {
+            deadline = deadlineFor(turnSec);
+            shownSec = turnSec;
+        } else {
+            // AI 回合的等待时间是 aiDeadline 算出来的（3.5–6s），事件里别写死 2 秒，
+            // 否则前端倒计时和真实 deadline 是两套数字。
+            long at = aiDeadline(ns.seat());
+            deadline = Long.valueOf(at);
+            shownSec = (int) Math.max(1, Math.round((at - System.currentTimeMillis()) / 1000.0));
+        }
+
+        // CAS：只有库里 step 还是我看到的 step 才推进。返回 0 说明别人（另一条路径）已经推过这一步，
+        // 这里直接放弃，避免同一轮被推进两次 / 整步被跳过。
+        if (store.updateStepIf(matchId, step, next, deadline) == 0) {
+            log.debug("advance {} step={} 已被其它路径推进，跳过", matchId, step);
+            return;
+        }
         store.setPhase(matchId, isBuzz ? "BUZZ" : "STEP");
 
         hub.emit(matchId, "step", Map.of(
                 "step", next + 1, "seg", ns.seg(), "seat", ns.seat(),
-                "seconds", isBuzz ? (int) (buzzWindowMs() / 1000) : (mine ? turnSec : 2),
+                "seconds", shownSec,
                 "mine", mine,
                 "phase", isBuzz ? "BUZZ" : "STEP"));
     }
@@ -521,20 +573,37 @@ public class MatchService {
         return Math.max(3000, (long) (8 * 1000 * Math.max(0.05, timeScale())));
     }
 
-    /** 玩家点「抢」：抢到就拿到这一步的发言权。 */
-    public Map<String, Object> buzz(String matchId) {
+    /**
+     * 玩家点「抢」：抢到就拿到这一步的发言权。
+     *
+     * <p><b>必须带 userId</b>：原来没有这个人参，席位取的是 {@code my_seats} 集合的第一个元素，
+     * 房间里"谁点都算同一个人抢到"——非第一个席位的玩家抢完立刻被 `NOT_YOUR_TURN` 拒掉。
+     * 现在按抢拍者的真实席位（房间席 / my_seats）定，且只允许**本步同侧**的人接话。
+     */
+    public Map<String, Object> buzz(String matchId, String userId) {
         Map<String, Object> m = require(matchId);
+        if (!"RUNNING".equals(str(m.get("status")))) return Map.of("ok", false, "reason", "对局已结束");
         if (!"BUZZ".equals(str(m.get("phase")))) return Map.of("ok", false, "reason", "现在不是抢拍时间");
-        java.util.Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
-        if (mine.isEmpty()) return Map.of("ok", false, "reason", "你没有席位");
-        String seat = mine.iterator().next();
+
         List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
-        Format.Step cur = Format.stepAt(steps, num(m.get("step")));
-        int turnSec = stepSeconds(cur, 0, str(m.get("pace")), str(m.get("kind")));
+        int step = num(m.get("step"));
+        Format.Step cur = Format.stepAt(steps, step);
+        if (cur == null) return Map.of("ok", false, "reason", "已结束");
+
+        String seat = seatOfUser(m, userId);
+        if (seat == null || seat.isBlank()) return Map.of("ok", false, "reason", "你没有席位");
+        if (!Format.side(seat).equals(Format.side(cur.seat())))
+            return Map.of("ok", false, "reason", "这一步该" + sideName(cur.seat()) + "接话");
+
+        int turnSec = stepSeconds(cur, num(m.get("turn_sec")), str(m.get("pace")), str(m.get("kind")));
         store.setPhaseWithBuzz(matchId, "STEP", seat);      // 记下是谁抢到的
-        store.updateStep(matchId, num(m.get("step")), deadlineFor(turnSec));
+        store.updateStep(matchId, step, deadlineFor(turnSec));
         hub.emit(matchId, "buzz.taken", Map.of("by", "me", "seat", seat));
         return Map.of("ok", true, "seat", seat, "seconds", turnSec);
+    }
+
+    private static String sideName(String seat) {
+        return "A".equals(Format.side(seat)) ? "正方（A）" : "反方（B）";
     }
 
     /** AI 的"思考"停顿：按席位人设不同（快攻 0.9s、价值派 1.7s），再加抖动。 */
@@ -609,15 +678,18 @@ public class MatchService {
         if (skippedStep == step) return Map.of("ok", false, "reason", "这一轮已经催过了");
 
         // ② 冷却：两次催之间至少 3 秒（防脚本连点）
-        long lastAt = num(m.get("last_skip_at"));
+        //    last_skip_at 是 bigint 毫秒；用 num() 会被 intValue() 截成 32 位，冷却等于失效。
+        long lastAt = numLong(m.get("last_skip_at"));
         long now = System.currentTimeMillis();
         if (now - lastAt < SKIP_COOLDOWN_MS) {
             long wait = (SKIP_COOLDOWN_MS - (now - lastAt) + 999) / 1000;
             return Map.of("ok", false, "reason", "别急，" + wait + " 秒后再催");
         }
 
-        // ③ 落库：先记账再改 deadline，两步都做才算成功
-        store.setSkip(matchId, step, now);
+        // ③ 落库：CAS 记账（同一轮只有一次能记上），再改 deadline。
+        //    两个并发请求都能读到「这一轮还没催」，以前会双双把 deadline 推到过去并 emit 两次。
+        if (store.setSkipIfNotSkipped(matchId, step, now) == 0)
+            return Map.of("ok", false, "reason", "这一轮已经催过了");
         store.updateStep(matchId, step, now - 1);
         hub.emit(matchId, "skip", Map.of("step", step + 1));
         return Map.of("ok", true);
@@ -734,7 +806,7 @@ public class MatchService {
             long used = ai.tokensForMatch(matchId);
             if (used <= 0) {
                 // 兜底：极端情况下（模型未启用、全部走模板）用全局差值
-                long base = num(m.get("token_base"));
+                long base = numLong(m.get("token_base"));
                 used = Math.max(0, wallet.tokenSnapshot() - base);
             }
             Map<String, Object> bill = wallet.settle(userId, matchId, used);
@@ -767,11 +839,19 @@ public class MatchService {
     }
 
     private void finish(String matchId, Map<String, Object> m) throws Exception {
+        // 幂等闸门：提交与 tick 超时是两条推进路径，可能同时走到最后一步。
+        // 先把「收尾权」抢到（CAS: status='RUNNING'），抢不到就直接返回，
+        // 否则结算 / 画像滑动平均 / 逐场记录都会各做一遍。
+        if (store.finishMatchIfRunning(matchId, "FINISHED", null) == 0) {
+            log.debug("finish {} 已由其它路径收尾，跳过重复结算", matchId);
+            return;
+        }
         settleBilling(matchId, m);
         List<Map<String, Object>> turns = store.turns(matchId);
         Set<String> mine = TurnEngine.parseSeats(str(m.get("my_seats")));
         ScoreService.Score sc = scorer.score(turns, mine, str(m.get("topic_id")), store.flaws(matchId));
 
+        // 收尾权已经在上面用 CAS 拿到了，这里只是把总分补上（status 已经是 FINISHED）
         store.finishMatch(matchId, "FINISHED", sc.total());
         hot.zincrby(str(m.get("topic_id")), 5 + sc.turns() * 0.0);   // 打完 +5
 
@@ -872,7 +952,8 @@ public class MatchService {
         // 按席位分别给分：占两个位置时能看出每个位置打得怎么样
         out.put("seatScores", scorer.scorePerSeat(turns, mine, str(m.get("topic_id")), store.flaws(matchId)));
         out.put("turns", turns);
-        out.put("billTokens", num(m.get("bill_tokens")));
+        // bill_tokens 是 bigint：用 num() 会被截成 int，复盘里可能显示成负数
+        out.put("billTokens", numLong(m.get("bill_tokens")));
         out.put("queryRounds", num(m.get("query_rounds")));
         out.put("freeRounds", num(m.get("free_rounds")));
         return out;

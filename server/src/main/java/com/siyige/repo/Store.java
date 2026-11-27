@@ -116,6 +116,21 @@ public class Store {
         jdbc.update("update sy_match set skipped_step=?, last_skip_at=? where id=?", step, at, id);
     }
 
+    /**
+     * 「催一下」的 CAS：只有这一轮**还没催过**才记账。
+     *
+     * <p>为什么不能像以前那样先读后写：两个并发的催请求都读到 skipped_step≠step，
+     * 于是都往下走、都把 deadline 推到过去，emit 两次 skip。用条件更新让 DB 当裁判，
+     * 返回 0 行就说明别人已经催过这一轮了。
+     *
+     * @return 受影响行数：1 = 抢到这一次催；0 = 这一轮已经催过
+     */
+    public int setSkipIfNotSkipped(String id, int step, long at) {
+        return jdbc.update("update sy_match set skipped_step=?, last_skip_at=? "
+                        + "where id=? and coalesce(skipped_step,-1) <> ?",
+                step, at, id, step);
+    }
+
     public Map<String, Object> match(String id) {
         List<Map<String, Object>> rows = jdbc.queryForList("select * from sy_match where id=?", id);
         return rows.isEmpty() ? null : lower(rows.get(0));
@@ -125,6 +140,29 @@ public class Store {
         return lowerAll(jdbc.queryForList("select * from sy_match where status='RUNNING'"));
     }
 
+    /**
+     * CAS 推进：只有「库里当前的 step 还是我以为的 step」时才推进到 next。
+     *
+     * <p>为什么要它：提交与 tick 超时是两条独立路径，各自拿着自己的快照调 advance。
+     * 无条件 update 会让后到的那次把同一轮再推一遍（甚至把 step 回写），
+     * 结果是同一步两条发言、或者整步被跳过。改成条件更新后，DB 只认第一次。
+     *
+     * @return 受影响行数：1 = 这次推进生效；0 = 别人已经推进过（调用方应直接 return）
+     */
+    public int updateStepIf(String id, int step, int next, Long deadline) {
+        long now = System.currentTimeMillis();
+        if (deadline == null) {
+            // 单人模式不限时：deadline 置空（参数化 null 会让 JDBC 猜不出类型）
+            return jdbc.update("update sy_match set step=?, deadline_at=null, extend_count=0, warned=false, "
+                            + "last_active_at=? where id=? and step=?",
+                    next, now, id, step);
+        }
+        return jdbc.update("update sy_match set step=?, deadline_at=?, extend_count=0, warned=false, "
+                        + "last_active_at=? where id=? and step=?",
+                next, ts(deadline), now, id, step);
+    }
+
+    /** 兼容旧调用（create / buzz 用：等于「把当前步的 deadline 重设一次」，不推进 step）。 */
     public void updateStep(String id, int step, Long deadline) {
         long now = System.currentTimeMillis();
         if (deadline == null) {
@@ -160,6 +198,19 @@ public class Store {
     public void finishMatch(String id, String status, Integer total) {
         jdbc.update("update sy_match set status=?, total_score=?, finished_at=current_timestamp where id=?",
                 status, total, id);
+    }
+
+    /**
+     * 幂等收尾：只有还处于 RUNNING 的对局才会被改成终态。
+     *
+     * <p>结算（扣费 / 画像滑动平均 / 逐场记录）都挂在 {@code finish()} 上，
+     * 两条推进路径同时到末尾就会各结算一遍。让 DB 来判「是不是第一次收尾」。
+     *
+     * @return 1 = 本次收尾生效（该由我结算）；0 = 已经有人收过尾了
+     */
+    public int finishMatchIfRunning(String id, String status, Integer total) {
+        return jdbc.update("update sy_match set status=?, total_score=?, finished_at=current_timestamp "
+                + "where id=? and status='RUNNING'", status, total, id);
     }
 
     public void insertTurn(String matchId, int step, String seat, String seg, String content,

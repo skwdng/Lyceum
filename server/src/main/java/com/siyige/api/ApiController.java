@@ -170,11 +170,11 @@ public class ApiController {
         return matches.skip(id);
     }
 
-    /** 自由辩抢拍：抢到就拿发言权 */
+    /** 自由辩抢拍：抢到就拿发言权（必须带身份：席位按抢拍者定，不再取集合第一个） */
     @PostMapping("/matches/{id}/buzz")
     public Map<String, Object> buzz(@PathVariable String id) {
-        guard(id);
-        return matches.buzz(id);
+        String userId = guard(id);
+        return matches.buzz(id, userId);
     }
 
     /** 抓漏：指出某轮 AI 发言的逻辑漏洞 */

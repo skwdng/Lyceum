@@ -50,6 +50,10 @@ abstract class AuditSupport {
     MatchService service;
     AiService ai;
     ConfigService cfg;
+    /** mock 的推送口：审计里要断言事件内容（比如 match.start 的 seconds）。 */
+    SseHub hub;
+    /** 真房间库：抢拍席位要从 sy_room/sy_seat 反查。 */
+    RoomStore rooms;
 
     @BeforeEach
     void bootAuditFixture() throws Exception {
@@ -73,11 +77,13 @@ abstract class AuditSupport {
         cfg.set(ConfigKey.PACE_TIME_SCALE, "1.0", "admin");
 
         ai = mock(AiService.class);
+        hub = mock(SseHub.class);
+        rooms = new RoomStore(jdbc);
         service = new MatchService(store, ai, new ScoreService(null), mock(HotRank.class),
-                mock(SseHub.class), new FlawService(), new ObjectMapper(),
+                hub, new FlawService(), new ObjectMapper(),
                 cfg, new UtteranceCheck(),
                 mock(WalletService.class), mock(UserLlmService.class), mock(AiTier.class),
-                new RoomStore(jdbc));
+                rooms);
     }
 
     /** 开一场：seats 是「我的席位」，kind = solo / room。 */
@@ -132,6 +138,20 @@ abstract class AuditSupport {
         Object dl = row(id).get("deadline_at");
         if (dl == null) return -1;
         return Duration.between(Instant.now(), ((java.sql.Timestamp) dl).toInstant()).getSeconds();
+    }
+
+    /**
+     * 造一个真房间并把某场对局挂上去。
+     *
+     * <p>抢拍席位不再取 `my_seats` 集合的第一个元素，而是按「谁点的」反查：
+     * 房间局走 sy_room → sy_seat，所以要真的建出房间与席位，否则测的是兜底分支。
+     */
+    void attachRoom(String matchId, String code, String meSeat) {
+        String host = "host-" + code;
+        rooms.createRoom(code, TOPIC, "高校是否应当取消期末考试", "public", host);
+        rooms.occupy(code, "A1", host, "Host");
+        rooms.occupy(code, meSeat, USER, "Me");
+        rooms.setStatus(code, "RUNNING", matchId);
     }
 
     /** 找第一个「自由辩」步的 0-based 下标（没有则 -1）。 */

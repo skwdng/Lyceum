@@ -27,8 +27,12 @@ import java.util.Map;
  *   <li><b>未命中 = fabricated</b>：把整段引号（含引号与前面的「对方刚才说」这类归属词）改写成不带引号的说法，
  *       默认 {@code 你刚才那个说法}；归属是我方/队友时用 {@code 我方刚才那个说法}；被「把/将/用…」支配或
  *       无法判断归属时用中性的 {@code 那个说法}；</li>
- *   <li><b>出处类引用豁免</b>：引文里带书名号（{@code 《…》}）或紧邻「据/根据/依据/出自」的，算论据出处而非
- *       对方原话，不判 fabricated（证据卡是外部材料，本来就不在历史发言里）。</li>
+ *   <li><b>硬指纹</b>：模糊命中还不够——引文里出现的数字/百分比、否定词（不/未/无/没有/禁止）必须在原文里也出现，
+ *       否则判 {@link Status#MISMATCH}（「必须有」被写成「必须没有」、21% 被写成 37% 都属于这一类），
+ *       按编造处理并改写；</li>
+ *   <li><b>出处豁免只豁免出处本身</b>：带书名号时只放行书名号内部，书名号外面的话（如「显示下降 37%」）
+ *       仍是主张，要照常核；紧邻「据/根据/依据/出自」且不含数据口径（%、百分点、倍）的，视为出处名放行。
+ *       证据卡是外部材料，本来就不在历史发言里，所以出处名不该被判成编造。</li>
  * </ol>
  *
  * <p>调用方拿到 {@link Result#fabricated()} 后可以计数上报/复盘标注；{@link Result#text()} 永远是可以直接落库的正文。
@@ -48,13 +52,19 @@ public final class QuoteGuard {
 
     /** 单条引文的判定结果。 */
     public enum Status {
-        /** 在历史里找到了（精确或模糊）。 */
+        /** 在历史里找到了（精确或模糊），且硬指纹（数字/否定词）一致。 */
         MATCHED,
         /** 历史里找不到 —— 编的。 */
         FABRICATED,
+        /**
+         * 能匹配到原文，但**硬指纹对不上**：引文里的数字/百分比或否定词（不/未/无/没有/禁止）
+         * 在原文里没有。典型是「必须有」被写成「必须没有」、21% 被写成 37%。
+         * 语义已经变了，按编造处理（改写 + 计数），单独留一个状态是为了复盘能说清原因。
+         */
+        MISMATCH,
         /** 太短，不判。 */
         TOO_SHORT,
-        /** 出处类引用（书名号 / 据…），不判。 */
+        /** 纯出处名（书名号内部 / 「据…」后面的出处），不判。 */
         CITATION
     }
 
@@ -62,7 +72,8 @@ public final class QuoteGuard {
     public record Verdict(String quote, Status status, double score) { }
 
     /** 处理结果：可直接落库的正文 + 统计。 */
-    public record Result(String text, int quoted, int fabricated, List<Verdict> verdicts) {
+    public record Result(String text, int quoted, int fabricated, int mismatched, List<Verdict> verdicts) {
+        /** 有引文被改写过。 */
         public boolean changed() { return fabricated > 0; }
     }
 
@@ -84,27 +95,20 @@ public final class QuoteGuard {
         List<Span> spans = spans(src);
         List<Verdict> verdicts = new ArrayList<>(spans.size());
         List<Span> fabricated = new ArrayList<>();
+        int mismatched = 0;
 
         for (Span s : spans) {
-            String norm = normalize(s.quote());
-            if (norm.length() < MIN_QUOTE_CHARS) {
-                verdicts.add(new Verdict(s.quote(), Status.TOO_SHORT, 0));
-                continue;
-            }
-            if (looksLikeCitation(src, s)) {
-                verdicts.add(new Verdict(s.quote(), Status.CITATION, 0));
-                continue;
-            }
-            double score = bestScore(norm, corpus);
-            if (score >= MATCH_THRESHOLD) {
-                verdicts.add(new Verdict(s.quote(), Status.MATCHED, score));
-            } else {
-                verdicts.add(new Verdict(s.quote(), Status.FABRICATED, score));
+            Verdict v = check(s, src, corpus);
+            verdicts.add(v);
+            if (v.status() == Status.FABRICATED) {
                 fabricated.add(s);
+            } else if (v.status() == Status.MISMATCH) {
+                fabricated.add(s);        // 语义变了，当编造处理：改写 + 计数
+                mismatched++;
             }
         }
 
-        if (fabricated.isEmpty()) return new Result(src, spans.size(), 0, verdicts);
+        if (fabricated.isEmpty()) return new Result(src, spans.size(), 0, 0, verdicts);
 
         // 从右往左替换，保证左侧下标不失效
         StringBuilder sb = new StringBuilder(src);
@@ -112,7 +116,22 @@ public final class QuoteGuard {
             Span s = fabricated.get(i);
             sb.replace(s.start(), s.end(), replacementFor(src, s));
         }
-        return new Result(cleanup(sb.toString()), spans.size(), fabricated.size(), verdicts);
+        return new Result(cleanup(sb.toString()), spans.size(), fabricated.size(), mismatched, verdicts);
+    }
+
+    /** 单条引文的完整判定：长度 → 出处 → 模糊命中 → 硬指纹。 */
+    private static Verdict check(Span s, String text, List<String> corpus) {
+        String norm = normalize(s.quote());
+        if (norm.length() < MIN_QUOTE_CHARS) return new Verdict(s.quote(), Status.TOO_SHORT, 0);
+
+        QuoteParts parts = parts(s.quote());
+        if (isCitationOnly(s, text, parts)) return new Verdict(s.quote(), Status.CITATION, 0);
+
+        Best best = bestMatch(norm, corpus);
+        if (best.score() < MATCH_THRESHOLD) return new Verdict(s.quote(), Status.FABRICATED, best.score());
+        if (fingerprintMismatch(parts.claim(), best.source()))
+            return new Verdict(s.quote(), Status.MISMATCH, best.score());
+        return new Verdict(s.quote(), Status.MATCHED, best.score());
     }
 
     /** 只核对不改写：返回全部引文的判定（调试/评测集用）。 */
@@ -179,16 +198,86 @@ public final class QuoteGuard {
         return out;
     }
 
-    /** 出处类引用：书名号，或紧邻「据/根据/依据/出自/来源」。 */
-    private static boolean looksLikeCitation(String text, Span s) {
-        String q = s.quote();
-        if (q.indexOf('《') >= 0 || q.indexOf('》') >= 0) return true;
+    /**
+     * 引文拆成「出处」与「主张」两部分。
+     *
+     * <p>{@code hasBookTitle} = 引文里有书名号；{@code claim} = 去掉书名号内部之后的剩余部分。
+     * 出处豁免只作用于书名号内部——书名号外面的内容（「显示不及格率下降 37%」这类）仍然是主张，要照常核。
+     */
+    record QuoteParts(String claim, boolean hasBookTitle) { }
+
+    static QuoteParts parts(String quote) {
+        String q = quote == null ? "" : quote;
+        boolean has = q.indexOf('《') >= 0 || q.indexOf('》') >= 0;
+        String claim = q.replaceAll("《[^》]{0,60}》", " ");
+        return new QuoteParts(claim, has);
+    }
+
+    /**
+     * 纯出处引用：整条引文只是"出处名"，不含主张。
+     *
+     * <p>两种形态：
+     * <ul>
+     *   <li>带书名号，且书名号外没有实质内容（剩余归一化 &lt; 8 字）→ 豁免；</li>
+     *   <li>不带书名号但紧邻「据/根据/依据/出自/来源/援引」，且引文里没有数据口径
+     *       （{@code %}、百分点、倍）→ 视为出处名，豁免。年份（2021）不算数据口径。</li>
+     * </ul>
+     * 其余一律不豁免：带数字的"出处+数据"要把数字拿去核（见 {@link #fingerprintMismatch}）。
+     */
+    private static boolean isCitationOnly(Span s, String text, QuoteParts parts) {
+        if (parts.hasBookTitle()) {
+            return normalize(parts.claim()).length() < MIN_QUOTE_CHARS;
+        }
         int from = Math.max(0, s.start() - 6);
         String before = text.substring(from, s.start());
+        boolean afterCiteVerb = false;
         for (String marker : new String[]{"据", "根据", "依据", "出自", "来源", "援引"}) {
-            if (before.contains(marker)) return true;
+            if (before.contains(marker)) { afterCiteVerb = true; break; }
+        }
+        if (!afterCiteVerb) return false;
+        return !hasDataUnit(parts.claim());
+    }
+
+    /** 有没有"数据口径"（百分比/百分点/倍数）——这种引文不能当纯出处放过去。 */
+    private static boolean hasDataUnit(String s) {
+        if (s == null) return false;
+        return s.matches("(?s).*(%|％|个百分点|倍).*");
+    }
+
+    /** 引文里的数字（归一化后 % 会被去掉，只留数值）。 */
+    private static final java.util.regex.Pattern NUMBER =
+            java.util.regex.Pattern.compile("\\d+(?:\\.\\d+)?");
+
+    /** 否定词表：不/未/无/没有/禁止（"不能/不必…"这类都以「不」起头，查「不」即可覆盖）。 */
+    private static final List<String> NEGATIONS = List.of("没有", "没", "禁止", "不", "未", "无");
+
+    /**
+     * 硬指纹核对：引文里的数字/百分比、否定词，必须在原文里也出现。
+     *
+     * <p>为什么单靠 Dice 不够：17 字的引文里插一个「没」，只毁 2–3 个 bigram，相似度仍 &gt; 0.9，
+     * 但语义已经反了（「必须有」→「必须没有」）。数字同理（21% 改成 37%）。
+     * 这里只做"有没有"级别的核对，不追求语序——宁可误伤个别同义改写，也不放过语义反转。
+     */
+    static boolean fingerprintMismatch(String quote, String source) {
+        String q = normalize(quote);
+        String s = normalize(source);
+        if (q.isEmpty()) return false;
+        java.util.regex.Matcher m = NUMBER.matcher(q);
+        while (m.find()) {
+            if (!s.contains(m.group())) return true;      // 引文里的数字在原文里找不到
+        }
+        for (String neg : NEGATIONS) {
+            if (q.contains(neg) && !negationOk(neg, s)) return true;
         }
         return false;
+    }
+
+    /** 「没有 / 没」互为等价，其余否定词要求原样出现。 */
+    private static boolean negationOk(String token, String source) {
+        return switch (token) {
+            case "没有", "没" -> source.contains("没有") || source.contains("没");
+            default -> source.contains(token);
+        };
     }
 
     // ------------------------------------------------------------------ 语料
@@ -218,16 +307,23 @@ public final class QuoteGuard {
 
     // ------------------------------------------------------------------ 匹配
 
-    static double bestScore(String needle, List<String> corpus) {
-        if (needle.isEmpty()) return 0;
-        double best = 0;
+    /** 最高相似度 + 命中它的那条原文（硬指纹要拿原文比对）。 */
+    record Best(double score, String source) { }
+
+    static Best bestMatch(String needle, List<String> corpus) {
+        if (needle.isEmpty()) return new Best(0, "");
+        Best best = new Best(0, "");
         for (String hay : corpus) {
-            if (hay.contains(needle)) return 1.0;
+            if (hay.contains(needle)) return new Best(1.0, hay);
             double d = slidingDice(needle, hay);
-            if (d > best) best = d;
-            if (best >= 1.0) return 1.0;
+            if (d > best.score()) best = new Best(d, hay);
+            if (best.score() >= 1.0) return best;
         }
         return best;
+    }
+
+    static double bestScore(String needle, List<String> corpus) {
+        return bestMatch(needle, corpus).score();
     }
 
     /** 在 hay 上滑窗口（长度在 needle±2 之间），取与 needle 的最高二元组相似度。 */
@@ -305,6 +401,16 @@ public final class QuoteGuard {
         }
         s = dropDanglingOpeners(s);
         return s.replaceAll("[ \\t]{2,}", " ").trim();
+    }
+
+    /**
+     * 对外：删掉没有闭合的孤立开引号。
+     *
+     * <p>{@code guardDetailed} 在字数截断后无条件调一次——截断可能正好切进引文，
+     * 留下一个没有后半句的「（旧实现在没有 fabricated 引文时不会走到 cleanup，于是残片会落库）。
+     */
+    public static String dropDangling(String text) {
+        return text == null ? "" : dropDanglingOpeners(text);
     }
 
     /** 截断后可能留下一个没有闭引号的「，这种残片直接删掉。 */

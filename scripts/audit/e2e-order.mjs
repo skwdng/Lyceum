@@ -222,9 +222,11 @@ async function soloRun({ label, fast, skipProbe }) {
   const contiguous = stepNos.length === steps.length
     && stepNos.every((v, i) => v === expected[i]);
   const perStepOnce = [...byStep.values()].every(n => n === 1);
+  // 自由辩抢拍允许「同侧替位」：人类用自己的席位接手本侧 AI 的回合，
+  // 所以这里校验侧别（A/B），不要求 seat 与赛制逐字相等；抢到的必须是本人席位由房间场景单独断言。
   const seatAligned = turns.every(tr => {
     const st = steps[Number(tr.step) - 1];
-    return st && st.seat === tr.seat;
+    return st && String(st.seat).charAt(0) === String(tr.seat).charAt(0);
   });
   const dupPair = (() => {
     const seen = new Set();
@@ -253,7 +255,7 @@ async function soloRun({ label, fast, skipProbe }) {
   check(`${label}: 每 step 恰好 1 条发言`, perStepOnce, `byStep=${JSON.stringify([...byStep])}`);
   check(`${label}: step 1..N 连续无缺号`, contiguous, `steps=${stepNos.join(',')}`);
   check(`${label}: 无重复 (step,seat)`, !dupPair, dupPair || 'none');
-  check(`${label}: 发言席位与赛制 steps 对齐`, seatAligned,
+  check(`${label}: 发言侧别与赛制 steps 对齐`, seatAligned,
     turns.filter(tr => steps[Number(tr.step) - 1]?.seat !== tr.seat).map(tr => `${tr.step}:${tr.seat}≠${steps[Number(tr.step) - 1]?.seat}`).join(';'));
   check(`${label}: step 单调不回退`, stepMonotonic, `${timeline.map(x => x.step).join('>')}`);
   check(`${label}: SSE turn 事件数 == 发言记录数`, sseTurns === turns.length, `${sseTurns}/${turns.length}`);
@@ -435,7 +437,8 @@ async function roomRun() {
   const expected = steps.map(s => s.no);
   const contiguous = stepNos.length === steps.length && stepNos.every((v, i) => v === expected[i]);
   const perStepOnce = [...byStep.values()].every(n => n === 1);
-  const seatAligned = turns.every(tr => steps[Number(tr.step) - 1]?.seat === tr.seat);
+  // 同上：抢拍允许同侧替位，校验侧别；「抢到的必须是本人席位」在下方单独断言
+  const seatAligned = turns.every(tr => steps[Number(tr.step) - 1]?.seat?.charAt(0) === tr.seat.charAt(0));
   const stepMonotonic = timeline.every((x, i) => i === 0 || x.step >= timeline[i - 1].step);
   const sseEnd = sse.events.filter(e => e.type === 'match.end').length;
   const sseTurns = sse.events.filter(e => e.type === 'turn').length;
@@ -449,7 +452,7 @@ async function roomRun() {
   check('房间: turns 数 == steps 数', turns.length === steps.length, `${turns.length}/${steps.length}`);
   check('房间: 每 step 恰好 1 条发言', perStepOnce, JSON.stringify([...byStep]));
   check('房间: step 1..N 连续', contiguous, stepNos.join(','));
-  check('房间: 发言席位与赛制 steps 对齐', seatAligned,
+  check('房间: 发言侧别与赛制 steps 对齐', seatAligned,
     turns.filter(tr => steps[Number(tr.step) - 1]?.seat !== tr.seat).map(tr => `${tr.step}:${tr.seat}≠${steps[Number(tr.step) - 1]?.seat}`).join(';'));
   check('房间: step 单调不回退', stepMonotonic, timeline.map(x => x.step).join('>'));
   check('房间: SSE turn 事件数 == 发言记录数', sseTurns === turns.length, `${sseTurns}/${turns.length}`);
