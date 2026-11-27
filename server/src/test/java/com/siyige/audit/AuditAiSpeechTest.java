@@ -1,5 +1,6 @@
 package com.siyige.audit;
 
+import com.siyige.admin.config.ConfigService;
 import com.siyige.ai.AiService;
 import com.siyige.ai.LlmClient;
 import com.siyige.ai.Personas;
@@ -18,6 +19,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 审计夹具：AI 发言的截断 / 复读 / 引文真实性 / 降级路径 / 节奏 / 人设。
@@ -34,8 +38,15 @@ class AuditAiSpeechTest {
 
     // ------------------------------------------------------------------ 公用
 
+    /** 后台参数桩：语音开关等一律当"开"，{@code llmEnabled()} 只取决于有没有 key。 */
+    private static ConfigService enabledCfg() {
+        ConfigService cfg = mock(ConfigService.class);
+        when(cfg.getBool(any())).thenReturn(true);
+        return cfg;
+    }
+
     private static AiService offline() {
-        return new AiService(new LlmClient("http://127.0.0.1:9/v1", "", "audit-model"), null, null, true);
+        return new AiService(new LlmClient("http://127.0.0.1:9/v1", "", "audit-model"), null, null, enabledCfg());
     }
 
     /** 每次调用都抛指定异常的客户端：模拟 429 / 超时（AiService 只 catch Exception）。 */
@@ -247,12 +258,12 @@ class AuditAiSpeechTest {
         AiService.Speech noKey = offline().speakForSolo("A2", "驳立论", "驳立论", "辩题", "t", "pro", h);
 
         AiService.Speech http429 = new AiService(failing(new IllegalStateException("LLM HTTP 429")),
-                null, null, true).speakForSolo("A2", "驳立论", "驳立论", "辩题", "t", "pro", h);
+                null, null, enabledCfg()).speakForSolo("A2", "驳立论", "驳立论", "辩题", "t", "pro", h);
 
         AiService.Speech timeout = new AiService(failing(new HttpTimeoutException("request timed out")),
-                null, null, true).speakForSolo("A2", "驳立论", "驳立论", "辩题", "t", "pro", h);
+                null, null, enabledCfg()).speakForSolo("A2", "驳立论", "驳立论", "辩题", "t", "pro", h);
 
-        AiService budgetAi = new AiService(withUsage(40_000), null, null, true);
+        AiService budgetAi = new AiService(withUsage(40_000), null, null, enabledCfg());
         budgetAi.bind("m-audit");
         AiService.Speech overBudget = budgetAi.speakForSolo("A2", "驳立论", "驳立论", "辩题", "t", "pro", h);
         budgetAi.unbind();

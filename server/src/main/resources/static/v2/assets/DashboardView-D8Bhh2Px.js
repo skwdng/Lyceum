@@ -1,5 +1,10 @@
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/DashboardView-D8Bhh2Px.js
 import { _ as _export_sfc, a as openBlock, c as createElementBlock, t as toDisplayString, e as createCommentVNode, b as createBaseVNode, i as ref, p as computed, o as onMounted, F as Fragment, r as renderList, d as createTextVNode, x as createVNode, I as analyticsApi, k as errText, m as toast, n as normalizeClass, B as createBlock } from "./index-DPVZtoxS.js";
 import { u as useWidth, e as emptyTextOf, P as PALETTE, t as toSeries, L as LineChart, D as DonutChart, B as BarChart } from "./LineChart-BMtkE816.js";
+========
+import { _ as _export_sfc, a as openBlock, c as createElementBlock, t as toDisplayString, e as createCommentVNode, b as createBaseVNode, i as ref, p as computed, o as onMounted, F as Fragment, r as renderList, d as createTextVNode, x as createVNode, I as analyticsApi, k as errText, m as toast, n as normalizeClass, B as createBlock } from "./index-DP-xkCoN.js";
+import { u as useWidth, e as emptyTextOf, P as PALETTE, t as toSeries, L as LineChart, D as DonutChart, B as BarChart } from "./LineChart-RcafgfQK.js";
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/DashboardView-4jyw2OJ0.js
 const _hoisted_1$1 = {
   key: 0,
   class: "ch-spark-empty"

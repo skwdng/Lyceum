@@ -72,6 +72,21 @@ public class ConfigService {
         }
     }
 
+    /**
+     * 读小数（第二批加的：pace.time-scale / pace.ai-delay-scale）。
+     *
+     * <p>与 {@link #getInt} 同一套容错：库里被写成坏值就回落枚举默认值并打 WARN。
+     */
+    public double getDouble(ConfigKey k) {
+        String v = raw(k);
+        try {
+            return Double.parseDouble(v.trim());
+        } catch (NumberFormatException e) {
+            log.warn("参数不是数字，回落默认值 key={} value={} default={}", k.key(), v, k.def());
+            return Double.parseDouble(k.def());
+        }
+    }
+
     public String getStr(ConfigKey k) {
         return raw(k);
     }

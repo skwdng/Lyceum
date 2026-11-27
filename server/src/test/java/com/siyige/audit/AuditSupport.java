@@ -1,6 +1,9 @@
 package com.siyige.audit;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigRepo;
+import com.siyige.admin.config.ConfigService;
 import com.siyige.ai.AiService;
 import com.siyige.ai.AiTier;
 import com.siyige.api.SseHub;
@@ -46,6 +49,7 @@ abstract class AuditSupport {
     Store store;
     MatchService service;
     AiService ai;
+    ConfigService cfg;
 
     @BeforeEach
     void bootAuditFixture() throws Exception {
@@ -54,7 +58,7 @@ abstract class AuditSupport {
         ds.setUser("sa");
         ds.setPassword("");
         try (Connection c = ds.getConnection()) {
-            for (String f : new String[]{"schema.sql", "schema-auth.sql"}) {
+            for (String f : new String[]{"schema.sql", "schema-auth.sql", "schema-config.sql"}) {
                 ScriptUtils.executeSqlScript(c, new ClassPathResource(f));
             }
         }
@@ -62,10 +66,16 @@ abstract class AuditSupport {
         store = new Store(jdbc);
         store.insertTopic(TOPIC, "高校是否应当取消期末考试", "教育", "basic", "official", "h1");
 
+        // 节奏参数改由 ConfigService 提供（构造器不再吃 4 个 @Value）。
+        // 审计里的时间断言（如「自定义 90s 是否生效」）需要 1.0 倍速，否则默认演示档 0.05 会把
+        // 300s 压成 15s，断言失败的原因就变成「倍速」而不是「defect」。
+        cfg = new ConfigService(new ConfigRepo(jdbc));
+        cfg.set(ConfigKey.PACE_TIME_SCALE, "1.0", "admin");
+
         ai = mock(AiService.class);
         service = new MatchService(store, ai, new ScoreService(null), mock(HotRank.class),
                 mock(SseHub.class), new FlawService(), new ObjectMapper(),
-                1.0, 1800, 300, 1.0, new UtteranceCheck(),
+                cfg, new UtteranceCheck(),
                 mock(WalletService.class), mock(UserLlmService.class), mock(AiTier.class),
                 new RoomStore(jdbc));
     }

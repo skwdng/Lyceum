@@ -1,5 +1,6 @@
 package com.siyige.ai;
 
+import com.siyige.admin.config.ConfigService;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -8,23 +9,36 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 单场 token 预算：超了就本场后续轮次直接走模板，并且复盘要能看出「这轮是预算耗尽」。
  *
  * <p>这里全部用「没有 api-key 的 LlmClient」构造：{@code enabled()} = false，任何路径都不会发请求，
  * 所以整套用例离线可跑；预算用量通过覆盖 {@code usedTokens()} 注入，不需要真打模型。
+ *
+ * <p>第四参是 {@link ConfigService}（上游把语音开关搬到了后台参数）：
+ * 桩一份「所有开关都开」的 config，{@code llmEnabled()} 就只取决于有没有 key。
  */
 class AiServiceBudgetTest {
 
     private static final long DEFAULT_BUDGET = 40_000;
+
+    /** 所有后台开关都当"开"处理（ai.speech-enabled = true）。 */
+    private static ConfigService enabledCfg() {
+        ConfigService cfg = mock(ConfigService.class);
+        when(cfg.getBool(any())).thenReturn(true);
+        return cfg;
+    }
 
     private static LlmClient offlineClient() {
         return new LlmClient("http://127.0.0.1:9/v1", "", "test-model");
     }
 
     private static AiService noKeyService() {
-        return new AiService(offlineClient(), null, null, true);
+        return new AiService(offlineClient(), null, null, enabledCfg());
     }
 
     private static List<Map<String, Object>> history() {
@@ -92,7 +106,7 @@ class AiServiceBudgetTest {
 
     @Test
     void 超预算后直接走模板_并标预算耗尽() {
-        AiService ai = new AiService(offlineClient(), null, null, true) {
+        AiService ai = new AiService(offlineClient(), null, null, enabledCfg()) {
             @Override
             long usedTokens() { return DEFAULT_BUDGET; }        // 刚好打满
         };
@@ -113,7 +127,7 @@ class AiServiceBudgetTest {
 
     @Test
     void 预算没到上限时不会被误标() {
-        AiService ai = new AiService(offlineClient(), null, null, true) {
+        AiService ai = new AiService(offlineClient(), null, null, enabledCfg()) {
             @Override
             long usedTokens() { return DEFAULT_BUDGET - 1; }
         };
@@ -146,7 +160,7 @@ class AiServiceBudgetTest {
     @Test
     void 分析成功时状态是ok_即使生成降级也要保留() {
         AiService ai = new AiService(stubClient("{\"claim\":\"保留期末考试\",\"evidence\":[],\"fallacies\":[],\"weakness\":\"标准未给\"}"),
-                null, null, true);
+                null, null, enabledCfg());
         ai.bind("m-ok");
         try {
             AiService.Speech sp = ai.speakForSolo("A2", "驳立论", "驳立论", "辩题", "t-4", "pro", history());
@@ -163,7 +177,7 @@ class AiServiceBudgetTest {
 
     @Test
     void 分析返回空串按分析失败降级处理() {
-        AiService ai = new AiService(stubClient(""), null, null, true);
+        AiService ai = new AiService(stubClient(""), null, null, enabledCfg());
         ai.bind("m-empty-analysis");
         try {
             AiService.Speech sp = ai.speakForSolo("A2", "驳立论", "驳立论", "辩题", "t-5", "pro", history());

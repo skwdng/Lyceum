@@ -1,5 +1,6 @@
 package com.siyige.ai;
 
+import com.siyige.admin.config.ConfigService;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -8,6 +9,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 引用真实性护栏。
@@ -38,7 +42,10 @@ class QuoteGuardTest {
 
     private static AiService serviceOffline() {
         // key 为空 → LlmClient.enabled() = false，任何路径都不会发请求
-        return new AiService(new LlmClient("http://127.0.0.1:9/v1", "", "test-model"), null, null, true);
+        // 第四参是后台参数 ConfigService（语音开关），桩成"全开"，llmEnabled() 就只取决于有没有 key
+        ConfigService cfg = mock(ConfigService.class);
+        when(cfg.getBool(any())).thenReturn(true);
+        return new AiService(new LlmClient("http://127.0.0.1:9/v1", "", "test-model"), null, null, cfg);
     }
 
     // ------------------------------------------------------------------ 命中

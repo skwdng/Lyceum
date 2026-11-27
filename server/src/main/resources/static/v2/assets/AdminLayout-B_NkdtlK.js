@@ -1,8 +1,16 @@
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/AdminLayout-B_NkdtlK.js
 import { _ as _export_sfc, u as useAdminStore, w as watch, o as onMounted, a as openBlock, c as createElementBlock, b as createBaseVNode, t as toDisplayString, F as Fragment, d as createTextVNode, e as createCommentVNode, r as renderList, n as normalizeClass, f as withDirectives, v as vModelSelect, g as normalizeStyle, h as withModifiers, i as ref, j as contentApi, k as errText, l as nextTick, m as toast, p as computed, q as adminApi, s as unref, x as createVNode, y as withCtx, z as resolveComponent, A as onBeforeUnmount, B as createBlock, C as useRoute, D as useRouter, E as menuForCan } from "./index-DPVZtoxS.js";
 import { u as useAlertStore } from "./alert--ebXkPiH.js";
 import { p as postDrawer } from "./postDrawer-NeBz2jR2.js";
 import { u as userPop } from "./userPop-D25z4FkL.js";
 import { M as ModerationBar } from "./ModerationBar-BmELDXE-.js";
+========
+import { _ as _export_sfc, u as useAdminStore, w as watch, o as onMounted, a as openBlock, c as createElementBlock, b as createBaseVNode, t as toDisplayString, F as Fragment, d as createTextVNode, e as createCommentVNode, r as renderList, n as normalizeClass, f as withDirectives, v as vModelSelect, g as normalizeStyle, h as withModifiers, i as ref, j as contentApi, k as errText, l as nextTick, m as toast, p as computed, q as adminApi, s as unref, x as createVNode, y as withCtx, z as resolveComponent, A as onBeforeUnmount, B as createBlock, C as useRoute, D as useRouter, E as menuForCan } from "./index-DP-xkCoN.js";
+import { u as useAlertStore } from "./alert-C1j3DEdZ.js";
+import { p as postDrawer } from "./postDrawer-CLoFB2Zt.js";
+import { u as userPop } from "./userPop-CUwnwiuK.js";
+import { M as ModerationBar } from "./ModerationBar-DgBChBQ9.js";
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/AdminLayout-CFKSQj4V.js
 const _hoisted_1$4 = { class: "upop-head" };
 const _hoisted_2$4 = {
   key: 0,

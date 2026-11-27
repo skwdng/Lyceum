@@ -1,8 +1,16 @@
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/ContentCommentsView-0KMDihmz.js
 import { _ as _export_sfc, M as onUnmounted, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, G as vModelText, H as withKeys, v as vModelSelect, F as Fragment, r as renderList, x as createVNode, e as createCommentVNode, j as contentApi, k as errText, i as ref, p as computed, a as openBlock, Q as vModelCheckbox } from "./index-DPVZtoxS.js";
 import { M as ModerationBar } from "./ModerationBar-BmELDXE-.js";
 import { B as BatchActions } from "./BatchActions-B3_p6EGn.js";
 import { u as userPop } from "./userPop-D25z4FkL.js";
 import { p as postDrawer } from "./postDrawer-NeBz2jR2.js";
+========
+import { _ as _export_sfc, J as onUnmounted, o as onMounted, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, G as vModelText, H as withKeys, v as vModelSelect, F as Fragment, r as renderList, x as createVNode, e as createCommentVNode, j as contentApi, k as errText, i as ref, p as computed, a as openBlock, N as vModelCheckbox } from "./index-DP-xkCoN.js";
+import { M as ModerationBar } from "./ModerationBar-DgBChBQ9.js";
+import { B as BatchActions } from "./BatchActions-BQ7o48N-.js";
+import { u as userPop } from "./userPop-CUwnwiuK.js";
+import { p as postDrawer } from "./postDrawer-CLoFB2Zt.js";
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/ContentCommentsView-MAfOigFZ.js
 const _hoisted_1 = { "data-panel": "content-comments" };
 const _hoisted_2 = { class: "panel" };
 const _hoisted_3 = {

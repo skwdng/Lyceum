@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/SettingsView-NdlOQe9A.js
 import { _ as _export_sfc, u as useAdminStore, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, s as unref, e as createCommentVNode, F as Fragment, r as renderList, f as withDirectives, G as vModelText, i as ref, m as toast, q as adminApi, L as ApiError, k as errText, D as useRouter, a as openBlock } from "./index-DPVZtoxS.js";
+========
+import { _ as _export_sfc, u as useAdminStore, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, s as unref, e as createCommentVNode, F as Fragment, r as renderList, f as withDirectives, G as vModelText, i as ref, m as toast, q as adminApi, X as ApiError, k as errText, D as useRouter, a as openBlock } from "./index-DP-xkCoN.js";
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/SettingsView-CR8Sfifw.js
 const _hoisted_1 = { "data-panel": "settings" };
 const _hoisted_2 = {
   class: "panel",

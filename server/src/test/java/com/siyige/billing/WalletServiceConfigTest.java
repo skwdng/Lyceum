@@ -42,8 +42,8 @@ class WalletServiceConfigTest {
         }
         jdbc = new JdbcTemplate(ds);
         cfg = new ConfigService(new ConfigRepo(jdbc));
-        // 每千 token 3 分、预估 9000 token 都是本批不搬的字段，按 yml 原值传入
-        wallet = new WalletService(new WalletRepo(jdbc), null, 3L, 9000L, cfg);
+        // 单价与预估 token 在第二批也搬进后台参数了，所以这里不再传值
+        wallet = new WalletService(new WalletRepo(jdbc), null, cfg);
     }
 
     @Test
@@ -74,6 +74,38 @@ class WalletServiceConfigTest {
         cfg.set(ConfigKey.BILLING_SERVICE_FEE, "50", "admin");
         cfg.set(ConfigKey.BILLING_SERVICE_FEE, "30", "admin");
         assertEquals(57L, wallet.estimateCents());
+    }
+
+    // ==================== 第二批：单价与预估 token ====================
+
+    @Test
+    void 后台把单价改成10分每千token_预扣与结算都按新价() {
+        // 默认 3 分/千：9000 token -> 27 分 + 30 服务费 = 57
+        assertEquals(57L, wallet.estimateCents());
+
+        cfg.set(ConfigKey.BILLING_CENTS_PER_1K, "10", "admin");
+        assertEquals(120L, wallet.estimateCents(), "9000 token -> 90 分 + 30 服务费");
+
+        wallet.recharge("u-price", 100_000L);
+        assertEquals(120L, wallet.hold("u-price", "m-price"), "预扣按新单价冻结");
+        Map<String, Object> settled = wallet.settle("u-price", "m-price", 1000L);
+        assertEquals(10L, settled.get("modelCostCents"), "1000 token * 10 分/千 = 10 分");
+        assertEquals(40L, settled.get("totalCents"), "10 + 服务费 30");
+        assertEquals(10L, wallet.info("u-price").get("centsPer1kTokens"));
+    }
+
+    @Test
+    void 后台把预扣估算token改成20000_预扣金额与流水备注都跟着变() {
+        cfg.set(ConfigKey.BILLING_ESTIMATE_TOKENS, "20000", "admin");
+        // 20000 / 1000 * 3 = 60 分 + 30 服务费 = 90
+        assertEquals(90L, wallet.estimateCents());
+        assertEquals(20000L, wallet.info("u-est").get("estimateTokens"));
+
+        wallet.recharge("u-est", 100_000L);
+        assertEquals(90L, wallet.hold("u-est", "m-est"));
+        String note = jdbc.queryForObject(
+                "select note from sy_wallet_tx where user_id = ? and kind = 'HOLD'", String.class, "u-est");
+        assertTrue(note.contains("20000"), "备注里的预估 token 要用当前值：" + note);
     }
 
     @Test

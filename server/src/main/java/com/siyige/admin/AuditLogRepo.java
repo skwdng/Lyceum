@@ -57,6 +57,14 @@ public class AuditLogRepo {
     public static final String ACTION_TAG_MERGE = "TAG_MERGE";
     public static final String ACTION_TAG_DELETE = "TAG_DELETE";
 
+    /**
+     * 屏蔽词（W2）。三种动作**都不可「恢复」**：词表直接决定什么内容会被遮/被拒，
+     * 删掉的词回不来（要的话重新加），所以只能留痕、不能撤销。
+     */
+    public static final String ACTION_WORD_ADD = "WORD_ADD";
+    public static final String ACTION_WORD_DELETE = "WORD_DELETE";
+    public static final String ACTION_WORD_TOGGLE = "WORD_TOGGLE";
+
     /** 目标类型（`target_type` varchar(8)）。 */
     public static final String TARGET_VIDEO = "VIDEO";
     public static final String TARGET_TOPIC = "TOPIC";
@@ -65,6 +73,10 @@ public class AuditLogRepo {
     public static final String TARGET_ADMIN = "ADMIN";
     /** 标签（`target_id` = 标签 id，`target_owner` = 标签名，改名时记旧名）。不可恢复。 */
     public static final String TARGET_TAG = "TAG";
+    /**
+     * 屏蔽词（`target_id` = 词 id，批量新增时为 null；`target_owner` = scope 或词本身）。不可恢复。
+     */
+    public static final String TARGET_WORD = "WORD";
 
     /** 来源（`source` 列）：REPORT = 从举报处理来的；MANUAL = 管理员在管理台直接操作。 */
     public static final String SOURCE_REPORT = "REPORT";

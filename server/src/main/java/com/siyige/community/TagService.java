@@ -27,7 +27,8 @@ import java.util.concurrent.TimeUnit;
  * <p>管四件事：
  * <ol>
  *   <li><b>规范化</b>：`name`（展示用，保留样子）+ `name_key`（小写去空格，唯一性用）</li>
- *   <li><b>校验</b>：长度按**码点**算 1-12、禁用字符、敏感词（命中直接拒，不打码）</li>
+ *   <li><b>校验</b>：长度按**码点**算（默认 1-12，后台可改 = tag.name-min-cp / tag.name-max-cp，
+ *       上限 24 受数据库列宽约束）、禁用字符、敏感词（命中直接拒，不打码）</li>
  *   <li><b>限额</b>：每帖 ≤5、每人每天新建 ≤10（Redis 计数，Redis 挂了就放行）；
  *       这两个数**后台可改**（{@code tag.max-per-post} / {@code tag.max-new-per-day}），改完立刻生效</li>
  *   <li><b>use_count 重算</b>：任何关联变动后重算受影响标签（禁止 +1/-1）</li>
@@ -42,9 +43,6 @@ public class TagService {
 
     /** 目前只有帖子标签（表里留了 scope，将来加辩题标签不用改表）。 */
     public static final String SCOPE_POST = "POST";
-    /** 名称长度：按码点算（中文/emoji 用 length() 会算错）。 */
-    public static final int NAME_MIN_CP = 1;
-    public static final int NAME_MAX_CP = 12;
     /** 热门标签缓存 60 秒（设计方案 §2.1）。 */
     private static final long HOT_TTL_SECONDS = 60;
     /**
@@ -84,6 +82,16 @@ public class TagService {
     /** 每人每天最多新建几个标签（每次现读后台参数）。 */
     private int maxNewPerDay() { return cfg.getInt(ConfigKey.TAG_MAX_NEW_PER_DAY); }
 
+    /**
+     * 标签名最短 / 最长字符数（参数管理第三批）。
+     *
+     * <p>按**码点**算（中文 / emoji 用 String.length() 会算错：一个 emoji 是 2 个 char）。
+     * 上限在 ConfigKey 里压到 24 —— sy_tag.name 是 varchar(24)，超过 24 会写库报错。
+     */
+    private int nameMinCp() { return cfg.getInt(ConfigKey.TAG_NAME_MIN_CP); }
+
+    private int nameMaxCp() { return cfg.getInt(ConfigKey.TAG_NAME_MAX_CP); }
+
     // ==================== 规范化 / 校验 ====================
 
     /**
@@ -105,8 +113,11 @@ public class TagService {
             throw new IllegalArgumentException("TAG_INVALID: 标签不能为空");
         }
         int cp = name.codePointCount(0, name.length());
-        if (cp < NAME_MIN_CP || cp > NAME_MAX_CP) {
-            throw new IllegalArgumentException("TAG_INVALID: 标签长度需 1-" + NAME_MAX_CP + " 个字符");
+        int minCp = nameMinCp();
+        int maxCp = nameMaxCp();
+        if (cp < minCp || cp > maxCp) {
+            // 文案里的数字用**当前**配置拼：后台改成 1-4 之后，报错就该写「1-4」，不能写死 1-12
+            throw new IllegalArgumentException("TAG_INVALID: 标签长度需 " + minCp + "-" + maxCp + " 个字符");
         }
         for (int i = 0; i < name.length(); i++) {
             char c = name.charAt(i);

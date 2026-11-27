@@ -3,6 +3,8 @@ package com.siyige.community;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -86,5 +88,70 @@ class SensitiveWordMaskerTest {
         assertEquals("", masker.mask(null).text());
         assertEquals("", masker.mask("").text());
         assertFalse(masker.mask("").changed());
+    }
+
+    // ==================== 热重建（屏蔽词管理 W1） ====================
+
+    @Test
+    void reload后立刻命中新词表_旧词不再命中() {
+        SensitiveWordMasker m = new SensitiveWordMasker(List.of("加微信"));
+        assertEquals("＊＊＊", m.mask("加微信").text());
+        assertEquals(1, m.wordCount());
+        assertEquals("explicit", m.source());
+
+        m.reload(List.of("代写", "代考"));
+        assertEquals(2, m.wordCount());
+        assertEquals("db", m.source(), "reload 后来源标记改成 db");
+        assertEquals("＊＊", m.mask("代写").text(), "新词立刻命中");
+        assertEquals("加微信", m.mask("加微信").text(), "旧词不在新表里，就不再命中");
+    }
+
+    @Test
+    void reload空集合不清空_旧表继续生效() {
+        SensitiveWordMasker m = new SensitiveWordMasker(List.of("赌博"));
+        m.reload(List.of());
+        assertEquals(1, m.wordCount(), "空表保护：条数不变");
+        assertEquals("＊＊", m.mask("赌博").text(), "仍然打码（宁可多遮，不能全裸）");
+
+        m.reload(null);
+        assertEquals(1, m.wordCount(), "null 同理");
+        assertEquals("＊＊", m.mask("赌博").text());
+    }
+
+    @Test
+    void 一边reload一边mask不抛异常_也永远不会漏掉整张表() throws Exception {
+        SensitiveWordMasker m = new SensitiveWordMasker(List.of("赌博"));
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<Throwable> boom = new AtomicReference<>();
+
+        Thread reader = new Thread(() -> {
+            try {
+                start.await();
+                for (int i = 0; i < 1000; i++) {
+                    // 两张表都含「赌博」：不管读到哪一张，结果都必须打过码
+                    String out = m.mask("赌博").text();
+                    if (!"＊＊".equals(out)) throw new AssertionError("读到半张表：" + out);
+                }
+            } catch (Throwable e) {
+                boom.compareAndSet(null, e);
+            }
+        });
+        Thread writer = new Thread(() -> {
+            try {
+                start.await();
+                for (int i = 0; i < 1000; i++) m.reload(List.of("赌博", "代写"));
+            } catch (Throwable e) {
+                boom.compareAndSet(null, e);
+            }
+        });
+
+        reader.start();
+        writer.start();
+        start.countDown();
+        reader.join(30_000);
+        writer.join(30_000);
+
+        assertNull(boom.get(), "并发 reload/mask 不应抛异常：" + boom.get());
+        assertEquals(2, m.wordCount());
     }
 }

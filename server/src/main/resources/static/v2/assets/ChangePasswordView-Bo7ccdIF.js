@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/ChangePasswordView-Bo7ccdIF.js
 import { _ as _export_sfc, u as useAdminStore, c as createElementBlock, b as createBaseVNode, d as createTextVNode, e as createCommentVNode, f as withDirectives, G as vModelText, H as withKeys, t as toDisplayString, s as unref, p as computed, i as ref, m as toast, q as adminApi, k as errText, D as useRouter, C as useRoute, a as openBlock } from "./index-DPVZtoxS.js";
+========
+import { _ as _export_sfc, u as useAdminStore, c as createElementBlock, b as createBaseVNode, d as createTextVNode, e as createCommentVNode, f as withDirectives, G as vModelText, H as withKeys, t as toDisplayString, s as unref, p as computed, i as ref, m as toast, q as adminApi, k as errText, D as useRouter, C as useRoute, a as openBlock } from "./index-DP-xkCoN.js";
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/ChangePasswordView-CUQlftzV.js
 const _hoisted_1 = {
   class: "panel cpwd",
   "data-panel": "admin-change-pwd"

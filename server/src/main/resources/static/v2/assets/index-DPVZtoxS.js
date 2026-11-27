@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
 const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-B_NkdtlK.js","./alert--ebXkPiH.js","./postDrawer-NeBz2jR2.js","./userPop-D25z4FkL.js","./ModerationBar-BmELDXE-.js","./ModerationBar-V0nw-A5Y.css","./AdminLayout-C5pRuABb.css","./ChangePasswordView-Bo7ccdIF.js","./ChangePasswordView-pt4N0wj3.css","./DashboardView-D8Bhh2Px.js","./LineChart-BMtkE816.js","./LineChart-DIduibKn.css","./DashboardView-mb_5vD9g.css","./AnalyticsView-CtkaaB66.js","./AnalyticsView-B9DMcokn.css","./ReportsView-CWh0w9kB.js","./ReportsView-DmrvUC01.css","./UsersView-CZwjbD7_.js","./BatchActions-B3_p6EGn.js","./BatchActions-DGPuvbYY.css","./ContentPostsView-CHiW6jHn.js","./ContentPostsView-CcgzItfj.css","./ContentCommentsView-0KMDihmz.js","./ContentCommentsView-CYHRwmcW.css","./TagsView-CwD5M-_E.js","./TagsView-Cl52_Na6.css","./AlertsView-9IayzZh9.js","./AlertsView-cnSsL2K_.css","./VideoAuditView-g7NbTSl-.js","./VideoAuditView-GsF68b1j.css","./TopicReviewView-CY1qbELr.js","./TopicReviewView-Bl3ZItHQ.css","./AuditView-ZtFfv35i.js","./AuditView-B40lvPYA.css","./AdminsView-Bgplg0JE.js","./AdminsView-C-jswO-_.css","./ConfigView-PUSw3Bin.js","./ConfigView-M66Ftoir.css","./SettingsView-NdlOQe9A.js","./SettingsView-B-UJ8Tc-.css"])))=>i.map(i=>d[i]);
+========
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./AdminLayout-CFKSQj4V.js","./alert-C1j3DEdZ.js","./postDrawer-CLoFB2Zt.js","./userPop-CUwnwiuK.js","./ModerationBar-DgBChBQ9.js","./ModerationBar-Ba0e_XKr.css","./AdminLayout-EkF52WF_.css","./ChangePasswordView-CUQlftzV.js","./ChangePasswordView-SXI_ueQ5.css","./DashboardView-4jyw2OJ0.js","./LineChart-RcafgfQK.js","./LineChart-mMQnDcD4.css","./DashboardView-C8pX9Oep.css","./AnalyticsView-CIqiFGAI.js","./exportFile-DjFyaROi.js","./AnalyticsView-BPxgHatY.css","./ReportsView-BQVajcg1.js","./ReportsView-DUvjuaz0.css","./UsersView-BNC1kZj5.js","./BatchActions-BQ7o48N-.js","./BatchActions-BgSqlVNL.css","./ContentPostsView-CzxY8TTR.js","./ContentPostsView-DMyV4z6b.css","./ContentCommentsView-MAfOigFZ.js","./ContentCommentsView-C89bjsk9.css","./TagsView-DZkRu1Pr.js","./TagsView-DGoZO6mk.css","./AlertsView-Bug9H2QE.js","./AlertsView-7inEvoxm.css","./VideoAuditView-DOjfC98w.js","./VideoAuditView-CkpK9tY3.css","./TopicReviewView-DgMI8T43.js","./TopicReviewView-Db8JN_kD.css","./AuditView-D9mseS47.js","./AuditView-CmhiUEr9.css","./AdminsView-DujHlncx.js","./AdminsView-Chp5U9KR.css","./ConfigView-D3UguKFB.js","./ConfigView-Gv3seAUY.css","./WordsView-BaoDOOHx.js","./WordsView-Bl7R64rI.css","./SettingsView-CR8Sfifw.js","./SettingsView-CmzjfufL.css"])))=>i.map(i=>d[i]);
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
 (function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -9401,6 +9405,19 @@ const configApi = {
   log: (key, limit = 20) => adminRequest("/config/log?" + toQuery({ key, limit })),
   rollback: (logId) => adminRequest("/config/rollback", { method: "POST", body: { logId } })
 };
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
+========
+const wordApi = {
+  list: (p2) => adminRequest("/words?" + toQuery(p2)),
+  summary: () => adminRequest("/words/summary"),
+  add: (scope, words) => adminRequest("/words", { method: "POST", body: { scope, words } }),
+  importText: (scope, text) => adminRequest("/words/import", { method: "POST", body: { scope, text } }),
+  enable: (id) => adminRequest("/words/" + id + "/enable", { method: "POST" }),
+  disable: (id) => adminRequest("/words/" + id + "/disable", { method: "POST" }),
+  remove: (id) => adminRequest("/words/" + id, { method: "DELETE" }),
+  exportPath: (scope) => "/api/admin/words/export?" + toQuery({ scope })
+};
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
 function toQuery(params) {
   return Object.keys(params || {}).filter((k) => params[k] !== void 0 && params[k] !== null && params[k] !== "").map((k) => k + "=" + encodeURIComponent(params[k])).join("&");
 }
@@ -9444,6 +9461,40 @@ const topicAdminApi = {
   reject: (id, reason) => adminRequest("/topics/" + encodeURIComponent(id) + "/reject", { method: "POST", body: { reason } }),
   offline: (id, reason) => adminRequest("/topics/" + encodeURIComponent(id) + "/offline", { method: "POST", body: { reason } })
 };
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
+========
+const api = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  ADMIN_TOKEN_KEY,
+  API_BASE,
+  ApiError,
+  TOKEN_KEY,
+  adminApi,
+  adminRequest,
+  analyticsApi,
+  authApi,
+  baseApi,
+  chatApi,
+  communityApi,
+  configApi,
+  contentApi,
+  debateApi,
+  getAdminToken,
+  getToken,
+  http,
+  notifyApi,
+  request,
+  roomApi,
+  setAdminToken,
+  setToken,
+  socialApi,
+  topicAdminApi,
+  videoApi,
+  videoAuditApi,
+  walletApi,
+  wordApi
+}, Symbol.toStringTag, { value: "Module" }));
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
 const NOTIFY_POLL_MS = 45e3;
 const useUnreadStore = /* @__PURE__ */ defineStore("unread", {
   state: () => ({
@@ -11182,7 +11233,7 @@ const _sfc_main$r = {
     };
   }
 };
-const AppShell = /* @__PURE__ */ _export_sfc(_sfc_main$r, [["__scopeId", "data-v-ba1d57be"]]);
+const AppShell = /* @__PURE__ */ _export_sfc(_sfc_main$r, [["__scopeId", "data-v-a35b6b5b"]]);
 const _hoisted_1$p = { id: "toast" };
 const _sfc_main$q = {
   __name: "ToastHost",
@@ -11337,6 +11388,11 @@ const ADMIN_MENU = [
       { to: "/admin/content/comments", label: "评论管理", icon: "☷", perm: "content:read" },
       // T3：标签管理挂在「运营」组、帖子管理下面（改标签属于内容运营的活）
       { to: "/admin/tags", label: "标签管理", icon: "⚿", perm: "content:moderate" },
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
+========
+      // W3：屏蔽词紧挨着标签管理（都是审核员日常维护的内容资产）
+      { to: "/admin/words", label: "屏蔽词", icon: "🚫", perm: "content:moderate" },
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
       { to: "/admin/video-audit", label: "视频复核", icon: "▷", perm: "video:read" },
       { to: "/admin/topics", label: "辩题审核", icon: "❓", perm: "topic:read" },
       { to: "/admin/users", label: "用户管理", icon: "☰", perm: "user:read" },
@@ -11922,7 +11978,7 @@ const _sfc_main$n = {
     };
   }
 };
-const MeView = /* @__PURE__ */ _export_sfc(_sfc_main$n, [["__scopeId", "data-v-a05d490c"]]);
+const MeView = /* @__PURE__ */ _export_sfc(_sfc_main$n, [["__scopeId", "data-v-256d9d95"]]);
 function money(cents) {
   return (Number(cents || 0) / 100).toFixed(2);
 }
@@ -14629,13 +14685,51 @@ const _hoisted_36$5 = {
   class: "card",
   style: { "margin-top": "12px", "border-color": "#2f5bea", "background": "#f2f5ff", "text-align": "center" }
 };
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
 const _hoisted_37$5 = { style: { "font-size": "11.5px", "color": "#6b7280", "margin": "4px 0 10px" } };
 const _hoisted_38$5 = {
+========
+const _hoisted_38$5 = { style: { "font-size": "11.5px", "color": "#6b7280", "margin": "4px 0 10px" } };
+const _hoisted_39$5 = {
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
   key: 1,
   class: "card",
   style: { "margin-top": "12px", "border-color": "#e3c08a", "background": "#fff9f0" }
 };
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
 const _hoisted_39$5 = {
+========
+const _hoisted_40$5 = {
+  class: "row",
+  style: { "gap": "8px", "margin-top": "10px", "flex-wrap": "wrap" }
+};
+const _hoisted_41$4 = ["onClick"];
+const _hoisted_42$4 = { class: "composer" };
+const _hoisted_43$3 = { class: "hint" };
+const _hoisted_44$3 = {
+  class: "row",
+  style: { "margin-top": "8px" }
+};
+const _hoisted_45$3 = { style: { "font-size": "11.5px", "color": "#a8adb8" } };
+const _hoisted_46$2 = {
+  key: 1,
+  class: "waiting"
+};
+const _hoisted_47$2 = ["disabled"];
+const _hoisted_48$2 = { class: "card" };
+const _hoisted_49$2 = {
+  class: "row",
+  style: { "justify-content": "space-between", "margin-bottom": "8px" }
+};
+const _hoisted_50$2 = { style: { "font-size": "11.5px", "color": "#8a909c" } };
+const _hoisted_51$2 = { class: "steps" };
+const _hoisted_52$2 = { class: "no" };
+const _hoisted_53$2 = {
+  class: "card",
+  style: { "margin-top": "12px" }
+};
+const _hoisted_54$2 = {
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
   class: "row",
   style: { "justify-content": "space-between" }
 };
@@ -15116,7 +15210,11 @@ const _sfc_main$b = {
             ]),
             createBaseVNode("div", _hoisted_11$9, toDisplayString(unref(debate).brief && unref(debate).brief.topic || "正在生成…"), 1),
             unref(debate).brief ? (openBlock(), createElementBlock(Fragment, { key: 0 }, [
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
               _cache[9] || (_cache[9] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "① 先把词定清楚", -1)),
+========
+              _cache[8] || (_cache[8] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "① 先把词定清楚", -1)),
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
               createBaseVNode("div", _hoisted_12$9, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(unref(debate).brief.definitions || [], (d, i) => {
                   return openBlock(), createElementBlock("div", {
@@ -15129,7 +15227,11 @@ const _sfc_main$b = {
                 }), 128)),
                 !(unref(debate).brief.definitions || []).length ? (openBlock(), createElementBlock("div", _hoisted_13$9, "暂无")) : createCommentVNode("", true)
               ]),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
               _cache[10] || (_cache[10] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "② 立论骨架（按这个顺序说）", -1)),
+========
+              _cache[9] || (_cache[9] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "② 立论骨架（按这个顺序说）", -1)),
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
               createBaseVNode("div", _hoisted_14$8, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(unref(debate).brief.case || [], (c, i) => {
                   return openBlock(), createElementBlock("div", {
@@ -15138,7 +15240,11 @@ const _sfc_main$b = {
                   }, toDisplayString(c), 1);
                 }), 128))
               ]),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
               _cache[11] || (_cache[11] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "③ 对方最可能怎么打，你怎么接", -1)),
+========
+              _cache[10] || (_cache[10] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "③ 对方最可能怎么打，你怎么接", -1)),
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
               createBaseVNode("div", _hoisted_15$8, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(unref(debate).brief.attacks || [], (a, i) => {
                   return openBlock(), createElementBlock("div", {
@@ -15147,7 +15253,11 @@ const _sfc_main$b = {
                   }, toDisplayString(a), 1);
                 }), 128))
               ]),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
               _cache[12] || (_cache[12] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "④ 回应句式", -1)),
+========
+              _cache[11] || (_cache[11] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "④ 回应句式", -1)),
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
               createBaseVNode("div", _hoisted_16$8, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(unref(debate).brief.rebuttals || [], (r, i) => {
                   return openBlock(), createElementBlock("div", {
@@ -15156,7 +15266,11 @@ const _sfc_main$b = {
                   }, toDisplayString(r), 1);
                 }), 128))
               ]),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
               _cache[13] || (_cache[13] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "⑤ 可引用论据（点一下插入发言框）", -1)),
+========
+              _cache[12] || (_cache[12] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "⑤ 可引用论据（点一下插入发言框）", -1)),
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
               createBaseVNode("div", _hoisted_17$8, [
                 (openBlock(true), createElementBlock(Fragment, null, renderList(unref(debate).brief.evidence || [], (c, i) => {
                   return openBlock(), createElementBlock("div", {
@@ -15237,15 +15351,22 @@ const _sfc_main$b = {
                 onClick: scrollBottom
               }, " ↓ 回到底部 ")) : createCommentVNode("", true)
             ]),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
             unref(debate).phase === "BUZZ" ? (openBlock(), createElementBlock("div", _hoisted_36$5, [
               _cache[17] || (_cache[17] = createBaseVNode("div", { style: { "font-size": "13px", "font-weight": "600", "color": "#2f5bea" } }, "自由辩 · 抢话中", -1)),
               createBaseVNode("div", _hoisted_37$5, " 谁说都行，抢到话筒就归你。窗口 " + toDisplayString(Math.max(0, unref(debate).remaining)) + " 秒 ", 1),
+========
+            unref(debate).phase === "BUZZ" ? (openBlock(), createElementBlock("div", _hoisted_37$5, [
+              _cache[20] || (_cache[20] = createBaseVNode("div", { style: { "font-size": "13px", "font-weight": "600", "color": "#2f5bea" } }, "自由辩 · 抢话中", -1)),
+              createBaseVNode("div", _hoisted_38$5, " 谁说都行，抢到话筒就归你。窗口 " + toDisplayString(Math.max(0, unref(debate).remaining)) + " 秒 ", 1),
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
               createBaseVNode("button", {
                 class: "btn primary",
                 style: { "width": "100%", "padding": "12px", "font-size": "15px" },
                 onClick: _cache[3] || (_cache[3] = ($event) => unref(debate).buzz())
               }, " 抢 ！ ")
             ])) : createCommentVNode("", true),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
             flawReady.value ? (openBlock(), createElementBlock("div", _hoisted_38$5, [
               createBaseVNode("div", _hoisted_39$5, [
                 createBaseVNode("b", _hoisted_40$5, [
@@ -15255,12 +15376,27 @@ const _sfc_main$b = {
                 _cache[19] || (_cache[19] = createBaseVNode("span", { class: "tag o" }, "抓对 +3", -1))
               ]),
               createBaseVNode("div", _hoisted_42$4, [
+========
+            unref(debate).flawOffer ? (openBlock(), createElementBlock("div", _hoisted_39$5, [
+              _cache[21] || (_cache[21] = createBaseVNode("div", {
+                class: "row",
+                style: { "justify-content": "space-between" }
+              }, [
+                createBaseVNode("b", { style: { "font-size": "12.5px" } }, "这一轮对方发言有逻辑问题 —— 你抓到了吗？"),
+                createBaseVNode("span", { class: "tag o" }, "抓对 +3")
+              ], -1)),
+              createBaseVNode("div", _hoisted_40$5, [
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
                 (openBlock(true), createElementBlock(Fragment, null, renderList(unref(debate).flawOffer.options || [], (o) => {
                   return openBlock(), createElementBlock("button", {
                     key: o,
                     class: "btn sm ghost",
                     onClick: ($event) => answerFlaw(o)
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
                   }, toDisplayString(o), 9, _hoisted_43$3);
+========
+                  }, toDisplayString(o), 9, _hoisted_41$4);
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
                 }), 128)),
                 createBaseVNode("button", {
                   class: "btn sm ghost",
@@ -15269,8 +15405,13 @@ const _sfc_main$b = {
                 }, "跳过")
               ])
             ])) : createCommentVNode("", true),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
             createBaseVNode("div", _hoisted_44$3, [
               createBaseVNode("div", _hoisted_45$3, [
+========
+            createBaseVNode("div", _hoisted_42$4, [
+              createBaseVNode("div", _hoisted_43$3, [
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
                 createBaseVNode("span", null, toDisplayString(unref(debate).waiting ? "轮到你发言" : "等待对方发言…"), 1),
                 createBaseVNode("span", {
                   style: normalizeStyle({ fontFamily: "ui-monospace,monospace", color: cdColor.value, fontWeight: unref(debate).remaining <= 30 && !unref(debate).unlimited ? 700 : 400 })
@@ -15524,6 +15665,7 @@ const _hoisted_19$5 = {
   key: 0,
   class: "dim"
 };
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
 const _hoisted_20$5 = { class: "dbar" };
 const _hoisted_21$5 = {
   key: 0,
@@ -15541,6 +15683,25 @@ const _hoisted_26$4 = {
   style: { "gap": "14px", "margin-top": "6px", "font-size": "11.5px", "color": "#6b7280", "flex-wrap": "wrap" }
 };
 const _hoisted_27$4 = {
+========
+const _hoisted_11$8 = { class: "dbar" };
+const _hoisted_12$8 = {
+  key: 0,
+  style: { "margin-top": "14px" }
+};
+const _hoisted_13$8 = { style: { "font-size": "11.5px", "color": "#8a909c", "margin-left": "6px" } };
+const _hoisted_14$7 = {
+  class: "row",
+  style: { "justify-content": "space-between", "align-items": "center" }
+};
+const _hoisted_15$7 = { style: { "font-size": "12.5px" } };
+const _hoisted_16$7 = { style: { "font-size": "13px" } };
+const _hoisted_17$7 = {
+  class: "row",
+  style: { "gap": "14px", "margin-top": "6px", "font-size": "11.5px", "color": "#6b7280", "flex-wrap": "wrap" }
+};
+const _hoisted_18$7 = {
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
   key: 1,
   class: "row",
   style: { "gap": "8px", "margin-top": "10px", "flex-wrap": "wrap" }
@@ -15625,12 +15786,21 @@ const _hoisted_62$1 = {
   class: "big",
   style: { "font-size": "38px" }
 };
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
 const _hoisted_63$1 = { style: { "font-size": "11.5px", "color": "#8a909c" } };
 const _hoisted_64$1 = { style: { "flex": "1", "min-width": "220px" } };
 const _hoisted_65$1 = ["title"];
 const _hoisted_66$1 = { class: "dbar" };
 const _hoisted_67 = { style: { "font-size": "12.5px", "color": "#4a5568", "margin-top": "8px" } };
 const _hoisted_68 = {
+========
+const _hoisted_37$4 = { style: { "font-size": "11.5px", "color": "#8a909c" } };
+const _hoisted_38$4 = { style: { "flex": "1", "min-width": "220px" } };
+const _hoisted_39$4 = ["title"];
+const _hoisted_40$4 = { class: "dbar" };
+const _hoisted_41$3 = { style: { "font-size": "12.5px", "color": "#4a5568", "margin-top": "8px" } };
+const _hoisted_42$3 = {
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
   key: 0,
   style: { "color": "#c2671e" }
 };
@@ -15861,10 +16031,17 @@ const _sfc_main$9 = {
                   ]),
                   createBaseVNode("b", null, toDisplayString(r.value[d[1]]), 1)
                 ]);
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
               }), 128)),
               r.value.collab ? (openBlock(), createElementBlock("div", _hoisted_19$5, [
                 _cache[7] || (_cache[7] = createBaseVNode("span", { class: "lb" }, "协同", -1)),
                 createBaseVNode("div", _hoisted_20$5, [
+========
+              }), 64)),
+              r.value.collab ? (openBlock(), createElementBlock("div", _hoisted_10$8, [
+                _cache[6] || (_cache[6] = createBaseVNode("span", { class: "lb" }, "协同", -1)),
+                createBaseVNode("div", _hoisted_11$8, [
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
                   createBaseVNode("i", {
                     style: normalizeStyle({ width: r.value.collab * 8 + "%", background: "#0E9F6E" })
                   }, null, 4)
@@ -15873,23 +16050,39 @@ const _sfc_main$9 = {
               ])) : createCommentVNode("", true)
             ])
           ]),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
           seatKeys.value.length > 1 ? (openBlock(), createElementBlock("div", _hoisted_21$5, [
             _cache[8] || (_cache[8] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "按席位看", -1)),
             createBaseVNode("span", _hoisted_22$5, " 你占了 " + toDisplayString(seatKeys.value.length) + " 个位置，分开算 ", 1),
+========
+          seatKeys.value.length > 1 ? (openBlock(), createElementBlock("div", _hoisted_12$8, [
+            _cache[7] || (_cache[7] = createBaseVNode("b", { style: { "font-size": "12.5px" } }, "按席位看", -1)),
+            createBaseVNode("span", _hoisted_13$8, " 你占了 " + toDisplayString(seatKeys.value.length) + " 个位置，分开算 ", 1),
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
             (openBlock(true), createElementBlock(Fragment, null, renderList(seatKeys.value, (k) => {
               return openBlock(), createElementBlock("div", {
                 key: k,
                 class: "card",
                 style: { "margin-top": "8px", "padding": "10px 12px" }
               }, [
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
                 createBaseVNode("div", _hoisted_23$5, [
                   createBaseVNode("b", _hoisted_24$4, toDisplayString(k) + " 席位", 1),
                   createBaseVNode("span", _hoisted_25$4, [
+========
+                createBaseVNode("div", _hoisted_14$7, [
+                  createBaseVNode("b", _hoisted_15$7, toDisplayString(k) + " 席位", 1),
+                  createBaseVNode("span", _hoisted_16$7, [
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
                     createBaseVNode("b", null, toDisplayString(seatScores.value[k].total), 1),
                     createTextVNode(" 分 · 发言 " + toDisplayString(seatScores.value[k].turns) + " 次", 1)
                   ])
                 ]),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
                 createBaseVNode("div", _hoisted_26$4, [
+========
+                createBaseVNode("div", _hoisted_17$7, [
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
                   createBaseVNode("span", null, "立论 " + toDisplayString(seatScores.value[k].matter), 1),
                   createBaseVNode("span", null, "论证 " + toDisplayString(seatScores.value[k].method), 1),
                   createBaseVNode("span", null, "表达 " + toDisplayString(seatScores.value[k].manner), 1),
@@ -15899,8 +16092,13 @@ const _sfc_main$9 = {
               ]);
             }), 128))
           ])) : createCommentVNode("", true),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
           Object.keys(r.value.flaws || {}).length ? (openBlock(), createElementBlock("div", _hoisted_27$4, [
             _cache[9] || (_cache[9] = createBaseVNode("span", { style: { "font-size": "12.5px", "color": "#6b7280" } }, "本场检出：", -1)),
+========
+          Object.keys(r.value.flaws || {}).length ? (openBlock(), createElementBlock("div", _hoisted_18$7, [
+            _cache[8] || (_cache[8] = createBaseVNode("span", { style: { "font-size": "12.5px", "color": "#6b7280" } }, "本场检出：", -1)),
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
             (openBlock(true), createElementBlock(Fragment, null, renderList(Object.entries(r.value.flaws), ([k, v]) => {
               return openBlock(), createElementBlock("span", {
                 key: k,
@@ -16052,7 +16250,11 @@ const _sfc_main$9 = {
                   ]),
                   createBaseVNode("div", _hoisted_63$1, " 裁判平均 · 区间 " + toDisplayString(unref(debate).panel.min) + "–" + toDisplayString(unref(debate).panel.max), 1)
                 ]),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
                 createBaseVNode("div", _hoisted_64$1, [
+========
+                createBaseVNode("div", _hoisted_38$4, [
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
                   (openBlock(true), createElementBlock(Fragment, null, renderList(panelJudges.value, (j) => {
                     return openBlock(), createElementBlock("div", {
                       key: j.name,
@@ -16061,8 +16263,13 @@ const _sfc_main$9 = {
                       createBaseVNode("span", {
                         class: "lb",
                         title: j.lens || ""
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
                       }, toDisplayString(j.name), 9, _hoisted_65$1),
                       createBaseVNode("div", _hoisted_66$1, [
+========
+                      }, toDisplayString(j.name), 9, _hoisted_39$4),
+                      createBaseVNode("div", _hoisted_40$4, [
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
                         createBaseVNode("i", {
                           style: normalizeStyle({ width: j.score + "%", background: PANEL_COLORS[j.name] || "#3A63FF" })
                         }, null, 4)
@@ -16072,9 +16279,15 @@ const _sfc_main$9 = {
                   }), 128))
                 ])
               ]),
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
               createBaseVNode("div", _hoisted_67, [
                 createTextVNode(toDisplayString(unref(debate).panel.summary) + " ", 1),
                 unref(debate).panel.max - unref(debate).panel.min >= 20 ? (openBlock(), createElementBlock("b", _hoisted_68, "（分歧大 = 有争议点，见下）")) : createCommentVNode("", true)
+========
+              createBaseVNode("div", _hoisted_41$3, [
+                createTextVNode(toDisplayString(unref(debate).panel.summary) + " ", 1),
+                unref(debate).panel.max - unref(debate).panel.min >= 20 ? (openBlock(), createElementBlock("b", _hoisted_42$3, "（分歧大 = 有争议点，见下）")) : createCommentVNode("", true)
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
               ]),
               (unref(debate).panel.consensus || []).length ? (openBlock(), createElementBlock("div", _hoisted_69, [
                 _cache[24] || (_cache[24] = createBaseVNode("b", { style: { "font-size": "12.5px", "color": "#c0392b" } }, "多位裁判都提到的问题", -1)),
@@ -19462,14 +19675,22 @@ const routes = [
   {
     path: "/admin",
     meta: { bare: true },
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
     component: () => __vitePreload(() => import("./AdminLayout-B_NkdtlK.js"), true ? __vite__mapDeps([0,1,2,3,4,5,6]) : void 0, import.meta.url),
     children: [
       { path: "", redirect: "/admin/dashboard" },
       { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-BaJS-k0C.js"), true ? [] : void 0, import.meta.url), meta: { guest: true } },
+========
+    component: () => __vitePreload(() => import("./AdminLayout-CFKSQj4V.js"), true ? __vite__mapDeps([0,1,2,3,4,5,6]) : void 0, import.meta.url),
+    children: [
+      { path: "", redirect: "/admin/dashboard" },
+      { path: "login", name: "admin-login", component: () => __vitePreload(() => import("./AdminLogin-vrf6Hnl6.js"), true ? [] : void 0, import.meta.url), meta: { guest: true } },
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
       // 首登 / 重置密码后强制改密：这条路由**不受 mustChangePwd 拦截**（否则就是死锁）
       {
         path: "change-password",
         name: "admin-change-password",
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
         component: () => __vitePreload(() => import("./ChangePasswordView-Bo7ccdIF.js"), true ? __vite__mapDeps([7,8]) : void 0, import.meta.url),
         meta: { title: "修改密码", pwdChangeAllowed: true }
       },
@@ -19493,6 +19714,33 @@ const routes = [
       // 参数管理（第一批 10 项）：与管理员管理同一档权限 —— 参数影响钱与功能开关，只给超管
       { path: "config", name: "admin-config", component: () => __vitePreload(() => import("./ConfigView-PUSw3Bin.js"), true ? __vite__mapDeps([36,37]) : void 0, import.meta.url), meta: { title: "参数管理", perm: "admin:manage" } },
       { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-NdlOQe9A.js"), true ? __vite__mapDeps([38,39]) : void 0, import.meta.url), meta: { title: "设置" } }
+========
+        component: () => __vitePreload(() => import("./ChangePasswordView-CUQlftzV.js"), true ? __vite__mapDeps([7,8]) : void 0, import.meta.url),
+        meta: { title: "修改密码", pwdChangeAllowed: true }
+      },
+      { path: "dashboard", name: "admin-dashboard", component: () => __vitePreload(() => import("./DashboardView-4jyw2OJ0.js"), true ? __vite__mapDeps([9,10,11,12]) : void 0, import.meta.url), meta: { title: "概览", perm: "analytics:read" } },
+      { path: "analytics", name: "admin-analytics", component: () => __vitePreload(() => import("./AnalyticsView-CIqiFGAI.js"), true ? __vite__mapDeps([13,10,11,14,15]) : void 0, import.meta.url), meta: { title: "报表分析", perm: "analytics:read" } },
+      {
+        path: "reports",
+        name: "admin-reports",
+        component: () => __vitePreload(() => import("./ReportsView-BQVajcg1.js"), true ? __vite__mapDeps([16,3,2,17]) : void 0, import.meta.url),
+        meta: { title: "举报处理", badge: "pendingReports", perm: "report:read" }
+      },
+      { path: "users", name: "admin-users", component: () => __vitePreload(() => import("./UsersView-BNC1kZj5.js"), true ? __vite__mapDeps([18,3,19,20]) : void 0, import.meta.url), meta: { title: "用户管理", perm: "user:read" } },
+      { path: "content/posts", name: "admin-content-posts", component: () => __vitePreload(() => import("./ContentPostsView-CzxY8TTR.js"), true ? __vite__mapDeps([21,4,5,19,20,3,2,22]) : void 0, import.meta.url), meta: { title: "帖子管理", perm: "content:read" } },
+      { path: "content/comments", name: "admin-content-comments", component: () => __vitePreload(() => import("./ContentCommentsView-MAfOigFZ.js"), true ? __vite__mapDeps([23,4,5,19,20,3,2,24]) : void 0, import.meta.url), meta: { title: "评论管理", perm: "content:read" } },
+      { path: "tags", name: "admin-tags", component: () => __vitePreload(() => import("./TagsView-DZkRu1Pr.js"), true ? __vite__mapDeps([25,26]) : void 0, import.meta.url), meta: { title: "标签管理", perm: "content:moderate" } },
+      { path: "alerts", name: "admin-alerts", component: () => __vitePreload(() => import("./AlertsView-Bug9H2QE.js"), true ? __vite__mapDeps([27,1,3,2,28]) : void 0, import.meta.url), meta: { title: "告警", perm: "analytics:read" } },
+      { path: "video-audit", name: "admin-video-audit", component: () => __vitePreload(() => import("./VideoAuditView-DOjfC98w.js"), true ? __vite__mapDeps([29,3,30]) : void 0, import.meta.url), meta: { title: "视频复核", perm: "video:read" } },
+      { path: "topics", name: "admin-topics", component: () => __vitePreload(() => import("./TopicReviewView-DgMI8T43.js"), true ? __vite__mapDeps([31,32]) : void 0, import.meta.url), meta: { title: "辩题审核", perm: "topic:read" } },
+      { path: "audit", name: "admin-audit", component: () => __vitePreload(() => import("./AuditView-D9mseS47.js"), true ? __vite__mapDeps([33,3,2,34]) : void 0, import.meta.url), meta: { title: "处理记录", perm: "audit:read" } },
+      { path: "admins", name: "admin-admins", component: () => __vitePreload(() => import("./AdminsView-DujHlncx.js"), true ? __vite__mapDeps([35,36]) : void 0, import.meta.url), meta: { title: "管理员管理", perm: "admin:manage" } },
+      // 参数管理（第一批 10 项）：与管理员管理同一档权限 —— 参数影响钱与功能开关，只给超管
+      { path: "config", name: "admin-config", component: () => __vitePreload(() => import("./ConfigView-D3UguKFB.js"), true ? __vite__mapDeps([37,38]) : void 0, import.meta.url), meta: { title: "参数管理", perm: "admin:manage" } },
+      // 屏蔽词（W3）：审核员就能改（content:moderate），改完立即重建内存词表，不用重启
+      { path: "words", name: "admin-words", component: () => __vitePreload(() => import("./WordsView-BaoDOOHx.js"), true ? __vite__mapDeps([39,14,40]) : void 0, import.meta.url), meta: { title: "屏蔽词", perm: "content:moderate" } },
+      { path: "settings", name: "admin-settings", component: () => __vitePreload(() => import("./SettingsView-CR8Sfifw.js"), true ? __vite__mapDeps([41,42]) : void 0, import.meta.url), meta: { title: "设置" } }
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
     ]
   },
   // 兜底：未知路径回 /me（同样不能回落到旧页，否则等于把人赶走）
@@ -19545,6 +19793,7 @@ export {
   vModelText as G,
   withKeys as H,
   analyticsApi as I,
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/index-DPVZtoxS.js
   getAdminToken as J,
   API_BASE as K,
   ApiError as L,
@@ -19559,6 +19808,23 @@ export {
   topicAdminApi as U,
   reactive as V,
   configApi as W,
+========
+  onUnmounted as J,
+  reasonName$1 as K,
+  actionName$1 as L,
+  fmtTime as M,
+  vModelCheckbox as N,
+  errText as O,
+  defineStore as P,
+  getAdminToken as Q,
+  API_BASE as R,
+  videoAuditApi as S,
+  topicAdminApi as T,
+  reactive as U,
+  configApi as V,
+  wordApi as W,
+  ApiError as X,
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/index-DP-xkCoN.js
   _export_sfc as _,
   openBlock as a,
   createBaseVNode as b,

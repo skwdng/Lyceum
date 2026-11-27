@@ -191,8 +191,8 @@ export const debateApi = {
   aiTiers: () => http.get('/api/ai-tiers'),
   createMatch: (payload) => http.post('/api/matches', payload),
   match: (matchId) => http.get('/api/matches/' + matchId),
-  submitTurn: (matchId, content, inputType) =>
-    http.post('/api/matches/' + matchId + '/turns', { content, inputType: inputType || 'kb' }),
+  submitTurn: (matchId, content) =>
+    http.post('/api/matches/' + matchId + '/turns', { content, inputType: 'kb' }),
   keepalive: (matchId) => http.post('/api/matches/' + matchId + '/keepalive'),
   buzz: (matchId) => http.post('/api/matches/' + matchId + '/buzz'),
   skip: (matchId) => http.post('/api/matches/' + matchId + '/skip'),
@@ -421,6 +421,27 @@ export const configApi = {
   set: (key, value) => adminRequest('/config', { method: 'POST', body: { key, value } }),
   log: (key, limit = 20) => adminRequest('/config/log?' + toQuery({ key, limit })),
   rollback: (logId) => adminRequest('/config/rollback', { method: 'POST', body: { logId } })
+};
+
+// ==================== 屏蔽词管理（content:moderate） ====================
+
+/**
+ * 屏蔽词：一份表、三个 scope（COMMUNITY 打码 / VIDEO_REJECT 驳回 / VIDEO_REVIEW 转人工）。
+ *
+ * 后端每个接口都挂 @Require(Perm.CONTENT_MODERATE)；写完立刻重建内存词表，
+ * 所以这里的写操作**不需要**任何「重新加载」的后续请求。
+ *
+ * 导出走 exportPath + views/admin/exportFile.js 的 downloadPath（要带令牌，不能 window.open）。
+ */
+export const wordApi = {
+  list: (p) => adminRequest('/words?' + toQuery(p)),
+  summary: () => adminRequest('/words/summary'),
+  add: (scope, words) => adminRequest('/words', { method: 'POST', body: { scope, words } }),
+  importText: (scope, text) => adminRequest('/words/import', { method: 'POST', body: { scope, text } }),
+  enable: (id) => adminRequest('/words/' + id + '/enable', { method: 'POST' }),
+  disable: (id) => adminRequest('/words/' + id + '/disable', { method: 'POST' }),
+  remove: (id) => adminRequest('/words/' + id, { method: 'DELETE' }),
+  exportPath: (scope) => '/api/admin/words/export?' + toQuery({ scope })
 };
 
 // ==================== 管理台报表（P3 接口 / P4 页面） ====================

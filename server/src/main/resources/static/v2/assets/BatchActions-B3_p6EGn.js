@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/BatchActions-B3_p6EGn.js
 import { _ as _export_sfc, u as useAdminStore, a as openBlock, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, v as vModelSelect, e as createCommentVNode, F as Fragment, r as renderList, n as normalizeClass, h as withModifiers, G as vModelText, p as computed, i as ref, m as toast, j as contentApi, k as errText } from "./index-DPVZtoxS.js";
+========
+import { _ as _export_sfc, u as useAdminStore, a as openBlock, c as createElementBlock, b as createBaseVNode, d as createTextVNode, t as toDisplayString, f as withDirectives, v as vModelSelect, e as createCommentVNode, F as Fragment, r as renderList, n as normalizeClass, h as withModifiers, G as vModelText, p as computed, i as ref, m as toast, j as contentApi, k as errText } from "./index-DP-xkCoN.js";
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/BatchActions-BQ7o48N-.js
 const _hoisted_1 = {
   key: 0,
   class: "batch"

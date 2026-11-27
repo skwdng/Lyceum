@@ -1,3 +1,4 @@
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/AnalyticsView-CtkaaB66.js
 import { J as getAdminToken, K as API_BASE, I as analyticsApi, L as ApiError, _ as _export_sfc, u as useAdminStore, o as onMounted, c as createElementBlock, b as createBaseVNode, F as Fragment, r as renderList, e as createCommentVNode, t as toDisplayString, d as createTextVNode, x as createVNode, i as ref, k as errText, m as toast, p as computed, a as openBlock, n as normalizeClass } from "./index-DPVZtoxS.js";
 import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-BMtkE816.js";
 async function downloadExport(params, fallbackName = "export.csv") {
@@ -38,6 +39,11 @@ function filenameOf(contentDisposition) {
   const plain = /filename="?([^";]+)"?/i.exec(contentDisposition);
   return plain ? plain[1].trim() : "";
 }
+========
+import { _ as _export_sfc, u as useAdminStore, o as onMounted, c as createElementBlock, b as createBaseVNode, F as Fragment, r as renderList, e as createCommentVNode, t as toDisplayString, d as createTextVNode, x as createVNode, i as ref, I as analyticsApi, k as errText, m as toast, p as computed, a as openBlock, n as normalizeClass } from "./index-DP-xkCoN.js";
+import { B as BarChart, D as DonutChart, L as LineChart } from "./LineChart-RcafgfQK.js";
+import { d as downloadExport } from "./exportFile-DjFyaROi.js";
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/AnalyticsView-CIqiFGAI.js
 const _hoisted_1 = { "data-panel": "analytics" };
 const _hoisted_2 = { class: "adm-toolbar" };
 const _hoisted_3 = { class: "adm-chips" };

@@ -1,6 +1,8 @@
 package com.siyige.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.siyige.admin.config.ConfigRepo;
+import com.siyige.admin.config.ConfigService;
 import com.siyige.ai.AiService;
 import com.siyige.ai.AiTier;
 import com.siyige.api.SseHub;
@@ -62,7 +64,8 @@ class PointGuardTest {
 
         service = new MatchService(store, mock(AiService.class), mock(ScoreService.class),
                 mock(HotRank.class), mock(SseHub.class), new FlawService(), new ObjectMapper(),
-                1.0, 1800, 300, 1.0, new UtteranceCheck(),
+                new ConfigService(new ConfigRepo(jdbc)),
+                new UtteranceCheck(),
                 mock(WalletService.class), mock(UserLlmService.class), mock(AiTier.class),
                 new RoomStore(jdbc));
     }

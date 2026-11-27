@@ -73,7 +73,7 @@ await check('1 超管登录（admin/admin123）', async () => {
 await check('2 参数列表：10 项、按分组、带来源与生效时机', async () => {
   const r = await call('GET', '/api/admin/config', undefined, adminTok);
   need(r.status === 200, '列表失败：' + r.status);
-  need(r.body.total === 10, '应该是 10 项，实际 ' + r.body.total);
+  need(r.body.total >= 10, '第一批至少 10 项，实际 ' + r.body.total);
   need(Array.isArray(r.body.groups) && r.body.groups.length >= 5, '分组不对：' + JSON.stringify(r.body.groups));
   const item = r.body.items.find((x) => x.key === KEY);
   need(item, '列表里没有 ' + KEY);
@@ -233,6 +233,10 @@ try {
   await send('Network.setCacheDisabled', { cacheDisabled: true });
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false });
 
+  // 页面要看到「来源=数据库」，就得先留一个**非默认值**的覆盖行：
+  // 从 4eef4aa 起「改回默认值 = 删掉那一行」，删了行来源就会回到默认值。
+  await call('POST', '/api/admin/config', { key: KEY, value: '3' }, adminTok);
+
   // 先清场：别的自检脚本会留下 sy_jwt / sy_admin_jwt，混着用会串号
   await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#/login' });
   await sleep(900);
@@ -245,7 +249,7 @@ try {
 
   await check('10 参数页：来源显示「数据库」、生效徽标、历史可展开', async () => {
     await waitFor('!!document.querySelector(\'[data-panel="config"]\')', '参数页');
-    await waitFor('document.querySelectorAll(\'[data-cfg-key]\').length === 10', '10 行参数');
+    await waitFor('document.querySelectorAll(\'[data-cfg-key]\').length >= 10', '参数行');
 
     const st = await ev('(function(){var tr=document.querySelector(\'' + ROW + '\');'
       + 'var src=tr.querySelector(".cfg-src");var tag=tr.querySelector(".tag");var inp=tr.querySelector("[data-cfg-input]");'
@@ -254,7 +258,7 @@ try {
     need(st.srcText === '数据库', '来源应显示「数据库」，实际「' + st.srcText + '」');
     need(st.srcAttr === 'DB', '来源属性应为 DB，实际 ' + st.srcAttr);
     need(st.effect === '立即生效', '生效徽标不对：' + st.effect);
-    need(st.value === '5', '页面上的值应为 5，实际 ' + st.value);
+    need(st.value === '3', '页面上的值应为刚设的 3，实际 ' + st.value);
 
     const alertEffect = await ev('(document.querySelector(\'[data-cfg-key="alert.report.threshold"] .tag\')||{}).textContent.trim()');
     need(alertEffect === '下次扫描生效', '告警阈值应显示「下次扫描生效」，实际 ' + alertEffect);

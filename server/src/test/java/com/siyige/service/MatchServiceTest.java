@@ -1,6 +1,9 @@
 package com.siyige.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigRepo;
+import com.siyige.admin.config.ConfigService;
 import com.siyige.ai.AiService;
 import com.siyige.ai.AiTier;
 import com.siyige.api.SseHub;
@@ -51,7 +54,7 @@ class MatchServiceTest {
         ds.setUser("sa");
         ds.setPassword("");
         try (Connection c = ds.getConnection()) {
-            for (String f : new String[]{"schema.sql", "schema-auth.sql"}) {
+            for (String f : new String[]{"schema.sql", "schema-auth.sql", "schema-config.sql"}) {
                 ScriptUtils.executeSqlScript(c, new ClassPathResource(f));
             }
         }
@@ -59,15 +62,19 @@ class MatchServiceTest {
         store = new Store(jdbc);
         store.insertTopic(TOPIC, "高校是否应当取消期末考试", "教育", "basic", "official", "h1");
 
+        // 节奏参数由 ConfigService 提供（构造器不再吃 4 个 @Value）；保持改造前的 1.0 倍速
+        ConfigService cfg = new ConfigService(new ConfigRepo(jdbc));
+        cfg.set(ConfigKey.PACE_TIME_SCALE, "1.0", "admin");
+
         ai = mock(AiService.class);
         when(ai.speakForSolo(anyString(), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyList()))
                 .thenReturn(new AiService.Speech("我方认为应当保留期末考试，因为学分认定需要刚性凭证。", false, ""));
 
         WalletService wallet = mock(WalletService.class);
-        when(wallet.hold(anyString(), anyString(), anyLong())).thenReturn(100L);
+        when(wallet.hold(anyString(), anyString())).thenReturn(100L);
         when(wallet.tokenSnapshot()).thenReturn(0L);
-        when(wallet.estimateCents(anyLong())).thenReturn(100L);
+        when(wallet.estimateCents()).thenReturn(100L);
 
         UserLlmService userLlm = mock(UserLlmService.class);
         when(userLlm.profileOf(anyString())).thenReturn(null);
@@ -78,8 +85,8 @@ class MatchServiceTest {
         when(tier.chargeServiceFee(anyString())).thenReturn(true);
 
         service = new MatchService(store, ai, mock(ScoreService.class), mock(HotRank.class),
-                mock(SseHub.class), new FlawService(), new ObjectMapper(),
-                1.0, 1800, 300, 1.0, new UtteranceCheck(), wallet, userLlm, tier,
+                mock(SseHub.class), new FlawService(), new ObjectMapper(), cfg,
+                new UtteranceCheck(), wallet, userLlm, tier,
                 new RoomStore(jdbc));
     }
 

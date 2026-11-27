@@ -1,27 +1,27 @@
 
 /* 只写这一批新增的两块；其余全部复用 style.css 里的既有类名 */
-.gate-card[data-v-ba1d57be] {
+.gate-card[data-v-a35b6b5b] {
   max-width: 560px;
   margin: 48px auto;
   text-align: center;
   padding: 32px 28px;
 }
-.gate-icon[data-v-ba1d57be] { font-size: 34px; line-height: 1; margin-bottom: 10px;
+.gate-icon[data-v-a35b6b5b] { font-size: 34px; line-height: 1; margin-bottom: 10px;
 }
-.gate-title[data-v-ba1d57be] { font-size: 16px; font-weight: 600; margin-bottom: 8px;
+.gate-title[data-v-a35b6b5b] { font-size: 16px; font-weight: 600; margin-bottom: 8px;
 }
 
 
 /* ---------- 移动端 ---------- */
-.tabbar[data-v-ba1d57be] { display: none;
+.tabbar[data-v-a35b6b5b] { display: none;
 }
 @media (max-width: 860px) {
   /* 侧栏整体收起：桌面是左侧固定栏，手机改成抽屉式隐藏，靠底部 tab 导航 */
-.sb[data-v-ba1d57be] { display: none !important;
+.sb[data-v-a35b6b5b] { display: none !important;
 }
-#main[data-v-ba1d57be] { padding: 12px 12px 76px !important; max-width: 100% !important;
+#main[data-v-a35b6b5b] { padding: 12px 12px 76px !important; max-width: 100% !important;
 }
-.tabbar[data-v-ba1d57be] {
+.tabbar[data-v-a35b6b5b] {
     display: flex;
     position: fixed;
     left: 0; right: 0; bottom: 0;
@@ -31,27 +31,27 @@
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
     justify-content: space-around;
 }
-.tabbar a[data-v-ba1d57be] {
+.tabbar a[data-v-a35b6b5b] {
     flex: 1;
     display: flex; flex-direction: column; align-items: center; gap: 2px;
     font-size: 11px; color: #8a909c; text-decoration: none;
     padding: 4px 0; border-radius: 10px;
 }
-.tabbar a.on[data-v-ba1d57be] { color: #2f5bea; background: #eef3ff;
+.tabbar a.on[data-v-a35b6b5b] { color: #2f5bea; background: #eef3ff;
 }
-.tabbar .ti[data-v-ba1d57be] { font-size: 18px; line-height: 1;
+.tabbar .ti[data-v-a35b6b5b] { font-size: 18px; line-height: 1;
 }
-.tabbar .tn[data-v-ba1d57be] { font-size: 11px;
+.tabbar .tn[data-v-a35b6b5b] { font-size: 11px;
 }
 }
 
 /* 改密区与昵称区之间的分隔线：旧版是内联样式，这里收成 scoped 类 */
-.pwd-block[data-v-a05d490c] {
+.pwd-block[data-v-256d9d95] {
   border-top: 1px solid #eff0f1;
   margin: 22px -24px 0;
   padding: 18px 24px 0;
 }
-.pwd-title[data-v-a05d490c] { font-size: 14px; font-weight: 600; margin-bottom: 4px;
+.pwd-title[data-v-256d9d95] { font-size: 14px; font-weight: 600; margin-bottom: 4px;
 }
 /* ============================================================================
  * 思弈阁设计 tokens —— Lyceum Design Tokens v1

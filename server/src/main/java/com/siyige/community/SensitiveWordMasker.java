@@ -36,11 +36,14 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>词表来源（按优先级）：
  * <ol>
- *   <li>{@code server/config/community-sensitive-words.txt}（外部文件，可改后重启生效）</li>
- *   <li>{@code config/community-sensitive-words.txt}（工作目录是 server/ 时）</li>
- *   <li>classpath 下的 {@code community-sensitive-words.txt}（兜底）</li>
+ *   <li>{@code sy_sensitive_word}（scope=COMMUNITY，后台「屏蔽词」页维护）—— <b>2026-11-26 起的主来源</b></li>
+ *   <li>{@code server/config/community-sensitive-words.txt} / classpath 同名文件 —— 现在只当**首次导入的种子**</li>
  * </ol>
- * 三者都不存在时构造失败 -> 应用启动失败，不允许静默关闭审核。
+ * 构造时仍按文件加载一次（保证 {@code WordService} 就绪前也能用）；
+ * 之后由 {@code WordService} 在每次改词后调用 {@link #reload(Collection)} 原子换表。
+ *
+ * <p><b>空表保护</b>：{@code reload} 收到空集合时**不清空**旧表，只打 WARN ——
+ * 后台一次误删不该让全站内容裸奔。
  */
 @Component
 public class SensitiveWordMasker {
@@ -65,29 +68,74 @@ public class SensitiveWordMasker {
     public record MaskResult(String text, int hits, boolean changed) {
     }
 
-    private final Node root = new Node();
-    private final int wordCount;
-    private final String source;
+    /**
+     * 当前生效的词表：**整张表装在一个不可变对象里**，一次 volatile 写就完成换表。
+     *
+     * <p>为什么不用「root / wordCount / source 三个 volatile」：那样读者可能看到
+     * 新 root + 旧 count 的混搭（mask 里 {@code wordCount == 0} 会短路，混搭就会漏打一次码）。
+     * 一个引用换过去，读者要么看到旧表、要么看到新表，永远不会看到半张表。
+     */
+    private record Table(Node root, int count, String source) { }
+
+    private volatile Table table;
 
     /** Spring 用：从外部文件（优先）或 classpath 加载词表。 */
     public SensitiveWordMasker() {
         Loaded loaded = loadDefault();
-        this.source = loaded.source();
-        this.wordCount = build(loaded.words());
+        this.table = build(loaded.words(), loaded.source());
     }
 
     /** 单测用：直接传入词表。 */
     public SensitiveWordMasker(Collection<String> words) {
-        this.source = "explicit";
-        this.wordCount = build(words);
+        this.table = build(words, "explicit");
     }
 
     public int wordCount() {
-        return wordCount;
+        return table.count();
     }
 
     public String source() {
-        return source;
+        return table.source();
+    }
+
+    /**
+     * 后台改词后调用：按新词表重建，毫秒级（词量百级）。
+     *
+     * <p><b>空集合不清空</b>：收到空词表时只打 WARN 并保留旧表 —— 宁可多遮一点，不能让内容全裸。
+     * 真要"什么都不屏蔽"，请先把停用的词删掉再把新词加进来（正常运营不会走到这条路）。
+     */
+    public synchronized void reload(Collection<String> words) {
+        reload(words, "db");
+    }
+
+    /**
+     * 同上，但显式指定来源标记（{@code db} / {@code file-fallback}），便于日志与 {@code /summary} 排查
+     * 「现在到底按哪张表在打码」。
+     */
+    public synchronized void reload(Collection<String> words, String source) {
+        int size = words == null ? 0 : words.size();
+        if (size == 0) {
+            log.warn("敏感词表重建收到空词表：保留内存里的旧表（{} 条）继续打码", wordCount());
+            return;
+        }
+        Table fresh = build(words, source == null ? "db" : source);
+        this.table = fresh;
+        log.info("社区敏感词表已重建：{} 条（来源 {}）", fresh.count(), fresh.source());
+    }
+
+    /**
+     * 启动导入用：按老规则（外部文件 &gt; classpath）读一份种子词表。
+     *
+     * <p>与构造器同一套路径优先级；读不到只打 WARN 返回空列表，**不抛异常**
+     * （表里已经有词时根本不需要种子，不能因为文件缺失让启动失败）。
+     */
+    public static List<String> seedWords() {
+        try {
+            return loadDefault().words();
+        } catch (RuntimeException e) {
+            log.warn("读取种子词表失败（表里已有词时不影响）：{}", e.toString());
+            return List.of();
+        }
     }
 
     /**
@@ -96,7 +144,8 @@ public class SensitiveWordMasker {
      * @return 替换后的文本、合并后的命中区间数、是否发生变化
      */
     public MaskResult mask(String text) {
-        if (text == null || text.isEmpty() || wordCount == 0) {
+        Table t = table;                      // 先抓一份快照：整次匹配都用同一张表
+        if (text == null || text.isEmpty() || t.count() == 0) {
             return new MaskResult(text == null ? "" : text, 0, false);
         }
 
@@ -104,7 +153,7 @@ public class SensitiveWordMasker {
         List<int[]> spans = new ArrayList<>();
 
         for (int i = 0; i < cps.length; i++) {
-            Node node = root;
+            Node node = t.root();
             for (int j = i; j < cps.length; j++) {
                 node = node.next.get(cps[j]);
                 if (node == null) break;
@@ -147,22 +196,25 @@ public class SensitiveWordMasker {
     private record Loaded(List<String> words, String source) {
     }
 
-    private int build(Collection<String> words) {
-        if (words == null) return 0;
+    /** 建一张新表（不碰 {@link #table}）：调用方决定什么时候换上去。 */
+    private static Table build(Collection<String> words, String source) {
+        Node root = new Node();
         int count = 0;
-        for (String w : words) {
-            if (w == null) continue;
-            String word = w.strip();
-            if (word.isEmpty()) continue;
-            int[] cps = word.codePoints().toArray();
-            Node node = root;
-            for (int cp : cps) node = node.next.computeIfAbsent(cp, k -> new Node());
-            if (!node.end) {
-                node.end = true;
-                count++;
+        if (words != null) {
+            for (String w : words) {
+                if (w == null) continue;
+                String word = w.strip();
+                if (word.isEmpty()) continue;
+                int[] cps = word.codePoints().toArray();
+                Node node = root;
+                for (int cp : cps) node = node.next.computeIfAbsent(cp, k -> new Node());
+                if (!node.end) {
+                    node.end = true;
+                    count++;
+                }
             }
         }
-        return count;
+        return new Table(root, count, source);
     }
 
     private static Loaded loadDefault() {

@@ -105,6 +105,8 @@ const routes = [
       { path: 'admins', name: 'admin-admins', component: () => import('./views/admin/AdminsView.vue'), meta: { title: '管理员管理', perm: 'admin:manage' } },
       // 参数管理（第一批 10 项）：与管理员管理同一档权限 —— 参数影响钱与功能开关，只给超管
       { path: 'config', name: 'admin-config', component: () => import('./views/admin/ConfigView.vue'), meta: { title: '参数管理', perm: 'admin:manage' } },
+      // 屏蔽词（W3）：审核员就能改（content:moderate），改完立即重建内存词表，不用重启
+      { path: 'words', name: 'admin-words', component: () => import('./views/admin/WordsView.vue'), meta: { title: '屏蔽词', perm: 'content:moderate' } },
       { path: 'settings', name: 'admin-settings', component: () => import('./views/admin/SettingsView.vue'), meta: { title: '设置' } }
     ]
   },

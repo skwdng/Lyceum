@@ -21,8 +21,8 @@ spring:
   sql:
     init:
       mode: always
-      # schema-config.sql 排最后：sy_config / sy_config_log 不引用任何别的表，放末尾不改变既有执行顺序
-      schema-locations: classpath:schema.sql,classpath:schema-community.sql,classpath:schema-tag.sql,classpath:schema-video.sql,classpath:schema-auth.sql,classpath:schema-admin.sql,classpath:schema-security.sql,classpath:schema-pay.sql,classpath:schema-userllm.sql,classpath:schema-notify.sql,classpath:schema-ai.sql,classpath:schema-social.sql,classpath:schema-analytics.sql,classpath:schema-alert.sql,classpath:schema-config.sql
+      # schema-config.sql / schema-word.sql 排最后：它们不引用任何别的表，放末尾不改变既有执行顺序
+      schema-locations: classpath:schema.sql,classpath:schema-community.sql,classpath:schema-tag.sql,classpath:schema-video.sql,classpath:schema-auth.sql,classpath:schema-admin.sql,classpath:schema-security.sql,classpath:schema-pay.sql,classpath:schema-userllm.sql,classpath:schema-notify.sql,classpath:schema-ai.sql,classpath:schema-social.sql,classpath:schema-analytics.sql,classpath:schema-alert.sql,classpath:schema-config.sql,classpath:schema-word.sql
   mvc:
     async:
       request-timeout: 1800000
@@ -46,9 +46,8 @@ siyige:
     turn-seconds: 300         # 每个发言环节的时长（秒），300 = 5 分钟
     ai-think-ms: 700
     ai-delay-scale: 1.0       # AI 回应间隔 10-15 秒，不随 time-scale 压缩         # AI 回合的“思考”下限（会被 time-scale 缩放）
-  audit:
-    # 关闭时走纯规则审核；打开需要配 llm
-    llm-enabled: false
+  # 注：原来的 siyige.audit.llm-enabled 已删除 —— 全项目没有任何代码读它（死配置，2026-11-23 全仓 grep 确认），
+  # 机器初审一直是纯规则审核（MachineAuditService），要接模型应改那里，而不是靠这个开关。
   # 充值计费
   ai-tier:
     tiers:
@@ -65,21 +64,20 @@ siyige:
     pay-secret: dev-secret-change-me   # 回调签名密钥，上线必须换
   video:
     audit:
-      # 机器初审通过后是否仍进人工队列（true=更严；false=机器过了就直接上线）
-      pass-requires-review: ${SIYIGE_VIDEO_PASS_REVIEW:true}
+      # ⚠️ 原来这里还有 pass-requires-review / title-min / title-max / allow-local-upload 四个键，
+      # 自 2026-11-23 参数管理第三批起**已搬进后台参数**（管理台「系统 → 参数管理」→「审核」组），
+      # 因此从 yml 删除 —— 留在这里会变成"改了不生效"的第二个真相。
+      # 词表仍然只在这里（参数表不收词表：改一个词要改整串、还要重启解析）
       reject-words: 涉政敏感,色情,赌博,毒品,代考,枪,炸弹
       review-words: 打架,骂战,人身攻击,盗版,搬运,洗稿
-      title-min: 4
-      title-max: 60
-      allow-local-upload: true
       # 人工审核台：等管理端（admin）接入后再打开，避免任何登录用户给自己过审
       console-enabled: true
   llm:
     base-url: https://api.deepseek.com/v1
     api-key: ""
     model: deepseek-chat
-  hot:
-    decay-per-10min: 0.5
+  # 注：原来的 siyige.hot.decay-per-10min 已删除 —— 全项目没有任何代码读它（死配置），
+  # 热度排行目前用 HotRank 的固定公式。等热度算法真的需要可调时，再按参数管理的方式登记。
 
 logging:
   level:

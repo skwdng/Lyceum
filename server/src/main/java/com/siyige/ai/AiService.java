@@ -1,9 +1,10 @@
 package com.siyige.ai;
 
+import com.siyige.admin.config.ConfigKey;
+import com.siyige.admin.config.ConfigService;
 import com.siyige.domain.Format;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -199,7 +200,8 @@ public class AiService {
     private final LlmClient llm;
     private final com.siyige.service.EvidenceService evidence;
     private final com.siyige.service.UtteranceCheck utterance;
-    private final boolean speechEnabled;
+    /** 语音开关从后台参数读（参数管理第二批）：每次现读，关掉立刻生效。 */
+    private final ConfigService cfg;
     private final Random random = new Random();
 
     /**
@@ -221,14 +223,15 @@ public class AiService {
 
     public AiService(LlmClient llm, com.siyige.service.EvidenceService evidence,
                      com.siyige.service.UtteranceCheck utterance,
-                     @Value("${siyige.llm.speech-enabled:true}") boolean speechEnabled) {
+                     ConfigService cfg) {
         this.llm = llm;
         this.evidence = evidence;
         this.utterance = utterance;
-        this.speechEnabled = speechEnabled;
+        this.cfg = cfg;
     }
 
-    public boolean llmEnabled() { return llm.enabled() && speechEnabled; }
+    /** 模型可用 = 有 key（llm.enabled）**且**后台没关语音通道。 */
+    public boolean llmEnabled() { return llm.enabled() && cfg.getBool(ConfigKey.AI_SPEECH_ENABLED); }
 
     /** 把本轮模型调用归到某场对局（计费用）。 */
     public void bind(String matchId) { llm.bindMatch(matchId); this.currentMatchId = matchId; }

@@ -5,7 +5,6 @@ import com.siyige.admin.config.ConfigService;
 import com.siyige.ai.LlmClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -22,9 +21,11 @@ import java.util.Map;
  *   服务费   = 固定一小笔（默认 0.30 元）
  * </pre>
  *
- * <p><b>服务费与赠送金后台可改</b>（参数管理第一批）：{@code billing.service-fee-cents} /
- * {@code billing.welcome-grant-cents} 改成每次现读，后台改完**下一场**就按新价算，不用重启。
- * 每千 token 单价与预估 token 本期不搬（属第二批）。
+ * <p><b>四个计费参数全部后台可改</b>：第一批搬了服务费与赠送金
+ * （{@code billing.service-fee-cents} / {@code billing.welcome-grant-cents}），
+ * 第二批搬了单价与预估 token（{@code billing.cents-per-1k-tokens} / {@code billing.estimate-tokens}）。
+ * 四个都改成每次现读，后台改完**下一场**就按新价算，不用重启 ——
+ * 关键是"预扣"和"结算"必须读**同一份**配置，否则会出现"按新价冻结、按旧价结算"。
  *
  * <p>流程：开局**预扣**（按预估 token 冻结）→ 结束**结算**（按实际用量多退少补）。
  * 单人本地运行时每个进程只有一个用户在对局，token 归属用「开局/结束时的全局计数差值」，
@@ -38,27 +39,28 @@ public class WalletService {
     private final WalletRepo repo;
     private final LlmClient llm;
 
-    /** 每千 token 收多少钱（分）。默认 3 分/千 token ≈ 0.03 元，比官方价略高一点作为毛利。 */
-    private final long centsPer1kTokens;
-    /** 开局预扣的预估 token（一场约 9k，留点余量）。 */
-    private final long estimateTokens;
     /**
-     * 服务费 / 新用户赠送从后台参数读（参数管理第一批）。
+     * 四个计费参数全部从后台参数读（参数管理第一、二批）。
      *
-     * <p>这两个字段原来也是 {@code @Value} 冻在构造期，改完必须重启才生效 ——
-     * 而现在它们直接影响**钱**，后台改完必须立刻按新值算。
+     * <p>它们原来都是 {@code @Value} 冻在构造期的字段，改完必须重启才生效 ——
+     * 而这些值直接影响**钱**，后台改完必须立刻按新值算。
      */
     private final ConfigService cfg;
 
-    public WalletService(WalletRepo repo, LlmClient llm,
-                         @Value("${siyige.billing.cents-per-1k-tokens:3}") long centsPer1kTokens,
-                         @Value("${siyige.billing.estimate-tokens:9000}") long estimateTokens,
-                         ConfigService cfg) {
+    public WalletService(WalletRepo repo, LlmClient llm, ConfigService cfg) {
         this.repo = repo;
         this.llm = llm;
-        this.centsPer1kTokens = centsPer1kTokens;
-        this.estimateTokens = estimateTokens;
         this.cfg = cfg;
+    }
+
+    /** 每千 token 收多少钱（分）。默认 3 分/千 token ≈ 0.03 元，后台可改。 */
+    private long centsPer1kTokens() {
+        return cfg.getInt(ConfigKey.BILLING_CENTS_PER_1K);
+    }
+
+    /** 开局预扣的预估 token（一场约 9k）。默认 9000，后台可改。 */
+    private long estimateTokens() {
+        return cfg.getInt(ConfigKey.BILLING_ESTIMATE_TOKENS);
     }
 
     /** 每场固定服务费（分）。默认 30 分 = 0.30 元，后台可改。 */
@@ -71,23 +73,14 @@ public class WalletService {
         return cfg.getInt(ConfigKey.BILLING_WELCOME_GRANT);
     }
 
-    /** 一场的预估费用 = 预估 token 成本 + 服务费（用默认预估）。 */
+    /** 一场的预估费用 = 预估 token 成本 + 服务费。 */
     public long estimateCents() {
-        return estimateCents(estimateTokens);
+        return costOf(estimateTokens()) + serviceFeeCents();
     }
 
-    /**
-     * 按**这一场实际赛制**预估费用。
-     *
-     * <p>原来所有比赛都按固定 9000 token 预扣，可赛制是 17–24 步随机，
-     * 实测费用在 0.6–1.7 元之间漂：估低了会中途余额不足，估高了白占用户额度。
-     */
-    public long estimateCents(long tokens) {
-        return costOf(Math.max(0, tokens)) + serviceFeeCents();
-    }
-
+    /** 模型成本：单价每次现读（同一场里预扣与结算必须读同一个函数，才不会一涨一落）。 */
     private long costOf(long tokens) {
-        return (long) Math.ceil(tokens / 1000.0 * centsPer1kTokens);
+        return (long) Math.ceil(tokens / 1000.0 * centsPer1kTokens());
     }
 
     public long balance(String userId) { return repo.balance(userId); }
@@ -124,17 +117,12 @@ public class WalletService {
      * @return 预扣金额；余额不足返回 -1
      */
     public long hold(String userId, String matchId) {
-        return hold(userId, matchId, estimateTokens);
-    }
-
-    /** 同上，但用调用方按赛制算出来的预估 token。 */
-    public long hold(String userId, String matchId, long estimateTokens) {
         ensureWallet(userId);
-        long need = estimateCents(estimateTokens);
+        long need = estimateCents();
         if (repo.balance(userId) < need) return -1L;
         if (!repo.add(userId, -need)) return -1L;
         repo.log(userId, "HOLD", -need, repo.balance(userId), matchId,
-                "开局预扣（预估 " + estimateTokens + " token + 服务费）");
+                "开局预扣（预估 " + estimateTokens() + " token + 服务费）");
         return need;
     }
 
@@ -216,9 +204,9 @@ public class WalletService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("balanceCents", repo.balance(userId));
         out.put("estimateCents", estimateCents());
-        out.put("centsPer1kTokens", centsPer1kTokens);
+        out.put("centsPer1kTokens", centsPer1kTokens());
         out.put("serviceFeeCents", serviceFeeCents());
-        out.put("estimateTokens", estimateTokens);
+        out.put("estimateTokens", estimateTokens());
         out.put("welcomeGrantCents", welcomeGrantCents());
         return out;
     }

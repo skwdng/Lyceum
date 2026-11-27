@@ -143,6 +143,157 @@ curl -s -XPOST localhost:8080/api/admin/admins -H "Authorization: Bearer $TOKEN"
 - 账号**不能硬删除**，只能停用；处理记录里的 `target_type='ADMIN'` 记录不可恢复。
 - 细节见 `docs/管理接口契约.md` §11 与 `docs/SPEC.md` §28。
 
+## 帖子标签（2026-11-15）
+
+帖子可以打标签（每帖最多 5 个），列表能按标签筛，后台能改名（撞名自动合并）与删除。
+
+```bash
+# 发帖带标签（不带 tags 就是老行为，照旧成功）
+curl -s -XPOST localhost:8080/api/community/posts -H "Authorization: Bearer $USER_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"type":"GUIDE","title":"如何用标签整理内容","body":"…","tags":["AI","教育"]}'
+
+# 联想 / 热门 / 按标签筛
+curl -s 'localhost:8080/api/community/tags?q=ai&limit=10'
+curl -s 'localhost:8080/api/community/tags/hot?limit=12'
+curl -s 'localhost:8080/api/community/posts?tagId=3&size=20'
+
+# 后台：列表 / 预置 / 改名（撞名自动合并）/ 删除（要 content:moderate）
+curl -s 'localhost:8080/api/admin/tags?page=1&size=20' -H "Authorization: Bearer $TOKEN"
+curl -s -XPOST localhost:8080/api/admin/tags -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"官方公告"}'
+curl -s -XPOST localhost:8080/api/admin/tags/7/rename -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"AI"}'
+curl -s -XDELETE localhost:8080/api/admin/tags/7 -H "Authorization: Bearer $TOKEN"
+```
+
+- 规则：名称 1-12 **码点**；禁用 `# @ / \`；**命中敏感词直接 400 拒绝（不打码）**；
+  每人每天最多新建 10 个（Redis 计数，Redis 挂了放行）；`AI` / `ai` 归一到同一个标签。
+- `use_count` **变动后重算**（不做 +1/-1）；热门标签 Redis 缓存 60 秒，标签一变动就失效。
+- 帖子**软删不动标签关联**（恢复后标签还在）；标签不合法时整条发帖请求 400，不落半条帖子。
+- 后台三个写操作都进「处理记录」（`target_type='TAG'`）且**不可恢复**。
+- 细节见 `docs/管理接口契约.md` §12 与 `docs/SPEC.md` §29。
+
+## 管理台告警（2026-11-17）
+
+每 5 分钟扫一遍业务指标，超阈值就落一条告警：顶栏 🔔 红点 + SSE 秒级提醒 + 告警页里「已处理」。
+
+```bash
+# 立即扫一次（验证/补扫用，不用等 5 分钟）
+curl -s -XPOST localhost:8080/api/admin/alerts/scan -H "Authorization: Bearer $TOKEN"
+
+# 列表 / 未读数
+curl -s 'localhost:8080/api/admin/alerts?status=OPEN&page=1&size=20' -H "Authorization: Bearer $TOKEN"
+curl -s localhost:8080/api/admin/alerts/unread -H "Authorization: Bearer $TOKEN"
+
+# 已处理（可带备注）/ 撤回 / 静音一小时
+curl -s -XPOST localhost:8080/api/admin/alerts/12/ack -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"note":"已联系当事人"}'
+curl -s -XPOST localhost:8080/api/admin/alerts/12/reopen -H "Authorization: Bearer $TOKEN"
+curl -s -XPOST localhost:8080/api/admin/alerts/mute -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d "{\"ruleKey\":\"REPORT_BACKLOG\",\"until\":$(( $(date +%s) * 1000 + 3600000 ))}"
+
+# SSE（EventSource 不能设请求头，所以令牌只能走 query —— 只有这一条路径认）
+curl -N "localhost:8080/api/admin/alerts/stream?token=$TOKEN"
+```
+
+- 四条规则：人被举报激增 / 内容被举报激增 / 举报积压 / **活跃统计缺失**（CRIT，统计任务没跑）。
+- 阈值**已搬到后台参数**（2026-11-18 参数管理第一批）：`alert.report.threshold`（默认 **3**）、
+  `alert.backlog.threshold`（默认 10），在管理台「系统 → 参数管理」里改，**下次扫描生效**；
+  判定口径仍是「> 阈值」（正好等于不报）。上线要 30 就在后台改成 30，不用改代码、不用重启。
+  `AlertRule` 里只留 `WINDOW_HOURS`（聚合窗口，不让人随手改）。
+- 去重：`dedup_key = 规则:对象:日期` + 唯一索引，一天一个对象只报一次；
+  已处理的当天不再打扰，指标回落自动 RESOLVED（ACKED 保持不动）。
+- 权限：读 `analytics:read`、写 `report:resolve`（VIEWER 能看列表、按不动按钮）；
+  其它 `/api/admin/**` 带 `?token=` 仍然 401。
+- 「已处理」**不写处理记录页**（那里只放内容处置动作）。
+- 线上 nginx 要关 SSE 缓冲：`proxy_buffering off;` + `add_header X-Accel-Buffering no;`。
+- 细节见 `docs/管理接口契约.md` §13 与 `docs/SPEC.md` §30。
+
+## 后台参数（2026-11-18 第一批 10 / 2026-11-20 第二批 7 / 2026-11-23 第三批 7，共 24 项）
+
+把 10 个"启动时定死"的配置改成**后台可改、不用重启**。管理台「系统 → 参数管理」（仅超管）。
+
+```bash
+# 全部参数（带当前值 / 默认值 / 来源 DB|DEFAULT / 生效时机）
+curl -s localhost:8080/api/admin/config -H "Authorization: Bearer $TOKEN"
+
+# 改一个：改完立刻生效（告警阈值是"下次扫描生效"）
+curl -s -XPOST localhost:8080/api/admin/config -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"key":"tag.max-per-post","value":"2"}'
+
+# 历史 / 回滚（回滚到"原本没有那一行"= 删行回默认值）
+curl -s 'localhost:8080/api/admin/config/log?key=tag.max-per-post' -H "Authorization: Bearer $TOKEN"
+curl -s -XPOST localhost:8080/api/admin/config/rollback -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"logId":12}'
+```
+
+| 键 | 默认值 | 现在是 | 生效 |
+|---|---|---|---|
+| `alert.report.threshold` | 3 | `AlertService`（每轮扫描读一次） | 下次扫描 |
+| `alert.backlog.threshold` | 10 | 同上 | 下次扫描 |
+| `video.audit.console-enabled` | true | `AdminVideoAuditService`（每次现读） | 立即 |
+| `ai.tiers.basic.enabled` | false | `AiTier.basicEnabled()` | 立即 |
+| `ai.tiers.basic.base-url` | http://127.0.0.1:11434/v1 | `AiTier.basicBaseUrl()` | 立即 |
+| `ai.daily-limit` | 5 | `AiUsageGuard`（每次 tryAcquire 读，作 Lua 参数） | 立即 |
+| `billing.service-fee-cents` | 30 | `WalletService.serviceFeeCents()` | 立即 |
+| `billing.welcome-grant-cents` | 100 | `WalletService.welcomeGrantCents()` | 立即 |
+| `tag.max-per-post` | 5 | `TagService.maxPerPost()` | 立即 |
+| `tag.max-new-per-day` | 10 | `TagService.maxNewPerDay()` | 立即 |
+| `billing.cents-per-1k-tokens` | 3 | `WalletService.centsPer1kTokens()` | 立即 |
+| `billing.estimate-tokens` | 9000 | `WalletService.estimateTokens()` | 立即 |
+| `pace.time-scale` | 0.05 | `MatchService.timeScale()` | 下次算 deadline |
+| `pace.turn-seconds` | 300 | `MatchService.turnSeconds()` | 下一次判断 |
+| `pace.ai-think-ms` | **700** | `MatchService.aiThinkMs()` | 下一次 AI 回合 |
+| `pace.ai-delay-scale` | 1.0 | `MatchService.aiDelayScale()` | 下一次 AI 回合 |
+| `ai.speech-enabled` | true | `AiService.llmEnabled()` | 立即 |
+| `video.audit.title-min` | 4 | `MachineAuditService.check` | 下一次审核 |
+| `video.audit.title-max` | 60 | 同上 | 下一次审核 |
+| `video.audit.allow-local-upload` | true | 同上（关掉只收 http/https） | 下一次上传 |
+| `video.audit.pass-requires-review` | true | 同上（关掉机器 PASS 直接上线） | 下一次审核 |
+| `ai.tiers.basic.model` | qwen2.5:7b | `AiTier.profileOf` / `describe` | 立即 |
+| `tag.name-min-cp` | 1 | `TagService.normalize`（按码点） | 立即 |
+| `tag.name-max-cp` | 12 | 同上（上限 24 = 数据库列宽） | 立即 |
+
+- **库里没有行 = 用枚举默认值**，而默认值就是改造前的 yml / 常量值 —— 所以行为零变化，
+  可以逐项灰度；出问题删掉 `sy_config` 那一行、重启即回到原值（参数页也能一键回滚）。
+- 白名单在 `admin/config/ConfigKey.java`：未声明的键后台写不进去（400）。
+- 写库与读缓存：内存 Map -> `sy_config` -> 枚举默认值；写操作**立刻失效缓存**，
+  另有 30 秒 TTL 只为多实例兜底（本期单实例）。
+- 审计写自己的 `sy_config_log`（参数页历史里看），**不写** `sy_audit_log`。
+- 本期**不改**任何密钥与基础设施（JWT / 支付 / LLM Key / 数据源 / Redis / 端口），
+  也不碰"构造 bean 时读一次"的东西（那种改了对运行中的进程没用）。
+- 自检：`selftest_vue_config.mjs`（第一批 12 项）、`selftest_vue_config2.mjs`（第二批 13 项）、
+  `selftest_vue_config3.mjs`（第三批 12 项），用法见 §冒烟测试。
+- 成对参数会配反：`video.audit.title-min` > `title-max` 时按默认 4/60 兜底并打 WARN（不会把标题全拒）。
+- 两处容易踩的坑：`pace.ai-think-ms` 的默认值必须是 **700**（yml 的值；代码里旧 `@Value` 写的是 1800，
+  那不是线上行为）；`pace.turn-seconds` 只用于「用户指定时长是否等于默认值」的判断，不是每步时长本身
+  （每步时长来自 `Pace.secondsFor` 的赛制表）。
+- 细节见 `docs/管理接口契约.md` §14。
+
+## 屏蔽词（2026-11-26 · W1-W3）
+
+三份词表（社区 txt + 视频 yml 两份）已搬进 `sy_sensitive_word`，后台「系统 → 屏蔽词」页维护，
+**改完立即生效**（重建内存 Trie，不用重启、不用发版）。
+
+| scope | 用在哪 | 命中后果 | 原来的存放 |
+|---|---|---|---|
+| `COMMUNITY` | 帖子/评论/标签 | 打码（＊）；标签直接拒 | `community-sensitive-words.txt` |
+| `VIDEO_REJECT` | 视频标题/描述 | 直接驳回 | yml `siyige.video.audit.reject-words` |
+| `VIDEO_REVIEW` | 视频标题/描述 | 转人工复核 | yml `siyige.video.audit.review-words` |
+
+- 热点路径**不查库**：`WordService.words(scope)` 读内存里那张不可变表；写操作落库后重建缓存、
+  再让 `SensitiveWordMasker` 一次换表（`volatile` 引用替换，读者不会看到半张表）。
+- `mask() / wordCount() / source()` 的签名与语义没变 —— `CommunityService` / `CommentService` /
+  `TagService` 的调用点一行没动。
+- **空表保护**：社区词表被删空时，后端 WARN + 回落到文件种子继续打码（`summary.maskedBy=file-fallback`,
+  页面顶部红条）。逐条删光时"保留上一张表"兜不住，所以是显式回落文件。
+- 启动迁移：`WordBootstrap` 按 scope 判断，表里 0 条才从文件/yml 导入种子（幂等，重复启动不翻倍）。
+- 校验：单条 1-32 码点、单批 ≤500、纯符号拒绝、`AI`/`ai` 归一化成同一个词、重复幂等跳过。
+- 审计：`sy_audit_log` 的 `target_type='WORD'`（`WORD_ADD` / `WORD_DELETE` / `WORD_TOGGLE`），**不可恢复**。
+- 自检：`node scripts/selftest_vue_words.mjs 9482 http://localhost:8080`（21 项）。
+- 细节见 `docs/管理接口契约.md` §15 与 `docs/SPEC.md` §34。
+
 ## 已实现 / 未实现
 
 | | 状态 |
@@ -167,6 +318,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1
 ```
 
 跑完会打印：审核三态、开局、12 步推进（含我的 3 次发言）、复盘分数、热辩榜前 5、记录与画像。
+
+前端自检（要一个开着的浏览器 + CDP 端口；管理台那几条要种子账号 admin/admin123）：
+
+```bash
+node scripts/selftest_vue_config.mjs  9482 http://localhost:8080   # 参数管理第一批 12 项
+node scripts/selftest_vue_config2.mjs 9482 http://localhost:8080   # 第二批 13 项（DOUBLE / 边界 / 改回默认值删行）
+node scripts/selftest_vue_config3.mjs 9482 http://localhost:8080   # 第三批 12 项（视频审核 4 / 模型名 / 标签长度）
+node scripts/selftest_vue_words.mjs 9482 http://localhost:8080    # 屏蔽词 21 项（打码/标签拒/视频/批量/导出/兜底）
+```
+
+它**不会重启后端**：改 `tag.max-per-post` 为 2 → 发带 3 个标签的帖子被拒 → 改回 5 → 同样请求通过
+→ 改成 `abc` 被拒 → OPS 账号 403 → 参数页「来源=数据库」。跑完自动回滚到默认值。
 
 ## 房间接口（多人辩论）
 

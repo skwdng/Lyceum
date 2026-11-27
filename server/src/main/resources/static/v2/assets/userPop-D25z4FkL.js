@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:server/src/main/resources/static/v2/assets/userPop-D25z4FkL.js
 import { V as reactive } from "./index-DPVZtoxS.js";
+========
+import { U as reactive } from "./index-DP-xkCoN.js";
+>>>>>>>> origin/main:server/src/main/resources/static/v2/assets/userPop-CUwnwiuK.js
 const state = reactive({
   open: false,
   userId: "",

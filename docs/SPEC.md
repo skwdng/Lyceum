@@ -1561,3 +1561,555 @@ web/
 - 账号规则 `AdminAccountServiceTest`（19 条，真 H2）。
 - 界面自检 `server/scripts/selftest_vue_admin_rbac.mjs`（9 项）：建号 → 一次性密码 →
   强制改密 → 菜单/按钮按权限 → 无权限卡片 → VIEWER 零处置按钮 → 改角色即时生效。
+
+---
+
+## 29. 帖子标签（2026-11-15 追加）
+
+> 设计方案《帖子标签系统-设计方案》；分支 `feature-post-tags`。
+> 一句话：**帖子能打标签、能按标签筛、后台能改名合并与删除**，且老客户端不受影响。
+
+### 29.1 表（`schema-tag.sql`，新文件，既有 schema 一个没动）
+
+| 表 | 列 | 说明 |
+|---|---|---|
+| `sy_tag` | `id / name / name_key / scope / use_count / created_by / created_at` | `name` 展示名（保留样子），`name_key` 归一化键（小写去空格），唯一索引 `ux_tag_scope_key(scope, name_key)` |
+| `sy_post_tag` | `post_id / tag_id / created_at` | 复合主键 `(post_id, tag_id)`；`ix_post_tag_tag(tag_id, post_id)` 反向索引 |
+
+- **R-TAG-01** 新表 MUST 只写在 `schema-tag.sql`，MUST NOT 改既有 `schema-*.sql`；
+  `application.yml` 的 `schema-locations` 排在 `schema-community.sql` 之后。
+- **R-TAG-02** `name_key` MUST 存在：不然 `AI` / `ai` / `Ai ` 会变成三个标签。
+- **R-TAG-03** `use_count` MUST 在关联变动后**重算那一行**（`update … set use_count = (select count(*) …)`），
+  MUST NOT 用 +1/-1（四个入口漏一个就永久漂移）。
+
+### 29.2 规则
+
+| 规则 | 取值 | 错误码 |
+|---|---|---|
+| 名称长度 | 1-12 **码点**（emoji 按 1 个算） | 400 `TAG_INVALID` |
+| 禁用字符 | `# @ / \` 与控制字符 | 400 `TAG_INVALID` |
+| 敏感词 | **直接拒绝，不打码**（标签打码没有意义） | 400 `TAG_BLOCKED` |
+| 每帖最多 | 5 个 | 400 `TAG_LIMIT` |
+| 每人每天新建 | 10 个（Redis `tag:new:{yyyyMMdd}:{userId}`） | 429 `TAG_QUOTA` |
+| 归一化 | 去首尾空格、连续空格合一、英文小写做 key | — |
+| 同一帖重复标签 | 按 key 去重，只落一条关联 | — |
+| 标签不存在（后台） | — | 400 `TAG_NOT_FOUND` |
+
+- **R-TAG-04** 发帖请求**不带** `tags` MUST 照旧成功（老客户端兼容），响应里 `tags` 是 `[]` 而不是 null。
+- **R-TAG-05** 标签不合法时 MUST 在**建帖之前**就 400，MUST NOT 落半条帖子。
+- **R-TAG-06** 帖子软删（`status=2`）MUST NOT 动 `sy_post_tag` —— 恢复后标签必须还在。
+- **R-TAG-07** Redis 不可用时：配额检查**放行**、热门缓存**回退查库**（只 warn），MUST NOT 阻塞发帖与列表。
+
+### 29.3 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/community/tags?q=&limit=` | 联想：只返回用过的（`use_count>0`），按使用次数降序 |
+| GET | `/api/community/tags/hot?limit=` | 热门标签（Redis 缓存 60 秒，单 key，变动即失效） |
+| GET | `/api/community/posts?tagId=12` | 按标签筛（`exists` 子查询，与其他筛选叠加，不产生重复行） |
+| POST | `/api/community/posts` | body 加可选 `tags: string[]` |
+| PATCH | `/api/community/posts/{id}` | **不传 `tags` 就不改**；传了（含 `[]`）整组替换 |
+| GET | `/api/admin/tags?q=&page=&size=` | 后台列表（含 `use_count=0`，便于清理） |
+| POST | `/api/admin/tags` | 预置标签；重名幂等返回已有（`created=false`） |
+| POST | `/api/admin/tags/{id}/rename` | 改名；撞名 **自动合并**（`merged=true` + `mergedInto` + `moved`） |
+| DELETE | `/api/admin/tags/{id}` | 断关联 + 删标签（`affected` = 受影响帖子数） |
+
+- **R-TAG-08** 列表与详情的每个帖子 MUST 带 `tags: [{id,name}]`；列表 MUST **一次批量查**
+  （`tagsByPostIds`），MUST NOT 每帖查一次。
+- **R-TAG-09** 后台写操作 MUST 挂 `@Require(Perm.CONTENT_MODERATE)`；VIEWER MUST 403。
+- **R-TAG-10** 后台审计 MUST 写 `target_type='TAG'`、`source='MANUAL'`、`report_id=0`，
+  动作 `TAG_CREATE / TAG_RENAME / TAG_MERGE / TAG_DELETE`，detail 是人读描述（不许出现 SQL 或堆栈）。
+- **R-TAG-11** `target_type='TAG'` 的记录 MUST 不可恢复（`canRestore=false`，
+  `POST /audit/{id}/restore` 返回 409 `NOT_RESTORABLE`）。
+- **R-TAG-12** 合并 MUST 在同一事务里四步：迁关联（**跳过已同时拥有两个标签的帖子**，避免主键冲突）→
+  断源关联 → 删源标签 → 重算目标 `use_count`。
+
+### 29.4 前端
+
+- **R-TAG-13** 发帖/编辑 MUST 有标签选择器：chip + 输入联想（250ms 防抖）+ 回车新建；满 5 个禁用输入。
+- **R-TAG-14** 社区列表 MUST 有热门标签条（`[全部] + 最多 12 个`），点击后 URL MUST 带 `tagId`
+  （可分享、可刷新、可后退）；再点一次 / 点「全部」取消。
+- **R-TAG-15** 卡片 MUST 显示前 3 个标签，多余显示 `+N`；详情 MUST 显示完整标签，点任意一个回列表筛选。
+- **R-TAG-16** 后台改名撞名时 MUST 先弹确认（「「AI」已存在，是否把「人工智能」并入它？将影响 N 篇帖子」），
+  MUST NOT 静默合并；删除 MUST 二次确认并写明受影响帖子数。
+- **R-TAG-17** 前端权限只是体验层：后台接口的 `@Require` 独立强制校验。
+
+### 29.5 测试
+
+- `TagServiceTest`（14 条，真 H2 + mock Redis）：归一/码点长度/禁用字符/敏感词/每帖 5 个/每日 10 个/
+  复用不吃配额/Redis 挂了放行/use_count 重算/同标签去重/编辑替换/软删不动/联想过滤/热门缓存与回退。
+- `TagApiTest`（8 条，`@SpringBootTest` + MockMvc）：不带 tags 照旧成功/带 tags 回显/`ai`≡`AI`/
+  按 tagId 筛 + 关键词叠加/联想与热门/四种错误码且不落半条帖子/编辑替换与不传不动/软删恢复。
+- `AdminTagServiceTest`（10 条，真 H2）：列表含未使用/预置幂等/预置过校验/普通改名/撞名合并
+  （跳过重复、计数相加、帖子改挂）/只改大小写不算撞名/删除只解关联/404/审计动作与文案。
+- 界面自检 `server/scripts/selftest_vue_tags.mjs`（9 项）：热门条 → 卡片标签 → 点标签筛（URL 带 tagId）→
+  刷新仍在筛选 → 取消 → 详情跳回 → 发帖选择器（联想/回车/满 5 禁用）→ 发出去后详情显示 → 零 JS 异常。
+
+---
+
+## 30. 管理台告警（2026-11-17 追加）
+
+> 设计方案《管理台告警-设计方案》；分支 `feature-admin-alerts`。
+> 一句话：**定时扫描业务指标 → 超阈值落库（去重）→ 红点/SSE 提醒 → 列表里处理**。
+
+### 30.1 表（`schema-alert.sql`，新文件）
+
+| 表 | 关键列 | 说明 |
+|---|---|---|
+| `sy_alert` | `rule_key / target_type / target_id / level / title / detail / metric / dedup_key / status / acked_* / resolved_at / first_seen / last_seen` | `dedup_key` 上有**唯一索引**，去重靠它 |
+| `sy_alert_mute` | `rule_key(主键) / muted_until / muted_by` | 静音期间不生成新告警，已存在的照常显示 |
+
+- **R-ALT-01** 去重粒度 MUST 是「规则 + 对象 + 日期」：`USER_REPORT_BURST:u_1029:2026-11-16`、
+  `POST_REPORT_BURST:POST:12:2026-11-16`、`REPORT_BACKLOG:2026-11-16`、`DAU_MISSING:2026-11-15`（缺的那一天）。
+  对象类规则带对象 id，所以处理掉一个对象不影响别的对象。
+- **R-ALT-02** 并发/重复插入 MUST 靠唯一索引 + 捕获 `DuplicateKeyException` 兜住，
+  MUST NOT 用"先查再插"（两个扫描线程会同时查到"没有"）。
+
+### 30.2 四条规则与阈值
+
+- **R-ALT-03** 阈值 MUST 集中在 `AlertRule`（唯一真源），MUST NOT 散落在 SQL 或 Service：
+  `REPORT_THRESHOLD`（**验证期 3，上线改 30**）、`BACKLOG_THRESHOLD = 10`、`WINDOW_HOURS = 24`。
+- **R-ALT-04** 判定口径是「**>** 阈值」不是「>=」：正好等于阈值不报。
+- 规则：`USER_REPORT_BURST`（人，24h 内被举报次数合计）、`POST_REPORT_BURST`（单条内容）、
+  `REPORT_BACKLOG`（全局 PENDING 数，detail 带"最老一条已等 N 小时"）、
+  `DAU_MISSING`（昨天 `sy_daily_active` 一行都没有 → `CRIT`，自己检查自己）。
+- **R-ALT-05** 统计只算 `status in ('PENDING','ACCEPTED')` 的举报；`IGNORED/REJECTED` 是"已判定没事"，不推高指标。
+- **R-ALT-06** 按人聚合 MUST **不用 join**：先单表 `group by target_type,target_id` 出计数，
+  再 `in` 批量查 `sy_post.author_id` / `sy_post_comment.user_id`，最后**应用层累加**。
+  两条规则共用同一次聚合查询（不查两遍）。
+- **R-ALT-07** 按人累加 MUST 统计**全部**举报（不是只累加"单条内容已超标"的那几行），
+  否则 3 篇各被举报 2 次（合计 6 次）的用户会漏报。
+
+### 30.3 状态机
+
+```
+        触发              人点「已处理」              指标回落
+  ───────────→ OPEN ──────────────→ ACKED ─────────────→ 保持 ACKED
+                 │
+                 └──── 指标自己回落 ────→ RESOLVED
+```
+
+- **R-ALT-08** 红点 MUST 现算 `count(*) where status='OPEN'`，不缓存。
+- **R-ALT-09** 指标回落只把该规则下"这次不再超标"的 OPEN 改 RESOLVED；
+  **ACKED 永远不动**（人处理过的不能自己变回未处理，也不能来回跳）。
+- **R-ALT-10** 同一对象当天已有 OPEN 时 MUST 只更新 `metric / title / detail / last_seen`（`first_seen` 不动）；
+  已有 ACKED/RESOLVED 时 MUST NOT 再插新行（撞 dedup_key → 静默跳过）。
+- **R-ALT-11** `reopen`（ACKED → OPEN）MUST 清空 `acked_by/acked_note/acked_at`。
+
+### 30.4 接口
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/admin/alerts?status=OPEN\|ALL&page=&size=` | 列表（默认 OPEN），带 `unread/openTotal/mutes` |
+| GET | `/api/admin/alerts/unread` | 未处理数 |
+| GET | `/api/admin/alerts/stream?token=` | SSE，只推 `{unread}`；建连先推一次 |
+| POST | `/api/admin/alerts/{id}/ack` | 已处理 `{note?}` |
+| POST | `/api/admin/alerts/{id}/reopen` | 撤回 |
+| POST | `/api/admin/alerts/mute` | 静音 `{ruleKey, until}`（epoch 毫秒，最多 30 天） |
+| POST | `/api/admin/alerts/mute/{ruleKey}/off` | 解除静音 |
+| GET | `/api/admin/alerts/mutes` | 生效中的静音 |
+| POST | `/api/admin/alerts/scan` | 手动扫描（验证/补扫） |
+
+- **R-ALT-12** 权限：**读**挂 `analytics:read`、**写**（ack/reopen/mute/scan）挂 `report:resolve`。
+  原因：既有 RBAC 矩阵里 VIEWER 也有 `analytics:read`（只读角色能看所有列表），
+  写操作若也挂它，只读角色就能把告警标记成已处理。
+- **R-ALT-13** 告警的「标记已处理」MUST NOT 写 `sy_audit_log`（处理记录页只放内容处置动作）；
+  `acked_by/acked_at/acked_note` 本身就是留痕。
+- **R-ALT-14** SSE 的令牌 MUST 只能通过 `?token=` 传（EventSource 不能设请求头），
+  且 `AdminAuthFilter` 的例外 MUST **精确到** `/api/admin/alerts/stream` 一条：
+  其它 `/api/admin/**` 带 `?token=` 必须仍然 401。
+
+### 30.5 前端
+
+- **R-ALT-15** 顶栏 MUST 有铃铛 + 未处理数（>99 显示 99+），点击进 `/admin/alerts`；
+  没有 `analytics:read` 的角色不渲染铃铛、也不建 SSE。
+- **R-ALT-16** 未读数 MUST 三路并用：进台拉一次 → SSE 事件即时更新 → 60 秒轮询兜底。
+  处理动作之后重新拉，不做本地 +/-1。
+- **R-ALT-17** 本次会话第一次看到 unread>0 MUST 只弹一次 toast（`sessionStorage` 记标记）。
+- **R-ALT-18** 退出登录 / 401 / 回登录页 MUST 断 SSE + 停轮询 + 清零红点。
+- **R-ALT-19** 告警列表 MUST 有两个视角（未处理 / 全部）、三个动作（已处理含备注 / 撤回 / 去看）；
+  「去看」按 `targetType` 复用**已有**组件：USER → 用户违规浮窗，POST/COMMENT → 内容抽屉，
+  REPORT_BACKLOG → 举报页，DAU_MISSING → 报表页。
+- **R-ALT-20** 部署说明：nginx MUST 关 SSE 缓冲（`proxy_buffering off; add_header X-Accel-Buffering no;`）。
+
+### 30.6 测试
+
+- `AlertServiceTest`（13 条，真 H2 + mock SSE）：阈值边界（=不报 / >报）、25 小时窗口外不算、
+  IGNORED/REJECTED 不算、帖子与评论都能聚合到作者、按人累加（单条不超标合计超标要报）、
+  同对象两次扫描只一条、不同对象各一条、已处理当天不再重复且不翻回、次日换键可再报、
+  回落→RESOLVED、ACKED 保持、撤回与冲突、静音期间不产生/解除后恢复、静音参数校验、
+  积压阈值与等待时长、DAU 缺失 CRIT、未读数与 SSE 推送。
+- `AdminAuthFilterTest`（+3 条）：`/alerts/stream?token=` 放行、其它 `/api/admin/**` 带 `?token=` 仍 401、
+  SSE 带坏令牌 401。
+- 界面自检 `server/scripts/selftest_vue_alerts.mjs`（8 项）：扫描 → 红点 → 告警页 → 已处理 →
+  红点归零 → 同对象不重复 → 另一对象照常触发 → 静音后不产生 → 全部视图可见已处理。
+
+---
+
+## 31. 参数管理（第一批 10 项）（2026-11-19 追加）
+
+> 设计方案《参数管理-设计方案》；分支 `feature-admin-config`。
+> 一句话：**把「启动时读死」的配置改成「每次用到时现读」，后台改了立刻生效，不用重启。**
+
+### 31.1 为什么能热更（机制）
+
+```text
+业务代码 ──> ConfigService.getInt(KEY)
+                 ├─ ① 内存 Map（命中即返回）
+                 ├─ ② sy_config 表（缓存没有才查）
+                 └─ ③ ConfigKey 枚举的默认值（= 改造前的原值）
+```
+
+**Spring 单例冻结的是「对象引用」，不是「对象内部读到的数据」**：所以不再把值存进
+`@Value` 字段，而是每次调用 `ConfigService` 去读（它的字段是 JdbcTemplate + 缓存 Map，引用不变、值可变）。
+
+判断某个配置能不能热更，只看一件事：**这个值是不是每次请求/计算时才被用到**。
+
+| 用到的时机 | 能否热更 | 本期处理 |
+|---|---|---|
+| 每次请求 / 每次计算 | 能 | 改成现读，立即生效 |
+| 构造 bean 时一次（如 `LlmClient` 的 base-url + 已 build 的 HttpClient） | 不能 | 不搬，或搬了标「需重启」 |
+| 启动时一次（数据源 / Redis / 端口 / JWT 密钥） | 不能 | 永远不进后台 |
+
+### 31.2 表（`schema-config.sql`，新文件）
+
+| 表 | 关键列 | 说明 |
+|---|---|---|
+| `sy_config` | `k(主键) / v / type / updated_by / updated_at` | **只存被改过的值**；没有行 = 用默认值 |
+| `sy_config_log` | `k / old_v / new_v / operator / created_at` | 修改历史，可回滚 |
+
+### 31.3 白名单：`ConfigKey` 枚举
+
+后台**不能**写任意 key —— 只有枚举里声明的项可改（第一批 10 项 + 第二批 7 项，见 §32，现共 17 项），键名/类型/范围/默认值/生效方式全在枚举里：
+
+| # | 键 | 类型 | 默认 | 生效 |
+|---|---|---|---|---|
+| 1 | `alert.report.threshold` | INT | 3 | 下次扫描 |
+| 2 | `alert.backlog.threshold` | INT | 10 | 下次扫描 |
+| 3 | `video.audit.console-enabled` | BOOL | true | 立即 |
+| 4 | `ai.tiers.basic.enabled` | BOOL | false | 立即 |
+| 5 | `ai.tiers.basic.base-url` | STRING | `http://127.0.0.1:11434/v1` | 立即 |
+| 6 | `ai.daily-limit` | INT | 5 | 立即 |
+| 7 | `billing.service-fee-cents` | INT | 30 | 立即 |
+| 8 | `billing.welcome-grant-cents` | INT | 100 | 立即 |
+| 9 | `tag.max-per-post` | INT | 5 | 立即 |
+| 10 | `tag.max-new-per-day` | INT | 10 | 立即 |
+
+> 默认值必须等于改造前的原值（yml 里的值 / 代码里的常量）。这是「不启动也零行为变化」的前提，
+> 有单测 `库里没有行时_10项默认值与改造前逐位一致` 守着，谁想顺手改 30 就会红。
+
+### 31.4 写流程
+
+```text
+① 校验（类型 / 范围 / 格式）—— 不合法抛 INVALID_PARAM，库里一个字节都不动
+② 新值等于默认值？ 是 -> 删掉那一行（恢复出厂），记一条历史
+                  否 -> update；影响 0 行则 insert
+③ 失效缓存
+④ 记 sy_config_log(k, old_v, new_v, operator)
+```
+
+第 ② 步的「改回默认值就删行」是为了让三件事同时成立：
+来源显示回「默认值」、「N 项已改过」的计数准确、「删掉库里的行就回默认」这句话自洽。
+
+### 31.5 接口与权限
+
+| 方法 | 路径 | 权限 |
+|---|---|---|
+| GET | `/api/admin/config` | `ADMIN_MANAGE` |
+| POST | `/api/admin/config` | `ADMIN_MANAGE` |
+| GET | `/api/admin/config/log` | `ADMIN_MANAGE` |
+| POST | `/api/admin/config/rollback` | `ADMIN_MANAGE` |
+
+**只有超管**：这些参数直接影响钱（服务费、赠送）与功能开关（复核台、基础版），
+OPS / MOD / VIEWER 一律 403，菜单也看不到。
+
+### 31.6 改造了哪 6 处
+
+| 文件 | 原来 | 现在 |
+|---|---|---|
+| `AlertService` | `AlertRule.REPORT_THRESHOLD` / `BACKLOG_THRESHOLD` 常量 | `cfg.getInt(...)`（每轮扫描开始读一次） |
+| `AdminVideoAuditService` | `@Value` 字段 `consoleEnabled` | `consoleEnabled()` 方法内现读 |
+| `AiTier` | 构造器存 `basicEnabled` / `basicBaseUrl` | 两个方法内现读（model / key 仍留在 yml） |
+| `AiUsageGuard` | `static final DAILY_LIMIT = 5` | 每次 `tryAcquire` 现读后传给 Lua |
+| `WalletService` | 4 个 `@Value` 字段 | 服务费 / 赠送改成现读方法（单价与预扣估算属第二批） |
+| `TagService` | `MAX_PER_POST` / `MAX_NEW_PER_DAY` 常量 | 现读；**报错文案里的数字也跟着变** |
+
+### 31.7 不搬的东西（有意为之）
+
+```text
+x 密钥：SIYIGE_JWT_SECRET / billing.pay-secret / llm.api-key / ai-tier.basic.api-key
+x 基础设施：数据源 / Redis / 端口 / schema-locations / 日志级别
+x 构造期固化：llm.base-url / llm.model（要热更就得每次重建 HttpClient，不值）
+x 词表类：社区敏感词、视频审核词（数据形态是一串词，以后单独做词表管理）
+x 技术性上限：分页 SIZE_MAX / 密码最大长度 / 报表最大跨度（配错会打挂，不开放）
+```
+
+### 31.8 验收（机器化的部分）
+
+```text
+单测 ConfigServiceTest
+  默认值逐位一致 / 读顺序 / 坏值被拒且库不变 / 历史 / 回滚 / 改回默认值删行
+  本来就是默认值再存一次默认值 -> 不写行、不记历史
+回归单测
+  TagServiceTest：上限 2 时 3 个标签被拒、2 个通过（文案带 2）
+  AiTierConfigTest / WalletServiceConfigTest / AiUsageGuardTest
+界面自检 server/scripts/selftest_vue_config.mjs（12 项）
+  改上限 -> 不重启 -> 被拒 -> 改回 -> 通过 -> 坏值被拒 -> 非超管 403 -> 来源徽标正确
+```
+
+### 31.9 多实例的升级路径
+
+现在是单实例：写操作 `cache.remove(key)` 立刻生效，另有 30 秒 TTL 兜底。
+多实例时 A 机改库、B 机缓存仍是旧值，要么接受最长 30 秒延迟，要么上 Redis pub/sub 广播失效（接口不用改）。
+---
+
+## 32. 参数管理（第二批 7 项）（2026-11-20 追加）
+
+> 执行提示词《执行提示词-参数管理第二批》；同一分支 `feature-admin-config`，沿用同一套
+> `ConfigService` / `ConfigKey` / `sy_config` 表 —— **没有新表、没有新接口、没有新依赖**。
+
+### 32.1 本期 7 项
+
+| # | 键 | 类型 | 默认 | 现在读它的地方 | 生效 |
+|---|---|---|---|---|---|
+| 1 | `billing.cents-per-1k-tokens` | INT | 3 | `WalletService.costOf` | 立即（下一次计价） |
+| 2 | `billing.estimate-tokens` | INT | 9000 | `WalletService` 预扣 / DTO / 流水备注 | 立即（下一次预扣） |
+| 3 | `pace.time-scale` | DOUBLE | 0.05 | `MatchService.deadlineFor` / `thinkMs` / `prepareDuration` / 抢拍窗口 | 下次算 deadline |
+| 4 | `pace.turn-seconds` | INT | 300 | `MatchService.stepSeconds` 的「是否显式指定」比较 + `turnSec` 兜底 | 下一次判断 |
+| 5 | `pace.ai-think-ms` | INT | **700** | `MatchService.thinkMs` | 下一次 AI 回合 |
+| 6 | `pace.ai-delay-scale` | DOUBLE | 1.0 | `MatchService.aiDeadline` / `openingDelay` | 下一次 AI 回合 |
+| 7 | `ai.speech-enabled` | BOOL | true | `AiService.llmEnabled()` | 立即 |
+
+**`ai-think-ms` 的坑**：yml 写 700，代码里 `@Value(...:1800)` 的默认值是 1800，
+线上真正生效的一直是 yml 的 **700**。所以 `ConfigKey` 的默认值必须写 700（不是 1800），
+否则「库里没有行」时行为就从 700 变成了 1800。
+
+**`ai.speech-enabled` 的真实作用**：它唯一的用处就是 `llmEnabled()`
+（= 有 key 且开关开着）。关掉它 AI 发言会退回模板兜底，不只是「隐藏一个语音按钮」。
+
+### 32.2 新增类型 DOUBLE
+
+```text
+ConfigKey.Type 加 DOUBLE；ConfigService 加 getDouble(ConfigKey)（解析失败回落默认值并 WARN）
+校验：能解析成 double、不是 NaN/Infinity、在 [min, max] 内（min/max 从 Integer 改成 Number，
+      这样 17 个常量里 INT 传 0、DOUBLE 传 0.05，不用到处写 0d）
+归一化：trim 后**原样存**（1 不会被改写成 1.0）；代价是写 1 与默认值 1.0 字符串不相等，
+        会被当成「改过」——值相同、语义相同，不值得改写用户的输入
+前端：type=DOUBLE 用 <input type=number step=0.05> + 范围提示 + 行内校验
+```
+
+### 32.3 改造了哪 3 处
+
+| 文件 | 原来 | 现在 |
+|---|---|---|
+| `WalletService` | 剩下两个 `@Value` 字段 `centsPer1kTokens` / `estimateTokens` | 两个现读方法；**预扣与结算读同一份**，不会「按新价冻结、按旧价结算」 |
+| `MatchService` | 4 个 `@Value` 字段 | 4 个现读方法（timeScale / turnSeconds / aiThinkMs / aiDelayScale） |
+| `AiService` | `@Value` 字段 `speechEnabled` | `llmEnabled()` 里现读 |
+
+### 32.4 三条不能破的语义（改了就是 bug）
+
+```text
+① deadline 一旦写进库就不追改：deadlineFor() 只在「开局 / 推进回合 / 抢拍」时算一次；
+   后台改参数不碰已开局的对局（有单测：改完参数再读库，deadline_at 逐位不变）
+② stepSeconds 里「用户指定时长 == 配置默认值 -> 视为没指定」：比较对象也现读配置，
+   默认 300 时行为与改造前逐位一致（单测用 pace=tight 区分：默认 300 -> 180；配置 60 -> 300）
+③ 续时（keepalive）**不跟 time-scale 走**：一律 +30 秒。单测在 0.05 与 3.0 两种倍速下都验 +30 秒
+```
+
+### 32.5 `hot.decay-per-10min` 是死配置（不进后台）
+
+`application.yml` 的 `siyige.hot.decay-per-10min: 0.5` **全项目没有代码读它**
+（`HotRank.decay(double)` 是方法参数，不是配置）。本期**不动它**：不删 yml（怕与热度算法下一次
+真正用上时冲突）、也不加进枚举（后台改一个没人读的值只会误导人）。等热度算法真的用上再一起搬。
+
+### 32.6 验收（机器化的部分）
+
+```text
+单测 ConfigServiceTest（+6）：DOUBLE 读写 / 存原样 / 坏值被拒 / 超范围被拒 / 端点可写 / 库里坏值回落
+单测 WalletServiceConfigTest（+2）：单价 10 -> 预扣与结算都按新价；预估 token 20000 -> 金额与备注跟着变
+单测 MatchPaceConfigTest（新，8 条）：deadline 不追改 / 倍速现读 / stepSeconds 比较 / 续时不压缩 /
+                                AI 停顿与备场时长
+单测 AiServiceConfigTest（新，3 条）：开关关掉 llmEnabled=false、没 key 也不走模型
+界面自检 server/scripts/selftest_vue_config2.mjs（13 项）
+```
+
+### 32.7 与第一批的关系
+
+`WalletService` 的 4 个 `@Value` 到这一批**全部搬完**（服务费 / 赠送 / 单价 / 预估 token）。
+`MatchService` 的 4 个节奏参数全部搬完；`AiService` 的语音开关搬完。
+仍未搬（有意为之）：`llm.base-url` / `llm.model` / 密钥 / 基础设施（见 §31.7）。
+---
+
+## 33. 参数管理（第三批 7 项）（2026-11-23 追加）
+
+> 执行提示词《参数管理第三批》。同分支 `feature-admin-config`，沿用同一套
+> `ConfigService` / `ConfigKey` / `sy_config` —— 只加键，表、接口、前端控件都不用动。
+
+### 33.1 本期 7 项
+
+| # | 键 | 类型 | 默认 | 现在读它的地方 | 生效 |
+|---|---|---|---|---|---|
+| 1 | `video.audit.title-min` | INT | 4 | `MachineAuditService.check` | 下一次审核 |
+| 2 | `video.audit.title-max` | INT | 60 | 同上 | 下一次审核 |
+| 3 | `video.audit.allow-local-upload` | BOOL | true | 同上（只放行 `/uploads/`） | 下一次上传 |
+| 4 | `video.audit.pass-requires-review` | BOOL | true | 同上（机器 PASS 后是否转人工） | 下一次审核 |
+| 5 | `ai.tiers.basic.model` | STRING | qwen2.5:7b | `AiTier.profileOf` / `describe` | 立即 |
+| 6 | `tag.name-min-cp` | INT | 1 | `TagService.normalize`（按码点） | 立即 |
+| 7 | `tag.name-max-cp` | INT | 12 | 同上；上限 24 = `sy_tag.name varchar(24)` | 立即 |
+
+搬完总数 24（2 告警 / 5 审核 / 5 AI / 4 计费 / 4 对局 / 4 社区）。
+
+### 33.2 成对参数的组合校验（min > max）
+
+```text
+两个键各自合法（min 1-30、max 1-200），但组合起来可以是 25 > 10 —— 单键校验拦不住。
+那样所有标题都会被拒，等于把上传入口整个关掉。
+→ MachineAuditService.titleBounds()：读的时候发现 min > max 就回落 4/60 并打 WARN；
+  check() 与 rules() 都用它，页面显示的也是真正生效的区间。
+```
+
+### 33.3 三件特意没做的事
+
+```text
+① siyige.audit.llm-enabled（yml）—— 死配置，全仓 grep 确认无人读，本批**删掉并留注释**；
+   不进参数表（后台改一个没人读的开关只会骗人）
+② VideoController 里那份 console-enabled 的 @Value —— **一个字没动**：
+   /api/video/* 的 4 个复核接口在 requireConsole() 里先要管理员身份，而它们只挂用户侧 JwtAuthFilter，
+   AdminContext 必然为空 = 对谁都是 403，是死代码；审核台已经搬到 /api/admin/video-audit/**，
+   本批不顺手改，避免扩大范围
+③ 词表（reject-words / review-words）—— 不进参数表：一整串词、改一个要改整串还要重启解析，
+   留给以后的「词表管理」页；MachineAuditService 里这两个 List 的构造方式保持不动
+```
+
+另外：搬走之后 yml 里 `siyige.video.audit` 下的 `pass-requires-review` / `title-min` /
+`title-max` / `allow-local-upload` 四个键**已无读者**（`@Value` 全部移除），一并删除并留注释
+指向参数页 —— 否则就是"改了不生效"的第二个真相。词表仍只在 yml 里。
+
+### 33.4 验收（机器化的部分）
+
+```text
+单测 ConfigServiceTest（+2）：第三批 7 项默认值 4/60/true/true/qwen2.5:7b/1/12 + 词表键不在枚举里
+单测 MachineAuditConfigTest（新，7 条）：
+  title-max=10 -> 11 字被驳回（文案带 10）；改回 60 -> 放行
+  title-min=8 -> 7 字被驳回（文案带 8）；正好 8 字放行
+  min>max（25/10）-> 回退 4/60 + WARN（用 logback ListAppender 断言日志原文）+ rules() 也是 4/60
+  allow-local-upload=false -> /uploads/ 被拒、外链仍可
+  pass-requires-review=false -> 机器 PASS 就是 PASS
+  词表仍在构造期解析（命中违禁词仍 REJECT），且 reject-words / review-words 不在枚举里
+单测 AiTierConfigTest（+1）：model 改 llama3 -> profileOf 与 describe 都是新值（Key 仍留构造器）
+单测 TagServiceTest（+3）：上限 4 -> 5 码点被拒（文案写 1-4）；下限 3 -> 2 码点被拒；
+  上限 1 时一个 emoji 算 1 个码点、两个才被拒
+界面自检 server/scripts/selftest_vue_config3.mjs（12 项）
+```
+
+### 33.5 已知遗留
+
+```text
+社区/管理台前端的标签输入框仍写死 maxlength="12"（PostEditorModal.vue / TagsView.vue ×2），
+后台把 tag.name-max-cp 改成别的值后，输入框会先按 12 截断 —— 属社区前端，本批未动，
+下次改标签 UI 时一并改成读接口返回的上限。
+```
+---
+
+## 34. 屏蔽词管理（2026-11-26 新增 · W1-W3）
+
+> 设计方案 `屏蔽词管理-设计方案.md`，执行提示词 `执行提示词-屏蔽词管理.md`。
+> 一句话：三份散在「文件 + yml」里的词表搬进 `sy_sensitive_word`，后台可增删改，
+> **改完立即生效**（重建内存 Trie，不用重启、不用发版）。
+
+### 34.1 一张表、三个 scope
+
+| scope | 用在哪 | 命中后果 |
+|---|---|---|
+| `COMMUNITY` | 帖子标题/正文、评论、标签 | 打码（全角＊）；标签**直接拒**（TAG_BLOCKED） |
+| `VIDEO_REJECT` | 视频标题/描述 | 直接驳回 |
+| `VIDEO_REVIEW` | 视频标题/描述 | 转人工复核 |
+
+同一个词**允许**同时出现在多个 scope（「赌博」既要社区打码、又要视频驳回）。
+
+### 34.2 读写路径（热点路径不查库）
+
+```text
+读：WordService.words(scope) -> volatile 不可变 Map（进程内缓存），发帖/评论/标签每条都走它，不查库
+写：校验 -> 落库 -> 重建缓存 -> SensitiveWordMasker.reload(COMMUNITY) 原子换表 -> 写审计
+```
+
+Masker 内部用**一个不可变的 Table(root, count, source) + volatile 一次替换**，
+而不是三个 volatile 字段：后者可能出现「新 root + 旧 count」的混搭，`count==0` 会短路漏打一次码。
+`mask() / wordCount() / source()` 的签名与语义没变，所以 CommunityService / CommentService /
+TagService 的调用点**一行都没动**。
+
+### 34.3 启动迁移与空表保护
+
+```text
+WordBootstrap（ApplicationRunner）：按 scope 分别判断 —— 表里 0 条才导种子
+  ① COMMUNITY    <- community-sensitive-words.txt（外部文件 > classpath）
+  ② VIDEO_REJECT <- yml siyige.video.audit.reject-words
+  ③ VIDEO_REVIEW <- yml siyige.video.audit.review-words
+  ④ 导完 reload()；幂等（先查后插 + 唯一索引 ux_word_scope_key 兜底）
+
+空表保护（两层）：
+  · Masker.reload(空集合) 不清表，只 WARN（别人直接调 reload 也不会把内容弄裸）
+  · WordService.reload() 发现 COMMUNITY 为空 -> 回落到**文件那份种子表**并打 WARN，
+    source 标记为 file-fallback（页面/汇总里能看到「打码来源」）
+    为什么不能只「保留上一张表」：逐条删光时上一张表最后只剩一条，等于没兜底
+```
+
+### 34.4 接口与权限
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/admin/words?scope=&q=&page=&size=` | 列表（含停用词，按 scope 分组排序） |
+| GET | `/api/admin/words/summary` | 各 scope 词数 + 最近变更 + `communityEmpty` + `maskedBy` |
+| GET | `/api/admin/words/export?scope=` | 导出 txt（`#` 注释头 + 一行一个，只导启用） |
+| POST | `/api/admin/words` | 批量新增 `{scope, words:[]}` -> `{added, skipped, invalid}` |
+| POST | `/api/admin/words/import` | 粘贴导入 `{scope, text}`（换行 / 英文逗号 / 中文逗号 / 顿号） |
+| POST | `/api/admin/words/{id}/enable` `/disable` | 启停 |
+| DELETE | `/api/admin/words/{id}` | 删除 |
+
+权限统一 `content:moderate`（审核员本来就管内容）。
+**注意**：`OPS` 角色在既有权限矩阵里也有 `content:moderate`，所以 OPS 同样能管词表；
+只有 `VIEWER` 是 403。若产品上要求「只有审核能改」，得新增一个专用权限点（`WORD_MANAGE`），
+那会改动既有矩阵，所以本批没做。
+
+审计：`sy_audit_log` 的 `target_type='WORD'`，动作 `WORD_ADD` / `WORD_DELETE` / `WORD_TOGGLE`；
+**全部不可「恢复」**（`RestoreService` 直接返回 `NOT_RESTORABLE`，删掉的词要重新加）。
+
+### 34.5 校验（设计方案 §4）
+
+| 项 | 规则 |
+|---|---|
+| 单条长度 | 1 ~ 32 个码点 |
+| 单批条数 | ≤ 500（粘贴导入也是先切词再按这个卡） |
+| 归一化 | trim + 英文小写（中文原样）；`AI` / `ai` 视为同一个词 |
+| 去重 | `ux_word_scope_key(scope, word_key)`，重复幂等跳过并计入 `skipped` |
+| 空白/纯符号 | 拒绝（至少含一个字母/数字/汉字），否则「、」会匹配一切 |
+
+### 34.6 页面
+
+`web/src/views/admin/WordsView.vue`（菜单：运营 → 屏蔽词）：
+三个 tab（社区-打码 / 视频-硬违规-驳回 / 视频-转人工-审查）、顶部词数与最近变更 +「导出 txt」、
+批量粘贴框 + 导入、按词搜索、行内启停/删除；社区词表为空时顶部红色横幅常驻。
+
+### 34.7 验收（自动化部分）
+
+```text
+单测 WordServiceTest（12）：归一化/AI=ai、32 码点边界、纯符号拒、501 拒、幂等 skipped、
+  停用启用、删空后的文件兜底、列表筛选、汇总、导出
+单测 WordBootstrapTest（3）：首次导入三份种子、重复启动不翻倍、表非空不覆盖运营改过的词表
+单测 SensitiveWordMaskerTest（+3）：reload 立刻生效且旧词不再命中、reload(空) 不清表、
+  一边 reload 一边 mask 1000 次不抛异常也不漏打码
+单测 MachineAuditConfigTest（+1）：加词立刻 REJECT、删词立刻不再命中（词表来自库）
+界面自检 server/scripts/selftest_vue_words.mjs（21 项，含发帖打码/标签拒绝/视频两种后果/
+  批量粘贴/501/导出/审计不可恢复/清空社区词表的兜底与红条/VIEWER 403）
+```
+
+### 34.8 遗留
+
+```text
+· yml 的 reject-words / review-words 这次**保留**（退化成「首次导入种子」），删除留到下次单独提交
+· 单字词误伤（「枪」会命中「枪械」以外的正常词）：页面只提示，不强制 ≥2 字
+· 词量上万再考虑 Aho-Corasick，本期百级词量 Trie 微秒级
+```
+
+
