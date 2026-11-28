@@ -294,3 +294,55 @@ mvn spring-boot:run（不加任何参数）
   -> node scripts/selftest_mysql.mjs  ->  44/44 全绿
 mvn test  ->  985 个用例，0 失败 0 错误（14 跳过）
 ```
+
+---
+
+## 9. 2026-11-28（续）：**H2 方言文件里的种子数据不会自己过到 MySQL**（真 bug）
+
+### 9.1 现象
+
+`schema-ai.sql` 末尾有一条 AI 账号种子：
+
+```sql
+merge into sy_user (id, account, name, password_hash, status, is_bot)
+key (id) values ('ai_deepseek', 'deepseek', 'DeepSeek', '!ai-account-no-login!', 1, 1);
+```
+
+`merge into … key(id)` 是 **H2 专有语法**。当初把 16 个 H2 方言文件翻成 `schema-mysql-full.sql` 时，
+翻译脚本只认 DDL（`create table` / `create index` / `alter table`），**这条 insert 被整条丢掉**：
+
+```text
+schema-mysql-full.sql 里 insert/merge 条数 = 0
+本地 MySQL：select * from sy_user where id='ai_deepseek'  ->  空
+生产（切库记录里 42 张表、27110 行迁过去）同样没有这行 —— 迁移工具只搬已存在的行
+```
+
+### 9.2 后果（整个 @AI 功能在 MySQL 上等于不存在）
+
+```text
+· @ 候选里永远搜不到 DeepSeek（它压根不是一行 user）
+· 前端 ids() 只认「从弹层里点选过的人」，手打 @DeepSeek 不算 -> mentions 里没有 ai_deepseek
+· AiQueue.maybeEnqueue 的第二道闸要求「正文含 @DeepSeek 且 mentions 含 ai_deepseek」-> 永远不进队
+· H2 单测里一直是好的（种子在），所以没人发现
+```
+
+### 9.3 修法
+
+| 位置 | 内容 |
+|---|---|
+| 两份 `schema-mysql-full.sql` | 补同一条幂等种子（逐字节一致）：`insert … select … where not exists (…)` |
+| `patch-mysql-2026-11-28-ai-account.sql` | 给**已有库**（本地容器 + 生产）补一次，与 phone 补丁互不依赖、都要跑 |
+| `AiAccountSeedTest` | H2 断言「种子行存在且 is_bot=1」「三个字面量没被改」「幂等写法重复执行不多行」 |
+
+为什么用 `insert … select … where not exists` 而不是 `insert ignore`：
+`insert ignore` 是 MySQL 方言，H2 不认；`where not exists` 两边都认，且语义就是「没有才插」。
+实测（`siyige-mysql` 容器）连跑两次：`count(*) where id='ai_deepseek'` 恒为 1。
+
+### 9.4 教训（以后翻 schema 必看）
+
+> **机械翻译只认得出 DDL。H2 文件里除 `merge into … key(…)` 之外的任何 `insert` / `merge` 种子，
+> 都必须人工搬一遍；翻完要拿 `select count(*) from <种子表>` 对一下。**
+
+顺带一条同类坑（这次一起修的）：H2 的 `LIKE` **区分大小写**，MySQL 默认不区分 ——
+@ 候选 SQL 原来是 `name like ?`，于是「@d」在本地 H2 搜不到 DeepSeek、在生产 MySQL 却能搜到。
+已统一成 `lower(name) like lower(?)`。

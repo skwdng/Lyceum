@@ -218,9 +218,13 @@ public class NotificationRepo {
      */
     public List<Map<String, Object>> searchUsers(String prefix, int limit) {
         String like = prefix + "%";
+        // 大小写：MySQL 的 LIKE 默认不区分（ci 排序规则），H2 的 LIKE **区分** ——
+        // 一样是「@d」，本地 H2 搜不到 DeepSeek、生产 MySQL 却搜得到。
+        // 统一用 lower(...) like lower(?) 把两边拉成同一个行为（2026-11-28 修）。
+        // 多带一个 is_bot：弹层里 AI 账号要挂「AI」徽章，否则用户不知道 @ 的是机器人
         return lowerAll(jdbc.queryForList(
-                "select id, name from sy_user " +
-                        "where account is not null and name is not null and name like ? " +
+                "select id, name, is_bot from sy_user " +
+                        "where account is not null and name is not null and lower(name) like lower(?) " +
                         "order by name limit ?", like, limit));
     }
 

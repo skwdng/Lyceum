@@ -658,3 +658,16 @@ create table if not exists sy_shortlink (
   primary key (code),
   key ix_shortlink_target (target(191))
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_0900_ai_ci;
+
+-- ============================================================================
+-- 种子数据：AI 账号（来自 schema-ai.sql 的 merge into 种子）
+--
+-- 为什么必须单独搬：H2 那份用 merge into … key(id)（H2 专有），机械翻译只认 DDL，
+-- 这条 insert 当初被整条漏掉了 —— 结果 MySQL 上 @DeepSeek 根本搜不到人，整个 @AI 功能等于死的。
+-- 这里换成两边都认的幂等写法（insert … select … where not exists），重复执行不会多出行。
+-- 2026-11-28 已在 siyige-mysql 容器上连跑两次验证：count 恒为 1。
+-- 已部署的库不走这里，用 docs/migration-mysql/patch-mysql-2026-11-28-ai-account.sql 补一次。
+-- ============================================================================
+insert into sy_user(id, account, name, password_hash, status, is_bot)
+select 'ai_deepseek', 'deepseek', 'DeepSeek', '!ai-account-no-login!', 1, 1
+where not exists (select 1 from sy_user where id = 'ai_deepseek');

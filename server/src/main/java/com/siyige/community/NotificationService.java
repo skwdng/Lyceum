@@ -447,6 +447,9 @@ public class NotificationService {
             Map<String, Object> u = new LinkedHashMap<>();
             u.put("id", String.valueOf(r.get("id")));
             u.put("name", String.valueOf(r.get("name")));
+            // is_bot=1 的候选（AI 账号）前端挂「AI」徽章；普通用户为 false
+            Object bot = r.get("is_bot");
+            u.put("isBot", bot instanceof Number n && n.intValue() == 1);
             out.add(u);
         }
         return out;
