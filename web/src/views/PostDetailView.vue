@@ -236,6 +236,24 @@ async function removePost() {
   }
 }
 
+/**
+ * 楼中楼行内回复（2026-11-28）：正文由 CommentNode 收集，这里只负责发请求与刷新。
+ *
+ * <p>和底部「写回复」走同一个接口，区别只是 replyObjectType 固定 COMMENT，
+ * 并把 CommentNode 那份 useMention 算出来的 mentions 原样带上（@AI 能不能进队就看它）。
+ */
+async function submitInlineReply({ commentId, text, mentions }) {
+  const payload = { body: text, replyObjectType: 'COMMENT', replyObjectCommentId: commentId };
+  if (mentions && mentions.length) payload.mentions = mentions;
+  try {
+    await communityApi.addComment(post.value.id, payload);
+    await loadPost(post.value.id, undefined);
+    toast(text.indexOf('＊') >= 0 ? '回复已发布，含敏感词已自动打码' : '回复已发布');
+  } catch (e) {
+    toast(errText(e));
+  }
+}
+
 async function submitReply() {
   const text = String(draft.value || '').trim();
   if (!text) return toast('写点什么吧');
@@ -380,6 +398,7 @@ function gotoTag(id) {
               @remove="removeComment"
               @report="openReport"
               @expand="expandReplies"
+              @submit-reply="submitInlineReply"
             />
           </template>
           <div v-else style="padding: 26px 0; text-align: center; color: #86909c; font-size: 13px">
@@ -454,8 +473,9 @@ function gotoTag(id) {
         :class="{ on: i === mention.state.active }"
         @mousedown.prevent="mention.pick(i)"
       >
-        <b>{{ u.name }}</b><span>@{{ u.name }}</span>
+        <b>{{ u.name }}</b><span v-if="u.isBot" class="ai-badge">AI</span><span>@{{ u.name }}</span>
       </div>
+      <div v-if="!mention.state.items.length" class="mention-empty">没找到用户</div>
     </div>
 
     <PostEditorModal v-if="editorOpen && post" :post="post" @close="editorOpen = false" @saved="onSaved" />

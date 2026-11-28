@@ -11,14 +11,23 @@ import { communityApi } from '../api.js';
  * 身份只认 userId：前端不按昵称猜人，最终以服务端校验为准。
  */
 export function useMention() {
-  const state = reactive({ open: false, items: [], active: 0, query: '', start: 0, left: 0, top: 0 });
+  const state = reactive({ open: false, empty: false, items: [], active: 0, query: '', start: 0, left: 0, top: 0 });
   const picked = ref([]);
   let timer = null;
   let el = null;
 
   function close() {
     state.open = false;
+    state.empty = false;
     state.items = [];
+  }
+
+  /** 把弹层摆到输入框下方（fixed 定位，避免被评论区的 overflow 裁掉）。 */
+  function place() {
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    state.left = Math.round(rect.left + 12);
+    state.top = Math.round(rect.bottom + 6);
   }
 
   async function fetchCandidates(q) {
@@ -27,12 +36,11 @@ export function useMention() {
       if (state.query !== q) return;         // 竞态：期间又打了字
       state.items = (r && r.items) || [];
       state.active = 0;
-      state.open = state.items.length > 0;
-      if (state.open && el) {
-        const rect = el.getBoundingClientRect();
-        state.left = Math.round(rect.left + 12);
-        state.top = Math.round(rect.bottom + 6);
-      }
+      // 只要查过就弹：0 条时也要弹，显示「没找到用户」——
+      // 以前空结果直接不弹，用户会以为 @ 功能坏了（这次就是这么被误判的）
+      state.empty = state.items.length === 0;
+      state.open = true;
+      place();
     } catch (e) {
       close();
     }
@@ -56,7 +64,14 @@ export function useMention() {
 
   /** 绑定到 textarea 的 keydown 事件；返回 true 表示已被提及弹层消费掉 */
   function onKey(e) {
-    if (!state.open || !state.items.length) return false;
+    if (!state.open) return false;
+    // 空态（没找到用户）也要能 Esc 关掉；↑↓/Enter 不消费，交回给输入框
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+      return true;
+    }
+    if (!state.items.length) return false;
     const n = state.items.length;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -71,11 +86,6 @@ export function useMention() {
     if (e.key === 'Enter') {
       e.preventDefault();
       pick(state.active);
-      return true;
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      close();
       return true;
     }
     return false;

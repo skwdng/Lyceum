@@ -253,8 +253,9 @@ async function submit() {
         :class="{ on: i === mention.state.active }"
         @mousedown.prevent="mention.pick(i)"
       >
-        <b>{{ u.name }}</b><span>@{{ u.name }}</span>
+        <b>{{ u.name }}</b><span v-if="u.isBot" class="ai-badge">AI</span><span>@{{ u.name }}</span>
       </div>
+      <div v-if="!mention.state.items.length" class="mention-empty">没找到用户</div>
     </div>
   </div>
 </template>

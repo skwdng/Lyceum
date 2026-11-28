@@ -241,6 +241,15 @@
 .mention-item span{font-size:11.5px;color:#8A909C}
 .mention-item:hover,.mention-item.on{background:#EDF1FE}
 .mention-item.on b{color:#165DFF}
+/* 空态：查询过但一个都没匹配到。以前「什么都不弹」让用户以为 @ 功能坏了（2026-11-28 修） */
+.mention-empty{padding:8px 10px;font-size:12px;color:#8A909C;cursor:default}
+/* ---- 楼中楼行内回复框（2026-11-28）---- */
+.reply-editor{margin-top:9px}
+.reply-editor textarea{width:100%;min-height:64px;border:1px solid #E5E6EB;border-radius:9px;
+  padding:9px 11px;font-size:13px;line-height:1.7;outline:none;resize:vertical;font-family:inherit}
+.reply-editor-foot{display:flex;align-items:center;justify-content:space-between;margin-top:7px;
+  font-size:11.5px;color:#A9AEB8}
+.reply-editor-ops{display:flex;gap:8px}
 /* ---- 通知跳楼层高亮（2026-11-04，V3）---- */
 .cm-focus{background:#FFF7E6;box-shadow:0 0 0 2px #FFB74D inset;border-radius:10px;transition:background .3s}
 /* ---- 社区 AI 徽章（2026-11-05，V2）---- */
