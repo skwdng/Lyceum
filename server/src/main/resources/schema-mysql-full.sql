@@ -644,3 +644,15 @@ create table if not exists sy_sensitive_word (
   unique key ux_word_scope_key (scope, word_key),
   key ix_word_scope (scope, enabled)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_0900_ai_ci;
+
+-- ---------- sy_shortlink（来自 schema.sql） ----------
+-- utf8mb4 下 target 全场索引会超长，索引用 191 前缀
+create table if not exists sy_shortlink (
+
+  code       varchar(16) not null,
+  target     varchar(500) not null,
+  hits       int default 0,
+  created_at timestamp default current_timestamp,
+  primary key (code),
+  key ix_shortlink_target (target(191))
+) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_0900_ai_ci;

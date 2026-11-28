@@ -112,6 +112,11 @@ export const authApi = {
 export const baseApi = {
   topics: () => http.get('/api/topics'),
   hot: (n = 12) => http.get('/api/hot?n=' + n),
+  /**
+   * 短链：把房间邀请长链（含 #/room?join=CODE）换成 /s/xxxx。
+   * 返回 { code, path, url }；后端没上线时前端回退显示长链接。
+   */
+  shortlink: (target) => http.post('/api/shortlinks', { target }),
   /** n>0 只看最近 n 场；0/省略 = 全部（累计滑动平均） */
   diag: (n) => http.get('/api/diag' + (n > 0 ? '?n=' + n : '')),
   records: () => http.get('/api/records')
@@ -227,7 +232,7 @@ export const roomApi = {
   /** 建房：topicId 为空则后端随机抽题，房主坐 A1 */
   create: (topicId, seat) => http.post('/api/rooms', { topicId: topicId || null, seat: seat || null }),
   detail: (code) => http.get('/api/rooms/' + encodeURIComponent(code)),
-  join: (code) => http.post('/api/rooms/' + encodeURIComponent(code) + '/join', {}),
+  join: (code, seat) => http.post('/api/rooms/' + encodeURIComponent(code) + '/join', seat ? { seat: String(seat) } : {}),
   leave: (code) => http.post('/api/rooms/' + encodeURIComponent(code) + '/leave', {}),
   ready: (code, ready) => http.post('/api/rooms/' + encodeURIComponent(code) + '/ready', { ready }),
   start: (code) => http.post('/api/rooms/' + encodeURIComponent(code) + '/start', {}),

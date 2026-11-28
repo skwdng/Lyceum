@@ -62,10 +62,18 @@ public class RoomController {
         return rooms.detail(code, UserContext.requireId());
     }
 
+    /**
+     * 加入房间：body 可选 {@code {seat:"B2"}} 自己挑座；不带 seat 沿用「人少那侧的第一个空位」。
+     * 被占 → 409 SEAT_TAKEN；已在房间 → 幂等返回 detail（不换座）。
+     */
     @PostMapping("/{code}/join")
-    public Map<String, Object> join(@PathVariable String code) {
+    public Map<String, Object> join(@PathVariable String code,
+                                    @RequestBody(required = false) Map<String, Object> body) {
         String uid = UserContext.requireId();                       // 身份只认令牌
-        return rooms.join(code, uid, userNames.name(uid));           // 昵称查账号表
+        String seat = body == null || body.get("seat") == null ? null : String.valueOf(body.get("seat"));
+        // 不带 seat 时仍走老三参版本：老前端与既有调用点（含单测里的 mock 校验）行为完全不变
+        if (seat == null) return rooms.join(code, uid, userNames.name(uid));
+        return rooms.join(code, uid, userNames.name(uid), seat);      // 昵称查账号表
     }
 
     @PostMapping("/{code}/leave")

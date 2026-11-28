@@ -199,3 +199,13 @@ alter table sy_match add column if not exists last_skip_at bigint default 0;
 
 -- 老库补列（单人模式 deadline 为 NULL，光靠 started_at 会把正常对局误判成僵尸）
 alter table sy_match add column if not exists last_active_at bigint default 0;
+
+-- 短链（房间邀请 / 任意分享链接）：code -> target，hits 记点击次数
+-- 为什么不用长 URL 直接发：邀请链接要能贴进群里，/s/Ab3xY9 比 /siyige/#/room?join=SY-7KQ2 短得多
+create table if not exists sy_shortlink (
+  code       varchar(16) primary key,
+  target     varchar(500) not null,
+  hits       int default 0,
+  created_at timestamp default current_timestamp
+);
+create index if not exists ix_shortlink_target on sy_shortlink(target);

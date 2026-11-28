@@ -1243,6 +1243,76 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
 }
 }
 
+/* 空位面板：8 个座位卡（2 列 × 4），已占的灰掉不可点 */
+.peek[data-v-8df2689e] { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px;
+}
+.peek-hd[data-v-8df2689e] {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--ink); margin-bottom: 8px;
+}
+.peek-hd .mono[data-v-8df2689e] { font-size: 11.5px; color: var(--sub);
+}
+.peek-mine[data-v-8df2689e] {
+  font-size: 12.5px; color: var(--ink);
+  background: var(--blue-w); border-radius: 10px;
+  padding: 8px 10px; margin-bottom: 8px;
+}
+.seatgrid[data-v-8df2689e] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+}
+.seatcard[data-v-8df2689e] {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  min-height: 64px; padding: 8px 10px; text-align: left;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+  color: var(--ink); font: inherit; cursor: pointer;
+}
+.seatcard[data-v-8df2689e]:hover:not(:disabled) { border-color: var(--accent, var(--blue)); background: var(--blue-w);
+}
+.seatcard[data-v-8df2689e]:disabled { cursor: not-allowed; opacity: 0.72;
+}
+.seatcard.taken[data-v-8df2689e] { background: var(--bg);
+}
+.seatcard.mine[data-v-8df2689e] { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue) inset;
+}
+.seatcard .sk[data-v-8df2689e] { font-size: 13px; font-weight: 700;
+}
+.seatcard .sr[data-v-8df2689e] { font-size: 11px; color: var(--sub);
+}
+.seatcard .so[data-v-8df2689e] { font-size: 11.5px; color: var(--sub);
+}
+.seatcard.ai .so[data-v-8df2689e] { color: var(--org);
+}
+.peek-tip[data-v-8df2689e] { margin-top: 8px; font-size: 11.5px; color: var(--sub);
+}
+.peek-err[data-v-8df2689e] { margin-top: 10px; font-size: 12px; color: var(--danger, #c0392b);
+}
+
+/* 分享弹层 */
+.sh-box[data-v-8df2689e] {
+  background: var(--card); border-radius: 16px; padding: 18px;
+  width: min(520px, 100%); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+}
+.sh-row[data-v-8df2689e] {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 8px 10px; margin-bottom: 8px;
+}
+.sh-k[data-v-8df2689e] { flex: 0 0 64px; font-size: 12px; color: var(--sub);
+}
+.sh-v[data-v-8df2689e] {
+  flex: 1; min-width: 0; font-size: 12.5px; color: var(--ink);
+  word-break: break-all;
+}
+.sh-err[data-v-8df2689e] { font-size: 11.5px; color: var(--org); margin-top: 4px;
+}
+.sh-tip[data-v-8df2689e] { font-size: 11.5px; color: var(--sub); margin-top: 10px;
+}
+@media (max-width: 860px) {
+.seatgrid[data-v-8df2689e] { grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.sh-row .btn[data-v-8df2689e] { min-height: 44px;
+}
+}
+
 /* tab 切换（两个等宽按钮，选中主色药丸） */
 .mv-tabs[data-v-ea9eaeb7] {
   display: flex;
