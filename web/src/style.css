@@ -233,3 +233,52 @@ table.t tr:last-child td { border-bottom: none; }
 
 /* 复盘里的总分：用主色，不用错误红（分数低不代表出错） */
 .score-color { color: #2f5bea; }
+
+/* ==================== 移动端设计层（≤860px） ====================
+ * 只改「手机上怎么排」，不改任何页面的信息结构；
+ * 颜色一律走 var(--blue/--card/--line/--ink/--sub)，换皮肤时跟着变。
+ */
+@media (max-width: 860px) {
+  body { font-size: 14px; line-height: 1.75; }
+  h1.pg { font-size: 20px; line-height: 1.35; margin-bottom: 2px; }
+  .card-h { font-size: 15px; }
+  p.sub { font-size: 12.5px; line-height: 1.6; margin-bottom: 12px; }
+
+  /* 卡片更圆、阴影更轻 */
+  .card {
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(26, 29, 36, 0.05);
+    padding: 14px;
+  }
+  .grid { gap: 12px; }
+  .g2, .g3, .gauto { grid-template-columns: 1fr; }
+
+  /* 所有可点区域 ≥44px（触控） */
+  .btn {
+    min-height: 44px;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn.sm { min-height: 44px; padding: 0 12px; font-size: 13px; }
+  .inp { min-height: 44px; }
+  .auth-field input { min-height: 44px; width: 100%; }
+
+  table.t { font-size: 13px; }
+
+  /* 社区/视频里的筛选小标签：手机上也要能稳稳点到（≥44px） */
+  .cm .htag,
+  .cm .tab,
+  .cm .clr {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .card { padding: 12px 13px; }
+  .big { font-size: 34px; letter-spacing: -1px; }
+}

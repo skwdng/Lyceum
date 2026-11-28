@@ -33,9 +33,10 @@
       </div>
 
       <p class="sub" style="margin-top: 12px; font-size: 12px">
-        提示：深色皮肤（庭辩现场 / 思辨仪器 / 深夜电台 / 竞技场）在强光下阅读长文可能偏累；
-        如果只是换换心情，也可以在任意页面用浏览器控制台执行
-        <code>localStorage.removeItem('sy_skin'); location.reload()</code> 回到默认。
+        当前只有这三套皮肤（庭辩现场 / 纸上推演 / 深夜电台）＋默认纸白，切换即时生效、只影响本机；
+        深色皮肤（庭辩现场 / 深夜电台）在强光下读长文会偏累。
+        想回出厂设置就点右上「恢复默认」，或在任意页面执行
+        <code>localStorage.removeItem('sy_skin'); location.reload()</code>。
       </p>
     </div>
   </div>
@@ -84,8 +85,9 @@ function reset() {
 .nm { margin-top: 9px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .ds { margin-top: 3px; font-size: 11.5px; color: var(--sub); line-height: 1.6; }
 code { font-family: Consolas, monospace; font-size: 11px; background: var(--blue-w); padding: 1px 4px; border-radius: 4px; }
-@media (max-width: 520px) {
-  .wrap { padding: 16px; }
-  .skins { grid-template-columns: 1fr; }
+@media (max-width: 860px) {
+  .wrap { padding: 16px; min-width: 0; }
+  .skins { grid-template-columns: 1fr; gap: 10px; }
+  .skin { min-height: 44px; padding: 12px; border-radius: 16px; }
 }
 </style>

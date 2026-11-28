@@ -47,7 +47,7 @@ function openDebate(topicId) {
   <div v-if="error" class="card"><div class="empty">{{ error }}</div></div>
 
   <div v-else class="grid g2">
-    <div class="card">
+    <div class="card hot-table-card">
       <table class="t">
         <thead>
           <tr>
@@ -76,6 +76,72 @@ function openDebate(topicId) {
       </table>
     </div>
 
-
+    <!-- 移动端（≤640px）：卡片列表。表格在 390 宽下会被挤成一根竖线，必须换掉 -->
+    <ul class="hot-cards">
+      <li v-for="x in list" :key="'c' + x.topicId" class="hc">
+        <div class="hc-top">
+          <span class="hc-rank" :class="{ top: x.rank <= 3 }">{{ x.rank }}</span>
+          <div class="hc-tt">{{ x.title }}</div>
+        </div>
+        <div class="hc-meta">
+          <span>{{ x.source === 'custom' ? '自定义' : '官方' }}</span>
+          <span class="hc-score">{{ x.score }} 分</span>
+        </div>
+        <div class="heatbar"><i :style="{ width: pct(x.score) + '%' }"></i></div>
+        <button class="btn primary hc-go" @click="openDebate(x.topicId)">开辩</button>
+      </li>
+      <li v-if="!list.length" class="empty">暂无数据</li>
+    </ul>
   </div>
 </template>
+
+<style scoped>
+/* 桌面：表格；手机（≤640）：卡片列表（二选一，互斥显示） */
+.hot-cards { display: none; list-style: none; margin: 0; padding: 0; }
+
+.hc {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px 13px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 2px rgba(26, 29, 36, 0.05);
+}
+.hc-top { display: flex; align-items: flex-start; gap: 8px; }
+.hc-rank {
+  flex: 0 0 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--blue-w);
+  color: var(--sub);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hc-rank.top { background: var(--org-w); color: var(--org); }
+.hc-tt {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.hc-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0 4px;
+  font-size: 12px;
+  color: var(--sub);
+}
+.hc-score { color: var(--blue); font-weight: 600; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.hc-go { width: auto; min-width: 96px; margin: 10px 0 0 auto; min-height: 40px; display: block; padding: 0 18px; font-size: 13px; }
+
+@media (max-width: 640px) {
+  .hot-table-card { display: none; }
+  .hot-cards { display: block; }
+}
+</style>

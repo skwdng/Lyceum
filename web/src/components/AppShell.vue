@@ -9,7 +9,7 @@
  * 1. 未登录时，需要登录的页面渲染**登录引导卡**（等价旧版 loginGateCard）；
  * 2. 批 4 已删掉「返回旧版」入口（旧前端文件同一批删除）。
  */
-import { computed, watch } from 'vue';
+import { computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { NAV } from '../nav.js';
 import { useAuthStore } from '../stores/auth.js';
@@ -26,15 +26,67 @@ const chat = useChatStore();
 
 /** 移动端底部 tab：只放 5 个高频入口，其余收在「我的」里 */
 const MOBILE_TABS = [
-  { k: 'solo', n: '辩论', i: '🎙' },
-  { k: 'room', n: '联机', i: '👥' },
-  { k: 'community', n: '社区', i: '💬' },
-  { k: 'video', n: '视频', i: '🎬' },
-  { k: 'me', n: '我的', i: '👤' }
+  { k: 'solo', n: '辩论', p: 'M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0M12 17v4' },
+  { k: 'room', n: '联机', p: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
+  { k: 'community', n: '社区', p: 'M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z' },
+  { k: 'video', n: '视频', p: 'M23 7l-7 5 7 5V7ZM14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z' },
+  { k: 'me', n: '我的', p: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z' }
 ];
 
 /** 当前路由名：导航高亮用 */
 const current = computed(() => route.name);
+
+/**
+ * 手机上顶栏已经显示页面标题，页面里同名的 h1 就不该再出现一次。
+ * 不按路由硬编码：路由切换后比一下「第一个 .pg 的文案」与顶栏标题，相同才打标记。
+ */
+function markDuplicateTitle() {
+  nextTick(() => {
+    setTimeout(() => {
+      const h = document.querySelector('.main .pg, .wrap .pg, .pg');
+      if (!h) return;
+      const same = String(h.textContent || '').trim() === String(pageTitle.value || '').trim();
+      h.classList.toggle('dup-title', same);
+    }, 260);
+  });
+}
+
+/**
+ * 移动端顶部应用栏的标题：优先用页面自己的名字，取不到就用导航项的名字。
+ * 超长标题在 CSS 里单行省略（ellipsis）。
+ */
+const TITLE_MAP = {
+  match: '对局',
+  matches: '对局',
+  review: '复盘',
+  records: '辩论记录',
+  diag: '能力分析',
+  offline: '离线对练',
+  hot: '热辩榜',
+  wallet: '钱包',
+  settings: '设置',
+  login: '登录'
+};
+const pageTitle = computed(() => {
+  // 见 markDuplicateTitle：这里只算标题文案
+
+  const n = current.value;
+  if (TITLE_MAP[n]) return TITLE_MAP[n];
+  const hit = NAV.find((x) => x.k === n);
+  return (hit && hit.n) || '思弈阁';
+});
+
+/** 5 个 tab 根页面：这些页面的顶栏不放「返回」，改放品牌块 */
+const isTabRoot = computed(() => MOBILE_TABS.some((t) => t.k === current.value));
+/** 对局页是沉浸式：顶栏只留题目、底栏整条隐藏（否则会压住输入框） */
+const immersion = computed(() => current.value === 'match');
+
+watch(() => route.fullPath, markDuplicateTitle, { immediate: true });
+
+function goBack() {
+  if (window.history.length > 1) router.back();
+  else router.push({ name: 'solo' });
+}
 
 /** 未登录 + 该页需要登录 → 显示引导卡，而不是渲染操作面板（旧版同款行为） */
 const gated = computed(() => !!route.meta.requiresAuth && !auth.user);
@@ -96,7 +148,17 @@ const avatarText = computed(() => {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ 'app--immersion': immersion }" :data-page="current">
+    <!-- 移动端顶部应用栏（桌面端 CSS 隐藏）：左返回/品牌，中标题，右头像 -->
+    <header class="topbar">
+      <button v-if="!isTabRoot" class="tb-btn tb-back" type="button" aria-label="返回" @click="goBack">‹</button>
+      <span v-else class="tb-brand"><i class="tb-m">思</i></span>
+      <h1 class="tb-title">{{ pageTitle }}</h1>
+      <button class="tb-btn tb-me" type="button" aria-label="我的" @click="goMe">
+        <span class="tb-av">{{ avatarText }}</span>
+      </button>
+    </header>
+
     <aside class="sb">
       <div class="logo">
         <div class="m">思</div>
@@ -135,16 +197,18 @@ const avatarText = computed(() => {
       <slot v-else />
     </main>
 
-    <!-- 移动端底部 tab（桌面端 CSS 里隐藏） -->
-    <nav class="tabbar">
+    <!-- 移动端底部 tab（桌面端 CSS 里隐藏；对局页整条隐藏，见 .app--immersion） -->
+    <nav class="tabbar" aria-label="主导航">
       <RouterLink
         v-for="tb in MOBILE_TABS"
         :key="tb.k"
         :to="{ name: tb.k }"
         :class="{ on: current === tb.k }"
+        :aria-current="current === tb.k ? 'page' : undefined"
       >
-        <span class="ti">{{ tb.i }}</span>
+        <svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="tb.p" /></svg>
         <span class="tn">{{ tb.n }}</span>
+        <span v-if="badgeOf(tb.k)" class="tb-badge">{{ badgeOf(tb.k) }}</span>
       </RouterLink>
     </nav>
   </div>
@@ -162,32 +226,120 @@ const avatarText = computed(() => {
 .gate-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
 
 
-/* ---------- 移动端 ---------- */
+/* ---------- 移动端壳（≤860px）：顶部应用栏 + 底部 tabbar ---------- */
 .tabbar { display: none; }
+.topbar { display: none; }
 
 @media (max-width: 860px) {
-  /* 侧栏整体收起：桌面是左侧固定栏，手机改成抽屉式隐藏，靠底部 tab 导航 */
+  /* 侧栏整体收起：桌面是左侧固定栏，手机改用顶部应用栏 + 底部 tab */
   .sb { display: none !important; }
-  #main { padding: 12px 12px 76px !important; max-width: 100% !important; }
 
+  /* ---- 顶部应用栏：52px、毛玻璃、贴顶 ---- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 52px;
+    padding: 0 12px;
+    z-index: 60;
+    background: color-mix(in srgb, var(--card) 82%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+  .tb-btn {
+    flex: 0 0 44px;
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 12px;
+    color: var(--blue);
+    background: transparent;
+  }
+  .tb-back { font-size: 24px; line-height: 1; margin-left: -6px; }
+  .tb-brand { flex: 0 0 32px; display: flex; align-items: center; justify-content: center; }
+  .tb-m {
+    width: 28px; height: 28px; border-radius: 9px;
+    background: var(--blue); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; font-style: normal;
+  }
+  .tb-title {
+    flex: 1; min-width: 0;
+    font-size: 17px; font-weight: 600; color: var(--ink);
+    text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tb-av {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: var(--ink); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+  }
+
+  /* ---- 页面容器：给顶栏留位、给 tabbar 留位 ---- */
+  #main {
+    padding: 68px 16px calc(64px + env(safe-area-inset-bottom) + 16px) !important;
+    max-width: 100% !important;
+  }
+  .app--immersion #main {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 12px) !important;
+  }
+
+  /* ---- 底部 tabbar：5 项等分，选中项主色药丸 ---- */
   .tabbar {
     display: flex;
     position: fixed;
     left: 0; right: 0; bottom: 0;
-    z-index: 50;
-    background: #fff;
-    border-top: 1px solid #ece9e2;
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-    justify-content: space-around;
+    z-index: 55;
+    background: color-mix(in srgb, var(--card) 92%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+    border-top: 1px solid var(--line);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    gap: 2px;
   }
+  .app--immersion .tabbar { display: none; }
+
   .tabbar a {
-    flex: 1;
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-    font-size: 11px; color: #8a909c; text-decoration: none;
-    padding: 4px 0; border-radius: 10px;
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px;
+    min-height: 52px;
+    padding: 4px 2px;
+    border-radius: 14px;
+    font-size: 10.5px;
+    line-height: 1.1;
+    color: var(--sub);
+    text-decoration: none;
+    position: relative;
   }
-  .tabbar a.on { color: #2f5bea; background: #eef3ff; }
-  .tabbar .ti { font-size: 18px; line-height: 1; }
-  .tabbar .tn { font-size: 11px; }
+  .tabbar a.on {
+    color: var(--blue);
+    background: var(--blue-w);
+    font-weight: 600;
+  }
+  .tabbar .ti { width: 20px; height: 20px; display: block; }
+  .tabbar .tn {
+    max-width: 100%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tabbar .tb-badge {
+    position: absolute; top: 4px; right: 50%;
+    transform: translateX(14px);
+    min-width: 16px; height: 16px; line-height: 16px;
+    padding: 0 4px; border-radius: 8px;
+    background: var(--red); color: #fff;
+    font-size: 10px; font-weight: 600; text-align: center;
+  }
+}
+</style>
+
+<!-- 全局（非 scoped）：手机端把与顶栏重复的页面标题藏掉 -->
+<style>
+@media (max-width: 860px) {
+  .pg.dup-title { display: none !important; }
 }
 </style>

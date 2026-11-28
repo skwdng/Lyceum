@@ -128,7 +128,7 @@ async function testLlm() {
         </div>
 
         <div style="margin-top: 14px">
-          <div class="row" style="gap: 8px; flex-wrap: wrap">
+          <div class="row recharge" style="gap: 8px; flex-wrap: wrap">
             <button
               v-for="c in RECHARGE"
               :key="c"
@@ -181,7 +181,7 @@ async function testLlm() {
         <input v-model="llm.apiKey" type="password" placeholder="sk-…">
       </div>
 
-      <div class="row" style="gap: 8px">
+      <div class="row llm-actions" style="gap: 8px">
         <button class="btn sm ghost" @click="saveLlm(true)">保存并启用</button>
         <button class="btn sm ghost" @click="saveLlm(false)">停用</button>
         <button class="btn sm ghost" @click="testLlm">测试连通</button>
@@ -197,3 +197,13 @@ async function testLlm() {
     @cancel="order = null"
   />
 </template>
+
+<style scoped>
+/* 移动端：两栏 → 单列堆叠；充值与自带 Key 的按钮整行/两列，都 ≥44px */
+@media (max-width: 860px) {
+  .recharge { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .recharge .btn { width: 100%; }
+  .llm-actions { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .llm-actions .btn { width: 100%; }
+}
+</style>

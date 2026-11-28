@@ -248,6 +248,28 @@ function insertHint(h) {
   toast('已插入发言框');
 }
 
+/* ==================== 移动端底部抽屉（进度 / 辅助 / 本场） ====================
+ * 桌面端这三块常驻右侧栏；手机上右侧栏隐藏，改成两个胶囊 + 半屏 bottom sheet。
+ * 抽屉内容与右侧栏同源（同一份数据、同一批方法），只是排得更紧。
+ */
+const sheet = ref('');
+const sheetTitle = computed(() => (sheet.value === 'plan' ? '赛制进度' : sheet.value === 'assist' ? '辅助库' : '本场'));
+function openSheet(name) {
+  sheet.value = name;
+  if (name === 'assist') loadAssist(false);
+}
+function closeSheet() {
+  sheet.value = '';
+}
+let sheetTouchY = 0;
+function onSheetTouchStart(e) {
+  sheetTouchY = (e.touches && e.touches[0] ? e.touches[0].clientY : 0) || 0;
+}
+function onSheetTouchEnd(e) {
+  const y = (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientY : 0) || 0;
+  if (y - sheetTouchY > 60) closeSheet();   // 往下拖 60px 关掉
+}
+
 onMounted(async () => {
   // 支持深链 #/match?match=<id>：多人房里队友刷新页面、或从房间/消息点进来时，
   // 内存里没有 matchId，但后端允许 owner 与同房间席位成员读这一场（MatchAccess）。
@@ -603,25 +625,24 @@ const verdictOf = (t) => (t.typing ? '' : '');
   </div>
 
   <template v-else>
-    <div class="row" style="justify-content: space-between; margin-bottom: 10px">
-      <div>
-        <h1 class="pg">{{ m.topic_title }}</h1>
-        <p class="sub" style="margin: 0">
+    <div class="row mv-head" style="justify-content: space-between; margin-bottom: 10px">
+      <div class="mv-head-main">
+        <h1 class="pg mv-title">{{ m.topic_title }}</h1>
+        <p class="sub mv-sub" style="margin: 0">
           {{ m.mode === 'SPRINT' ? '快速' : '标准' }} {{ debate.totalSteps || '—' }} 步 · 你占 {{ m.my_seats }} ·
           <span class="dot"></span>{{ m.status === 'RUNNING' ? '进行中' : m.status }}
         </p>
       </div>
-      <div class="row">
+      <div class="row mv-head-acts">
         <span class="tag mono">第 {{ debate.stepNo }} 步</span>
-        <button class="btn sm ghost" @click="exitMatch">退出</button>
+        <button class="btn sm ghost mv-exit" @click="exitMatch"><span class="mv-exit-t">退出</span><span class="mv-exit-i" aria-hidden="true">✕</span></button>
       </div>
     </div>
 
     <!-- 材料浮窗入口 -->
     <button
       v-if="m.topic_id"
-      class="btn sm ghost"
-      style="position: fixed; right: 22px; bottom: 22px; z-index: 70; box-shadow: 0 6px 18px rgba(0,0,0,.14)"
+      class="btn sm ghost brief-fab"
       @click="debate.toggleBrief()"
     >
       📋 材料
@@ -782,6 +803,18 @@ const verdictOf = (t) => (t.typing ? '' : '');
 
         <!-- 发言区 -->
         <div class="composer">
+          <!-- 移动端：底部固定的两个胶囊，打开底部抽屉（桌面端隐藏） -->
+          <div class="composer-pills">
+            <button type="button" class="pill" @click="openSheet('plan')">
+              <span aria-hidden="true">📋</span> 进度 {{ debate.stepNo }}/{{ debate.totalSteps }}
+            </button>
+            <button type="button" class="pill" :class="{ on: assistErr }" @click="openSheet('assist')">
+              <span aria-hidden="true">✦</span> 辅助{{ assistGroups.length ? ' ' + assistGroups.length : '' }}
+            </button>
+            <button type="button" class="pill" @click="openSheet('stats')">
+              <span aria-hidden="true">◔</span> 本场
+            </button>
+          </div>
           <div class="hint">
             <span>{{ debate.waiting ? '轮到你发言' : '等待对方发言…' }}</span>
             <span :style="{ fontFamily: 'ui-monospace,monospace', color: cdColor, fontWeight: debate.remaining <= 30 && !debate.unlimited ? 700 : 400 }">
@@ -812,6 +845,22 @@ const verdictOf = (t) => (t.typing ? '' : '');
           <div v-if="recOn" class="recbar">正在录音 {{ recSec }}s / 90s · 说完点「停止」，文本可编辑后再发送</div>
           <div v-else-if="recErr" class="recbar err">{{ recErr }}</div>
 
+          <!-- 移动端小工具栏：语音 / 材料（催一下留在上方"对方正在说话"那一行，避免出现两个同名按钮） -->
+          <div class="composer-tools">
+            <button
+              type="button"
+              class="tool"
+              :disabled="!recSupported || !debate.waiting"
+              @click="recOn ? stopVoice() : startVoice()"
+            >{{ recOn ? '● 录音 ' + recSec + 's' : '🎤 语音' }}</button>
+            <button
+              v-if="m.topic_id"
+              type="button"
+              class="tool"
+              @click="debate.toggleBrief()"
+            >📋 材料</button>
+          </div>
+
           <!-- 分段发言：发送只是「攒这一段」，点「结束发言」才真正提交 -->
           <div v-if="segments.length" class="segs">
             <div class="segs-hd">
@@ -838,33 +887,33 @@ const verdictOf = (t) => (t.typing ? '' : '');
             <span v-if="totalLen > MAX_DRAFT" style="color: #C0392B">超出上限，结束发言时会截断</span>
           </div>
 
-          <div class="row" style="margin-top: 8px">
-            <span style="font-size: 11.5px; color: #a8adb8">
+          <div class="row composer-acts" style="margin-top: 8px">
+            <span class="tools-d" style="font-size: 11.5px; color: #a8adb8">
               {{ debate.waiting ? (debate.extendUsed ? '已自动续命 ' + debate.extendUsed + ' 次' : '打字时会自动续时') : '先写好，轮到你就能结束发言' }}
             </span>
             <button
               v-if="debate.kind === 'solo'"
-              class="btn sm ghost"
+              class="btn sm ghost tools-d"
               disabled
               style="margin-left: 10px"
               title="轮到你说，没法催"
             >催一下</button>
-            <span style="flex: 1"></span>
+            <span class="tools-d" style="flex: 1"></span>
             <button
-              class="btn sm ghost"
+              class="btn sm ghost tools-d"
               :disabled="!recSupported || !debate.waiting"
               :title="recSupported ? (debate.waiting ? '语音输入（最长 90 秒）' : '轮到你才能录音') : '当前浏览器不支持语音识别'"
               @click="recOn ? stopVoice() : startVoice()"
             >{{ recOn ? '● 录音 ' + recSec + 's' : '🎤 语音' }}</button>
             <button
-              class="btn sm ghost"
+              class="btn sm ghost act-send"
               style="margin-left: 8px"
               :disabled="!draft.trim()"
               title="把这一段加进本次发言（立刻清空输入框，随时可用）"
               @click="sendSegment"
             >发送</button>
             <button
-              class="btn sm primary"
+              class="btn sm primary act-end"
               style="margin-left: 8px"
               :disabled="!canEndSpeech"
               :title="debate.waiting ? '结束发言，一次提交本次所有分段（Ctrl+Enter）' : '还没轮到你，先攒着，轮到你就能结束发言'"
@@ -874,8 +923,8 @@ const verdictOf = (t) => (t.typing ? '' : '');
         </div>
       </div>
 
-      <!-- 右侧 -->
-      <div>
+      <!-- 右侧（桌面常显；手机上收进底部抽屉：「进度」「辅助」两个胶囊打开） -->
+      <div class="right-col">
         <div class="card">
           <div class="row" style="justify-content: space-between; margin-bottom: 8px">
             <b style="font-size: 12.5px">赛制进度</b>
@@ -970,6 +1019,83 @@ const verdictOf = (t) => (t.typing ? '' : '');
         </div>
       </div>
     </div>
+
+    <!-- 移动端底部抽屉：赛制进度 / 辅助库 / 本场（桌面端隐藏，内容与右侧栏同源） -->
+    <div v-if="sheet" class="sheet-mask" @click.self="closeSheet">
+      <section
+        class="sheet"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="sheetTitle"
+        @touchstart.passive="onSheetTouchStart"
+        @touchend.passive="onSheetTouchEnd"
+      >
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <header class="sheet-hd">
+          <b>{{ sheetTitle }}</b>
+          <button type="button" class="sheet-x" aria-label="关闭" @click="closeSheet">✕</button>
+        </header>
+        <div class="sheet-bd">
+          <template v-if="sheet === 'plan'">
+            <div class="steps">
+              <div
+                v-for="(step, i) in (debate.plan && debate.plan.length ? debate.plan : [])"
+                :key="'sp' + i"
+                class="st"
+                :class="{ done: i + 1 < debate.stepNo, cur: i + 1 === debate.stepNo }"
+              >
+                <span class="no">{{ i + 1 }}</span>
+                <span>{{ step.seg }} · {{ step.seat }}{{ debate.mySeats.includes(step.seat) ? ' · 你' : '' }}</span>
+              </div>
+            </div>
+          </template>
+
+          <template v-else-if="sheet === 'assist'">
+            <div class="row" style="justify-content: space-between; margin-bottom: 8px">
+              <span style="font-size: 12px; color: #8a909c">
+                辅助 · AI 席位{{ assistGeneratedBy ? ' · ' + (assistGeneratedBy === 'ai' ? 'AI 生成' : '规则生成') : '' }}
+              </span>
+              <button class="btn sm ghost" :disabled="assistBusy" @click="loadAssist(true)">
+                {{ assistBusy ? '取材料…' : '刷新' }}
+              </button>
+            </div>
+            <div v-if="assistBusy && !assist" class="assist-sk"><i></i><i></i><i></i></div>
+            <div v-else-if="assistErr" class="assist-err">
+              <div>辅助暂时不可用</div>
+              <div class="assist-err-d" :title="assistErrRaw">{{ assistErr }}</div>
+              <button class="btn sm ghost" style="margin-top: 8px" @click="loadAssist(true)">重试</button>
+            </div>
+            <template v-else-if="assist">
+              <div v-for="g in assistGroups" :key="'sg' + g.kind" class="assist-group">
+                <div class="assist-kind">{{ g.kind }}</div>
+                <button v-for="(h, i) in g.items" :key="i" type="button" class="assist-hint" @click="insertHint(h)">
+                  <span class="assist-tx">{{ h.text }}</span>
+                  <span v-if="h.basis" class="assist-basis">{{ h.basis }}</span>
+                </button>
+              </div>
+              <div v-if="(assist.sources || []).length" class="assist-sources">
+                <div class="assist-kind">来源</div>
+                <div v-for="(s, i) in assist.sources" :key="'ss' + i" class="assist-src">
+                  <span class="assist-src-t">{{ s.title }}</span>
+                  <span class="tag o" style="font-size: 9.5px">需核实</span>
+                  <div v-if="s.note" class="assist-src-n">{{ s.note }}</div>
+                </div>
+              </div>
+            </template>
+            <div v-else class="empty" style="padding: 12px 0">
+              <button class="btn sm ghost" @click="loadAssist(false)">打开辅助库</button>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="kv"><span>你的席位</span><b>{{ m.my_seats }}</b></div>
+            <div class="kv"><span>已记录发言</span><b>{{ debate.turns.length }}</b></div>
+            <div class="kv"><span>AI 档位</span><b>{{ tierLabel }}</b></div>
+            <div v-if="payerLabel" class="kv"><span>费用</span><b>由{{ payerLabel }}承担</b></div>
+          </template>
+        </div>
+      </section>
+    </div>
   </template>
 </template>
 
@@ -1002,6 +1128,177 @@ const verdictOf = (t) => (t.typing ? '' : '');
   .bub { max-width: 100%; overflow-wrap: anywhere; }
   .bub-in { max-width: 100%; }
 }
+
+/* ==================== 对局页 · 移动端（≤860px） ====================
+ * 头部压成一行、席位条横滑 chips、聊天占满、输入区吸在底部、右侧栏收进抽屉。
+ * 全部走 var(--*)，换皮肤跟着变。
+ */
+.composer-pills,
+.composer-tools { display: none; }
+.sheet-mask { display: none; }
+/* 「材料」浮动按钮：桌面右下角；手机上收进输入区工具栏，别再盖住「结束发言」 */
+.brief-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 70;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+@media (max-width: 860px) {
+  .brief-fab { display: none !important; }
+}
+
+@media (max-width: 860px) {
+  /* ---- 头部 ---- */
+  .mv-head { align-items: flex-start; gap: 8px; margin-bottom: 8px !important; }
+  .mv-head-main { min-width: 0; flex: 1; }
+  .mv-title {
+    font-size: 17px !important;
+    line-height: 1.4;
+    margin: 0 !important;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  .mv-sub {
+    font-size: 11.5px !important;
+    color: var(--sub);
+    margin-top: 2px !important;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mv-head-acts { gap: 6px; flex-shrink: 0; }
+  .mv-head-acts .tag { display: none; }
+  .mv-exit { width: 44px; min-height: 44px; padding: 0; }
+  .mv-exit-t { display: none; }
+  .mv-exit-i { font-size: 16px; color: var(--sub); }
+
+  /* ---- 席位条：横向 chips + 两侧渐隐 ---- */
+  .strip {
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-radius: 14px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  }
+  .strip::-webkit-scrollbar { display: none; }
+  .strip .sp {
+    scroll-snap-align: start;
+    border-radius: 12px;
+    padding: 6px 10px;
+    min-height: 44px;
+  }
+  .strip .sp.cur { border-color: var(--blue); box-shadow: none; }
+  .strip .sp.aux { min-height: 44px; }
+
+  /* ---- 两栏 → 单栏：右侧栏收进抽屉 ---- */
+  .stage { display: block !important; }
+  .right-col { display: none !important; }
+
+  /* ---- 聊天区：占满剩余高度 ---- */
+  .chat {
+    height: calc(100dvh - 52px - 68px - 44px - 180px);
+    min-height: 220px;
+    max-height: none;
+    border-radius: 14px;
+    padding: 10px 10px 6px;
+  }
+  .msg .bd { max-width: 88%; }
+  .msg .bub { max-width: 88vw; }
+
+  /* ---- 输入区：吸在底部（对局页没有 tabbar，贴 safe-area） ---- */
+  .composer {
+    position: sticky;
+    bottom: 0;
+    z-index: 45;
+    margin-top: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -6px 20px rgba(26, 29, 36, 0.08);
+    background: var(--card);
+  }
+  .composer .hint { font-size: 12px; }
+
+  /* 小工具栏：语音 / 催一下（收在输入框上方） */
+  .composer-tools {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0 4px;
+    flex-wrap: wrap;
+  }
+  .tool {
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--sub);
+    font-size: 12.5px;
+  }
+  .tool:disabled { opacity: 0.5; }
+
+  /* 底部胶囊：进度 / 辅助 / 本场（≥44px 触控） */
+  .composer-pills { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+  .pill {
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--sub);
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .pill.on { border-color: var(--org); color: var(--org); }
+
+  /* 输入框与按钮 */
+  .composer textarea { min-height: 76px; font-size: 14px; line-height: 1.7; }
+  .composer-acts { gap: 8px; flex-wrap: nowrap; }
+  .composer-acts .tools-d { display: none !important; }
+  .composer-acts .act-send,
+  .composer-acts .act-end {
+    flex: 1 1 0; min-width: 0; min-height: 44px; margin-left: 0 !important; font-size: 14px;
+  }
+
+  /* ---- 底部抽屉 ---- */
+  .sheet-mask {
+    display: block;
+    position: fixed; inset: 0; z-index: 80;
+    background: rgba(20, 22, 28, 0.42);
+  }
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    max-height: 72dvh;
+    background: var(--card);
+    border-radius: 18px 18px 0 0;
+    border-top: 1px solid var(--line);
+    padding: 8px 14px calc(16px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column;
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.18);
+  }
+  .sheet-grip {
+    width: 38px; height: 4px; border-radius: 2px;
+    background: var(--line);
+    margin: 2px auto 8px;
+  }
+  .sheet-hd {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .sheet-hd b { font-size: 15px; color: var(--ink); }
+  .sheet-x {
+    width: 44px; height: 44px; border-radius: 12px;
+    color: var(--sub); font-size: 15px;
+  }
+  .sheet-bd { overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
+}
+
 
 /* ---------- 席位条最右的「辅 AI」 ---------- */
 .sp.aux {
