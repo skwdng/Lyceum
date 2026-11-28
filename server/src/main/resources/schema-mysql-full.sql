@@ -29,7 +29,9 @@ create table if not exists sy_user (
   status tinyint default 1,
   pwd_changed_at timestamp,
   is_bot tinyint not null default 0,
+  phone varchar(20) default null,
   unique key ux_user_account (account),
+  unique key ux_user_phone (phone),
   key ix_user_created (created_at)
 ) engine=InnoDB default charset=utf8mb4 collate=utf8mb4_0900_ai_ci;
 

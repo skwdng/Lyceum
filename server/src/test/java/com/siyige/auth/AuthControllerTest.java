@@ -42,7 +42,7 @@ class AuthControllerTest {
     }
 
     private static AuthDtos.AuthUser user() {
-        return new AuthDtos.AuthUser("zhang", "zhang", "老张");
+        return new AuthDtos.AuthUser("zhang", "zhang", "老张", "13800001111");
     }
 
     private String validToken() {
@@ -57,12 +57,13 @@ class AuthControllerTest {
 
         mvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"account\":\"zhang\",\"password\":\"abc12345\"}"))
+                        .content("{\"account\":\"zhang\",\"password\":\"abc12345\",\"phone\":\"13800001111\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").isNotEmpty())
                 .andExpect(jsonPath("$.user.id").value("zhang"))
                 .andExpect(jsonPath("$.user.account").value("zhang"))
                 .andExpect(jsonPath("$.user.name").value("老张"))
+                .andExpect(jsonPath("$.user.phone").value("13800001111"))
                 // 绝不能把密码/哈希带出来
                 .andExpect(jsonPath("$.user.password").doesNotExist())
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist());
@@ -85,9 +86,35 @@ class AuthControllerTest {
 
         mvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"account\":\"zhang\",\"password\":\"abc12345\"}"))
+                        .content("{\"account\":\"zhang\",\"password\":\"abc12345\",\"phone\":\"13800001111\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("ACCOUNT_TAKEN"));
+    }
+
+    @Test
+    void 注册重复手机号返回409_PHONE_TAKEN() throws Exception {
+        when(auth.register(any())).thenThrow(AuthException.phoneTaken());
+
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"account\":\"zhang\",\"password\":\"abc12345\",\"phone\":\"13800001111\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PHONE_TAKEN"))
+                .andExpect(jsonPath("$.message").value("PHONE_TAKEN: 该手机号已注册"));
+    }
+
+    @Test
+    void 注册把phone原样交给service() throws Exception {
+        when(auth.register(any())).thenReturn(user());
+
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"account\":\"zhang\",\"password\":\"abc12345\",\"phone\":\"13800001111\"}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<AuthDtos.RegisterRequest> cap = ArgumentCaptor.forClass(AuthDtos.RegisterRequest.class);
+        verify(auth).register(cap.capture());
+        assertEquals("13800001111", cap.getValue().phone(), "phone 必须从请求体带进 service（校验在 service 里）");
     }
 
     // ==================== 登录 ====================
@@ -192,7 +219,8 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("zhang"))
                 .andExpect(jsonPath("$.account").value("zhang"))
-                .andExpect(jsonPath("$.name").value("老张"));
+                .andExpect(jsonPath("$.name").value("老张"))
+                .andExpect(jsonPath("$.phone").value("13800001111"));
     }
 
     @Test
@@ -208,7 +236,8 @@ class AuthControllerTest {
     @Test
     void 改昵称成功() throws Exception {
         when(blacklist.contains(anyString())).thenReturn(false);
-        when(auth.updateName("zhang", "新昵称")).thenReturn(new AuthDtos.AuthUser("zhang", "zhang", "新昵称"));
+        when(auth.updateName("zhang", "新昵称"))
+                .thenReturn(new AuthDtos.AuthUser("zhang", "zhang", "新昵称", null));
 
         mvc.perform(patch("/api/auth/me")
                         .header("Authorization", "Bearer " + validToken())
@@ -216,7 +245,8 @@ class AuthControllerTest {
                         .content("{\"name\":\"新昵称\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("新昵称"))
-                .andExpect(jsonPath("$.account").value("zhang"));
+                .andExpect(jsonPath("$.account").value("zhang"))
+                .andExpect(jsonPath("$.phone").value(org.hamcrest.Matchers.nullValue()));   // 老用户没有手机号
     }
 
     @Test

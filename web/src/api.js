@@ -100,7 +100,7 @@ export const http = {
 
 export const authApi = {
   login: (account, password) => http.post('/api/auth/login', { account, password }),
-  register: (account, password) => http.post('/api/auth/register', { account, password }),
+  register: (account, password, phone) => http.post('/api/auth/register', { account, password, phone }),
   logout: () => http.post('/api/auth/logout'),
   me: () => http.get('/api/auth/me'),
   rename: (name) => http.patch('/api/auth/me', { name }),

@@ -19,11 +19,14 @@ import java.util.Map;
  * 认证接口（独立模块，不并入社区包；契约见 docs/认证接口契约.md）。
  *
  * <pre>
- *   POST  /api/auth/register  {account,password}      -> {token, user:{id,account,name}}
- *   POST  /api/auth/login     {account,password}      -> {token, user:{id,account,name}}
- *   POST  /api/auth/logout    Authorization: Bearer   -> 204
- *   GET   /api/auth/me        Authorization: Bearer   -> {id,account,name}
- *   PATCH /api/auth/me        {name}                  -> {id,account,name}
+ *   POST  /api/auth/register  {account,password,phone} -> {token, user:{id,account,name,phone}}
+ *   POST  /api/auth/login     {account,password}       -> {token, user:{id,account,name,phone}}
+ *   POST  /api/auth/logout    Authorization: Bearer    -> 204
+ *   GET   /api/auth/me        Authorization: Bearer    -> {id,account,name,phone}
+ *   PATCH /api/auth/me        {name}                   -> {id,account,name,phone}
+ *
+ * <p>phone 自 2026-11-28 起注册必填；老账号没有手机号，出参里是 null。
+ * 出参**不脱敏**（用户看自己的资料），日志里必须脱敏。
  * </pre>
  *
  * <p>本控制器**不经过** JwtAuthFilter（过滤器只挂 /api/community/*），
@@ -138,6 +141,8 @@ public class AuthController {
         u.put("id", user.id());
         u.put("account", user.account());
         u.put("name", user.name());
+        // 自己的资料按原样返回手机号（不脱敏）；存量老账号为 null
+        u.put("phone", user.phone());
         return u;
     }
 

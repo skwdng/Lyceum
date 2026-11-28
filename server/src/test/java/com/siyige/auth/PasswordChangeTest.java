@@ -24,7 +24,7 @@ class PasswordChangeTest {
     private final AuthService service = new AuthService(repo, encoder);
 
     private AuthRepo.UserRecord user(String password) {
-        return new AuthRepo.UserRecord("zhang", "zhang", "老张", encoder.encode(password), 1, false);
+        return new AuthRepo.UserRecord("zhang", "zhang", "老张", encoder.encode(password), 1, false, null);
     }
 
     @Test
@@ -125,7 +125,8 @@ class PasswordChangeTest {
 
     @Test
     void 历史账号没有密码时给友好错误() {
-        when(repo.findById("u_demo")).thenReturn(new AuthRepo.UserRecord("u_demo", "u_demo", "演示", null, 1, false));
+        when(repo.findById("u_demo")).thenReturn(
+                new AuthRepo.UserRecord("u_demo", "u_demo", "演示", null, 1, false, null));
 
         AuthException e = assertThrows(AuthException.class,
                 () -> service.changePassword("u_demo", "whatever123", "newpass123"));

@@ -18,8 +18,10 @@ import java.util.regex.Pattern;
  *       并且失败文案与"密码错"完全一致；时间差因此不可用。</li>
  *   <li><b>密码策略</b>：8–64 位，必须同时含数字和字母。</li>
  *   <li><b>账号</b>：3–32 位字母/数字/下划线，统一小写存储与比对（不区分大小写）。</li>
- *   <li><b>并发注册</b>：唯一索引 ux_user_account 兜底，捕获 DuplicateKeyException → 409。</li>
- *   <li><b>日志</b>：只打 account，永不打印密码或哈希。</li>
+ *   <li><b>手机号</b>（2026-11-28 起注册必填）：11 位 / 1 开头 / 第二位 3-9，trim 后精确匹配；
+ *       与账号各自唯一（ux_user_account / ux_user_phone）。本期**不做**短信验证码与手机号找回密码。</li>
+ *   <li><b>并发注册</b>：唯一索引兜底，捕获 DuplicateKeyException 后再判断撞的是账号还是手机号 → 409。</li>
+ *   <li><b>日志</b>：只打 account，手机号只打脱敏形态，永不打印密码或哈希。</li>
  * </ul>
  */
 @Service
@@ -29,6 +31,14 @@ public class AuthService {
 
     /** 账号规则：3–32 位字母数字下划线。 */
     private static final Pattern ACCOUNT = Pattern.compile("^[A-Za-z0-9_]{3,32}$");
+
+    /**
+     * 手机号规则（2026-11-28 起注册必填）：中国大陆 11 位，1 开头、第二位 3-9。
+     *
+     * <p>先 trim 再匹配；中间有空格（"138 0000 1111"）会匹配失败，直接判非法 ——
+     * 本期不做"贴心"的空格清理，避免把用户的输入悄悄改成另一个号码。
+     */
+    private static final Pattern PHONE = Pattern.compile("^1[3-9]\\d{9}$");
 
     private static final int NAME_MAX = 64;
 
@@ -48,24 +58,36 @@ public class AuthService {
     public AuthDtos.AuthUser register(AuthDtos.RegisterRequest req) {
         String account = normalizeAccount(req == null ? null : req.account());
         String rawPassword = req == null ? null : req.password();
+        String phone = normalizePhone(req == null ? null : req.phone());
 
         if (!ACCOUNT.matcher(account).matches()) {
             throw AuthException.invalidParam("用户名需为 3-32 位字母、数字或下划线");
         }
         checkPasswordPolicy(rawPassword);
 
-        // 先查一次给出友好错误；并发竞态由唯一索引兜底（见下面的 catch）
+        // 手机号：必填 + 格式。放在密码校验之后、查重之前（与调用契约里的顺序一致）
+        if (phone.isEmpty()) throw AuthException.invalidParam("手机号不能为空");
+        if (!PHONE.matcher(phone).matches()) {
+            throw AuthException.invalidParam("手机号格式不对（11 位，1 开头）");
+        }
+
+        // 先查一次给出友好错误；并发竞态由唯一索引 ux_user_phone 兜底（见下面的 catch）
+        if (repo.findByPhone(phone) != null) throw AuthException.phoneTaken();
         if (repo.findByAccount(account) != null) throw AuthException.accountTaken();
 
         String hash = encoder.encode(rawPassword);
         try {
             // 昵称默认 = 账号（决策 5）
-            repo.insert(account, account, hash);
+            repo.insert(account, account, hash, phone);
         } catch (DuplicateKeyException e) {
+            // 唯一索引兜底。**不能一律报 ACCOUNT_TAKEN**：并发下撞的可能是手机号。
+            // 也不能靠异常消息里的索引名判断 —— H2 说 UX_USER_PHONE，
+            // MySQL 说 'sy_user.ux_user_phone'，两边措辞不一样。
+            if (repo.findByPhone(phone) != null) throw AuthException.phoneTaken();
             throw AuthException.accountTaken();
         }
-        log.info("注册成功 account={}", account);
-        return new AuthDtos.AuthUser(account, account, account);
+        log.info("注册成功 account={} phone={}", account, maskPhone(phone));
+        return new AuthDtos.AuthUser(account, account, account, phone);
     }
 
     // ==================== 登录 ====================
@@ -179,18 +201,34 @@ public class AuthService {
 
         repo.updateName(userId, name);
         log.info("昵称已更新 account={}", user.account());
-        return new AuthDtos.AuthUser(user.id(), user.account(), name);
+        return new AuthDtos.AuthUser(user.id(), user.account(), name, user.phone());
     }
 
     // ==================== 内部 ====================
 
     private static AuthDtos.AuthUser toView(AuthRepo.UserRecord u) {
-        return new AuthDtos.AuthUser(u.id(), u.account(), u.name());
+        return new AuthDtos.AuthUser(u.id(), u.account(), u.name(), u.phone());
     }
 
     /** 账号统一小写、去空白；不合法时由调用方按各自场景处理。 */
     static String normalizeAccount(String raw) {
         return raw == null ? "" : raw.trim().toLowerCase();
+    }
+
+    /** 手机号只做 trim（中间空格留给 PHONE 正则判非法，不替用户"修"号码）。 */
+    static String normalizePhone(String raw) {
+        return raw == null ? "" : raw.trim();
+    }
+
+    /**
+     * 手机号脱敏：{@code 13800001111 -> 138****1111}。
+     *
+     * <p>任何写日志/审计的地方都必须过这一层 —— 完整号码属于个人敏感信息。
+     * 接口出参不受影响（用户看自己的资料要完整号码）。
+     */
+    static String maskPhone(String phone) {
+        if (phone == null || phone.length() < 7) return "";
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
 
     /** 密码策略：与管理员端共用同一套规则（见 {@link PasswordPolicy}）。 */
