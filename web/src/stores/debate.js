@@ -331,6 +331,20 @@ export const useDebateStore = defineStore('debate', {
         /* 忽略 */
       }
     },
+    /**
+     * 清空待选席位（单人页进入时调用）。
+     *
+     * <p>为什么需要：`load()` 会把上一场对局的 my_seats 覆盖到 store 里（续打要用），
+     * 于是「打完/退出后回到单人页」会看到上次的 B2 被预选中——用户口径是单人页不预选任何席位。
+     */
+    clearSeats() {
+      this.mySeats = [];
+      try {
+        localStorage.removeItem(LS.seats);
+      } catch (e) {
+        /* 忽略 */
+      }
+    },
     toggleSeat(k) {
       const i = this.mySeats.indexOf(k);
       if (i >= 0) {

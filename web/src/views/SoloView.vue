@@ -45,6 +45,8 @@ const paceName = computed(() => (debate.pace === 'tight' ? '紧凑' : debate.pac
  * （用户反馈：列表把选题区挤没了，而且两处逻辑容易不一致）。
  */
 onMounted(async () => {
+  // 单人页只负责开新局：不要继承上一场对局的席位（否则一进来就是上次的 B2）
+  debate.clearSeats();
   try {
     const [t, h] = await Promise.all([debateApi.topics(), baseApi.hot(12)]);
     topics.value = t || [];
