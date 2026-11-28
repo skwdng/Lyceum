@@ -222,13 +222,18 @@ import('node:fs').then(async (fs) => {
   }
   ok('一局能正常打完', fin && fin.status === 'FINISHED', JSON.stringify(fin));
 
-  await sleep(3000);
+  await sleep(2500);
+  // 新交互：打完不自动跳走，先给「本场结束」卡片，由用户点「看复盘」
+  const finishCard = await ev(`(()=>{const t=document.body.innerText||'';const b=[...document.querySelectorAll('button')].map(x=>x.textContent.trim());return {hash:location.hash, card:/本场结束/.test(t), hasReview:b.includes('看复盘')}})()`);
+  ok('打完后留在本页并出现「本场结束」卡片', finishCard.hash.includes('/match') && finishCard.card && finishCard.hasReview, JSON.stringify(finishCard));
+  await ev(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()==='看复盘');if(b)b.click()})()`);
+  await sleep(2500);
   const reviewHash = await ev('location.hash');
   const reviewReady = await ev(`(()=>{
     const t=document.body.innerText||'';
     return {hash:location.hash, hasScore: /总分|五维|复盘/.test(t), nodes: document.querySelectorAll('.card,.score,.dim').length};
   })()`);
-  ok('自动跳转复盘页并有内容', reviewHash.includes('/review') && reviewReady.nodes > 0, JSON.stringify(reviewReady));
+  ok('点「看复盘」进入复盘页且有内容', reviewHash.includes('/review') && reviewReady.nodes > 0, JSON.stringify(reviewReady));
   await shot('review.png');
 
   // ---------- 9. 控制台干净 ----------

@@ -87,7 +87,8 @@ html[data-skin] .msg .bub {
 }
 html[data-skin] .chat .msg.b .bub { background: var(--blue-w) !important; }
 html[data-skin] .composer { background: var(--card) !important; border-color: var(--line) !important; }
-html[data-skin] .composer textarea { background: transparent !important; border: none !important; }
+/* 发言框在皮肤下也必须「看得出是输入区」：给底色 + 边框，别写透明 */
+html[data-skin] .composer textarea { background: var(--card) !important; border: 1.5px solid var(--line) !important; }
 html[data-skin] .strip .sp { background: var(--card); border-color: var(--line); color: var(--sub); }
 html[data-skin] .strip .sp.on, html[data-skin] .strip .sp.cur { border-color: var(--blue); color: var(--ink); }
 html[data-skin] .mask { background: rgba(0, 0, 0, 0.45); }
@@ -356,4 +357,11 @@ html[data-skin='radio'] .score { color: var(--blue); text-shadow: 0 0 22px rgba(
 
 @media (prefers-reduced-motion: reduce) {
   html[data-skin='radio'] .pg::before { animation: none; }
+}
+
+/* 深夜电台：--line 是 10% 白，输入框边框太淡，单独提亮 */
+html[data-skin='radio'] .composer textarea,
+html[data-skin='radio'] input,
+html[data-skin='radio'] textarea {
+  border-color: rgba(255, 255, 255, 0.26) !important;
 }

@@ -1044,6 +1044,44 @@ public class MatchService {
     /** 「进行中的对局」列表上限：默认保留 20 条。 */
     private static final int MAX_RUNNING_LIST = 20;
 
+    /** 「已结束对局」列表上限：同样 20 条（只读接口，不分页）。 */
+    private static final int MAX_HISTORY = 20;
+
+    /**
+     * 对局板块的「已结束对局」：我打过且已经 FINISHED 的，按结束时间倒序，最多 20 条。
+     *
+     * <p>两条来源合并去重：① 我是 owner 的；② 我是席位成员的房间局（房间局 owner 是房主，
+     * 只看 owner 会让其他 7 个人在历史里看不到自己打过的房）。只读、不分页。
+     */
+    public List<Map<String, Object>> history(String userId) {
+        Map<String, Map<String, Object>> byId = new LinkedHashMap<>();
+        for (Map<String, Object> row : store.finishedMatchesOwnedBy(userId)) {
+            byId.put(str(row.get("id")), row);
+        }
+        for (Map<String, Object> row : store.finishedRoomMatchesOf(userId)) {
+            byId.putIfAbsent(str(row.get("id")), row);
+        }
+
+        List<Map<String, Object>> out = new ArrayList<>(byId.size());
+        for (Map<String, Object> row : byId.values()) {
+            // 老数据没有 finished_at：用 started_at 兜底，否则前端显示 1970 且排序乱
+            long finishedAt = numLong(row.get("finished_at"));
+            if (finishedAt <= 0) finishedAt = numLong(row.get("started_at"));
+
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("matchId", str(row.get("id")));
+            item.put("topicTitle", str(row.get("topic_title")));
+            item.put("mode", str(row.get("mode")));
+            item.put("mySeats", str(row.get("my_seats")));
+            item.put("totalScore", num(row.get("total_score")));
+            item.put("finishedAt", finishedAt);
+            item.put("turns", num(row.get("turn_count")));   // 这场共几句，够不够点进复盘
+            out.add(item);
+        }
+        out.sort((a, b) -> Long.compare((long) b.get("finishedAt"), (long) a.get("finishedAt")));
+        return out.size() > MAX_HISTORY ? new ArrayList<>(out.subList(0, MAX_HISTORY)) : out;
+    }
+
     /**
      * 删除（放弃）一场对局。
      *

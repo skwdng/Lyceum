@@ -193,6 +193,8 @@ export const debateApi = {
   match: (matchId) => http.get('/api/matches/' + matchId),
   /** 我的对局（进行中/最近）：单人页「进行中的对局」区块用 */
   mine: () => http.get('/api/matches/mine'),
+  /** 已结束的对局（对局板块「已结束」tab）：[{matchId,topicTitle,mode,mySeats,totalScore,finishedAt,turns}] */
+  history: () => http.get('/api/matches/history'),
   /** 删除一场对局（本地列表里清掉，不动已结算的费用） */
   remove: (matchId) => http.del('/api/matches/' + matchId),
   /**

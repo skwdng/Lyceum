@@ -328,14 +328,67 @@ onBeforeUnmount(() => {
   debate.stopTyping();
 });
 
-// 对局结束 → 自动去复盘
+// 对局结束：**不自动跳走**。
+// 用户反馈「打完之后页面自己跳了，连反应时间都没有」——现在改成留在本页，
+// 停掉播放与计时、输入区置灰（对话还能往上翻），由用户点「看复盘 / 退出」再走。
+const finishedCardClosed = ref(false);
+const finished = computed(() => {
+  const st = (debate.match && debate.match.status) || '';
+  return !!st && st !== 'RUNNING';
+});
+const finishedDismissed = computed(() => finishedCardClosed.value);
+
 watch(
   () => (debate.match && debate.match.status) || '',
-  (st) => {
-    // 带 ?match= ：复盘页刷新/分享也不丢对局（旧版只放内存，一刷新就没了）
-    if (st && st !== 'RUNNING') router.replace({ name: 'review', query: { match: debate.matchId } });
+  (st, old) => {
+    if (!st || st === 'RUNNING' || st === old) return;
+    finishedCardClosed.value = false;
+    debate.stopPoll();
+    debate.stopClock();
+    debate.stopTyping();
+    debate.waiting = false;
+    if (st === 'FINISHED') toast('本场结束');
   }
 );
+
+/** 本场用时：优先用后端给的 created_at / finished_at，拿不到就按「步数」兜底 */
+const finishedDuration = computed(() => {
+  const m = debate.match || {};
+  const a = Number(m.created_at || m.started_at || 0);
+  const b = Number(m.finished_at || m.updated_at || 0);
+  const fmt = (sec) => {
+    const s = Math.max(0, Math.round(sec));
+    const mm = Math.floor(s / 60);
+    const ss = s % 60;
+    return (mm ? mm + ' 分 ' : '') + ss + ' 秒';
+  };
+  if (a > 0 && b > a) {
+    const sec = b > 1e12 || a > 1e12 ? (b - a) / 1000 : b - a;
+    return fmt(sec);
+  }
+  return '';   // 拿不到时间戳就不编一个假的「用时」
+});
+
+/** 本场总分：优先复盘里的总分，其次对局行上的 total_score */
+const finishedTotal = computed(() => {
+  const rv = debate.review && debate.review.score;
+  if (rv && rv.total != null) return rv.total;
+  const m = debate.match || {};
+  if (m.total_score != null) return m.total_score;
+  return null;
+});
+
+function goReview() {
+  router.push({ name: 'review', query: { match: debate.matchId } });
+}
+
+/** 退出：清掉「上次这一场」的本地记忆，否则下次进来又会恢复一场已经结束的局 */
+function leaveFinished() {
+  debate.rememberMatch(null);
+  try { localStorage.removeItem('sy_match'); } catch (e) { /* 忽略 */ }
+  debate.reset();
+  router.push({ name: 'matches' });
+}
 
 // 有新回合/新状态：贴底由用户是否"本来就在底部"决定
 watch(
@@ -639,6 +692,31 @@ const verdictOf = (t) => (t.typing ? '' : '');
       </div>
     </div>
 
+    <!-- 本场结束：留在本页先给结论与出口（不自动跳走） -->
+    <div v-if="finished && !finishedDismissed" class="card finish-card">
+      <div class="fin-top">
+        <div class="fin-main">
+          <b class="fin-title">本场结束</b>
+          <div class="fin-sub">{{ m.topic_title }}</div>
+        </div>
+        <div v-if="finishedTotal != null" class="fin-score">
+          <b>{{ finishedTotal }}</b><small>分</small>
+        </div>
+        <div v-else class="fin-score"><b>待出分</b></div>
+      </div>
+      <div class="fin-meta">
+        <span v-if="finishedDuration">用时 {{ finishedDuration }}</span>
+        <span>发言 {{ (debate.turns || []).length }} 条</span>
+        <span>你占 {{ m.my_seats }}</span>
+      </div>
+      <div class="fin-acts">
+        <button class="btn primary" @click="goReview">看复盘</button>
+        <button class="btn ghost" @click="leaveFinished">退出</button>
+        <button class="btn ghost" @click="finishedCardClosed = true">继续停留</button>
+      </div>
+      <div class="fin-tip">对话还能往上翻；想找这一场可以到「对局 → 已结束」。</div>
+    </div>
+
     <!-- 材料浮窗入口 -->
     <button
       v-if="m.topic_id"
@@ -802,7 +880,7 @@ const verdictOf = (t) => (t.typing ? '' : '');
         </div>
 
         <!-- 发言区 -->
-        <div class="composer">
+        <div class="composer" :class="{ 'is-finished': finished }">
           <!-- 移动端：底部固定的两个胶囊，打开底部抽屉（桌面端隐藏） -->
           <div class="composer-pills">
             <button type="button" class="pill" @click="openSheet('plan')">
@@ -823,7 +901,7 @@ const verdictOf = (t) => (t.typing ? '' : '');
           </div>
 
           <!-- 对方回合：只占一行提示，不挡输入框（你可以在对方说话时先写好） -->
-          <div v-if="!debate.waiting" class="waiting">
+          <div v-if="!debate.waiting && !finished" class="waiting">
             <span>{{ debate.hasTyping() ? '对方正在说话…' : '对方正在思考…' }}</span>
             <button
               v-if="debate.kind === 'solo'"
@@ -876,8 +954,8 @@ const verdictOf = (t) => (t.typing ? '' : '');
 
           <textarea
             v-model="draft"
-            :disabled="recOn"
-            :placeholder="debate.waiting ? '写下这一段…（回车 = 发言，Shift+回车 = 换行，点「结束发言」结束）' : '对方还在说 —— 先写这一段，轮到你就能结束发言'"
+            :disabled="recOn || finished"
+            :placeholder="finished ? '本场已结束 —— 看复盘，或退出到「对局 → 已结束」' : (debate.waiting ? '写下这一段…（回车 = 发言，Shift+回车 = 换行，点「结束发言」结束）' : '对方还在说 —— 先写这一段，轮到你就能结束发言')"
             @input="onType"
             @paste="onPaste"
             @keydown="onComposerKeydown"
@@ -908,14 +986,14 @@ const verdictOf = (t) => (t.typing ? '' : '');
             <button
               class="btn sm ghost act-send"
               style="margin-left: 8px"
-              :disabled="!draft.trim()"
+              :disabled="finished || !draft.trim()"
               title="把这一段加进本次发言（立刻清空输入框，随时可用）"
               @click="sendSegment"
             >发送</button>
             <button
               class="btn sm primary act-end"
               style="margin-left: 8px"
-              :disabled="!canEndSpeech"
+              :disabled="finished || !canEndSpeech"
               :title="debate.waiting ? '结束发言，一次提交本次所有分段（Ctrl+Enter）' : '还没轮到你，先攒着，轮到你就能结束发言'"
               @click="endSpeech"
             >{{ debate.waiting ? '结束发言' : '等我回合' }}</button>
@@ -1100,6 +1178,24 @@ const verdictOf = (t) => (t.typing ? '' : '');
 </template>
 
 <style scoped>
+/* ---------- 发言框：单独一条边框（深色/纸感皮肤下也不再和卡片糊在一起） ----------
+ * 1.5px 实线 var(--line)；focus 变主色 + 1px 外发光；圆角 10px。
+ * 三套皮肤都靠 --line/--blue/--card 这三个变量，换皮肤自动跟着变。 */
+.composer textarea {
+  width: 100%;
+  /* !important：皮肤样式（themes.css）和 debate.css 都会给 textarea 设背景/边框，
+     这里必须是最终生效的那一条，否则深色皮肤下输入区又和卡片糊在一起 */
+  border: 1.5px solid var(--line) !important;
+  border-radius: 10px !important;
+  background: var(--card) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.composer textarea:focus {
+  outline: none;
+  border-color: var(--blue) !important;
+  box-shadow: 0 0 0 1px var(--blue);
+}
+.composer textarea:disabled { opacity: 0.8; }
 /* ---------- B 方气泡：预留最终宽度，左边缘定住 ----------
  * ghost 是全文（visibility:hidden），先把气泡撑到最终宽度；
  * 可见前缀绝对定位覆盖在上面。于是可见部分从左往右长，
@@ -1147,6 +1243,43 @@ const verdictOf = (t) => (t.typing ? '' : '');
 @media (max-width: 860px) {
   .brief-fab { display: none !important; }
 }
+
+/* ---------- 本场结束卡片 + 结束后的输入区灰态 ---------- */
+.finish-card {
+  border-color: var(--blue);
+  background: var(--blue-w);
+  margin-bottom: 12px;
+}
+.fin-top { display: flex; align-items: flex-start; gap: 12px; justify-content: space-between; }
+.fin-main { min-width: 0; flex: 1; }
+.fin-title { font-size: 15px; color: var(--ink); }
+.fin-sub {
+  font-size: 12.5px; color: var(--sub); margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+.fin-score { flex: 0 0 auto; text-align: right; }
+.fin-score b { font-size: 28px; font-weight: 800; color: var(--blue); letter-spacing: -1px; }
+.fin-score small { font-size: 12px; color: var(--sub); margin-left: 2px; }
+.fin-meta {
+  display: flex; gap: 10px 14px; flex-wrap: wrap;
+  margin-top: 8px; font-size: 12px; color: var(--sub);
+}
+.fin-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.fin-tip { margin-top: 8px; font-size: 11.5px; color: var(--sub); }
+
+/* 结束后：输入区置灰、不可编辑（对话仍可往上翻）。
+ * 注意**不要**给整个 .composer 设 opacity —— 它是吸底的，半透明会把后面的气泡透出来，
+ * 看起来像「输入区和聊天叠在一起」。改成只灰化输入框与按钮。 */
+.composer.is-finished { background: var(--card); }
+.composer.is-finished textarea {
+  background: var(--bg) !important;
+  color: var(--sub) !important;
+  border-color: var(--line) !important;
+  cursor: not-allowed;
+}
+.composer.is-finished .btn,
+.composer.is-finished .tool,
+.composer.is-finished .pill { opacity: 0.55; }
 
 @media (max-width: 860px) {
   /* ---- 头部 ---- */

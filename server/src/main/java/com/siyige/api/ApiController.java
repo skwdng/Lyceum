@@ -175,6 +175,12 @@ public class ApiController {
         return matches.mine(UserContext.requireId());
     }
 
+    /** 对局板块「已结束对局」：我打过（owner 或房间席位成员）的 FINISHED，最多 20 条。 */
+    @GetMapping("/matches/history")
+    public List<Map<String, Object>> myHistory() {
+        return matches.history(UserContext.requireId());
+    }
+
     /**
      * 删除（放弃）一场对局。
      *

@@ -149,6 +149,75 @@ class FactGuardTest {
         AiService.FactResult r = AiService.checkFacts(text, sources(law));
         assertEquals(0, r.unsupported(), "原文里就有这一条，放行：" + r.text());
     }
+    // ------------------------------------------------------------------ 空论证 / 自我引用壳
+
+    private static final List<String> CLICHE_WORDS = List.of(
+            "显然是常识", "是常识", "众所周知", "不言而喻", "不必赘述", "不可赘述", "无需赘述", "不用多说");
+
+    @Test
+    void 空论证口头禅被换成要证据() {
+        String[] cases = {
+                "这一点显然是常识，我方不可赘述。",
+                "众所周知，学生压力主要来自考试。",
+                "这一点无需赘述。",
+                "不必多说，结论已经很清楚。"
+        };
+        for (String c : cases) {
+            AiService.EmptyClaimResult r = AiService.scrubEmptyClaims(c);
+            assertTrue(r.replaced() >= 1, "应当命中口头禅：" + c);
+            assertTrue(r.text().contains("这一点需要具体证据支撑")
+                            || r.text().contains("这一点需要对方给出可核查口径"),
+                    "要换成「要证据/要口径」：" + r.text());
+            for (String w : CLICHE_WORDS) {
+                assertFalse(r.text().contains(w), "替换后不该再有「" + w + "」：" + r.text());
+            }
+            assertFalse(r.text().contains("。，"), "替换处不能留下两个标点：" + r.text());
+        }
+    }
+
+    @Test
+    void 向对方要口径时用另一种说法() {
+        AiService.EmptyClaimResult r = AiService.scrubEmptyClaims("这一点显然是常识，你方是否承认？");
+        assertTrue(r.text().contains("这一点需要对方给出可核查口径"), r.text());
+        assertFalse(r.text().contains("常识"), r.text());
+    }
+
+    @Test
+    void 正常说法不被误伤() {
+        String text = "我方核心是一句常识：有风险不等于禁止，有收益不等于放任。";
+        AiService.EmptyClaimResult r = AiService.scrubEmptyClaims(text);
+        assertEquals(0, r.replaced(), "「一句常识」是正常表达，不该被换：" + r.text());
+        assertEquals(text, r.text());
+    }
+
+    @Test
+    void 没有引用的自我引用壳被删掉() {
+        AiService.ShellResult r = AiService.stripSelfQuoteShell("顺着我方刚才那句说法，我再补一层：对方把风险直接推成了禁止。");
+        assertEquals(1, r.removed(), "壳里没有实际引用，要删掉");
+        assertEquals("对方把风险直接推成了禁止。", r.text(), "删壳后直接从正文开始");
+    }
+
+    @Test
+    void 带真实引用的壳保留() {
+        String text = "顺着我方刚才那句「标准要先立住」，我再补一层：对方没有给出判准。";
+        AiService.ShellResult r = AiService.stripSelfQuoteShell(text);
+        assertEquals(0, r.removed(), "有引号引用就是正常承接，保留");
+        assertEquals(text, r.text());
+    }
+
+    @Test
+    void 空论证计入unsupported_Speech可见() {
+        AiService ai = offline();
+        ai.resetUnsupportedCount();
+
+        AiService.GuardResult g = ai.guardDetailed("这一点显然是常识，我方不可赘述。我方结论不变。",
+                Personas.of("A2"), "", "", "A2", "驳立论", "驳立论", List.of(), null, null);
+
+        assertEquals(1, g.unsupported(), "改写处数要进 unsupported");
+        assertFalse(g.text().contains("常识"), "落库正文里不能留口头禅：" + g.text());
+        assertTrue(g.text().contains("需要具体证据支撑"), g.text());
+        assertEquals(1, ai.unsupportedCount());
+    }
     // ------------------------------------------------------------------ 与 guard / Speech 的接线
 
     @Test

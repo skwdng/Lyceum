@@ -817,6 +817,9 @@ public class AiService {
         sb.append("   ② 必须提数据又拿不到出处时，写成「（需核实）」，例如「据公开报道（需核实）」；\n");
         sb.append("   ③ 引用对方原话要逐字可回指（上面【对方最近说】里有的字），否则不要加引号，改说「你刚才那个说法」；\n");
         sb.append("   ④ 不确定就换成「请对方给出可核查口径」——宁可少一个数，不要多一个假数。\n");
+        // 空论证：实测出现过「这一点显然是常识，我方不可赘述」——拿态度当论据，等于没论证
+        sb.append("7. 禁止用「常识」「显然」「大家都知道」「不必赘述」代替论证；")
+          .append("每一个判断后面必须跟一条可核查依据（口径/事实/论据卡原文），拿不出依据就写「请对方给出可核查口径」。\n");
         return sb.toString();
     }
 
@@ -1129,14 +1132,169 @@ public class AiService {
         // 截断/改写都可能留下半个引号，这里统一收口（不管有没有 fabricated 都要做）
         t = QuoteGuard.dropDangling(qg.text());
 
+        // 空论证：把「显然是常识/众所周知/不必赘述」这种拿态度当论据的说法换成"要证据"
+        EmptyClaimResult ec = scrubEmptyClaims(t);
+        if (ec.replaced() > 0) log.info("空论证护栏：{} 处口头禅已改写（席位 {}·{}）", ec.replaced(), seat, seg);
+        t = ec.text();
+
+        // 自我引用壳：「顺着我方刚才那句…」后面没有实际引号引用时，删壳直接说正文
+        ShellResult sh = stripSelfQuoteShell(t);
+        if (sh.removed() > 0) log.info("自我引用壳：{} 处已删除（席位 {}·{}）", sh.removed(), seat, seg);
+        t = sh.text();
+
         // 事实护栏：数字/年份/法条号/书名号出处，在「论据卡 + 辩题标题 + 历史发言」里找不到 → 标「（需核实）」
         List<String> facts = factSources(seat, topicTitle, topicId, history, oppLast, mateLast);
         FactResult fr = checkFacts(t, facts);
+        int unsupported = fr.unsupported() + ec.replaced();
         if (fr.unsupported() > 0) {
             unsupportedTotal.addAndGet(fr.unsupported());
             log.info("事实护栏：{} 处未核实数字/出处已标注（席位 {}·{}）", fr.unsupported(), seat, seg);
         }
-        return new GuardResult(fr.text(), qg.fabricated(), fr.unsupported());
+        if (ec.replaced() > 0) unsupportedTotal.addAndGet(ec.replaced());
+        return new GuardResult(fr.text(), qg.fabricated(), unsupported);
+    }
+
+    // ---------------------------------------------------------------- 空论证 / 自我引用壳
+
+    /** 空论证护栏结果：正文 + 被改写的口头禅处数。 */
+    record EmptyClaimResult(String text, int replaced) { }
+
+    /** 自我引用壳处理结果：正文 + 删掉的壳数量。 */
+    record ShellResult(String text, int removed) { }
+
+    /** 空论证口头禅：命中即换成"要证据/要口径"，不允许拿态度代替论证。 */
+    private static final List<java.util.regex.Pattern> EMPTY_CLAIMS = List.of(
+            // 1) 「这一点显然是常识，我方不可赘述。」整句拿掉
+            java.util.regex.Pattern.compile(
+                    "(?:这一点|这|上述|前述)?[^，。；！？]{0,12}?(?:显然)?(?:是|属于)常识[，,]?\\s*"
+                            + "(?:我方|我们)?\\s*(?:不可|不必|无需|无须|不用)\\s*(?:赘述|多说|多言)[。！？]?"),
+            // 2) 「这一点显然是常识。」（只认句子开头，避免误伤"一句常识"这种正常说法）
+            java.util.regex.Pattern.compile(
+                    "(?:^|(?<=[。！？；：]))\\s*(?:这一点|这|上述|前述)?(?:显然)?(?:是|属于)常识[。！？]?"),
+            java.util.regex.Pattern.compile("(?:这一点|这|上述|前述)?众所周知[，,]?"),
+            java.util.regex.Pattern.compile("(?:这一点|这|上述|前述)?不言而喻[，,]?"),
+            // 5) 光秃秃的「不必赘述/无需多言」
+            java.util.regex.Pattern.compile(
+                    "(?:这一点|这|上述)?(?:我方|我们)?\\s*(?:不可|不必|无需|无须|不用)\\s*(?:赘述|多说|多言)[。！？]?")
+    );
+
+    /** 需要「要对方给口径」而不是「要自己举证」的语境。 */
+    private static final java.util.regex.Pattern ASK_OPPONENT =
+            java.util.regex.Pattern.compile("(对方|你方|反方|正方|请问|是否|凭什么|哪一条)");
+
+    private static final String CLAIM_NEEDS_PROOF = "这一点需要具体证据支撑";
+    private static final String CLAIM_NEEDS_RULE = "这一点需要对方给出可核查口径";
+
+    /**
+     * 空论证护栏（纯函数）。
+     *
+     * <p>实测出现的句子：「这一点显然是常识，我方不可赘述」「众所周知」「不必多说」——
+     * 这是拿态度当论据，正式比赛里等于没论证。这里整句换成「这一点需要具体证据支撑」，
+     * 若该句是在向对方要口径（含"对方/你方/是否/凭什么"），换成「这一点需要对方给出可核查口径」。
+     *
+     * @return 处理后的正文 + 改写处数（调用方把处数记进 {@code Speech.unsupported}）
+     */
+    static EmptyClaimResult scrubEmptyClaims(String text) {
+        String t = text == null ? "" : text;
+        if (t.isEmpty()) return new EmptyClaimResult(t, 0);
+
+        int replaced = 0;
+        for (java.util.regex.Pattern pat : EMPTY_CLAIMS) {
+            java.util.regex.Matcher m = pat.matcher(t);
+            StringBuilder sb = new StringBuilder();
+            int pos = 0;
+            boolean hit = false;
+            while (m.find(pos)) {
+                String sentence = sentenceAround(t, m.start(), m.end());
+                String repl = ASK_OPPONENT.matcher(sentence).find() ? CLAIM_NEEDS_RULE : CLAIM_NEEDS_PROOF;
+                // 短语后面本来就是从句（"众所周知，X"）→ 用冒号接上，读起来还是通顺的一句
+                boolean leadIn = m.group().endsWith("，") || m.group().endsWith(",");
+                sb.append(t, pos, m.start()).append(leadIn ? repl + "：" : repl);
+                if (!leadIn) {
+                    char last = repl.charAt(repl.length() - 1);
+                    if (!"？。！".contains(String.valueOf(last))) sb.append('。');
+                }
+                pos = m.end();
+                // 替换后紧跟的标点（「不必多说，结论…」里的逗号）一起吃掉，避免留下「。，」
+                while (pos < t.length() && "，,：:、".indexOf(t.charAt(pos)) >= 0) pos++;
+                replaced++;
+                hit = true;
+            }
+            if (hit) {
+                sb.append(t.substring(pos));
+                t = tidyClaims(sb.toString());
+            }
+        }
+        return new EmptyClaimResult(t, replaced);
+    }
+
+    /** 取 match 所在的整句（用句读切），用来判断"要证据"还是"要对方口径"。 */
+    private static String sentenceAround(String text, int start, int end) {
+        int from = 0;
+        for (int i = start - 1; i >= 0; i--) {
+            char c = text.charAt(i);
+            if (c == '。' || c == '！' || c == '？' || c == '；' || c == '\n') { from = i + 1; break; }
+        }
+        int to = text.length();
+        for (int i = end; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '。' || c == '！' || c == '？' || c == '；' || c == '\n') { to = i; break; }
+        }
+        return text.substring(from, Math.max(from, to));
+    }
+
+    /** 收拾替换后留下的重复标点与空白。 */
+    private static String tidyClaims(String s) {
+        return s.replaceAll("[，,、]\\s*(。|！|？)", "$1")
+                .replaceAll("(。|！|？)\\1+", "$1")
+                .replaceAll("\\s{2,}", " ")
+                .replaceAll("^[，,、：:]+", "")
+                .trim();
+    }
+
+    /**
+     * 自我引用壳：句子开头是「顺着我方刚才那句…」但后面**没有真正的引号引用**时，删掉这层壳。
+     *
+     * <p>壳是模板留下的（「顺着我方刚才那句「X」，再补一层：」），正常情况后面一定有「X」；
+     * 一旦引文被 QuoteGuard 改写成不带引号的说法、或模型自己漏了引号，就只剩壳——
+     * 读起来像"我在引用我自己"，在质询/驳立论里尤其怪。删壳后直接从正文开始。
+     */
+    private static final java.util.regex.Pattern SELF_QUOTE_SHELL = java.util.regex.Pattern.compile(
+            "(?:^|(?<=[。！？；：]))\\s*(?:顺着|接着|接住|先回应|我接着|我来补|回应)\\s*"
+                    + "(?:我方|我方[一二三四]辩|上一位|刚才|前面)[^。！？]{0,20}?[，,：:]");
+
+    /** 壳后面常跟着的"再补一层："之类的话。 */
+    private static final java.util.regex.Pattern SHELL_TAIL = java.util.regex.Pattern.compile(
+            "^(?:我?再补(?:一层|一条|一点)|我?再往前推一层|我要补的是|我?再补充一点|我还要补一点)[，,：:]\\s*");
+
+    static ShellResult stripSelfQuoteShell(String text) {
+        String t = text == null ? "" : text;
+        if (t.isEmpty()) return new ShellResult(t, 0);
+
+        StringBuilder out = new StringBuilder();
+        int pos = 0;
+        int removed = 0;
+        java.util.regex.Matcher m = SELF_QUOTE_SHELL.matcher(t);
+        while (m.find(pos)) {
+            String head = m.group();
+            if (head.contains("「") || head.contains("」")) {     // 真的带了引用 → 保留
+                out.append(t, pos, m.end());
+                pos = m.end();
+                continue;
+            }
+            out.append(t, pos, m.start());
+            pos = m.end();
+            removed++;
+            java.util.regex.Matcher tail = SHELL_TAIL.matcher(t.substring(pos));
+            if (tail.find()) pos += tail.end();
+        }
+        if (removed == 0) return new ShellResult(t, 0);
+        out.append(t.substring(pos));
+        String res = out.toString()
+                .replaceAll("\\s+([，,。！？；：])", "$1")
+                .replaceAll("^[，,：:\\s]+", "")
+                .trim();
+        return new ShellResult(res, removed);
     }
 
     // ---------------------------------------------------------------- 事实护栏

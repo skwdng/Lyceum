@@ -163,6 +163,31 @@ public class Store {
     }
 
     /**
+     * 我作为 owner 的**已结束**对局（对局板块「历史」用）。
+     *
+     * <p>带上 {@code turn_count}：列表上要显示「这场说了几句」，前端据此决定能不能点进复盘。
+     * 排序用 {@code coalesce(finished_at, started_at)} —— 老数据没有 finished_at，
+     * 直接按它排会让这些行全落到同一档（甚至 NULL 排最前）。
+     */
+    public List<Map<String, Object>> finishedMatchesOwnedBy(String userId) {
+        return lowerAll(jdbc.queryForList(
+                "select m.*, (select count(*) from sy_turn t where t.match_id = m.id) as turn_count "
+                        + " from sy_match m where m.status='FINISHED' and m.user_id=? "
+                        + " order by coalesce(m.finished_at, m.started_at) desc limit 20", userId));
+    }
+
+    /** 我是席位成员的**已结束**房间局（房主不是我，也算我打过）。 */
+    public List<Map<String, Object>> finishedRoomMatchesOf(String userId) {
+        return lowerAll(jdbc.queryForList(
+                "select m.*, (select count(*) from sy_turn t where t.match_id = m.id) as turn_count "
+                        + " from sy_match m "
+                        + " join sy_room r on r.match_id = m.id "
+                        + " join sy_seat s on s.room_code = r.code "
+                        + " where m.status='FINISHED' and s.user_id=? "
+                        + " order by coalesce(m.finished_at, m.started_at) desc limit 20", userId));
+    }
+
+    /**
      * 房间局「重新加入继续打」：把这场收缩成单人局。
      *
      * <p>只保留我一个人占席，其余席位从此由 AI 补位（MatchService.pickAiSeat 按 my_seats 判谁是 AI）。
