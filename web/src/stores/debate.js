@@ -200,7 +200,13 @@ export const useDebateStore = defineStore('debate', {
       const p = (s.plan || []).find((x) => Number(x.no) === Number(n));
       return p ? (p.duty || '') : '';
     },
-    totalSteps: (s) => (s.plan && s.plan.length ? s.plan.length : (s.mode === 'SPRINT' ? 10 : 12)),
+    // 分母：优先用服务端赛制长度；plan 还没回来时按模式给 10/18（旧兜底 12 会让 13/12 这种越界显示出现），
+    // 并且永远不小于当前步号，避免「n/12 走到 13/12」。
+    totalSteps: (s) => {
+      const stepNo = Number((s.match && s.match.step) || 0) + 1;
+      const base = (s.plan && s.plan.length) ? s.plan.length : (s.mode === 'SPRINT' ? 10 : 18);
+      return Math.max(base, stepNo);
+    },
     stepNo: (s) => Number((s.match && s.match.step) || 0) + 1,
     /** 本场我要发言几次 */
     myTurnCount: (s) => (s.plan || []).filter((x) => s.mySeats.includes(x.seat)).length,

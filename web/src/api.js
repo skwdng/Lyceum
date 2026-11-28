@@ -218,7 +218,7 @@ export const debateApi = {
 export const roomApi = {
   list: () => http.get('/api/rooms'),
   /** 建房：topicId 为空则后端随机抽题，房主坐 A1 */
-  create: (topicId) => http.post('/api/rooms', { topicId: topicId || null }),
+  create: (topicId, seat) => http.post('/api/rooms', { topicId: topicId || null, seat: seat || null }),
   detail: (code) => http.get('/api/rooms/' + encodeURIComponent(code)),
   join: (code) => http.post('/api/rooms/' + encodeURIComponent(code) + '/join', {}),
   leave: (code) => http.post('/api/rooms/' + encodeURIComponent(code) + '/leave', {}),

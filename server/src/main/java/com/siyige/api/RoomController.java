@@ -45,7 +45,8 @@ public class RoomController {
         String vis = String.valueOf(body.getOrDefault("visibility", "public"));
         String uid = UserContext.requireId();                       // 身份只认令牌
         String name = userNames.name(uid);                          // 昵称查账号表，忽略 body.userName
-        String code = rooms.create(topicId, title, vis, uid, name);
+        String seat = body.get("seat") == null ? null : String.valueOf(body.get("seat"));
+        String code = rooms.create(topicId, title, vis, uid, name, seat);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("code", code);
         out.put("detail", rooms.detail(code, uid));

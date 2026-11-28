@@ -178,14 +178,14 @@ class ApiIdentityTest {
     @Test
     void 建房时身份来自令牌_昵称来自账号表() throws Exception {
         when(userNames.name(ME)).thenReturn("小明");
-        when(rooms.create(any(), any(), any(), anyString(), anyString())).thenReturn("R9");
+        when(rooms.create(any(), any(), any(), anyString(), anyString(), any())).thenReturn("R9");
         when(rooms.detail("R9", ME)).thenReturn(Map.of("code", "R9"));
 
         roomApi.perform(post("/api/rooms").contentType("application/json")
                 .content("{\"topicId\":\"t3\",\"userId\":\"a-user\",\"userName\":\"房主\"}"));
 
-        verify(rooms).create(any(), any(), any(), eq(ME), eq("小明"));   // 昵称查库，不用 body.userName
-        verify(rooms, never()).create(any(), any(), any(), eq("a-user"), any());
+        verify(rooms).create(any(), any(), any(), eq(ME), eq("小明"), any());   // 昵称查库，不用 body.userName
+        verify(rooms, never()).create(any(), any(), any(), eq("a-user"), any(), any());
     }
 
     @Test

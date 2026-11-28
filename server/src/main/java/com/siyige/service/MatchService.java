@@ -225,9 +225,11 @@ public class MatchService {
         if (!TurnEngine.isMine(mine, speaker))
             throw new IllegalStateException("NOT_YOUR_TURN: 当前轮到 " + speaker);
 
-        // 真实席位校验：是谁在提交，就必须坐在当前发言席上
+        // 真实席位校验：房间局必须坐当前发言席；单人/多席位模式下，只要当前发言人是我拥有的席位即可。
+        // 历史 bug：单人局同时占 B2/B3 时，seatOfUser 只返回第一个席位（B2），轮到 B3 就被判 NOT_YOUR_TURN（409）。
         String mySeat = seatOfUser(m, userId);
-        if (mySeat != null && !mySeat.equals(speaker)) {
+        boolean room = "room".equalsIgnoreCase(str(m.get("kind")));
+        if (room && mySeat != null && !mySeat.equals(speaker)) {
             throw new IllegalStateException("NOT_YOUR_TURN: 现在是 " + speaker + " 的回合，你坐 " + mySeat);
         }
 
@@ -247,7 +249,10 @@ public class MatchService {
         // 敷衍发言（「11」「对」「嗯」）记为 EMPTY：不算内容，不计入评分文本，
         // 但对局照常推进——下一轮 AI 会明确点出「你这一轮没有回答问题」。
         String status = (utterance != null && utterance.vacuous(text)) ? "EMPTY" : "OK";
-        String recordSeat = (mySeat != null && !mySeat.isBlank()) ? mySeat : speaker;
+        // 单人/多席位：按当前发言席记录（我可能同时占 B2、B3，不能都记成 B2）
+        String recordSeat = room
+                ? ((mySeat != null && !mySeat.isBlank()) ? mySeat : speaker)
+                : speaker;
         store.insertTurn(matchId, step + 1, recordSeat, cur.seg(), text, status,
                 inputType == null ? "kb" : inputType);
         hot.zincrby(str(m.get("topic_id")), 2);   // 发言 +2

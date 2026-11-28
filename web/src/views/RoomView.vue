@@ -28,6 +28,12 @@ const roomCode = ref('');
 const room = ref(null);          // 后端 detail：{ room, seats, mySeat, isHost, canStart, unready, humans }
 const mySeat = ref('');
 const joinCode = ref('');
+/** 建房时房主想坐哪个位置（原来固定 A1，用户反馈没法选）。 */
+const hostSeat = ref('A1');
+const HOST_SEATS = [
+  { k: 'A1', n: '正一' }, { k: 'A2', n: '正二' }, { k: 'A3', n: '正三' }, { k: 'A4', n: '正四' },
+  { k: 'B1', n: '反一' }, { k: 'B2', n: '反二' }, { k: 'B3', n: '反三' }, { k: 'B4', n: '反四' }
+];
 const pollTimer = ref(null);
 const invite = ref({ open: false, loading: false, friends: [], sent: {}, error: '' });
 
@@ -144,11 +150,11 @@ async function continueSolo() {
 
 async function createRoom() {
   try {
-    const res = await roomApi.create(null);
+    const res = await roomApi.create(null, hostSeat.value);
     roomCode.value = res.code;
     room.value = res.detail;
     mySeat.value = res.detail.mySeat;
-    toast('房间已创建：' + res.code);
+    toast('房间已创建：' + res.code + ' · 你坐 ' + res.detail.mySeat);
   } catch (e) {
     toast('建房失败：' + errText(e));
   }
@@ -260,8 +266,17 @@ function roleTag(s) {
     <div class="grid g3" style="max-width: 1000px">
       <div class="card">
         <b style="font-size: 13px">① 创建房间</b>
-        <p style="font-size: 12px; color: #8a909c; margin: 8px 0 12px">随机抽一道题，你坐 A1，房主免准备。</p>
-        <button class="btn primary" style="width: 100%" @click="createRoom">＋ 建房</button>
+        <p style="font-size: 12px; color: #8a909c; margin: 8px 0 10px">随机抽一道题，选一个位置坐下（房主免准备，空位由 AI 补）。</p>
+        <div class="row" style="flex-wrap: wrap; gap: 6px; margin-bottom: 10px">
+          <button
+            v-for="s in HOST_SEATS"
+            :key="s.k"
+            class="btn sm"
+            :class="hostSeat === s.k ? 'primary' : 'ghost'"
+            @click="hostSeat = s.k"
+          >{{ s.k }} {{ s.n }}</button>
+        </div>
+        <button class="btn primary" style="width: 100%" @click="createRoom">＋ 建房（坐 {{ hostSeat }}）</button>
       </div>
 
       <div class="card">

@@ -32,6 +32,21 @@ public class RoomService {
     }
 
     public String create(String topicId, String title, String visibility, String hostId, String hostName) {
+        return create(topicId, title, visibility, hostId, hostName, HOST_SEAT);
+    }
+
+    /**
+     * 建房并指定房主座位（用户反馈：建房时没法选辩论位置，只能被固定在 A1）。
+     * 座位必须是 RoomStore.SEATS 里的 8 个之一，非法值回落到 A1。
+     */
+    public String create(String topicId, String title, String visibility, String hostId, String hostName,
+                         String hostSeat) {
+        String seat = hostSeat == null ? "" : hostSeat.trim().toUpperCase();
+        boolean valid = false;
+        for (String[] x : com.siyige.repo.RoomStore.SEATS) {
+            if (x[0].equals(seat)) { valid = true; break; }
+        }
+        if (!valid) seat = HOST_SEAT;
         String tid = topicId;
         String ttitle = title;
         if (tid == null || tid.isBlank()) {
@@ -44,9 +59,9 @@ public class RoomService {
         }
         String code = newCode();
         rooms.createRoom(code, tid, ttitle, visibility == null ? "public" : visibility, hostId);
-        // 房主自动坐 A1
-        rooms.occupy(code, HOST_SEAT, hostId, nameOr(hostName, hostId));
-        rooms.setReady(code, "A1", true);
+        // 房主坐自己选的位置（默认 A1）
+        rooms.occupy(code, seat, hostId, nameOr(hostName, hostId));
+        rooms.setReady(code, seat, true);
         return code;
     }
 
@@ -80,7 +95,7 @@ public class RoomService {
         if (!String.valueOf(room.get("host_user")).equals(userId)) throw new IllegalStateException("NOT_HOST");
         if (!"LOBBY".equals(room.get("status"))) throw new IllegalStateException("ROOM_STARTED");
 
-        List<String> unready = unreadyNames(code);
+        List<String> unready = unreadyNames(code, room.get("host_user"));
         if (!unready.isEmpty()) throw new IllegalStateException("NOT_READY:" + String.join(",", unready));
 
         rooms.fillEmptyWithAi(code);
@@ -105,7 +120,7 @@ public class RoomService {
         require(code);
         Map<String, Object> room = rooms.room(code);
         List<Map<String, Object>> seats = rooms.seats(code);
-        List<String> unready = unreadyNames(code);
+        List<String> unready = unreadyNames(code, room.get("host_user"));
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("room", room);
@@ -128,15 +143,16 @@ public class RoomService {
     }
 
     /**
-     * 未准备的人（昵称列表），**房主按座位 A1 免准备**。
+     * 未准备的人（昵称列表），**房主本人免准备**（房主可能坐任意一个位置）。
      *
-     * <p>为什么不再 `removeIf(n -> n.equals("房主"))`：昵称已经换成账号昵称，
-     * 没人叫"房主"，那句永远删不掉，房主会被算成未准备 → 房间永远开不了局。
+     * <p>以前按「座位 A1」判断房主；房主可选座之后，必须按 host_user 比对，
+     * 否则房主坐 B2 时会被算成未准备、房间永远开不了局。
      */
-    private List<String> unreadyNames(String code) {
+    private List<String> unreadyNames(String code, Object hostUser) {
         List<String> out = new ArrayList<>();
+        String host = hostUser == null ? "" : String.valueOf(hostUser);
         for (Map<String, Object> row : rooms.unreadySeatRows(code)) {
-            if (HOST_SEAT.equals(String.valueOf(row.get("seat_key")))) continue;   // 房主免准备
+            if (!host.isBlank() && host.equals(String.valueOf(row.get("user_id")))) continue;
             out.add(String.valueOf(row.get("user_name")));
         }
         return out;
