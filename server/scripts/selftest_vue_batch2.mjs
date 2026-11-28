@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 2 自检（聊天 / WebSocket 实时）
 //
 // 用法：node server/scripts/selftest_vue_batch2.mjs [cdpPort] [baseUrl]
@@ -117,8 +118,8 @@ const call = async (method, path, body, token) => {
   return { status: r.status, body: text ? JSON.parse(text) : null };
 };
 
-const a = await call('POST', '/api/auth/register', { account: ACC_A, password: PWD });
-const b = await call('POST', '/api/auth/register', { account: ACC_B, password: PWD });
+const a = await call('POST', '/api/auth/register', { account: ACC_A, password: PWD, phone: phoneFor(ACC_A) });
+const b = await call('POST', '/api/auth/register', { account: ACC_B, password: PWD, phone: phoneFor(ACC_B) });
 if (!a.body?.token || !b.body?.token) {
   console.log('准备账号失败');
   process.exit(1);
@@ -147,7 +148,7 @@ for (let i = 0; i < 12; i++) {
 
 // 再造一个只加好友、**没有任何消息**的账号 C，用来验「没聊过的好友也要出现在消息列表」
 const ACC_C = 'cc' + stamp;
-const c = await call('POST', '/api/auth/register', { account: ACC_C, password: PWD });
+const c = await call('POST', '/api/auth/register', { account: ACC_C, password: PWD, phone: phoneFor(ACC_C) });
 await fetch(BASE + '/api/auth/me', {
   method: 'PATCH',
   headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + c.body.token },

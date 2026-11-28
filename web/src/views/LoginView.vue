@@ -25,6 +25,8 @@ const tab = ref('login');           // login | register
 const authError = ref('');
 const account = ref('');
 const password = ref('');
+/** 手机号：2026-11-28 起注册必填（只有注册 Tab 才显示） */
+const phone = ref('');
 const busy = ref(false);
 const accountEl = ref(null);
 
@@ -52,6 +54,12 @@ function validate() {
   if (isReg.value && (!/[0-9]/.test(password.value) || !/[A-Za-z]/.test(password.value))) {
     return '密码必须同时包含数字和字母';
   }
+  // 手机号：必填 + 中国大陆 11 位（与后端 AuthService.PHONE 同一套口径）
+  if (isReg.value) {
+    const ph = phone.value.trim();
+    if (!ph) return '请输入手机号';
+    if (!/^1[3-9]\d{9}$/.test(ph)) return '手机号格式不对（11 位，1 开头）';
+  }
   return '';
 }
 
@@ -63,7 +71,7 @@ async function submit() {
 
   busy.value = true;
   try {
-    if (isReg.value) await auth.register(account.value.trim(), password.value);
+    if (isReg.value) await auth.register(account.value.trim(), password.value, phone.value.trim());
     else await auth.login(account.value.trim(), password.value);
 
     unread.start();                                  // 登录成功：启动角标轮询
@@ -81,6 +89,8 @@ async function submit() {
 function authErrText(e) {
   const code = e instanceof ApiError ? e.code : '';
   const map = {
+    ACCOUNT_TAKEN: '该用户名已被占用',
+    PHONE_TAKEN: '该手机号已注册',
     ACCOUNT_EXISTS: '这个账号已经有人用了',
     BAD_CREDENTIALS: '账号或密码不对',
     ACCOUNT_DISABLED: '这个账号已被封禁',
@@ -88,7 +98,9 @@ function authErrText(e) {
     NETWORK: '后端未连接，确认服务在跑'
   };
   if (map[code]) return map[code];
-  return (e && e.message) || '操作失败';
+  // 后端 message 形如「INVALID_PARAM: 手机号不能为空」：前缀是机读码，别给用户看
+  const raw = (e && e.message) || '操作失败';
+  return raw.replace(/^[A-Z_]+:\s*/, '');
 }
 </script>
 
@@ -100,13 +112,21 @@ function authErrText(e) {
     </div>
 
     <p class="sub">
-      {{ isReg ? '账号 3–32 位字母 / 数字 / 下划线；密码至少 8 位，且同时含数字和字母。' : '登录后即可发帖、评论、点赞；不登录也能浏览社区。' }}
+      {{ isReg ? '账号 3–32 位字母 / 数字 / 下划线；手机号 11 位；密码至少 8 位，且同时含数字和字母。' : '登录后即可发帖、评论、点赞；不登录也能浏览社区。' }}
     </p>
 
     <div class="auth-field">
       <label for="authAccount">账号</label>
       <input id="authAccount" ref="accountEl" v-model="account" autocomplete="username"
              placeholder="例如 zhang" maxlength="32">
+    </div>
+
+    <!-- 手机号：只在注册时出现（登录不需要） -->
+    <div v-if="isReg" class="auth-field">
+      <label for="authPhone">手机号</label>
+      <input id="authPhone" v-model="phone" type="tel" inputmode="numeric" maxlength="11"
+             autocomplete="tel" data-auth-phone
+             placeholder="11 位手机号" @keydown.enter="submit">
     </div>
 
     <div class="auth-field">

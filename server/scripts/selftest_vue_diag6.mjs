@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 5 自检①：能力分析（六维雷达 / 最近 N 场 / 空状态 / 动画）
 //
 // 用法：node server/scripts/selftest_vue_diag6.mjs [cdpPort] [baseUrl]
@@ -101,7 +102,7 @@ const call = async (method, path, body, token) => {
 };
 
 // ---------- 造数据：新账号 + 打 4 场（满座都属于我，快速打完）----------
-const reg = await call('POST', '/api/auth/register', { account: 'dg' + stamp, password: 'abc12345' });
+const reg = await call('POST', '/api/auth/register', { account: 'dg' + stamp, password: 'abc12345', phone: phoneFor('dg' + stamp) });
 if (!reg.body?.token) {
   console.log('准备账号失败');
   process.exit(1);
@@ -178,7 +179,7 @@ await check('D6-1 侧栏与页面标题都是「能力分析」', async () => {
 
 await check('D6-2 空状态：新账号不打图、不显示假维度', async () => {
   // 换一个一场没打的新账号
-  const fresh = await call('POST', '/api/auth/register', { account: 'dg0' + stamp, password: 'abc12345' });
+  const fresh = await call('POST', '/api/auth/register', { account: 'dg0' + stamp, password: 'abc12345', phone: phoneFor('dg0' + stamp) });
   const T0 = fresh.body.token;
   await ev(`localStorage.setItem('sy_jwt', ${JSON.stringify(T0)}); true`);
   await send('Page.navigate', { url: BASE + '/v2/index.html?t=' + Date.now() + '#/diag' });

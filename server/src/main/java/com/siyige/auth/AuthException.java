@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
  * <ul>
  *   <li>{@code INVALID_PARAM} 400 —— 用户名/密码/昵称不合法</li>
  *   <li>{@code ACCOUNT_TAKEN} 409 —— 注册时用户名已存在</li>
+ *   <li>{@code PHONE_TAKEN} 409 —— 注册时手机号已被（别的账号）占用</li>
  *   <li>{@code BAD_CREDENTIALS} 401 —— 用户名或密码错误（**不区分**账号不存在）</li>
  *   <li>{@code UNAUTHORIZED} 401 —— 未登录 / token 失效 / 已登出</li>
  *   <li>{@code TOO_MANY_ATTEMPTS} 429 —— 触发失败次数限制</li>
@@ -40,6 +41,16 @@ public class AuthException extends RuntimeException {
 
     public static AuthException accountTaken() {
         return new AuthException("ACCOUNT_TAKEN", HttpStatus.CONFLICT, "ACCOUNT_TAKEN: 该用户名已被占用");
+    }
+
+    /**
+     * 手机号已被别的账号占用：409 {@code PHONE_TAKEN}。
+     *
+     * <p>与 {@link #accountTaken()} 分开：注册页要把「用户名重复」和「手机号重复」
+     * 分别指向对应的输入框，合成一条文案用户不知道该改哪个。
+     */
+    public static AuthException phoneTaken() {
+        return new AuthException("PHONE_TAKEN", HttpStatus.CONFLICT, "PHONE_TAKEN: 该手机号已注册");
     }
 
     /** 登录失败统一文案（安全要求：不区分"账号不存在"与"密码错误"）。 */

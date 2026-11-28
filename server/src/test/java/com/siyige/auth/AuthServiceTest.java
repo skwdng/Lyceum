@@ -23,12 +23,19 @@ class AuthServiceTest {
     private final PasswordEncoder encoder = new Argon2PasswordEncoder(8, 16, 1, 1024, 1);
     private final AuthService service = new AuthService(repo, encoder);
 
+    /** 默认手机号：格式合法且在本类里够用（纯 mock，不落库，不怕重复）。 */
+    private static final String PHONE = "13800001111";
+
     private static AuthRepo.UserRecord user(String account, String hash, int status) {
-        return new AuthRepo.UserRecord(account, account, "昵称-" + account, hash, status, false);
+        return new AuthRepo.UserRecord(account, account, "昵称-" + account, hash, status, false, PHONE);
     }
 
     private static AuthDtos.RegisterRequest reg(String account, String password) {
-        return new AuthDtos.RegisterRequest(account, password);
+        return new AuthDtos.RegisterRequest(account, password, PHONE);
+    }
+
+    private static AuthDtos.RegisterRequest reg(String account, String password, String phone) {
+        return new AuthDtos.RegisterRequest(account, password, phone);
     }
 
     private static AuthDtos.LoginRequest login(String account, String password) {
@@ -44,11 +51,12 @@ class AuthServiceTest {
         AuthDtos.AuthUser u = service.register(reg("zhang", "abc12345"));
 
         ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
-        verify(repo).insert(eq("zhang"), eq("zhang"), hash.capture());
+        verify(repo).insert(eq("zhang"), eq("zhang"), hash.capture(), eq(PHONE));
 
         assertEquals("zhang", u.id());
         assertEquals("zhang", u.account());
         assertEquals("zhang", u.name(), "昵称默认=账号");
+        assertEquals(PHONE, u.phone(), "注册成功后出参里要带手机号（自己的资料不脱敏）");
         assertNotEquals("abc12345", hash.getValue(), "绝不能存明文");
         assertTrue(hash.getValue().startsWith("$argon2id$"), "应为 argon2id，实际：" + hash.getValue());
     }
@@ -60,7 +68,7 @@ class AuthServiceTest {
         AuthDtos.AuthUser u = service.register(reg("  Zhang  ", "abc12345"));
 
         assertEquals("zhang", u.account(), "账号应统一小写并去空白");
-        verify(repo).insert(eq("zhang"), eq("zhang"), anyString());
+        verify(repo).insert(eq("zhang"), eq("zhang"), anyString(), eq(PHONE));
     }
 
     @Test
@@ -69,14 +77,14 @@ class AuthServiceTest {
 
         AuthException e = assertThrows(AuthException.class, () -> service.register(reg("zhang", "abc12345")));
         assertEquals("ACCOUNT_TAKEN", e.code());
-        verify(repo, never()).insert(anyString(), anyString(), anyString());
+        verify(repo, never()).insert(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
     void 注册_并发撞唯一索引也返回ACCOUNT_TAKEN() {
         when(repo.findByAccount("zhang")).thenReturn(null);   // 预检时还没有
         doThrow(new DuplicateKeyException("ux_user_account"))
-                .when(repo).insert(anyString(), anyString(), anyString());
+                .when(repo).insert(anyString(), anyString(), anyString(), anyString());
 
         AuthException e = assertThrows(AuthException.class, () -> service.register(reg("zhang", "abc12345")));
         assertEquals("ACCOUNT_TAKEN", e.code(), "唯一索引兜底应转成同一个错误码");
@@ -92,7 +100,7 @@ class AuthServiceTest {
                     "应拒绝密码：" + pwd);
             assertEquals("INVALID_PARAM", e.code(), "密码：" + pwd);
         }
-        verify(repo, never()).insert(anyString(), anyString(), anyString());
+        verify(repo, never()).insert(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -103,6 +111,95 @@ class AuthServiceTest {
                     "应拒绝账号：" + acc);
             assertEquals("INVALID_PARAM", e.code(), "账号：" + acc);
         }
+    }
+
+    // ==================== 注册：手机号（2026-11-28 起必填） ====================
+
+    @Test
+    void 注册_不传手机号返回INVALID_PARAM() {
+        when(repo.findByAccount(anyString())).thenReturn(null);
+
+        for (String phone : new String[]{null, "", "   "}) {
+            AuthException e = assertThrows(AuthException.class,
+                    () -> service.register(reg("zhang", "abc12345", phone)),
+                    "手机号=" + phone + " 应被拒绝");
+            assertEquals("INVALID_PARAM", e.code());
+            assertTrue(e.getMessage().contains("手机号不能为空"), e.getMessage());
+        }
+        verify(repo, never()).insert(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void 注册_手机号格式不对全部拒绝() {
+        when(repo.findByAccount(anyString())).thenReturn(null);
+
+        String[] bad = {
+                "1380000111",        // 10 位
+                "138000011112",      // 12 位
+                "1380000111a",       // 带字母
+                "138 0000 1111",     // 带空格（trim 不去中间空格）
+                "12800001111",       // 12 开头（第二位必须是 3-9）
+                "23800001111",       // 不是 1 开头
+                "+8613800001111",    // 带国际区号
+        };
+        for (String phone : bad) {
+            AuthException e = assertThrows(AuthException.class,
+                    () -> service.register(reg("zhang", "abc12345", phone)),
+                    "应拒绝手机号：" + phone);
+            assertEquals("INVALID_PARAM", e.code(), "手机号：" + phone);
+            assertTrue(e.getMessage().contains("手机号格式不对"), e.getMessage());
+        }
+        verify(repo, never()).insert(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void 注册_手机号前后空格会被trim掉() {
+        when(repo.findByAccount("zhang")).thenReturn(null);
+
+        AuthDtos.AuthUser u = service.register(reg("zhang", "abc12345", "  13800001111  "));
+
+        assertEquals("13800001111", u.phone());
+        verify(repo).insert(eq("zhang"), eq("zhang"), anyString(), eq("13800001111"));
+    }
+
+    @Test
+    void 注册_手机号已被别的账号占用返回PHONE_TAKEN() {
+        when(repo.findByPhone(PHONE)).thenReturn(user("someone", "$argon2id$", 1));
+        when(repo.findByAccount("zhang")).thenReturn(null);
+
+        AuthException e = assertThrows(AuthException.class, () -> service.register(reg("zhang", "abc12345")));
+        assertEquals("PHONE_TAKEN", e.code());
+        assertEquals("PHONE_TAKEN: 该手机号已注册", e.getMessage());
+        verify(repo, never()).insert(anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void 注册_并发撞手机号唯一索引也返回PHONE_TAKEN而不是ACCOUNT_TAKEN() {
+        when(repo.findByPhone(PHONE)).thenReturn(null, user("someone", "$argon2id$", 1));  // 预查时没有，落库时已被人抢了
+        when(repo.findByAccount("zhang")).thenReturn(null);
+        doThrow(new DuplicateKeyException("sy_user.ux_user_phone"))
+                .when(repo).insert(anyString(), anyString(), anyString(), anyString());
+
+        AuthException e = assertThrows(AuthException.class, () -> service.register(reg("zhang", "abc12345")));
+        assertEquals("PHONE_TAKEN", e.code(), "撞的是手机号，不能误报成「用户名已被占用」");
+    }
+
+    @Test
+    void 注册_并发撞账号唯一索引仍返回ACCOUNT_TAKEN() {
+        when(repo.findByPhone(PHONE)).thenReturn(null);
+        when(repo.findByAccount("zhang")).thenReturn(null);
+        doThrow(new DuplicateKeyException("sy_user.ux_user_account"))
+                .when(repo).insert(anyString(), anyString(), anyString(), anyString());
+
+        AuthException e = assertThrows(AuthException.class, () -> service.register(reg("zhang", "abc12345")));
+        assertEquals("ACCOUNT_TAKEN", e.code(), "手机号没人占 -> 只能是账号撞了");
+    }
+
+    @Test
+    void 手机号脱敏只保留前三后四() {
+        assertEquals("138****1111", AuthService.maskPhone("13800001111"));
+        assertEquals("", AuthService.maskPhone(null));
+        assertEquals("", AuthService.maskPhone("123"));
     }
 
     // ==================== 登录 ====================
@@ -155,7 +252,8 @@ class AuthServiceTest {
 
     @Test
     void 登录_历史行没有密码时拒绝且不抛其他异常() {
-        when(repo.findByAccount("u_demo")).thenReturn(new AuthRepo.UserRecord("u_demo", "u_demo", "演示用户", null, 1, false));
+        when(repo.findByAccount("u_demo")).thenReturn(
+                new AuthRepo.UserRecord("u_demo", "u_demo", "演示用户", null, 1, false, null));
 
         AuthException e = assertThrows(AuthException.class, () -> service.login(login("u_demo", "abc12345")));
         assertEquals("BAD_CREDENTIALS", e.code());
@@ -214,9 +312,10 @@ class AuthServiceTest {
     // ==================== 安全：DTO 不泄露密码 ====================
 
     @Test
-    void DTO的toString不含密码() {
+    void DTO的toString不含密码与手机号() {
         String pwd = "secret12345";
         assertFalse(reg("zhang", pwd).toString().contains(pwd), "RegisterRequest.toString 泄露了密码");
+        assertFalse(reg("zhang", pwd).toString().contains(PHONE), "RegisterRequest.toString 泄露了手机号");
         assertFalse(login("zhang", pwd).toString().contains(pwd), "LoginRequest.toString 泄露了密码");
     }
 

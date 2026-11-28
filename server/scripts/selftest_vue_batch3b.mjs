@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 3-2 自检（视频 + 管理后台）
 //
 // 用法：node server/scripts/selftest_vue_batch3b.mjs [cdpPort] [baseUrl]
@@ -98,7 +99,7 @@ const call = async (method, path, body, token) => {
   return { status: r.status, body: text ? JSON.parse(text) : null };
 };
 
-const me = await call('POST', '/api/auth/register', { account: 'vd' + stamp, password: 'abc12345' });
+const me = await call('POST', '/api/auth/register', { account: 'vd' + stamp, password: 'abc12345', phone: phoneFor('vd' + stamp) });
 if (!me.body?.token) {
   console.log('准备账号失败');
   process.exit(1);
@@ -251,7 +252,7 @@ await check('B3-A2 管理台登录页：独立布局（无侧栏）+ 错误密�
 
 await check('B3-A3 令牌进入 → 侧栏 5 项 + 当前项高亮 + 徽标=待处理举报数 + 概览三张卡', async () => {
   // 自备一条待处理举报（内存库每次重启就空，不能依赖残留数据）；徽标要拿它来对数
-  const author = await call('POST', '/api/auth/register', { account: 'ao' + stamp, password: 'abc12345' });
+  const author = await call('POST', '/api/auth/register', { account: 'ao' + stamp, password: 'abc12345', phone: phoneFor('ao' + stamp) });
   const post = await call(
     'POST',
     '/api/community/posts',

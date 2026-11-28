@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 2 后半段自检：单人辩论 / 对局（打字机 · 计时 · 提交）/ 复盘
 //
 // 用法：node server/scripts/selftest_vue_batch2b.mjs [cdpPort] [baseUrl]
@@ -86,7 +87,7 @@ const call = async (method, path, body, token) => {  const headers = { 'Content-
   return { status: r.status, body: text ? JSON.parse(text) : null };
 };
 
-const reg = await call('POST', '/api/auth/register', { account: ACC, password: PWD });
+const reg = await call('POST', '/api/auth/register', { account: ACC, password: PWD, phone: phoneFor(ACC) });
 if (!reg.body?.token) {
   console.log('准备账号失败');
   process.exit(1);
@@ -282,7 +283,7 @@ await check('B2B-R2 另一个人加入 → 房间页轮询自动刷新（真人 
   // 用接口让 B 加入（等价于队友在自己机器上点加入）
   const code = (await ev(`document.querySelector('.mono').textContent.trim()`)) || '';
   const stampB = Date.now().toString().slice(-6);
-  const rb = await call('POST', '/api/auth/register', { account: 'rb' + stampB, password: PWD });
+  const rb = await call('POST', '/api/auth/register', { account: 'rb' + stampB, password: PWD, phone: phoneFor('rb' + stampB) });
   if (!rb.body?.token) throw new Error('造 B 账号失败');
   const joined = await call('POST', '/api/rooms/' + code + '/join', {}, rb.body.token);
   if (joined.status !== 200) throw new Error('B 加入失败：' + JSON.stringify(joined).slice(0, 120));
@@ -294,7 +295,7 @@ await check('B2B-R2 另一个人加入 → 房间页轮询自动刷新（真人 
 await check('B2B-R3 房主「邀请好友」弹窗：好友列表 + 点邀请变「已邀请」', async () => {
   // 造一个好友给 A（A 先发请求，B 接受），这样弹窗里才有内容
   const stampC = Date.now().toString().slice(-6);
-  const rc = await call('POST', '/api/auth/register', { account: 'rc' + stampC, password: PWD });
+  const rc = await call('POST', '/api/auth/register', { account: 'rc' + stampC, password: PWD, phone: phoneFor('rc' + stampC) });
   inviteeToken = (rc.body && rc.body.token) || '';   // 留给 R4 用（被邀请方的视角）
   const me = await call('GET', '/api/auth/me', null, TOKEN);
   await call('POST', '/api/social/friends/requests', { toId: rc.body.user.id, note: null }, TOKEN);

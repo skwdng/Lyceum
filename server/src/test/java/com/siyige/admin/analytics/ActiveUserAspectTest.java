@@ -79,7 +79,7 @@ class ActiveUserAspectTest {
 
     @Test
     void 登录从返回值取userId() {
-        aspect.afterLogin(new AuthDtos.AuthUser("u9", "acc", "昵称"));
+        aspect.afterLogin(new AuthDtos.AuthUser("u9", "acc", "昵称", null));
         verify(store).addActive(anyString(), eq("u9"));
     }
 

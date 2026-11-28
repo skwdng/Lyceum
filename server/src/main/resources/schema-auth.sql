@@ -17,4 +17,10 @@ alter table sy_user add column if not exists account       varchar(64);
 alter table sy_user add column if not exists password_hash varchar(255);
 alter table sy_user add column if not exists status        tinyint default 1;
 
+-- 手机号（2026-11-28 起注册必填）：**允许 NULL** —— 存量老账号没有手机号，
+-- 加 NOT NULL 会直接把它们卡死（登录/改名/改密都会失败）。
+-- 唯一索引对 NULL 不生效（H2 / MySQL 都是多行 NULL 合法），所以老用户可以有多个 NULL。
+alter table sy_user add column if not exists phone         varchar(20);
+
 create unique index if not exists ux_user_account on sy_user(account);
+create unique index if not exists ux_user_phone   on sy_user(phone);

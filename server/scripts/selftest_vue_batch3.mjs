@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 3 自检（社区：列表 / 详情 / 发帖 / 评论 / 楼中楼 / @提及 / 点赞 / 举报 / 通知深链）
 //
 // 用法：node server/scripts/selftest_vue_batch3.mjs [cdpPort] [baseUrl]
@@ -89,8 +90,8 @@ const call = async (method, path, body, token) => {
   return { status: r.status, body: text ? JSON.parse(text) : null };
 };
 
-const me = await call('POST', '/api/auth/register', { account: ACC, password: PWD });
-const other = await call('POST', '/api/auth/register', { account: OTHER, password: PWD });
+const me = await call('POST', '/api/auth/register', { account: ACC, password: PWD, phone: phoneFor(ACC) });
+const other = await call('POST', '/api/auth/register', { account: OTHER, password: PWD, phone: phoneFor(OTHER) });
 if (!me.body?.token || !other.body?.token) {
   console.log('准备账号失败');
   process.exit(1);

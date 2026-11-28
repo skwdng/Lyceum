@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 5 自检③：离开对局可继续 + 聊天滚动不被抢
 //
 // 用法：node server/scripts/selftest_vue_resume.mjs [cdpPort] [baseUrl]
@@ -114,7 +115,7 @@ const call = async (method, path, body, token) => {
   const text = await r.text();
   return { status: r.status, body: text ? JSON.parse(text) : null };
 };
-const reg = await call('POST', '/api/auth/register', { account: 'rs' + stamp, password: 'abc12345' });
+const reg = await call('POST', '/api/auth/register', { account: 'rs' + stamp, password: 'abc12345', phone: phoneFor('rs' + stamp) });
 const TOKEN = reg.body.token;
 await fetch(BASE + '/api/auth/me', {
   method: 'PATCH',

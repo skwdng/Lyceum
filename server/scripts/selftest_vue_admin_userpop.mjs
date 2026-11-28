@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // 用户违规浮窗自检：浮窗内容 + 浮窗内禁言后状态同步 + 两处入口共用同一组件
 //
 // 用法：node server/scripts/selftest_vue_admin_userpop.mjs [cdpPort] [baseUrl]
@@ -31,7 +32,7 @@ const call = async (method, path, body, token) => {
 // ---------- 造数：一个用户 + 一条帖子 + 一条评论 ----------
 const stamp = Date.now().toString().slice(-6);
 const acc = 'up' + stamp;
-await call('POST', '/api/auth/register', { account: acc, password: 'abc12345' });
+await call('POST', '/api/auth/register', { account: acc, password: 'abc12345', phone: phoneFor(acc) });
 const user = (await call('POST', '/api/auth/login', { account: acc, password: 'abc12345' })).body.token;
 const me = await call('GET', '/api/auth/me', undefined, user);
 const uid = me.body.id;
@@ -181,7 +182,7 @@ await check('B4 第二处入口：帖子管理页点作者名，弹出同一个�
 await check('B5 全站入口：评论管理 / 评论树 / 视频作者 / 处理记录对象 / 举报作者 都能点开浮窗', async () => {
   // 先把缺的数据补齐：一条举报（举报人 + 作者）和一条视频
   const repAcc = 'rp' + stamp;
-  await call('POST', '/api/auth/register', { account: repAcc, password: 'abc12345' });
+  await call('POST', '/api/auth/register', { account: repAcc, password: 'abc12345', phone: phoneFor(repAcc) });
   const reporter = (await call('POST', '/api/auth/login', { account: repAcc, password: 'abc12345' })).body.token;
   await call('POST', '/api/community/reports',
     { targetType: 'POST', targetId: post.body.postId, reason: 'SPAM', detail: '自检' }, reporter);

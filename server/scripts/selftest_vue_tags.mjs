@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // T2 前端自检：发帖标签选择器 / 热门标签条与筛选 / 卡片与详情展示
 //
 // 用法：node server/scripts/selftest_vue_tags.mjs [cdpPort] [baseUrl]
@@ -31,7 +32,7 @@ const call = async (method, path, body, token) => {
 // ---------- 造数：一个用户 + 两篇带标签的帖子 ----------
 const stamp = Date.now().toString().slice(-6);
 const acc = 'tgui' + stamp;
-await call('POST', '/api/auth/register', { account: acc, password: 'abc12345' });
+await call('POST', '/api/auth/register', { account: acc, password: 'abc12345', phone: phoneFor(acc) });
 const realTok = (await call('POST', '/api/auth/login', { account: acc, password: 'abc12345' })).body.token;
 const me = await call('GET', '/api/auth/me', undefined, realTok);
 const uid = me.body.id;

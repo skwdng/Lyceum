@@ -53,8 +53,9 @@ export const useAuthStore = defineStore('auth', {
       return this.user;
     },
 
-    async register(account, password) {
-      const res = await authApi.register(account, password);
+    /** 注册：手机号自 2026-11-28 起必填，透传给后端校验（前端只是先挡一道）。 */
+    async register(account, password, phone) {
+      const res = await authApi.register(account, password, phone);
       this.resetAll();
       if (res && res.token) setToken(res.token);
       this.user = (res && res.user) || null;

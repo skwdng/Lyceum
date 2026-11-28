@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // 参数管理（第一批 10 项）自检：改完能不能「不重启就生效」
 //
 // 验收口径（执行提示词 C4 / 设计方案 §11）：
@@ -44,7 +45,7 @@ const stamp = Date.now().toString().slice(-6);
 
 // ==================== 造数：一个普通用户（发帖用） ====================
 const userAcc = 'cfguser' + stamp;
-await call('POST', '/api/auth/register', { account: userAcc, password: 'abc12345' });
+await call('POST', '/api/auth/register', { account: userAcc, password: 'abc12345', phone: phoneFor(userAcc) });
 const userTok = (await call('POST', '/api/auth/login', { account: userAcc, password: 'abc12345' })).body.token;
 need(userTok, '普通用户登录失败：拿不到令牌（后端没起？）');
 

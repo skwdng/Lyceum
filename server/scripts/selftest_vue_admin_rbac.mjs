@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // 管理员账号 + 权限分级（RBAC）自检
 //
 // 覆盖用户要的那条完整链路：
@@ -35,14 +36,14 @@ const call = async (method, path, body, token) => {
 // ---------- 造数据（否则"看不到处置按钮"会因为没有行而假通过）----------
 const stamp = Date.now().toString().slice(-6);
 const pu = 'rb' + stamp;
-await call('POST', '/api/auth/register', { account: pu, password: 'abc12345' });
+await call('POST', '/api/auth/register', { account: pu, password: 'abc12345', phone: phoneFor(pu) });
 const userTok = (await call('POST', '/api/auth/login', { account: pu, password: 'abc12345' })).body.token;
 const post = await call('POST', '/api/community/posts',
   { type: 'CHAT', title: `权限自检帖 ${stamp}`, body: '这条用来验证按钮级权限，正文要够长一点。' }, userTok);
 await call('POST', `/api/community/posts/${post.body.postId}/comments`, { body: `权限自检评论 ${stamp}` }, userTok);
 await call('POST', '/api/video/videos',
   { title: `权限自检视频 ${stamp}`, description: '按钮级权限', url: 'http://127.0.0.1:8080/media/demo.mp4', poster: '', topic: 'x', segment: 'OPEN' }, userTok);
-await call('POST', '/api/auth/register', { account: 'rr' + stamp, password: 'abc12345' });
+await call('POST', '/api/auth/register', { account: 'rr' + stamp, password: 'abc12345', phone: phoneFor('rr' + stamp) });
 const repTok = (await call('POST', '/api/auth/login', { account: 'rr' + stamp, password: 'abc12345' })).body.token;
 await call('POST', '/api/community/reports',
   { targetType: 'POST', targetId: post.body.postId, reason: 'SPAM', detail: '权限自检' }, repTok);

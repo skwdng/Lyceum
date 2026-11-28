@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // 屏蔽词管理自检（W1-W3 的端到端验收）
 //
 // 用法：node server/scripts/selftest_vue_words.mjs [cdpPort] [baseUrl]
@@ -111,7 +112,7 @@ await check('3 只读（VIEWER）读写都 403，且词表没被改动', async (
 
 // ==================== 用户侧：发帖打码 / 标签拒绝 ====================
 const userAcc = 'worduser' + STAMP;
-await call('POST', '/api/auth/register', { account: userAcc, password: 'abc12345' });
+await call('POST', '/api/auth/register', { account: userAcc, password: 'abc12345', phone: phoneFor(userAcc) });
 const userTok = (await call('POST', '/api/auth/login', { account: userAcc, password: 'abc12345' })).body.token;
 const post = (title, body, tags) => call('POST', '/api/community/posts',
   { type: 'CHAT', title, body, tags: tags || [] }, userTok);

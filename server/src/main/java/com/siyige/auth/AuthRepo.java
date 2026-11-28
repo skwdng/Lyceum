@@ -26,18 +26,31 @@ public class AuthRepo {
      * <p>{@code toString()} 不含 passwordHash，防止误打印。
      */
     public record UserRecord(String id, String account, String name, String passwordHash, int status,
-                            boolean bot) {
+                            boolean bot, String phone) {
         @Override
         public String toString() {
+            // 手机号也不进日志/异常：要打就打脱敏形态（AuthService#maskPhone）
             return "UserRecord[id=" + id + ",account=" + account + ",status=" + status + ",bot=" + bot + "]";
         }
     }
 
     private static final String COLUMNS =
-            "select id, account, name, password_hash, status, is_bot from sy_user ";
+            "select id, account, name, password_hash, status, is_bot, phone from sy_user ";
 
     public UserRecord findByAccount(String account) {
         List<UserRecord> rows = jdbc.query(COLUMNS + "where account = ?", (rs, i) -> map(rs), account);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /**
+     * 按手机号找人（注册查重用）。
+     *
+     * <p>老账号的 phone 是 NULL，所以这里传 null/空串一定查不到 —— 调用方别拿它当"空号校验"。
+     * 真正防重复的是唯一索引 ux_user_phone（并发时这个方法只是友好提示）。
+     */
+    public UserRecord findByPhone(String phone) {
+        if (phone == null || phone.isBlank()) return null;
+        List<UserRecord> rows = jdbc.query(COLUMNS + "where phone = ?", (rs, i) -> map(rs), phone);
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -52,8 +65,9 @@ public class AuthRepo {
         // is_bot 由 schema-ai.sql 添加（0 = 普通用户 / 1 = AI 账号）
         Object bot = rs.getObject("is_bot");
         boolean isBot = bot instanceof Number bn && bn.intValue() == 1;
+        // phone 由 schema-auth.sql 添加（2026-11-28）；老行为 NULL
         return new UserRecord(rs.getString("id"), rs.getString("account"),
-                rs.getString("name"), rs.getString("password_hash"), st, isBot);
+                rs.getString("name"), rs.getString("password_hash"), st, isBot, rs.getString("phone"));
     }
 
     /**
@@ -63,11 +77,15 @@ public class AuthRepo {
      * varchar(32)，账号规则是 3-32 位，正好放得下；也天然与历史 {@code u-demo} 这类
      * 带连字符的旧 id 隔离。
      *
-     * @throws DuplicateKeyException 账号已存在（唯一索引 ux_user_account 兜底，并发安全）
+     * <p>可能撞两个唯一索引：{@code ux_user_account} 或 {@code ux_user_phone}。
+     *
+     * @throws DuplicateKeyException 账号或手机号已存在（唯一索引兜底，并发安全 ——
+     *         具体是哪一个由调用方用 {@link #findByPhone} / {@link #findByAccount} 判断）
      */
-    public void insert(String account, String name, String passwordHash) {
-        jdbc.update("insert into sy_user(id, account, name, password_hash, status) values(?, ?, ?, ?, 1)",
-                account, account, name, passwordHash);
+    public void insert(String account, String name, String passwordHash, String phone) {
+        jdbc.update("insert into sy_user(id, account, name, password_hash, status, phone) "
+                        + "values(?, ?, ?, ?, 1, ?)",
+                account, account, name, passwordHash, phone);
     }
 
     public int updateName(String id, String name) {
