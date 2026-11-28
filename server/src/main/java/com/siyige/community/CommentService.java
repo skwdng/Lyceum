@@ -226,12 +226,16 @@ public class CommentService {
         notifications.onComment(postId, uid, id, replyObjectUserId);
         // 通知：正文里 @ 了谁（反向校验在 service 内部：只认 userId + 昵称必须真出现在正文里）
         notifications.onMentions(postId, id, uid, body.get("mentions"), text);
-        // 社区 AI：正文含 @DeepSeek 且 mentions 里有 AI 的 userId -> 入队（三道闸都在 maybeEnqueue 里）
+        // 社区 AI：两条触发路径（三道闸都在 maybeEnqueue 里）
+        //   ① 正文含 @DeepSeek 且 mentions 里有 AI 的 userId（防伪造，见 AiQueue.mentionsAi）
+        //   ② 直接回复 AI 的某条评论 —— 不需要 @（2026-11-28 扩展，replyObjectUserId 现成可用）
+        // 两条路额度一样扣（决策 9），不存在"回复免费"。
         // 楼层归属（决策 3）：
-        //   · 楼里 @    -> AI 回到「这一楼的楼中楼」=> 用 id（楼自己）当 rootId
-        //   · 楼中楼 @  -> AI 回到「同一个楼的楼中楼」=> 沿用 rootId（仍是第二层，不会更深）
+        //   · 楼里 @ / 回复楼    -> AI 回到「这一楼的楼中楼」=> 用 id（楼自己）当 rootId
+        //   · 楼中楼 @ / 回复楼中楼 -> AI 回到「同一个楼的楼中楼」=> 沿用 rootId（仍是第二层，不会更深）
         Long aiRootId = rootId != null ? rootId : id;
-        aiQueue.maybeEnqueue(postId, id, uid, aiRootId, text, body.get("mentions"));
+        boolean replyToAi = AiAccount.ID.equals(replyObjectUserId);
+        aiQueue.maybeEnqueue(postId, id, uid, aiRootId, text, body.get("mentions"), replyToAi);
 
         if (masked.hits() > 0) {
             log.info("社区评论打码 userId={} postId={} commentId={} hits={}", uid, postId, id, masked.hits());

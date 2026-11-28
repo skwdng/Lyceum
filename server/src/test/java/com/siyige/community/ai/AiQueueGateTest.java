@@ -118,6 +118,55 @@ class AiQueueGateTest {
         assertFalse(AiQueue.mentionsAi("@DeepSeek", "ai_deepseek"), "mentions 不是集合就不算");
     }
 
+
+    // ==================== ② 回复 AI 的评论（2026-11-28 新增的第二条路） ====================
+
+    @Test
+    void 回复AI时不需要at也入队_且额度扣一次() {
+        queue.maybeEnqueue(7L, 42L, "u-bob", 9L, "我不同意你的看法", null, true);
+
+        verifyEnqueued();
+        verify(guard, times(1)).tryAcquire("u-bob");
+    }
+
+    @Test
+    void 回复AI但今日额度用完_不入队() {
+        when(guard.tryAcquire(anyString())).thenReturn(false);
+
+        queue.maybeEnqueue(7L, 42L, "u-bob", 9L, "我不同意你的看法", null, true);
+
+        verifyNoEnqueue();
+        verify(guard).tryAcquire("u-bob");
+    }
+
+    @Test
+    void 回复AI的同时正文还写了at_也只入队一次() {
+        queue.maybeEnqueue(7L, 42L, "u-bob", 9L, "@DeepSeek 你说呢", List.of(AiAccount.ID), true);
+
+        verifyEnqueued();
+        verify(guard, times(1)).tryAcquire("u-bob");
+    }
+
+    @Test
+    void 提问者是AI账号时两条路都不入队() {
+        queue.maybeEnqueue(7L, 42L, AiAccount.ID, 9L, "@DeepSeek 自我提问", List.of(AiAccount.ID), false);
+        queue.maybeEnqueue(7L, 42L, AiAccount.ID, 9L, "回复自己", null, true);
+
+        verifyNoEnqueue();
+        verifyNoInteractions(guard);           // 连额度都不该扣
+    }
+
+    @Test
+    void 老签名等价于replyToAi为false() {
+        // 6 参数重载内部转调 7 参数、replyToAi=false：回复 AI 但既不 @ 也没有 mentions -> 不入队
+        queue.maybeEnqueue(7L, 42L, "u-bob", 9L, "我不同意你的看法", null);
+
+        verifyNoEnqueue();
+        // 而 @ 场景照旧入队
+        queue.maybeEnqueue(7L, 43L, "u-bob", 9L, "@DeepSeek 你怎么看", List.of(AiAccount.ID));
+        verifyEnqueued();
+    }
+
     // ==================== 闸③ 限额 ====================
 
     @Test

@@ -9,7 +9,7 @@ import java.util.Map;
  * <p>分工很明确：
  * <ul>
  *   <li>{@link #SYSTEM} 写死：角色、字数上限、不许编造、不透露模型身份</li>
- *   <li>{@link #buildUser} 只拼「帖子 + 最近评论 + 被 @ 的那句话」——
+ *   <li>{@link #buildUser} 只拼「帖子 + 最近评论 + 触发本次回复的那句话」（@ 与回复共用，措辞中性）——
  *       <b>用户文本永远只进 user 消息</b>，不拼进 system，避免提示词注入改角色</li>
  * </ul>
  *
@@ -81,7 +81,9 @@ public final class AiPromptBuilder {
             }
         }
 
-        sb.append("【题目里 @ 我的那句话】\n").append(clip(text(question), POST_BODY_MAX)).append('\n');
+        // 中性措辞：触发 AI 有两种情况（@ 它 / 直接回复它的评论），回复场景里用户并没有 @ ——
+        // 写成「题目里 @ 我的那句话」会误导模型，让它以为对方在点名
+        sb.append("【对方这句话】\n").append(clip(text(question), POST_BODY_MAX)).append('\n');
         sb.append("\n请直接给出你的回复正文（不要带「回复：」这类前缀，不要加署名）。");
 
         return clip(sb.toString(), USER_MAX);

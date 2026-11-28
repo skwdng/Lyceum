@@ -59,12 +59,18 @@ class AiFloorTest {
         return b;
     }
 
-    /** 捕获入队时传的 (commentId, rootId)。 */
+    /**
+     * 捕获入队时传的 (commentId, rootId, replyToAi)。
+     *
+     * <p>2026-11-28：CommentService 改成调 7 参数重载（多了 replyToAi），这里跟着验新签名。
+     */
     private long[] capturedIds() {
         var capComment = org.mockito.ArgumentCaptor.forClass(Long.class);
         var capRoot = org.mockito.ArgumentCaptor.forClass(Long.class);
+        var capReplyToAi = org.mockito.ArgumentCaptor.forClass(Boolean.class);
         verify(aiQueue).maybeEnqueue(anyLong(), capComment.capture(), anyString(),
-                capRoot.capture(), anyString(), any());
+                capRoot.capture(), anyString(), any(), capReplyToAi.capture());
+        assertFalse(capReplyToAi.getValue(), "被回复的是普通用户 -> replyToAi 必须是 false");
         return new long[]{
                 capComment.getValue() == null ? -1 : capComment.getValue(),
                 capRoot.getValue() == null ? -1 : capRoot.getValue()

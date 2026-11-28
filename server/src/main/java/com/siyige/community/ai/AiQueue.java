@@ -36,9 +36,17 @@ import java.util.Map;
  * <h3>生产者三道闸（顺序不能反）</h3>
  * <ol>
  *   <li>总开关：没配 key / 没 Redis → 整体关闭，{@code @DeepSeek} 只是普通文本</li>
- *   <li>@ 判定：正文**含** {@code @DeepSeek} 且 mentions 数组里**有** {@code ai_deepseek}（决策 2，与现有 @ 规则一致）</li>
- *   <li>限额：每账号每自然日 5 次（{@link AiUsageGuard}，入队即扣）</li>
+ *   <li>触发判定（两条路，满足其一即可）：
+ *     <ul>
+ *       <li><b>@</b>：正文**含** {@code @DeepSeek} 且 mentions 数组里**有** {@code ai_deepseek}（决策 2，两条缺一不可，防伪造）</li>
+ *       <li><b>回复 AI 的评论</b>（2026-11-28 扩展）：不需要 @，被回复那条评论的作者就是 AI 账号
+ *           —— 直接回它一句也算提问，由调用方传 {@code replyToAi=true}</li>
+ *     </ul>
+ *   </li>
+ *   <li>限额：每账号每自然日 5 次（{@link AiUsageGuard}，入队即扣；**@ 与回复同样扣**）</li>
  * </ol>
+ *
+ * <p>防递归：AI 账号自己发起的评论一律不入队（{@code askerId = ai_deepseek} 直接返回）。
  *
  * <h3>消费者</h3>
  * XREADGROUP 取一条 → {@link AiReplyHandler#handle} → **finally 里 XACK**；
@@ -87,6 +95,16 @@ public class AiQueue implements ApplicationRunner, DisposableBean {
     // ==================== 生产者 ====================
 
     /**
+     * 老签名：只按「@」判定（发帖 @ 与楼里/楼中楼 @ 都走这里）。
+     *
+     * <p>保留成重载是为了不让既有调用点与测试全改；内部等价于 {@code replyToAi=false}。
+     */
+    public void maybeEnqueue(long postId, Long commentId, String askerId,
+                             Long rootId, String text, Object mentions) {
+        maybeEnqueue(postId, commentId, askerId, rootId, text, mentions, false);
+    }
+
+    /**
      * 判断要不要为这次发言叫 AI，要的话丢进队列。
      *
      * <p>这是**同步且极快**的（三道闸 + 一次 XADD），绝不阻塞用户的发帖/评论请求。
@@ -94,11 +112,17 @@ public class AiQueue implements ApplicationRunner, DisposableBean {
      * @param commentId 评论/回复的 id；发帖时传 null
      * @param rootId    楼中楼所属楼的 id；不是楼中楼传 null
      * @param mentions  请求体里的 {@code mentions} 数组（可能为 null）
+     * @param replyToAi 这次发言是不是**直接回复 AI 的评论**（2026-11-28 新增的第二条触发路径）。
+     *                  为 true 时不需要正文里有 {@code @DeepSeek}，额度照扣（与 @ 完全等价）；
+     *                  由调用方判定「被回复评论的作者 == {@link AiAccount#ID}」，队列自己不去查库。
      */
     public void maybeEnqueue(long postId, Long commentId, String askerId,
-                             Long rootId, String text, Object mentions) {
+                             Long rootId, String text, Object mentions, boolean replyToAi) {
         if (!config.enabled()) return;                        // 闸 ①
-        if (!mentionsAi(text, mentions)) return;              // 闸 ②
+        // 防递归：AI 自己的评论永远不再触发 AI（理论上没有这种数据，但别指望"理论上"）
+        if (AiAccount.ID.equals(askerId)) return;
+        // 闸 ②：@ 或 回复 AI，二者其一
+        if (!replyToAi && !mentionsAi(text, mentions)) return;
         if (!usageGuard.tryAcquire(askerId)) return;          // 闸 ③（入队即扣，决策 3）
 
         Map<String, String> fields = new LinkedHashMap<>();

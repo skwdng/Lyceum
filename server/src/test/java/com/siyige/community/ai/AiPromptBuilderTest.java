@@ -59,6 +59,16 @@ class AiPromptBuilderTest {
     }
 
     @Test
+    void 触发句的标签是中性的_不能写死成at() {
+        String u = AiPromptBuilder.buildUser(post("题", "正文"), List.of(), "我不同意你的看法");
+
+        assertTrue(u.contains("【对方这句话】"), "标签要中性：回复场景里用户并没有 @ 它");
+        assertFalse(u.contains("题目里 @ 我的那句话"),
+                "写死「@ 我的」会误导模型（2026-11-28 起回复 AI 的评论也会触发）");
+        assertTrue(u.contains("我不同意你的看法"), "触发句仍要原文带上");
+    }
+
+    @Test
     void AI自己的历史回复会被标成AI() {
         String u = AiPromptBuilder.buildUser(post("题", "正文"),
                 List.of(comment("DeepSeek", "我之前的回答", true)), "再说说？");
