@@ -6,6 +6,7 @@ import org.springframework.jdbc.support.KeyHolder;
 import com.siyige.community.ai.AiAccount;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.sql.Statement;
@@ -448,11 +449,37 @@ public class CommunityRepo {
      * 只覆盖 7 天窗口，避免每次全表更新；不改 updated_at（热度不是编辑）。
      */
     public int recalculateRecentHotScores() {
+        // H2 与 MySQL 的时间函数不同：H2 是 datediff('SECOND', a, b)/dateadd('DAY', -7, now())，
+        // MySQL 是 timestampdiff(SECOND, a, b)/date_sub(now(), interval 7 day)。
+        // 之前只写了 H2 版，切到 MySQL 后这里直接 SQLSyntaxError（生产日志实测）。
+        if (isMysql()) {
+            return jdbc.update(
+                    "update sy_post set hot_score = (" +
+                    "  comment_count * 4 + like_count * 2 + view_count * 0.05" +
+                    ") / power(timestampdiff(SECOND, created_at, now()) / 3600.0 + 2, 1.5) " +
+                    "where status = 1 and created_at >= date_sub(now(), interval 7 day)");
+        }
         return jdbc.update(
                 "update sy_post set hot_score = (" +
                 "  comment_count * 4 + like_count * 2 + view_count * 0.05" +
                 ") / power(datediff('SECOND', created_at, now()) / 3600.0 + 2, 1.5) " +
                 "where status = 1 and created_at >= dateadd('DAY', -7, now())");
+    }
+
+    /** 当前数据源是不是 MySQL（只探一次；H2 单测走 false）。 */
+    private volatile Boolean mysql;
+
+    private boolean isMysql() {
+        if (mysql == null) {
+            boolean m = false;
+            try (Connection c = jdbc.getDataSource().getConnection()) {
+                m = c.getMetaData().getDatabaseProductName().toLowerCase().contains("mysql");
+            } catch (Exception ignored) {
+                m = false;
+            }
+            mysql = m;
+        }
+        return mysql;
     }
 
     /**

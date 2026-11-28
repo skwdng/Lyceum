@@ -66,14 +66,56 @@ public class RoomService {
     }
 
     public Map<String, Object> join(String code, String userId, String userName) {
+        return join(code, userId, userName, null);
+    }
+
+    /**
+     * 加入房间，可选自己挑座位。
+     *
+     * <p>四条规则（都是用户反馈打出来的）：
+     * <ol>
+     *   <li><b>已经在房间里就幂等</b>：直接返回 detail，**不换座、不重复占位**——
+     *       否则连点两次「加入」会把自己挪到另一个空位，队友看到的座位图会跳；</li>
+     *   <li>不带 seat → 沿用 {@link RoomStore#firstEmpty}（兼容旧前端：优先补人少的一侧）；</li>
+     *   <li>带 seat → 必须是 A1–B4 之一（否则 400 BAD_SEAT），且该座为空（否则 409 SEAT_TAKEN）；</li>
+     *   <li>一个人一间房只能有一个席位：靠 user_id 反查兜住，不依赖前端自觉。</li>
+     * </ol>
+     */
+    public Map<String, Object> join(String code, String userId, String userName, String seatRaw) {
         Map<String, Object> room = require(code);
         if (!"LOBBY".equals(room.get("status"))) throw new IllegalStateException("ROOM_STARTED");
+
+        // ① 已在房间：幂等返回（不换座）
         String already = rooms.seatOfUser(code, userId);
         if (already != null) return detail(code, userId);
-        String seat = rooms.firstEmpty(code);
-        if (seat == null) throw new IllegalStateException("ROOM_FULL");
-        rooms.occupy(code, seat, userId, nameOr(userName, userId));
+
+        String want = seatRaw == null ? "" : seatRaw.trim().toUpperCase();
+
+        // ② 没指定座位：老逻辑，挑人少那一侧的第一个空位
+        if (want.isEmpty()) {
+            String seat = rooms.firstEmpty(code);
+            if (seat == null) throw new IllegalStateException("ROOM_FULL");
+            rooms.occupy(code, seat, userId, nameOr(userName, userId));
+            return detail(code, userId);
+        }
+
+        // ③ 指定座位：先校验座位号，再看有没有人
+        if (!validSeat(want)) throw new IllegalArgumentException("BAD_SEAT: 座位只能是 A1–B4");
+        Map<String, Object> row = rooms.seat(code, want);
+        if (row == null) throw new IllegalArgumentException("BAD_SEAT: 座位只能是 A1–B4");
+        if (!"EMPTY".equals(String.valueOf(row.get("occupant"))))
+            throw new IllegalStateException("SEAT_TAKEN: " + want + " 已经有人了");
+
+        rooms.occupy(code, want, userId, nameOr(userName, userId));
         return detail(code, userId);
+    }
+
+    /** A1–B4 之外的都算非法座位。 */
+    private static boolean validSeat(String seat) {
+        for (String[] x : com.siyige.repo.RoomStore.SEATS) {
+            if (x[0].equals(seat)) return true;
+        }
+        return false;
     }
 
     public void leave(String code, String userId) {
