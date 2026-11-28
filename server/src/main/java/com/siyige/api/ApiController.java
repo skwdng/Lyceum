@@ -175,6 +175,17 @@ public class ApiController {
         return matches.mine(UserContext.requireId());
     }
 
+    /**
+     * 发言审核官：发送前先检查（前端在打字框里实时调）。
+     * 纯规则、不调模型，返回 {@code {ok, issues:[{code,message,fix}], tips:[...]}}。
+     */
+    @PostMapping("/matches/{id}/speech-check")
+    public Map<String, Object> speechCheck(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        String userId = guard(id);
+        String content = body.get("content") == null ? "" : String.valueOf(body.get("content"));
+        return matches.speechCheck(id, content, userId);
+    }
+
     /** 对局板块「已结束对局」：我打过（owner 或房间席位成员）的 FINISHED，最多 20 条。 */
     @GetMapping("/matches/history")
     public List<Map<String, Object>> myHistory() {

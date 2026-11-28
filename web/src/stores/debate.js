@@ -141,6 +141,13 @@ export const useDebateStore = defineStore('debate', {
     skipBusy: false,
     skipUntil: 0,      // 冷却结束时间戳
     skipStep: -1,      // 已催过的步（同一轮不再显示按钮）
+    /**
+     * AI 席位状态（后端 `GET /api/matches/{id}` 的 aiState）：
+     * mine | waiting | generating | ready。
+     * 「催一下」只在 ready（语句已备好）时有意义；generating/waiting 点了也没用，
+     * 界面改成灰文案，避免用户以为「催了却没反应」。
+     */
+    aiState: '',
 
     /**
      * 流式预览：{ seat: { seg, text } }。
@@ -578,6 +585,9 @@ export const useDebateStore = defineStore('debate', {
         const kindRaw = String(d.kind || '');
         this.kind = ['solo', 'room'].includes(kindRaw) ? kindRaw : (this.unlimited ? 'solo' : 'room');
         this.waiting = !!d.waitingForMe;
+        // AI 席位状态（白名单）：后端没给就留空，界面退回旧行为（不误判成「没准备好」）
+        const aiRaw = String(d.aiState || '');
+        this.aiState = ['mine', 'waiting', 'generating', 'ready'].includes(aiRaw) ? aiRaw : '';
         this.err = '';
 
         // 论据卡：换了辩题才拉
@@ -912,6 +922,8 @@ export const useDebateStore = defineStore('debate', {
       // 只要有字还在打字机里，按钮就必须在：这时它的含义是「显示全文」，
       // 不能被「本步已催过 / 上一步催过」挡住（历史 bug：点一次之后就再也点不到）。
       if (this.hasTyping()) return true;
+      // 语句还没备好（generating / waiting）：催也没用 → 不给可点按钮，界面显示灰文案
+      if (this.aiState === 'generating' || this.aiState === 'waiting') return false;
       const step = Number((this.match && this.match.step) || 0);
       // 催过一次只在**冷却期内**藏按钮（服务端受理了但 AI 还在生成时，别让按钮消失）
       if (this.skipStep === step && Date.now() < this.skipUntil) return false;
@@ -931,8 +943,7 @@ export const useDebateStore = defineStore('debate', {
     async nudge() {
       if (this.skipBusy) return;
       const step = Number((this.match && this.match.step) || 0);
-      if (this.hasTyping()) {
-        // 把还没打的字一次性补齐：标 typed + shown 拉满，打字机自然停下。
+      if (this.hasTyping()) {        // 把还没打的字一次性补齐：标 typed + shown 拉满，打字机自然停下。
         // 注意：**不要**把 skipStep 记成本步——否则「显示全文」之后按钮就消失，
         // 用户再也点不到下一次（历史 bug：催一下/显示全文共用一个按钮，点一次就没了）。
         const typing = (this.turnsView || []).filter((t) => t.typing);
@@ -944,6 +955,8 @@ export const useDebateStore = defineStore('debate', {
         return;
       }
       const beforeTurns = (this.turns || []).length;
+      // 语句还没备好（generating / waiting）：催也没用，点了什么都不做
+      if (this.aiState === 'generating' || this.aiState === 'waiting') return;
       await this.skipAi();
       // 服务端受理 ≠ 马上有新发言（AI 可能还在生成）。1.8s 内既没有新 turn、也还是没轮到我，
       // 就明确告诉用户「在组织语言」，而不是让界面看起来像点了没反应。

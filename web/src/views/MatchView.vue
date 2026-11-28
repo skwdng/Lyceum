@@ -39,6 +39,20 @@ const totalLen = computed(() => {
   return parts.join('\n\n').length;
 });
 const canEndSpeech = computed(() => !!debate.waiting && totalLen.value > 0);
+/**
+ * 「催一下 / 直接显示全文 / 灰文案」三选一 —— 两个动作永远不同时出现：
+ * · 有字在打字机里     → expand  「直接显示全文」（本地补全）
+ * · 语句还没备好        → thinking 灰文案「对方正在组织语言…」（点了没反应）
+ * · 语句已备好（ready） → nudge   「催一下」
+ * 后端没给 aiState 时退回旧行为（canSkip 说了算），避免误把可催的回合变成灰文案。
+ */
+const speechAction = computed(() => {
+  if (debate.waiting) return 'none';
+  if (debate.hasTyping()) return 'expand';
+  const st = debate.aiState;
+  if (st === 'generating' || st === 'waiting') return 'thinking';
+  return debate.canSkip() ? 'nudge' : 'none';
+});
 const speechText = computed(() => {
   const parts = segments.value.length
     ? segments.value.slice()
@@ -530,10 +544,31 @@ function startVoice() {
 
 onBeforeUnmount(() => stopVoice());
 
+/* ==================== 发言审核官 ====================
+ *
+ * 点「结束发言」先过一次 `POST /api/matches/{id}/speech-check {content}`：
+ * · ok:true  → 照旧提交；
+ * · ok:false → **不提交**，弹出审核官面板逐条列 message + fix，内容原样保留；
+ * · 接口失败（404/网络/超时）→ 降级为直接提交，绝不因为审核官卡住用户。
+ */
+const checkBusy = ref(false);
+const checkOpen = ref(false);
+const checkIssues = ref([]);
+const checkTips = ref('');
+
+function closeCheck() {
+  checkOpen.value = false;
+  nextTick(() => {
+    const ta = document.querySelector('.composer textarea');
+    if (ta && !ta.disabled) ta.focus();
+  });
+}
+
 /**
- * 结束发言：把全部分段（没有分段就用输入框内容）按空行拼起来一次性提交。
+ * 结束发言：审核 → 提交。
  * · 只有轮到我时可用；
  * · 成功 / duplicate 都会清空分段与输入框（用户报的 bug：之前只在 ok 时清）；
+ * · 审核不通过：不提交、保留内容、打开审核官面板；
  * · 真失败（网络断、离线兜底）保留内容，提示再点一次。
  */
 async function endSpeech() {
@@ -541,6 +576,28 @@ async function endSpeech() {
   const text = speechText.value;
   if (!text) return toast('说点什么再发');
   if (totalLen.value > MAX_DRAFT) toast('超过 ' + MAX_DRAFT + ' 字，已截断到上限');
+
+  // ① 审核（失败就跳过，直接放行）
+  let check = null;
+  if (debate.matchId) {
+    checkBusy.value = true;
+    try {
+      check = await debateApi.speechCheck(debate.matchId, text);
+    } catch (e) {
+      check = null;                      // 404 / 网络：降级为直接提交
+    } finally {
+      checkBusy.value = false;
+    }
+  }
+  if (check && check.ok === false) {
+    checkIssues.value = Array.isArray(check.issues) ? check.issues : [];
+    checkTips.value = check.tips || '';
+    checkOpen.value = true;
+    if (!checkIssues.value.length) toast('审核官建议再改一改');
+    return;                              // 不提交，内容保留
+  }
+
+  // ② 提交
   const ok = await debate.submitTurn(text, usedVoice ? 'voice' : 'kb');
   if (ok) {
     segments.value = [];
@@ -904,13 +961,24 @@ const verdictOf = (t) => (t.typing ? '' : '');
           <div v-if="!debate.waiting && !finished" class="waiting">
             <span>{{ debate.hasTyping() ? '对方正在说话…' : '对方正在思考…' }}</span>
             <button
-              v-if="debate.kind === 'solo'"
+              v-if="debate.kind === 'solo' && speechAction === 'expand'"
+              class="btn sm ghost"
+              style="margin-left: 10px"
+              title="不用等服务端，直接把这句补全"
+              @click="debate.nudge()"
+            >直接显示全文</button>
+            <button
+              v-else-if="debate.kind === 'solo' && speechAction === 'nudge'"
               class="btn sm ghost"
               style="margin-left: 10px"
               :disabled="debate.skipBusy || !debate.canSkip()"
-              :title="debate.canSkip() ? '让对方立刻开口，或立刻显示全文' : '这一轮已经催过了，等下一步'"
+              :title="debate.canSkip() ? '语句已备好，催它立刻开口' : '这一轮已经催过了，等下一步'"
               @click="debate.nudge()"
-            >{{ debate.skipBusy ? '催中…' : (debate.hasTyping() ? '直接显示全文' : '催一下') }}</button>
+            >{{ debate.skipBusy ? '催中…' : '催一下' }}</button>
+            <span
+              v-else-if="debate.kind === 'solo' && speechAction === 'thinking'"
+              class="thinking-wait"
+            >对方正在组织语言…</span>
           </div>
 
           <div v-if="debate.waiting && rebutHints.length" class="hints">
@@ -993,10 +1061,10 @@ const verdictOf = (t) => (t.typing ? '' : '');
             <button
               class="btn sm primary act-end"
               style="margin-left: 8px"
-              :disabled="finished || !canEndSpeech"
+              :disabled="finished || !canEndSpeech || checkBusy"
               :title="debate.waiting ? '结束发言，一次提交本次所有分段（Ctrl+Enter）' : '还没轮到你，先攒着，轮到你就能结束发言'"
               @click="endSpeech"
-            >{{ debate.waiting ? '结束发言' : '等我回合' }}</button>
+            >{{ checkBusy ? '审核中…' : (debate.waiting ? '结束发言' : '等我回合') }}</button>
           </div>
         </div>
       </div>
@@ -1174,10 +1242,109 @@ const verdictOf = (t) => (t.typing ? '' : '');
         </div>
       </section>
     </div>
+
+    <!-- 审核官：发言没过审 → 不提交，逐条给 message + fix，内容原样保留 -->
+    <div v-if="checkOpen" class="check-mask" @click.self="closeCheck">
+      <section class="check-panel" role="dialog" aria-modal="true" aria-label="发言审核官">
+        <header class="check-hd">
+          <span class="check-av" aria-hidden="true">审</span>
+          <div class="check-who">
+            <b>审核官 · AI</b>
+            <div class="check-sub">这条发言建议先改一改再发</div>
+          </div>
+          <button type="button" class="check-x" aria-label="关闭" @click="checkOpen = false">✕</button>
+        </header>
+
+        <ul class="check-list">
+          <li v-for="(it, i) in checkIssues" :key="i" class="check-item">
+            <div class="check-msg">{{ it.message || it.code }}</div>
+            <div v-if="it.fix" class="check-fix">改成：{{ it.fix }}</div>
+          </li>
+          <li v-if="!checkIssues.length" class="check-item">
+            <div class="check-msg">这条发言还不够清楚，建议补一句判断或依据。</div>
+          </li>
+        </ul>
+
+        <p v-if="checkTips" class="check-tips">{{ checkTips }}</p>
+
+        <div class="check-acts">
+          <button class="btn primary" @click="closeCheck">继续修改</button>
+          <button class="btn ghost" @click="checkOpen = false">关闭</button>
+        </div>
+        <div class="check-note">内容都保留着，关掉面板也不会丢。</div>
+      </section>
+    </div>
   </template>
 </template>
 
 <style scoped>
+/* ---------- 发言审核官面板 ---------- */
+.check-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(20, 22, 28, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.check-panel {
+  width: min(520px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.24);
+}
+.check-hd { display: flex; align-items: center; gap: 10px; }
+.check-av {
+  flex: 0 0 36px;
+  width: 36px; height: 36px; border-radius: 11px;
+  background: var(--org-w);
+  color: var(--org);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800;
+}
+.check-who { flex: 1; min-width: 0; }
+.check-who b { font-size: 14px; color: var(--ink); }
+.check-sub { font-size: 11.5px; color: var(--sub); margin-top: 2px; }
+.check-x {
+  width: 44px; height: 44px; border-radius: 12px;
+  color: var(--sub); font-size: 15px;
+}
+.check-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.check-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--card);
+}
+.check-msg { font-size: 13px; line-height: 1.6; color: var(--ink); }
+.check-fix {
+  font-size: 12.5px; line-height: 1.6; color: var(--ok-ink, #087a52);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.check-tips { font-size: 12px; color: var(--sub); margin: 6px 0 0; line-height: 1.6; }
+.check-acts { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.check-acts .btn { flex: 1 1 120px; }
+.check-note { font-size: 11.5px; color: var(--sub); margin-top: 8px; }
+@media (max-width: 520px) {
+  .check-mask { align-items: flex-end; padding: 0; }
+  .check-panel {
+    width: 100%;
+    max-height: 82vh;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+}
+
+/* 对方还没准备好时的灰文案（不是按钮，点了没反应） */
+.thinking-wait { font-size: 11.5px; color: var(--sub); margin-left: 10px; }
 /* ---------- 发言框：单独一条边框（深色/纸感皮肤下也不再和卡片糊在一起） ----------
  * 1.5px 实线 var(--line)；focus 变主色 + 1px 外发光；圆角 10px。
  * 三套皮肤都靠 --line/--blue/--card 这三个变量，换皮肤自动跟着变。 */

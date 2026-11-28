@@ -246,6 +246,17 @@ public class MatchService {
         requireHandoffGap(matchId, m);
 
         String text = content == null || content.isBlank() ? "（未发言）" : content.trim();
+
+        // ④ 发言审核（只拦单人 solo）：半句话 / 口号 / 敷衍 / 复读一律不让发。
+        //    房间局不拦——多人在场时把人挡在门外会打断整桌节奏，那边只做前端提示。
+        if ("solo".equalsIgnoreCase(str(m.get("kind")))) {
+            SpeechAudit.Verdict verdict = speechAudit.check(text, cur.seg(),
+                    myPrevContents(matchId, speaker), utterance);
+            if (!verdict.ok()) {
+                throw new IllegalStateException("SPEECH_REJECTED:" + verdict.issues().get(0).code()
+                        + " " + verdict.issues().get(0).message());
+            }
+        }
         // 敷衍发言（「11」「对」「嗯」）记为 EMPTY：不算内容，不计入评分文本，
         // 但对局照常推进——下一轮 AI 会明确点出「你这一轮没有回答问题」。
         String status = (utterance != null && utterance.vacuous(text)) ? "EMPTY" : "OK";
@@ -705,6 +716,12 @@ public class MatchService {
         if (TurnEngine.isMine(TurnEngine.parseSeats(str(m.get("my_seats"))), cur.seat()))
             return Map.of("ok", false, "reason", "现在轮到你说");
 
+        // ⓪ AI 还没轮到「等」之前，催一下是没意义的：已经落库了（ready）只是前端没显示完，
+        //    正在生成（generating）催了也不会更快，还会让用户以为生效了。
+        String aiState = aiStateOf(m);
+        if ("generating".equals(aiState) || "ready".equals(aiState))
+            return Map.of("ok", false, "reason", "AI_NOT_READY");
+
         // ① 同一轮只允许催一次
         int skippedStep = num(m.get("skipped_step"));
         if (skippedStep == step) return Map.of("ok", false, "reason", "这一轮已经催过了");
@@ -943,6 +960,32 @@ public class MatchService {
 
     // ---------- 查询 ----------
 
+    /**
+     * 当前这一步的「谁在说 / AI 说到哪了」。
+     *
+     * <p>三种 AI 状态必须分清，否则「催一下」会变成假按钮：
+     * <ul>
+     *   <li>{@code mine}：轮到我；</li>
+     *   <li>{@code ready}：这一步的 AI 发言已经落库（只是前端气泡还没渲染完）；</li>
+     *   <li>{@code generating}：生成线程正在跑；</li>
+     *   <li>{@code waiting}：还没开始生成——只有这个状态催才有意义。</li>
+     * </ul>
+     */
+    private String aiStateOf(Map<String, Object> m) {
+        String matchId = str(m.get("id"));
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")),
+                num(m.get("query_rounds")), num(m.get("free_rounds")));
+        int step = num(m.get("step"));
+        Format.Step cur = Format.stepAt(steps, step);
+        if (cur == null) return "mine";                       // 已结束，没有 AI 可等
+        String buzzSeat = str(m.get("buzz_seat"));
+        String speaker = buzzSeat.isBlank() ? cur.seat() : buzzSeat;
+        if (TurnEngine.isMine(TurnEngine.parseSeats(str(m.get("my_seats"))), speaker)) return "mine";
+        if (store.hasTurn(matchId, step + 1)) return "ready";
+        if (generating.contains(matchId)) return "generating";
+        return "waiting";
+    }
+
     public Map<String, Object> detail(String matchId) throws Exception {
         Map<String, Object> m = require(matchId);
         List<Format.Step> steps = Format.stepsOf(str(m.get("mode")), num(m.get("query_rounds")), num(m.get("free_rounds")));
@@ -964,6 +1007,9 @@ public class MatchService {
         out.put("pace", str(m.get("pace")));
         out.put("phase", str(m.get("phase")));
         out.put("kind", str(m.get("kind")));
+        // AI 回合的三态：waiting（还没开始生成）/ generating（生成中）/ ready（已落库待显示）；
+        // 我的回合固定 mine。前端据此决定要不要显示「催一下」，以及要不要等气泡。
+        out.put("aiState", aiStateOf(m));
         out.put("unlimited", "solo".equalsIgnoreCase(str(m.get("kind"))));
         out.put("extendUsed", num(m.get("extend_count")));
         Object dl = m.get("deadline_at");
@@ -1151,6 +1197,59 @@ public class MatchService {
     }
 
     // ---------- 辅助库（AI 席位提示） ----------
+
+    /** 发言审核官：纯规则、确定性，submit（单人）与 /speech-check 共用同一套判定。 */
+    private final SpeechAudit speechAudit = new SpeechAudit();
+
+    /**
+     * 发言审核：发出去之前先看一看（前端在打字框里实时调，不调模型、<50ms）。
+     *
+     * @return {@code {ok, issues:[{code,message,fix}], tips:[...]}}；ok 只在 issues 为空时为 true
+     */
+    public Map<String, Object> speechCheck(String matchId, String content, String userId) {
+        Map<String, Object> m = require(matchId);
+        String seat = seatOfUser(m, userId);
+        if (seat == null || seat.isBlank()) {
+            // 老客户端不带 userId 时退回「当前发言席」，至少让检查有个人可依
+            List<Format.Step> ss = Format.stepsOf(str(m.get("mode")),
+                    num(m.get("query_rounds")), num(m.get("free_rounds")));
+            Format.Step c = Format.stepAt(ss, num(m.get("step")));
+            seat = c == null ? "" : c.seat();
+        }
+
+        List<Format.Step> steps = Format.stepsOf(str(m.get("mode")),
+                num(m.get("query_rounds")), num(m.get("free_rounds")));
+        Format.Step cur = Format.stepAt(steps, num(m.get("step")));
+        String seg = cur == null ? "" : cur.seg();
+
+        SpeechAudit.Verdict v = speechAudit.check(content, seg, myPrevContents(matchId, seat), utterance);
+
+        List<Map<String, Object>> issues = new ArrayList<>();
+        for (SpeechAudit.Issue i : v.issues()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("code", i.code());
+            row.put("message", i.message());
+            row.put("fix", i.fix());
+            issues.add(row);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ok", v.ok());
+        out.put("issues", issues);
+        out.put("tips", v.tips());
+        return out;
+    }
+
+    /** 本场**这个席位**已经说过的内容（查重只看自己，别人说过不算复读）。 */
+    private List<String> myPrevContents(String matchId, String seat) {
+        List<String> out = new ArrayList<>();
+        if (seat == null || seat.isBlank()) return out;
+        for (Map<String, Object> t : store.turns(matchId)) {
+            if (!seat.equals(str(t.get("seat")))) continue;
+            String c = str(t.get("content"));
+            if (!c.isBlank() && !"TIMEOUT".equals(str(t.get("status")))) out.add(c);
+        }
+        return out;
+    }
 
     /** 交接间隔：房间局两个真人之间，上一位落库到我可以开口至少 1.5 秒（不抢麦）。 */
     private static final long HANDOFF_MS = 1_500;

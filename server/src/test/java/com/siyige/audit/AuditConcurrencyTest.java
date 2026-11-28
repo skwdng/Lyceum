@@ -27,7 +27,7 @@ class AuditConcurrencyTest extends AuditSupport {
     void 同一步双发会写出两条发言() throws Exception {
         String id = newMatch("A1", "solo");                 // 第 1 步 = A1 = 我
 
-        Map<String, Object> first = service.submit(id, "第一版发言：我方认为应当取消期末考试。", "kb", USER);
+        Map<String, Object> first = service.submit(id, "第一版发言：我方认为应当取消期末考试，因为闭卷只考记忆。", "kb", USER);
         assertEquals(Boolean.TRUE, first.get("ok"));
         assertEquals(1, step(id), "第一次提交后应推进到第 2 步");
 

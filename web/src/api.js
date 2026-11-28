@@ -205,6 +205,11 @@ export const debateApi = {
   submitTurn: (matchId, content) =>
     http.post('/api/matches/' + matchId + '/turns', { content, inputType: 'kb' }),
   keepalive: (matchId) => http.post('/api/matches/' + matchId + '/keepalive'),
+  /**
+   * 发言审核官：提交前先过一遍。
+   * 返回 { ok, issues:[{code,message,fix}], tips }；ok:false 表示建议先改再发。
+   */
+  speechCheck: (matchId, content) => http.post('/api/matches/' + matchId + '/speech-check', { content }),
   /** 辅助库（对局内的提示/来源）：{seat, stage, hints:[{kind,text,basis}], sources:[{title,note}], generatedBy} */
   assist: (matchId) => http.get('/api/matches/' + matchId + '/assist'),
   buzz: (matchId) => http.post('/api/matches/' + matchId + '/buzz'),

@@ -124,7 +124,7 @@ class MatchReaperTest {
 
         // 玩家提交一句 → advance → updateStep 应刷新 last_active_at
         jdbc.update("update sy_match set step=3 where id=?", id);   // 第 4 步是 B2（我）
-        service.submit(id, "我方认为可以取消，但要给替代口径。", "kb", "u1");
+        service.submit(id, "我方认为可以取消期末考试，但要先给出替代评价的刚性口径。", "kb", "u1");
 
         Long active = jdbc.queryForObject("select last_active_at from sy_match where id=?", Long.class, id);
         assertNotNull(active);

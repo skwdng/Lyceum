@@ -272,10 +272,89 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
 .mymeta[data-v-41918f33] { font-size: 11.5px; color: #8a909c; margin-top: 3px;
 }
 
+/* ---------- 发言审核官面板 ---------- */
+.check-mask[data-v-71ee921c] {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(20, 22, 28, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.check-panel[data-v-71ee921c] {
+  width: min(520px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.24);
+}
+.check-hd[data-v-71ee921c] { display: flex; align-items: center; gap: 10px;
+}
+.check-av[data-v-71ee921c] {
+  flex: 0 0 36px;
+  width: 36px; height: 36px; border-radius: 11px;
+  background: var(--org-w);
+  color: var(--org);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800;
+}
+.check-who[data-v-71ee921c] { flex: 1; min-width: 0;
+}
+.check-who b[data-v-71ee921c] { font-size: 14px; color: var(--ink);
+}
+.check-sub[data-v-71ee921c] { font-size: 11.5px; color: var(--sub); margin-top: 2px;
+}
+.check-x[data-v-71ee921c] {
+  width: 44px; height: 44px; border-radius: 12px;
+  color: var(--sub); font-size: 15px;
+}
+.check-list[data-v-71ee921c] { list-style: none; margin: 12px 0 0; padding: 0;
+}
+.check-item[data-v-71ee921c] {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--card);
+}
+.check-msg[data-v-71ee921c] { font-size: 13px; line-height: 1.6; color: var(--ink);
+}
+.check-fix[data-v-71ee921c] {
+  font-size: 12.5px; line-height: 1.6; color: var(--ok-ink, #087a52);
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.check-tips[data-v-71ee921c] { font-size: 12px; color: var(--sub); margin: 6px 0 0; line-height: 1.6;
+}
+.check-acts[data-v-71ee921c] { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+}
+.check-acts .btn[data-v-71ee921c] { flex: 1 1 120px;
+}
+.check-note[data-v-71ee921c] { font-size: 11.5px; color: var(--sub); margin-top: 8px;
+}
+@media (max-width: 520px) {
+.check-mask[data-v-71ee921c] { align-items: flex-end; padding: 0;
+}
+.check-panel[data-v-71ee921c] {
+    width: 100%;
+    max-height: 82vh;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+}
+}
+
+/* 对方还没准备好时的灰文案（不是按钮，点了没反应） */
+.thinking-wait[data-v-71ee921c] { font-size: 11.5px; color: var(--sub); margin-left: 10px;
+}
 /* ---------- 发言框：单独一条边框（深色/纸感皮肤下也不再和卡片糊在一起） ----------
  * 1.5px 实线 var(--line)；focus 变主色 + 1px 外发光；圆角 10px。
  * 三套皮肤都靠 --line/--blue/--card 这三个变量，换皮肤自动跟着变。 */
-.composer textarea[data-v-3304977e] {
+.composer textarea[data-v-71ee921c] {
   width: 100%;
   /* !important：皮肤样式（themes.css）和 debate.css 都会给 textarea 设背景/边框，
      这里必须是最终生效的那一条，否则深色皮肤下输入区又和卡片糊在一起 */
@@ -284,41 +363,41 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   background: var(--card) !important;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.composer textarea[data-v-3304977e]:focus {
+.composer textarea[data-v-71ee921c]:focus {
   outline: none;
   border-color: var(--blue) !important;
   box-shadow: 0 0 0 1px var(--blue);
 }
-.composer textarea[data-v-3304977e]:disabled { opacity: 0.8;
+.composer textarea[data-v-71ee921c]:disabled { opacity: 0.8;
 }
 /* ---------- B 方气泡：预留最终宽度，左边缘定住 ----------
  * ghost 是全文（visibility:hidden），先把气泡撑到最终宽度；
  * 可见前缀绝对定位覆盖在上面。于是可见部分从左往右长，
  * 气泡宽度（进而左边缘）在整个出字过程中不变。
  * 只对 B 方生效；A 方不渲染 ghost，行为与之前一致。 */
-.bub-in[data-v-3304977e] {
+.bub-in[data-v-71ee921c] {
   position: relative;
   display: inline-block;
   max-width: 100%;
   vertical-align: top;
 }
-.bub-ghost[data-v-3304977e] {
+.bub-ghost[data-v-71ee921c] {
   display: block;
   visibility: hidden;
   user-select: none;
   pointer-events: none;
   white-space: pre-wrap;
 }
-.bub-live[data-v-3304977e] {
+.bub-live[data-v-71ee921c] {
   position: absolute;
   inset: 0;
   white-space: pre-wrap;
 }
 @media (max-width: 520px) {
   /* 375px：预留宽度不能把气泡撑出视口 */
-.bub[data-v-3304977e] { max-width: 100%; overflow-wrap: anywhere;
+.bub[data-v-71ee921c] { max-width: 100%; overflow-wrap: anywhere;
 }
-.bub-in[data-v-3304977e] { max-width: 100%;
+.bub-in[data-v-71ee921c] { max-width: 100%;
 }
 }
 
@@ -326,13 +405,13 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
  * 头部压成一行、席位条横滑 chips、聊天占满、输入区吸在底部、右侧栏收进抽屉。
  * 全部走 var(--*)，换皮肤跟着变。
  */
-.composer-pills[data-v-3304977e],
-.composer-tools[data-v-3304977e] { display: none;
+.composer-pills[data-v-71ee921c],
+.composer-tools[data-v-71ee921c] { display: none;
 }
-.sheet-mask[data-v-3304977e] { display: none;
+.sheet-mask[data-v-71ee921c] { display: none;
 }
 /* 「材料」浮动按钮：桌面右下角；手机上收进输入区工具栏，别再盖住「结束发言」 */
-.brief-fab[data-v-3304977e] {
+.brief-fab[data-v-71ee921c] {
   position: fixed;
   right: 22px;
   bottom: 22px;
@@ -340,63 +419,63 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
 }
 @media (max-width: 860px) {
-.brief-fab[data-v-3304977e] { display: none !important;
+.brief-fab[data-v-71ee921c] { display: none !important;
 }
 }
 
 /* ---------- 本场结束卡片 + 结束后的输入区灰态 ---------- */
-.finish-card[data-v-3304977e] {
+.finish-card[data-v-71ee921c] {
   border-color: var(--blue);
   background: var(--blue-w);
   margin-bottom: 12px;
 }
-.fin-top[data-v-3304977e] { display: flex; align-items: flex-start; gap: 12px; justify-content: space-between;
+.fin-top[data-v-71ee921c] { display: flex; align-items: flex-start; gap: 12px; justify-content: space-between;
 }
-.fin-main[data-v-3304977e] { min-width: 0; flex: 1;
+.fin-main[data-v-71ee921c] { min-width: 0; flex: 1;
 }
-.fin-title[data-v-3304977e] { font-size: 15px; color: var(--ink);
+.fin-title[data-v-71ee921c] { font-size: 15px; color: var(--ink);
 }
-.fin-sub[data-v-3304977e] {
+.fin-sub[data-v-71ee921c] {
   font-size: 12.5px; color: var(--sub); margin-top: 2px;
   overflow-wrap: anywhere;
 }
-.fin-score[data-v-3304977e] { flex: 0 0 auto; text-align: right;
+.fin-score[data-v-71ee921c] { flex: 0 0 auto; text-align: right;
 }
-.fin-score b[data-v-3304977e] { font-size: 28px; font-weight: 800; color: var(--blue); letter-spacing: -1px;
+.fin-score b[data-v-71ee921c] { font-size: 28px; font-weight: 800; color: var(--blue); letter-spacing: -1px;
 }
-.fin-score small[data-v-3304977e] { font-size: 12px; color: var(--sub); margin-left: 2px;
+.fin-score small[data-v-71ee921c] { font-size: 12px; color: var(--sub); margin-left: 2px;
 }
-.fin-meta[data-v-3304977e] {
+.fin-meta[data-v-71ee921c] {
   display: flex; gap: 10px 14px; flex-wrap: wrap;
   margin-top: 8px; font-size: 12px; color: var(--sub);
 }
-.fin-acts[data-v-3304977e] { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
+.fin-acts[data-v-71ee921c] { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px;
 }
-.fin-tip[data-v-3304977e] { margin-top: 8px; font-size: 11.5px; color: var(--sub);
+.fin-tip[data-v-71ee921c] { margin-top: 8px; font-size: 11.5px; color: var(--sub);
 }
 
 /* 结束后：输入区置灰、不可编辑（对话仍可往上翻）。
  * 注意**不要**给整个 .composer 设 opacity —— 它是吸底的，半透明会把后面的气泡透出来，
  * 看起来像「输入区和聊天叠在一起」。改成只灰化输入框与按钮。 */
-.composer.is-finished[data-v-3304977e] { background: var(--card);
+.composer.is-finished[data-v-71ee921c] { background: var(--card);
 }
-.composer.is-finished textarea[data-v-3304977e] {
+.composer.is-finished textarea[data-v-71ee921c] {
   background: var(--bg) !important;
   color: var(--sub) !important;
   border-color: var(--line) !important;
   cursor: not-allowed;
 }
-.composer.is-finished .btn[data-v-3304977e],
-.composer.is-finished .tool[data-v-3304977e],
-.composer.is-finished .pill[data-v-3304977e] { opacity: 0.55;
+.composer.is-finished .btn[data-v-71ee921c],
+.composer.is-finished .tool[data-v-71ee921c],
+.composer.is-finished .pill[data-v-71ee921c] { opacity: 0.55;
 }
 @media (max-width: 860px) {
   /* ---- 头部 ---- */
-.mv-head[data-v-3304977e] { align-items: flex-start; gap: 8px; margin-bottom: 8px !important;
+.mv-head[data-v-71ee921c] { align-items: flex-start; gap: 8px; margin-bottom: 8px !important;
 }
-.mv-head-main[data-v-3304977e] { min-width: 0; flex: 1;
+.mv-head-main[data-v-71ee921c] { min-width: 0; flex: 1;
 }
-.mv-title[data-v-3304977e] {
+.mv-title[data-v-71ee921c] {
     font-size: 17px !important;
     line-height: 1.4;
     margin: 0 !important;
@@ -406,25 +485,25 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
     overflow: hidden;
     overflow-wrap: anywhere;
 }
-.mv-sub[data-v-3304977e] {
+.mv-sub[data-v-71ee921c] {
     font-size: 11.5px !important;
     color: var(--sub);
     margin-top: 2px !important;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.mv-head-acts[data-v-3304977e] { gap: 6px; flex-shrink: 0;
+.mv-head-acts[data-v-71ee921c] { gap: 6px; flex-shrink: 0;
 }
-.mv-head-acts .tag[data-v-3304977e] { display: none;
+.mv-head-acts .tag[data-v-71ee921c] { display: none;
 }
-.mv-exit[data-v-3304977e] { width: 44px; min-height: 44px; padding: 0;
+.mv-exit[data-v-71ee921c] { width: 44px; min-height: 44px; padding: 0;
 }
-.mv-exit-t[data-v-3304977e] { display: none;
+.mv-exit-t[data-v-71ee921c] { display: none;
 }
-.mv-exit-i[data-v-3304977e] { font-size: 16px; color: var(--sub);
+.mv-exit-i[data-v-71ee921c] { font-size: 16px; color: var(--sub);
 }
 
   /* ---- 席位条：横向 chips + 两侧渐隐 ---- */
-.strip[data-v-3304977e] {
+.strip[data-v-71ee921c] {
     gap: 8px;
     padding: 8px 12px;
     margin-bottom: 10px;
@@ -434,40 +513,40 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
     -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
     mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
 }
-.strip[data-v-3304977e]::-webkit-scrollbar { display: none;
+.strip[data-v-71ee921c]::-webkit-scrollbar { display: none;
 }
-.strip .sp[data-v-3304977e] {
+.strip .sp[data-v-71ee921c] {
     scroll-snap-align: start;
     border-radius: 12px;
     padding: 6px 10px;
     min-height: 44px;
 }
-.strip .sp.cur[data-v-3304977e] { border-color: var(--blue); box-shadow: none;
+.strip .sp.cur[data-v-71ee921c] { border-color: var(--blue); box-shadow: none;
 }
-.strip .sp.aux[data-v-3304977e] { min-height: 44px;
+.strip .sp.aux[data-v-71ee921c] { min-height: 44px;
 }
 
   /* ---- 两栏 → 单栏：右侧栏收进抽屉 ---- */
-.stage[data-v-3304977e] { display: block !important;
+.stage[data-v-71ee921c] { display: block !important;
 }
-.right-col[data-v-3304977e] { display: none !important;
+.right-col[data-v-71ee921c] { display: none !important;
 }
 
   /* ---- 聊天区：占满剩余高度 ---- */
-.chat[data-v-3304977e] {
+.chat[data-v-71ee921c] {
     height: calc(100dvh - 52px - 68px - 44px - 180px);
     min-height: 220px;
     max-height: none;
     border-radius: 14px;
     padding: 10px 10px 6px;
 }
-.msg .bd[data-v-3304977e] { max-width: 88%;
+.msg .bd[data-v-71ee921c] { max-width: 88%;
 }
-.msg .bub[data-v-3304977e] { max-width: 88vw;
+.msg .bub[data-v-71ee921c] { max-width: 88vw;
 }
 
   /* ---- 输入区：吸在底部（对局页没有 tabbar，贴 safe-area） ---- */
-.composer[data-v-3304977e] {
+.composer[data-v-71ee921c] {
     position: sticky;
     bottom: 0;
     z-index: 45;
@@ -477,17 +556,17 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
     box-shadow: 0 -6px 20px rgba(26, 29, 36, 0.08);
     background: var(--card);
 }
-.composer .hint[data-v-3304977e] { font-size: 12px;
+.composer .hint[data-v-71ee921c] { font-size: 12px;
 }
 
   /* 小工具栏：语音 / 催一下（收在输入框上方） */
-.composer-tools[data-v-3304977e] {
+.composer-tools[data-v-71ee921c] {
     display: flex;
     gap: 8px;
     margin: 8px 0 4px;
     flex-wrap: wrap;
 }
-.tool[data-v-3304977e] {
+.tool[data-v-71ee921c] {
     min-height: 44px;
     padding: 0 14px;
     border-radius: 12px;
@@ -496,13 +575,13 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
     color: var(--sub);
     font-size: 12.5px;
 }
-.tool[data-v-3304977e]:disabled { opacity: 0.5;
+.tool[data-v-71ee921c]:disabled { opacity: 0.5;
 }
 
   /* 底部胶囊：进度 / 辅助 / 本场（≥44px 触控） */
-.composer-pills[data-v-3304977e] { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
+.composer-pills[data-v-71ee921c] { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
 }
-.pill[data-v-3304977e] {
+.pill[data-v-71ee921c] {
     min-height: 44px;
     padding: 0 14px;
     border-radius: 999px;
@@ -514,28 +593,28 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
     align-items: center;
     gap: 4px;
 }
-.pill.on[data-v-3304977e] { border-color: var(--org); color: var(--org);
+.pill.on[data-v-71ee921c] { border-color: var(--org); color: var(--org);
 }
 
   /* 输入框与按钮 */
-.composer textarea[data-v-3304977e] { min-height: 76px; font-size: 14px; line-height: 1.7;
+.composer textarea[data-v-71ee921c] { min-height: 76px; font-size: 14px; line-height: 1.7;
 }
-.composer-acts[data-v-3304977e] { gap: 8px; flex-wrap: nowrap;
+.composer-acts[data-v-71ee921c] { gap: 8px; flex-wrap: nowrap;
 }
-.composer-acts .tools-d[data-v-3304977e] { display: none !important;
+.composer-acts .tools-d[data-v-71ee921c] { display: none !important;
 }
-.composer-acts .act-send[data-v-3304977e],
-  .composer-acts .act-end[data-v-3304977e] {
+.composer-acts .act-send[data-v-71ee921c],
+  .composer-acts .act-end[data-v-71ee921c] {
     flex: 1 1 0; min-width: 0; min-height: 44px; margin-left: 0 !important; font-size: 14px;
 }
 
   /* ---- 底部抽屉 ---- */
-.sheet-mask[data-v-3304977e] {
+.sheet-mask[data-v-71ee921c] {
     display: block;
     position: fixed; inset: 0; z-index: 80;
     background: rgba(20, 22, 28, 0.42);
 }
-.sheet[data-v-3304977e] {
+.sheet[data-v-71ee921c] {
     position: absolute; left: 0; right: 0; bottom: 0;
     max-height: 72dvh;
     background: var(--card);
@@ -545,28 +624,28 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
     display: flex; flex-direction: column;
     box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.18);
 }
-.sheet-grip[data-v-3304977e] {
+.sheet-grip[data-v-71ee921c] {
     width: 38px; height: 4px; border-radius: 2px;
     background: var(--line);
     margin: 2px auto 8px;
 }
-.sheet-hd[data-v-3304977e] {
+.sheet-hd[data-v-71ee921c] {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 8px;
 }
-.sheet-hd b[data-v-3304977e] { font-size: 15px; color: var(--ink);
+.sheet-hd b[data-v-71ee921c] { font-size: 15px; color: var(--ink);
 }
-.sheet-x[data-v-3304977e] {
+.sheet-x[data-v-71ee921c] {
     width: 44px; height: 44px; border-radius: 12px;
     color: var(--sub); font-size: 15px;
 }
-.sheet-bd[data-v-3304977e] { overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;
+.sheet-bd[data-v-71ee921c] { overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;
 }
 }
 
 
 /* ---------- 席位条最右的「辅 AI」 ---------- */
-.sp.aux[data-v-3304977e] {
+.sp.aux[data-v-71ee921c] {
   font: inherit;
   color: inherit;
   cursor: pointer;
@@ -574,27 +653,27 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   border-style: dashed;
   text-align: left;
 }
-.sp.aux[data-v-3304977e]:hover,
-.sp.aux.on[data-v-3304977e] { border-color: #9db4f5; background: #f4f7ff;
+.sp.aux[data-v-71ee921c]:hover,
+.sp.aux.on[data-v-71ee921c] { border-color: #9db4f5; background: #f4f7ff;
 }
-.sp.aux .aux-av[data-v-3304977e] { background: #6b7280;
+.sp.aux .aux-av[data-v-71ee921c] { background: #6b7280;
 }
 
 /* ---------- 辅助库面板 ---------- */
-.assist-card[data-v-3304977e] { min-width: 0;
+.assist-card[data-v-71ee921c] { min-width: 0;
 }
-.assist-meta[data-v-3304977e] { font-size: 11.5px; color: #8a909c; margin-bottom: 8px;
+.assist-meta[data-v-71ee921c] { font-size: 11.5px; color: #8a909c; margin-bottom: 8px;
 }
-.assist-group[data-v-3304977e] { margin-bottom: 10px;
+.assist-group[data-v-71ee921c] { margin-bottom: 10px;
 }
-.assist-kind[data-v-3304977e] {
+.assist-kind[data-v-71ee921c] {
   font-size: 11px;
   font-weight: 700;
   color: #8a909c;
   letter-spacing: 0.5px;
   margin-bottom: 4px;
 }
-.assist-hint[data-v-3304977e] {
+.assist-hint[data-v-71ee921c] {
   display: block;
   width: 100%;
   text-align: left;
@@ -606,13 +685,13 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   margin-bottom: 6px;
   cursor: pointer;
 }
-.assist-hint[data-v-3304977e]:hover { border-color: #9db4f5; background: #f8faff;
+.assist-hint[data-v-71ee921c]:hover { border-color: #9db4f5; background: #f8faff;
 }
-.assist-tx[data-v-3304977e] { display: block; font-size: 11.5px; line-height: 1.6; color: #1a1d24;
+.assist-tx[data-v-71ee921c] { display: block; font-size: 11.5px; line-height: 1.6; color: #1a1d24;
 }
-.assist-basis[data-v-3304977e] { display: block; font-size: 10.5px; color: #a8adb8; margin-top: 3px;
+.assist-basis[data-v-71ee921c] { display: block; font-size: 10.5px; color: #a8adb8; margin-top: 3px;
 }
-.assist-src[data-v-3304977e] {
+.assist-src[data-v-71ee921c] {
   border: 1px solid #efede6;
   border-radius: 8px;
   padding: 7px 9px;
@@ -620,41 +699,41 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   font-size: 11.5px;
   color: #4a5568;
 }
-.assist-src-t[data-v-3304977e] { margin-right: 6px;
+.assist-src-t[data-v-71ee921c] { margin-right: 6px;
 }
-.assist-src-n[data-v-3304977e] { font-size: 10.5px; color: #a8adb8; margin-top: 3px;
+.assist-src-n[data-v-71ee921c] { font-size: 10.5px; color: #a8adb8; margin-top: 3px;
 }
-.assist-err[data-v-3304977e] { font-size: 12.5px; color: #c0392b; padding: 10px 0;
+.assist-err[data-v-71ee921c] { font-size: 12.5px; color: #c0392b; padding: 10px 0;
 }
-.assist-err-d[data-v-3304977e] { font-size: 11.5px; color: #a8adb8; margin-top: 4px; overflow-wrap: anywhere;
+.assist-err-d[data-v-71ee921c] { font-size: 11.5px; color: #a8adb8; margin-top: 4px; overflow-wrap: anywhere;
 }
-.assist-sk i[data-v-3304977e] {
+.assist-sk i[data-v-71ee921c] {
   display: block;
   height: 12px;
   border-radius: 6px;
   background: #f1efe9;
   margin-bottom: 8px;
-  animation: assistPulse-3304977e 1.2s ease-in-out infinite;
+  animation: assistPulse-71ee921c 1.2s ease-in-out infinite;
 }
-.assist-sk i[data-v-3304977e]:nth-child(2) { width: 80%;
+.assist-sk i[data-v-71ee921c]:nth-child(2) { width: 80%;
 }
-.assist-sk i[data-v-3304977e]:nth-child(3) { width: 60%;
+.assist-sk i[data-v-71ee921c]:nth-child(3) { width: 60%;
 }
-@keyframes assistPulse-3304977e {
+@keyframes assistPulse-71ee921c {
 0%, 100% { opacity: 1;
 }
 50% { opacity: 0.45;
 }
 }
 /* 分段发言（发送 = 攒一段，结束发言 = 一次提交）——只作用于本页，不动 debate.css */
-.segs[data-v-3304977e] {
+.segs[data-v-71ee921c] {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fbfcfe;
   padding: 8px 10px 10px;
   margin-bottom: 8px;
 }
-.segs-hd[data-v-3304977e] {
+.segs-hd[data-v-71ee921c] {
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -663,9 +742,9 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   color: #8a909c;
   margin-bottom: 6px;
 }
-.segs-hd b[data-v-3304977e] { font-size: 12.5px; color: #1a1d24;
+.segs-hd b[data-v-71ee921c] { font-size: 12.5px; color: #1a1d24;
 }
-.seg[data-v-3304977e] {
+.seg[data-v-71ee921c] {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -676,9 +755,9 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   margin-bottom: 6px;
   min-width: 0;
 }
-.seg[data-v-3304977e]:last-child { margin-bottom: 0;
+.seg[data-v-71ee921c]:last-child { margin-bottom: 0;
 }
-.seg-no[data-v-3304977e] {
+.seg-no[data-v-71ee921c] {
   flex: 0 0 18px;
   height: 18px;
   border-radius: 5px;
@@ -690,7 +769,7 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   align-items: center;
   justify-content: center;
 }
-.seg-tx[data-v-3304977e] {
+.seg-tx[data-v-71ee921c] {
   flex: 1;
   min-width: 0;
   font-size: 12.5px;
@@ -699,7 +778,7 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.seg-del[data-v-3304977e] {
+.seg-del[data-v-71ee921c] {
   flex: 0 0 auto;
   width: 22px;
   height: 22px;
@@ -708,10 +787,10 @@ code[data-v-2809f98a] { font-family: Consolas, monospace; font-size: 11px; backg
   color: #a8adb8;
   font-size: 15px;
 }
-.seg-del[data-v-3304977e]:hover { background: var(--red-w); color: var(--red);
+.seg-del[data-v-71ee921c]:hover { background: var(--red-w); color: var(--red);
 }
 @media (max-width: 520px) {
-.seg-tx[data-v-3304977e] { font-size: 12px;
+.seg-tx[data-v-71ee921c] { font-size: 12px;
 }
 }
 /* ============================================================================
