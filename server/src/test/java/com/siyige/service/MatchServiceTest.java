@@ -44,6 +44,10 @@ class MatchServiceTest {
     private Store store;
     private MatchService service;
     private AiService ai;
+    private ConfigService cfg;
+    private WalletService wallet;
+    private UserLlmService userLlm;
+    private AiTier tier;
 
     private static final String TOPIC = "t1";
 
@@ -63,7 +67,7 @@ class MatchServiceTest {
         store.insertTopic(TOPIC, "高校是否应当取消期末考试", "教育", "basic", "official", "h1");
 
         // 节奏参数由 ConfigService 提供（构造器不再吃 4 个 @Value）；保持改造前的 1.0 倍速
-        ConfigService cfg = new ConfigService(new ConfigRepo(jdbc));
+        cfg = new ConfigService(new ConfigRepo(jdbc));
         cfg.set(ConfigKey.PACE_TIME_SCALE, "1.0", "admin");
 
         ai = mock(AiService.class);
@@ -71,15 +75,15 @@ class MatchServiceTest {
                 anyString(), anyList()))
                 .thenReturn(new AiService.Speech("我方认为应当保留期末考试，因为学分认定需要刚性凭证。", false, ""));
 
-        WalletService wallet = mock(WalletService.class);
+        wallet = mock(WalletService.class);
         when(wallet.hold(anyString(), anyString())).thenReturn(100L);
         when(wallet.tokenSnapshot()).thenReturn(0L);
         when(wallet.estimateCents()).thenReturn(100L);
 
-        UserLlmService userLlm = mock(UserLlmService.class);
+        userLlm = mock(UserLlmService.class);
         when(userLlm.profileOf(anyString())).thenReturn(null);
 
-        AiTier tier = mock(AiTier.class);
+        tier = mock(AiTier.class);
         when(tier.normalize(any())).thenReturn("PRO");
         when(tier.chargeModelCost(anyString())).thenReturn(true);
         when(tier.chargeServiceFee(anyString())).thenReturn(true);
@@ -93,6 +97,21 @@ class MatchServiceTest {
     private String newMatch(Set<String> seats) throws Exception {
         return service.create("u1", TOPIC, TurnEngine.joinSeats(seats), "STANDARD",
                 0, "normal", "pro", "solo", "PRO", null);
+    }
+
+    @Test
+    void 余额不足不会留下空对局() throws Exception {
+        when(wallet.hold(anyString(), anyString())).thenReturn(-1L);
+        when(wallet.estimateCents()).thenReturn(57L);
+        MatchService poor = new MatchService(store, ai, mock(ScoreService.class), mock(HotRank.class),
+                mock(SseHub.class), new FlawService(), new ObjectMapper(), cfg,
+                new UtteranceCheck(), wallet, userLlm, tier, new RoomStore(jdbc));
+
+        assertThrows(IllegalStateException.class, () -> poor.create("u-poor", TOPIC, "B2", "STANDARD",
+                0, "normal", "pro", "solo", "PRO", null), "余额不足应抛错");
+
+        Integer left = jdbc.queryForObject("select count(*) from sy_match where user_id='u-poor'", Integer.class);
+        assertEquals(0, left, "预扣失败的对局必须删掉，不能出现在「进行中」里");
     }
 
     @Test

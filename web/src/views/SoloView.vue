@@ -39,74 +39,11 @@ const paceHintText = computed(() =>
 );
 const paceName = computed(() => (debate.pace === 'tight' ? '紧凑' : debate.pace === 'loose' ? '宽松' : '标准'));
 
-/* ==================== 进行中的对局 ====================
- *
- * 「继续这一场」只有内存里的那一场（离开页面才丢）；这里补一份**服务端**列表，
- * 换设备 / 清了本地缓存 / 开过好几局之后还能找回。
- * 后端没上线时静默失败（不显示区块，不弹错）。
+/**
+ * 单人页只负责「开新局」。
+ * 进行中 / 已结束的对局统一在「对局」板块（#/matches）看，这里不再维护第二份列表
+ * （用户反馈：列表把选题区挤没了，而且两处逻辑容易不一致）。
  */
-const myMatches = ref([]);
-const myMatchesBusy = ref(false);
-
-async function loadMyMatches() {
-  if (!auth.user) return;
-  myMatchesBusy.value = true;
-  try {
-    const d = await debateApi.mine();
-    const list = Array.isArray(d) ? d : ((d && (d.items || d.matches)) || []);
-    myMatches.value = list;
-  } catch (e) {
-    myMatches.value = [];          // 静默：接口还没上线就不显示
-  } finally {
-    myMatchesBusy.value = false;
-  }
-}
-
-/** 继续某一局：先让 store 认下这个 matchId，再进对局页 */
-async function resumeFromList(m) {
-  const id = String((m && (m.id || m.matchId)) || '');
-  if (!id) return;
-  // 房间局续打：先转成「单人 + 其余席位 AI」，再进对局页（队友不在也能打完）
-  if (m && m.kind === 'room') {
-    try {
-      await debateApi.continueSolo(id);
-      toast('已转成单人续打，其余席位由 AI 补齐');
-    } catch (e) {
-      toast('转换失败：' + ((e && e.message) || '请重试'));
-      return;
-    }
-  }
-  await debate.start(id);
-  router.push({ name: 'match' });
-}
-
-/** 删除某一局：确认后删，刷新列表；删的是当前这一场就一起清本地状态 */
-async function deleteMatch(m) {
-  const id = String((m && (m.id || m.matchId)) || '');
-  if (!id) return;
-  if (!window.confirm('删除这一场对局？\n\n列表里不再显示，已结算的费用不受影响，不可恢复。')) return;
-  try {
-    await debateApi.remove(id);
-    if (debate.matchId === id) debate.reset();
-    toast('已删除');
-    await loadMyMatches();
-  } catch (e) {
-    toast('删除失败：' + ((e && e.message) || ''));
-  }
-}
-
-/** 列表里的更新时间：只显示到分钟，超过一天显示日期 */
-function fmtUpdated(s) {
-  const t = Number(s) || 0;
-  if (!t) return '';
-  const d = new Date(t < 1e12 ? t * 1000 : t);
-  const diff = Date.now() - d.getTime();
-  if (diff < 60 * 1000) return '刚刚';
-  if (diff < 3600 * 1000) return Math.floor(diff / 60000) + ' 分钟前';
-  if (diff < 24 * 3600 * 1000) return Math.floor(diff / 3600000) + ' 小时前';
-  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-}
-
 onMounted(async () => {
   try {
     const [t, h] = await Promise.all([debateApi.topics(), baseApi.hot(12)]);
@@ -115,8 +52,6 @@ onMounted(async () => {
   } catch (e) {
     err.value = (e && e.message) || '加载失败';
   }
-  // 进行中的对局：独立加载，失败不影响题库
-  loadMyMatches();
   // 从热辩榜「开辩」带题进来：#/solo?topic=t3 → 直接把选座面板打开
   if (route.query.topic) openSeat(String(route.query.topic));
 });
@@ -157,24 +92,10 @@ function pickTier(t) {
   );
 }
 
-/** 正在进行的对局（离开对局页不会清空，所以这里能读出来） */
-const running = computed(() => {
-  const m = debate.match;
-  return debate.matchId && m && m.status === 'RUNNING' ? m : null;
-});
-
-function resumeMatch() {
-  router.push({ name: 'match' });
-}
-
-/** 放弃这一场：只清本地状态（后端那一局会自然超时结束），与旧版一致 */
-function abandonMatch() {
-  // 危险动作：会丢掉这一场的位置和进度，先确认再执行
-  if (!window.confirm('放弃这一场对局？\n\n这一场的进度会丢失，已扣的费用按已用量结算，不可恢复。')) return;
-  debate.reset();
-  toast('已放弃这一场');
-}
-
+/**
+ * 开始对局：只有成功拿到 matchId 才会写 store / 跳对局页。
+ * 失败（余额不足 402、房间冲突 409 等）由 store 弹 toast，这里 keep 住选项面板，不写 sy_match。
+ */
 async function startFromPanel() {
   if (!debate.mySeats.length) {
     seatOpen.value = true;                     // 没有席位就停在选座面板，不放行
@@ -187,14 +108,11 @@ async function startFromPanel() {
     router.push({ name: 'login', query: { next: '/solo' } });
     return;
   }
-  // 已经有一场在打：别默默顶掉它（原来点一次开练，旧对局就从本地消失了）
+  // 已经有一场在打：先问一句，但**不再提供「回到那一场」入口**（对局都去 #/matches 看）
   if (debate.matchId && debate.match && debate.match.status === 'RUNNING') {
     const startNew = window.confirm(
-      '你有一场未完成的对局。\n\n「确定」：放弃它，开新的一局（旧局按已用量结算）\n「取消」：回到原来那一局继续打');
-    if (!startNew) {
-      router.push({ name: 'match' });
-      return;
-    }
+      '你有一场未完成的对局。\n\n「确定」：放弃它，开新的一局（旧局按已用量结算）\n「取消」：留在本页，去「对局」板块可以继续那一场');
+    if (!startNew) return;
     debate.reset();
   }
   const id = debate.pendingTopicId;
@@ -243,55 +161,7 @@ function errText(e) {
   <h1 class="pg">单人辩论</h1>
   <p class="sub">选一道题（或自己填）→ 选位置 → 直接开打。不建房、不等人，缺的席位由 AI 补齐。</p>
 
-  <!-- 有一场还没打完：离开对局页不会清空状态，这里给个回来的入口（旧版同款） -->
-  <div
-    v-if="running"
-    class="card"
-    style="margin-bottom: 14px; border-color: #d6e0ff; background: #fbfcfe; display: flex; align-items: center; gap: 14px; flex-wrap: wrap"
-  >
-    <div style="flex: 1; min-width: 220px">
-      <b style="font-size: 13px">有一场还没打完</b>
-      <div style="font-size: 11.5px; color: #8a909c; margin-top: 3px">
-        {{ running.topic_title || '（未命名辩题）' }} · 你占 {{ running.my_seats || '' }}
-      </div>
-    </div>
-    <div class="row" style="gap: 8px">
-      <button class="btn primary sm" @click="resumeMatch">继续这一场</button>
-      <button class="btn ghost sm" @click="abandonMatch">放弃</button>
-    </div>
-  </div>
-
   <div v-if="err" class="card"><div class="empty">{{ err }}</div></div>
-
-  <!-- 进行中的对局：服务端列表（换设备/清了本地缓存也能找回），空列表整块不显示 -->
-  <div v-if="myMatches.length" class="card" style="margin-bottom: 14px">
-    <div class="row" style="justify-content: space-between; align-items: baseline">
-      <b style="font-size: 13px">进行中的对局</b>
-      <span style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap">
-        <span style="font-size: 11.5px; color: #8a909c">共 {{ myMatches.length }} 场 · 换设备也能接着打</span>
-        <a class="see-all" @click="router.push({ name: 'matches' })">查看全部 →</a>
-      </span>
-    </div>
-    <div
-      v-for="m in myMatches"
-      :key="m.id || m.matchId"
-      class="myrow"
-    >
-      <div class="mymain">
-        <div class="mytt">{{ m.topic_title || m.topicTitle || '（未命名辩题）' }}</div>
-        <div class="mymeta">
-          第 {{ m.step != null ? Number(m.step) + 1 : '?' }} 步
-          <span v-if="m.my_seats || m.mySeats"> · 席位 {{ m.my_seats || m.mySeats }}</span>
-          <span v-if="m.room_code || m.roomCode"> · 房间 {{ m.room_code || m.roomCode }}</span>
-          <span v-if="fmtUpdated(m.updated_at || m.updatedAt)"> · {{ fmtUpdated(m.updated_at || m.updatedAt) }}</span>
-        </div>
-      </div>
-      <div class="row" style="gap: 8px; flex-shrink: 0">
-        <button class="btn primary sm" @click="resumeFromList(m)">继续</button>
-        <button class="btn ghost sm" @click="deleteMatch(m)">删除</button>
-      </div>
-    </div>
-  </div>
 
   <template v-else>
     <div class="grid g2" style="margin-bottom: 16px">
@@ -316,14 +186,14 @@ function errText(e) {
       <div class="card">
         <b style="font-size: 13px">当前席位</b>
         <div style="font-size: 12.5px; color: #4a5568; margin-top: 6px; line-height: 1.8">
-          <b style="color: #2f5bea">{{ debate.mySeats.join('、') }}</b> · 本场发言
+          <b style="color: #2f5bea">{{ debate.mySeats.length ? debate.mySeats.join('、') : '未选择' }}</b> · 本场发言
           <b style="color: #2f5bea">{{ debate.myTurnCount }}</b> 次
         </div>
         <div class="row" style="margin-top: 8px">
           <button class="btn sm ghost" @click="openSeat(null)">改席位</button>
           <select v-model="debate.mode" class="btn sm ghost" @change="debate.setMode(debate.mode)">
-            <option value="FULL">全流程 12 步</option>
-            <option value="SPRINT">快速 8 步</option>
+            <option value="FULL">全流程（约 18 步）</option>
+            <option value="SPRINT">快速（10 步）</option>
           </select>
         </div>
       </div>
@@ -525,22 +395,3 @@ function errText(e) {
     </div>
   </div>
 </template>
-<style scoped>
-/* 标题旁的「查看全部 →」：跳到独立的对局板块 */
-.see-all { font-size: 12px; color: #2f5bea; cursor: pointer; white-space: nowrap; }
-.see-all:hover { text-decoration: underline; }
-
-/* 进行中的对局列表（只在单人页生效） */
-.myrow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 0;
-  border-top: 1px solid #f3f1eb;
-  margin-top: 8px;
-}
-.mymain { flex: 1; min-width: 180px; }
-.mytt { font-size: 13px; color: #1a1d24; overflow-wrap: anywhere; }
-.mymeta { font-size: 11.5px; color: #8a909c; margin-top: 3px; }
-</style>

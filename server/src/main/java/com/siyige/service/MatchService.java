@@ -174,8 +174,18 @@ public class MatchService {
         String payer = (payerUserId == null || payerUserId.isBlank()) ? userId : payerUserId;
         if (wallet != null && !freeTier) {
             // 预扣金额由 WalletService 按后台参数（服务费 + token 单价）现算，这里不再自己估
-            long held = wallet.hold(payer, id);
+            long held;
+            try {
+                held = wallet.hold(payer, id);
+            } catch (RuntimeException e) {
+                // 预扣过程本身异常（锁冲突/库错）也不能留半场：对局还没开始，直接删
+                store.deleteMatch(id);
+                throw e;
+            }
             if (held < 0) {
+                // 余额不足：刚建的对局还没落任何回合，删掉它——否则它会出现在「进行中」里，
+                // 用户充值回来还看到一条从未开始的记录（本次用户反馈的 bug）。
+                store.deleteMatch(id);
                 throw new IllegalStateException("余额不足，请先充值（本场预估 "
                         + (wallet.estimateCents() / 100.0) + " 元）");
             }

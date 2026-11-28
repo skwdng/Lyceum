@@ -271,6 +271,16 @@ public class Store {
                 + "where id=? and status='RUNNING'", status, total, id);
     }
 
+    /**
+     * 删掉一场刚建出来、还没落任何回合的对局（目前只用于「预扣失败」的回滚）。
+     *
+     * <p>为什么不是标 ABANDONED：用户反馈「余额不足点进辩题 → 充值后回来还看到这条记录」，
+     * 这种局从来没有开始过，留在列表里只会让人困惑；此刻还没有 sy_turn，硬删是干净的。
+     */
+    public void deleteMatch(String id) {
+        jdbc.update("delete from sy_match where id = ? and not exists (select 1 from sy_turn t where t.match_id = sy_match.id)", id);
+    }
+
     public void insertTurn(String matchId, int step, String seat, String seg, String content,
                            String status, String inputType) {
         insertTurn(matchId, step, seat, seg, content, status, inputType, null);

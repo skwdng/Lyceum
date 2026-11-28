@@ -105,7 +105,10 @@ export const useDebateStore = defineStore('debate', {
   state: () => ({
     // 单人配置（持久化，刷新后还在）
     mySeats: readSeats(),
-    mode: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.mode)) || 'FULL',
+    mode: (() => {
+      const m = (typeof localStorage !== 'undefined' && localStorage.getItem(LS.mode)) || 'FULL';
+      return (m === 'FULL' || m === 'SPRINT') ? m : 'FULL';   // 老版本存过 STANDARD/标准，选项对不上会显示空白
+    })(),
     pace: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.pace)) || 'normal',
     difficulty: (typeof localStorage !== 'undefined' && localStorage.getItem(LS.diff)) || 'pro',
     /** AI 档位：BASIC(本地免费) / PRO(平台) / BYOK(自带 Key)，默认 PRO；后端会兜底降级 */
