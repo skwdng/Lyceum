@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // 管理台告警自检（A4 · 必跑）
 //
 // 覆盖总控要求的那条链路：
@@ -42,7 +43,7 @@ const stamp = Date.now().toString().slice(-6);
 
 async function makeReviewer(n) {
   const acc = 'rv' + stamp + n;
-  await call('POST', '/api/auth/register', { account: acc, password: 'abc12345' });
+  await call('POST', '/api/auth/register', { account: acc, password: 'abc12345', phone: phoneFor(acc) });
   const t = (await call('POST', '/api/auth/login', { account: acc, password: 'abc12345' })).body.token;
   return { acc, token: t };
 }
@@ -52,7 +53,7 @@ for (let i = 1; i <= BURST; i++) reporters.push(await makeReviewer(i));
 
 async function makePost(tag) {
   const acc = 'ap' + stamp + tag;
-  await call('POST', '/api/auth/register', { account: acc, password: 'abc12345' });
+  await call('POST', '/api/auth/register', { account: acc, password: 'abc12345', phone: phoneFor(acc) });
   const t = (await call('POST', '/api/auth/login', { account: acc, password: 'abc12345' })).body.token;
   const me = (await call('GET', '/api/auth/me', undefined, t)).body;
   const p = await call('POST', '/api/community/posts',

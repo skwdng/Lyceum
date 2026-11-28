@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 5 自检②：AI 三档（基础版隐藏 / 高级版 / 自带 Key 降级与免费）+ 多人房主付费展示
 //
 // 用法：node server/scripts/selftest_vue_tier.mjs [cdpPort] [baseUrl]
@@ -99,7 +100,7 @@ const call = async (method, path, body, token) => {
   return { status: r.status, body: text ? JSON.parse(text) : null };
 };
 
-const reg = await call('POST', '/api/auth/register', { account: 'tr' + stamp, password: 'abc12345' });
+const reg = await call('POST', '/api/auth/register', { account: 'tr' + stamp, password: 'abc12345', phone: phoneFor('tr' + stamp) });
 if (!reg.body?.token) {
   console.log('准备账号失败');
   process.exit(1);
@@ -256,7 +257,7 @@ await check('T5 BYOK 打完：账单服务费「免费」，余额没被扣服�
 
 await check('T6 多人房：非房主成员看对局，显示「费用 由房主承担」', async () => {
   // A=房主（当前账号），B=队友；B 加入并准备，A 开局
-  const bReg = await call('POST', '/api/auth/register', { account: 'trb' + stamp, password: 'abc12345' });
+  const bReg = await call('POST', '/api/auth/register', { account: 'trb' + stamp, password: 'abc12345', phone: phoneFor('trb' + stamp) });
   const B = bReg.body.token;
   const room = await call('POST', '/api/rooms', {}, TOKEN);
   const code = room.body && room.body.code;

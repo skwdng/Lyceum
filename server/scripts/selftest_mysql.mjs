@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { phoneFor } from './_phone.mjs';
 /**
  * MySQL 功能回归（mysql profile 下跑）。
  *
@@ -20,7 +21,7 @@ const check=(name,cond,extra='')=>{ if(cond) ok.push(name); else bad.push(name+(
 
 const stamp=Math.floor(Math.random()*900000)+10000;
 const acc='rg'+stamp;
-const reg=await j('POST','/api/auth/register',{account:acc,password:'abc12345'});
+const reg=await j('POST','/api/auth/register',{ account: acc, password: 'abc12345', phone: phoneFor(acc) });
 check('注册', reg.s===200 && reg.body.token, reg.s);
 const tok=reg.body.token;
 
@@ -54,7 +55,7 @@ const likeOk=(s)=>s===200||s===204;
 check('点赞帖子', likeOk((await j('POST','/api/community/posts/'+pid+'/like',null,tok)).s));
 check('点赞评论', likeOk((await j('POST','/api/community/comments/'+cid+'/like',null,tok)).s));
 // 举报必须用另一个账号（不能举报自己的内容）
-const reg2=await j('POST','/api/auth/register',{account:'rg2'+stamp,password:'abc12345'});
+const reg2=await j('POST','/api/auth/register',{ account: 'rg2'+stamp, password: 'abc12345', phone: phoneFor('rg2'+stamp) });
 const tok2=reg2.body.token;
 const rep=await j('POST','/api/community/reports',{targetType:'POST',targetId:Number(pid),reason:'SPAM',detail:'回归测试'},tok2);
 check('举报(他人内容)', rep.s===200, rep.s);

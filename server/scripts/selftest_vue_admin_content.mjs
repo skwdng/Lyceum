@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // 内容管理台自检：帖子搜索 / 详情 / 评论树 / 屏蔽 / 恢复 / 评论定位
 //
 // 用法：node server/scripts/selftest_vue_admin_content.mjs [cdpPort] [baseUrl]
@@ -34,7 +35,7 @@ const call = async (method, path, body, token) => {
 
 const stamp = Date.now().toString().slice(-6);
 const acc = 'sc' + stamp;
-await call('POST', '/api/auth/register', { account: acc, password: 'abc12345' });
+await call('POST', '/api/auth/register', { account: acc, password: 'abc12345', phone: phoneFor(acc) });
 const user = (await call('POST', '/api/auth/login', { account: acc, password: 'abc12345' })).body.token;
 const uid = (await call('GET', '/api/auth/me', undefined, user)).body.id;
 const post = await call('POST', '/api/community/posts',
@@ -214,7 +215,7 @@ await check('A6 帖子管理：按作者筛选只出该作者的帖子', async (
 await check('A7 举报处置老路径不变：REPORT 来源仍然结案并留痕', async () => {
   // 举报得由**别人**发起（自己不能举报自己），所以现注册一个举报人
   const repAcc = 'sr' + stamp;
-  await call('POST', '/api/auth/register', { account: repAcc, password: 'abc12345' });
+  await call('POST', '/api/auth/register', { account: repAcc, password: 'abc12345', phone: phoneFor(repAcc) });
   const reporter = (await call('POST', '/api/auth/login', { account: repAcc, password: 'abc12345' })).body.token;
   const victim = await call('POST', '/api/community/reports',
     { targetType: 'POST', targetId: postId, reason: 'SPAM', detail: '自检举报' }, reporter);

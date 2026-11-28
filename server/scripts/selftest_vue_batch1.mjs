@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 1 自检：通知 / 好友 / 热辩榜 / 记录 / 诊断 / 钱包（含换账号不串状态）
 //
 // 用法：node server/scripts/selftest_vue_batch1.mjs [cdpPort] [baseUrl]
@@ -145,8 +146,8 @@ async function loginUi(acc) {
 }
 
 // ==================== 准备：两个账号 + 一条好友请求 ====================
-const a = await call('POST', '/api/auth/register', { account: ACC_A, password: PWD });
-const b = await call('POST', '/api/auth/register', { account: ACC_B, password: PWD });
+const a = await call('POST', '/api/auth/register', { account: ACC_A, password: PWD, phone: phoneFor(ACC_A) });
+const b = await call('POST', '/api/auth/register', { account: ACC_B, password: PWD, phone: phoneFor(ACC_B) });
 if (!a.body || !a.body.token || !b.body || !b.body.token) {
   console.log('准备账号失败：' + JSON.stringify({ a, b }).slice(0, 300));
   process.exit(1);

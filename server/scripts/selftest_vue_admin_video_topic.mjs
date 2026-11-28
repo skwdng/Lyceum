@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // 视频复核 + 辩题审核自检
 //
 // 用法：node server/scripts/selftest_vue_admin_video_topic.mjs [cdpPort] [baseUrl]
@@ -34,7 +35,7 @@ const call = async (method, path, body, token) => {
 
 const stamp = Date.now().toString().slice(-6);
 const acc = 'vt' + stamp;
-await call('POST', '/api/auth/register', { account: acc, password: 'abc12345' });
+await call('POST', '/api/auth/register', { account: acc, password: 'abc12345', phone: phoneFor(acc) });
 const user = (await call('POST', '/api/auth/login', { account: acc, password: 'abc12345' })).body.token;
 const pub = await call('POST', '/api/video/videos',
   { title: `自检视频 ${stamp}`, description: '视频复核自检', url: 'http://127.0.0.1:8080/media/demo.mp4', poster: '', topic: '自检', segment: 'OPEN' }, user);

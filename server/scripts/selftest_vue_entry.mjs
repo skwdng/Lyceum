@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 4 自检：入口切换 + 侧栏 15 项逐个点（含旧链接兜底 / 旧资源 404）
 //
 // 用法：node server/scripts/selftest_vue_entry.mjs [cdpPort] [baseUrl]
@@ -87,7 +88,7 @@ const call = async (method, path, body, token) => {
   const text = await r.text();
   return { status: r.status, body: text ? JSON.parse(text) : null };
 };
-const me = await call('POST', '/api/auth/register', { account: 'en' + stamp, password: 'abc12345' });
+const me = await call('POST', '/api/auth/register', { account: 'en' + stamp, password: 'abc12345', phone: phoneFor('en' + stamp) });
 if (!me.body?.token) {
   console.log('准备账号失败');
   process.exit(1);

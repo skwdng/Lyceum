@@ -1,3 +1,4 @@
+import { phoneFor } from './_phone.mjs';
 // Vue 迁移 · 批 0 自检：外壳 / 路由 / 登录注册 / 我的 / LegacyRedirect / 角标 / 旧页不受影响
 //
 // 用法：node server/scripts/selftest_vue_batch0.mjs [cdpPort] [baseUrl]
@@ -220,7 +221,7 @@ await check('B0-8 退出登录：清 token、回到社区（新版）', async ()
 
 await check('B0-9 通知角标：有未读时侧栏「通知」出现红点', async () => {
   // B 给 A 发好友请求 → A 收到一条 FRIEND_REQUEST 通知
-  const b = await apiPost('/api/auth/register', { account: ACC_B, password: PWD });
+  const b = await apiPost('/api/auth/register', { account: ACC_B, password: PWD, phone: phoneFor(ACC_B) });
   if (!b.body || !b.body.token) throw new Error('造 B 账号失败：' + JSON.stringify(b));
   await apiPost('/api/social/friends/requests', { toId: ACC_A, note: '批0自检' }, b.body.token);
 
