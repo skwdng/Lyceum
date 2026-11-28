@@ -44,7 +44,7 @@ public class AiReplyHandler {
     /** 模型调用参数：温度 0.5、超时 60s、max_tokens 800（方案 §2 实测：给小了会拿到空 content）。 */
     static final double TEMPERATURE = 0.5;
     static final int TIMEOUT_SEC = 60;
-    static final int MAX_TOKENS = 800;
+    static final int MAX_TOKENS = 600;   // 提示词要求 200 字；600 tokens(~400 汉字) 只作兜底，原来 800 会促成长篇说教
     /** 带多少条最近评论进 prompt。 */
     static final int RECENT_LIMIT = 8;
 

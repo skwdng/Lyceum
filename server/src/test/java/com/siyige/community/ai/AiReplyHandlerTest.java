@@ -178,11 +178,11 @@ class AiReplyHandlerTest {
     }
 
     @Test
-    void 调用参数符合方案_温度05超时60输出上限800() throws Exception {
+    void 调用参数符合方案_温度05超时60输出上限600() throws Exception {
         handler.handle("10-0", fields("42", null));
 
         verify(llm).chat(eq(AiPromptBuilder.SYSTEM), anyString(),
-                eq(0.5), eq(60), eq(800));
+                eq(0.5), eq(60), eq(600));   // 2026-11-28：800 -> 600，配合提示词从「辩手」改成「助手、200 字」
     }
 
     @Test

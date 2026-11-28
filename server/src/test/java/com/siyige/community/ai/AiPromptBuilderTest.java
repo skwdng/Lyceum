@@ -13,7 +13,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>钉住三件事：
  * <ul>
- *   <li>SYSTEM 里有「不超过 300 字」的约束（决策 6 不做业务截断，字数只能靠 prompt）</li>
+ *   <li>SYSTEM 里有「200 字以内」的约束（决策 6 不做业务截断，字数只能靠 prompt；
+ *       2026-11-28 由 300 收紧到 200，同时把人设从「辩手」改成「助手」——见 AiPromptTest）</li>
  *   <li>用户文本只进 user 消息，不拼进 system（防提示词注入改角色）</li>
  *   <li>上下文都拼进去：帖子标题、摘要、最近评论、被 @ 的那句话</li>
  * </ul>
@@ -37,7 +38,7 @@ class AiPromptBuilderTest {
 
     @Test
     void 系统提示词要求不超过三百字且不许编造() {
-        assertTrue(AiPromptBuilder.SYSTEM.contains("300 字"), "字数上限只能写在 prompt 里");
+        assertTrue(AiPromptBuilder.SYSTEM.contains("200 字"), "字数上限只能写在 prompt 里（2026-11-28 从 300 收紧到 200）");
         assertTrue(AiPromptBuilder.SYSTEM.contains("不要编造") || AiPromptBuilder.SYSTEM.contains("编造"));
         assertTrue(AiPromptBuilder.SYSTEM.contains(AiAccount.NAME) || AiPromptBuilder.SYSTEM.contains("DeepSeek"));
         assertFalse(AiPromptBuilder.SYSTEM.contains("@DeepSeek"), "system 里不该出现具体的 @ 字面量（只描述角色）");
