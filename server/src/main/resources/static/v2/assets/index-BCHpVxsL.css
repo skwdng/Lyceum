@@ -237,6 +237,24 @@ code[data-v-da7e077d] { font-family: Consolas, monospace; font-size: 11px; backg
 }
 }
 
+/* 可点的行：指针 + hover 提示（没有 match_id 的行不加这个样式，保持"不可点"的观感） */
+.rec-click[data-v-1433a77c] {
+  cursor: pointer;
+}
+.rec-click:hover td[data-v-1433a77c] {
+  background: #f7f8fa;
+}
+
+/* 逐句正文：原样换行、长文自动折行，不截断；超时/敷衍的句子由行内色值变灰 */
+.rec-turn-body[data-v-1c22ae0c] {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 /* 移动端：两栏 → 单列堆叠；充值与自带 Key 的按钮整行/两列，都 ≥44px */
 @media (max-width: 860px) {
 .recharge[data-v-784bb28e] { display: grid; grid-template-columns: 1fr 1fr; gap: 8px;

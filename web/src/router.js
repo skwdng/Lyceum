@@ -10,6 +10,7 @@ import NotifyView from './views/NotifyView.vue';
 import FriendsView from './views/FriendsView.vue';
 import HotView from './views/HotView.vue';
 import RecordsView from './views/RecordsView.vue';
+import RecordDetailView from './views/RecordDetailView.vue';
 import DiagView from './views/DiagView.vue';
 import WalletView from './views/WalletView.vue';
 import ChatView from './views/ChatView.vue';
@@ -53,6 +54,9 @@ const routes = [
   { path: '/friends', name: 'friends', component: FriendsView, meta: { requiresAuth: true } },
   { path: '/hot', name: 'hot', component: HotView },
   { path: '/records', name: 'records', component: RecordsView, meta: { requiresAuth: true } },
+  // 单场记录详情：整场逐句（2026-11-28）。必须紧跟 /records 之后 ——
+  // 它不吃 /records（路径多一段），但晚于 catch-all 就会永远匹配不到
+  { path: '/records/:matchId', name: 'record-detail', component: RecordDetailView, meta: { requiresAuth: true } },
   { path: '/diag', name: 'diag', component: DiagView, meta: { requiresAuth: true } },
   { path: '/wallet', name: 'wallet', component: WalletView, meta: { requiresAuth: true } },
 

@@ -334,8 +334,11 @@ public class Store {
     }
 
     public List<Map<String, Object>> records(String userId) {
+        // match_id：记录页每一行要能点开看整场逐句（2026-11-28）。
+        // 老数据可能是 NULL（第 2 步之前就砍掉的关联），前端据此判断「这一行不可点」。
         return lowerAll(jdbc.queryForList(
-                "select id,topic_title,seats,total,turns,created_at from sy_record where user_id=? order by id desc limit 50", userId));
+                "select id,match_id,topic_title,seats,total,turns,created_at from sy_record "
+                        + "where user_id=? order by id desc limit 50", userId));
     }
 
     public Map<String, Object> diag(String userId) {
