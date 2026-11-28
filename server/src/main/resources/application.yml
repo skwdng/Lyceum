@@ -99,10 +99,15 @@ siyige:
       review-words: 打架,骂战,人身攻击,盗版,搬运,洗稿
       # 人工审核台：等管理端（admin）接入后再打开，避免任何登录用户给自己过审
       console-enabled: true
+  # 模型通道：三个值都能用环境变量覆盖，**密钥永远不进仓库**。
+  # 本机想走自己的网关时不要改这里（会带进 git），用下面任一方式：
+  #   a) 环境变量：SIYIGE_LLM_BASE_URL / SIYIGE_LLM_API_KEY / SIYIGE_LLM_MODEL
+  #   b) 本地 profile：建 server/src/main/resources/application-local.yml（.gitignore 已忽略），
+  #      然后 mvn spring-boot:run -Dspring-boot.run.profiles=local
   llm:
-    base-url: https://api.deepseek.com/v1
-    api-key: ""
-    model: deepseek-chat
+    base-url: ${SIYIGE_LLM_BASE_URL:https://api.deepseek.com/v1}
+    api-key: ${SIYIGE_LLM_API_KEY:}
+    model: ${SIYIGE_LLM_MODEL:deepseek-chat}
   # 注：原来的 siyige.hot.decay-per-10min 已删除 —— 全项目没有任何代码读它（死配置），
   # 热度排行目前用 HotRank 的固定公式。等热度算法真的需要可调时，再按参数管理的方式登记。
 
