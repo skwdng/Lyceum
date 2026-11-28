@@ -228,3 +228,69 @@ node scripts/selftest_mysql.mjs
 **44 个用例全绿、且都跑在 H2 上**（2026-11-27 实测），说明切库那天测试不会被带走。之后已还原 application.yml。
 
 也就是说：切默认库这件事，改 `application.yml` 一处即可，测试侧不用再动。
+---
+
+## 8. 2026-11-28：**默认数据源已切到 MySQL**（H2 退成单测专用）
+
+之前的状态是：生产用 systemd 注入 `--spring.profiles.active=mysql` 切了，但仓库默认还写着 H2，
+结果「本地跑的和线上跑的不是一套库」。现在把默认统一成 MySQL：
+
+```yaml
+# server/src/main/resources/application.yml
+spring:
+  datasource:
+    url: ${SIYIGE_DB_URL:jdbc:mysql://127.0.0.1:3308/siyige?...&connectionTimeZone=%2B08:00...}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-init-sql: "SET time_zone = '+08:00'"
+  sql:
+    init:
+      schema-locations: classpath:schema-mysql-full.sql    # 42 张表，可重复执行
+```
+
+| 场景 | 命令 | 连哪个库 |
+|---|---|---|
+| 本地/生产起服务 | `mvn spring-boot:run` | **MySQL** |
+| 单测 | `mvn test` | H2（`application-test.yml` 兜住，`spring.profiles.active=test`） |
+| 生产 systemd | `--spring.profiles.active=mysql` | 仍可用：`application-mysql.yml` 现在是兼容壳，不再覆盖任何东西 |
+
+### 8.1 管理员种子改成默认关闭
+
+原来 `application-mysql.yml` 里写着 `enabled: true` + `password: admin123` —— 生产的 systemd 正好激活
+这个 profile，等于「只要 `sy_admin` 被清空，重启就会种出一个弱口令超管」。现在：
+
+```yaml
+siyige:
+  admin:
+    seed:
+      enabled: ${SIYIGE_ADMIN_SEED:false}      # 默认关
+      password: ${SIYIGE_ADMIN_PASSWORD:}      # 必须显式给，且 ≥8 位
+```
+
+本机第一次要管理员时：
+
+```bash
+SIYIGE_ADMIN_SEED=true SIYIGE_ADMIN_PASSWORD=admin123 mvn spring-boot:run   # 起一次即可
+```
+
+### 8.2 踩到的坑：`create table if not exists` 不会给旧表加列
+
+本地容器里的库是 11-27 建的；队友后来给 `sy_match` 加了 `ai_reason` / `last_active_at`（830f7c6），
+只改 `schema-mysql-full.sql` 的话，**旧表不会自动补列**，表现是提交发言 500：
+
+```text
+java.sql.SQLSyntaxErrorException: Unknown column 'ai_reason' in 'field list'
+```
+
+因为项目没上 Flyway/Liquibase，所以改 schema 后本地要么 `drop database` 重建，要么手工 `ALTER TABLE`。
+生产同理（切库记录里那次是靠一次性迁移工具补的列）。这条也算一条待办：迟早要引迁移工具。
+
+### 8.3 切换后的验证（2026-11-28 本机实测）
+
+```text
+mvn spring-boot:run（不加任何参数）
+  -> 9 秒就绪，日志 HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl
+  -> 42 张表；注册一个新账号，在 MySQL 里能查到（证明写的是 MySQL，不是内存）
+  -> node scripts/selftest_mysql.mjs  ->  44/44 全绿
+mvn test  ->  985 个用例，0 失败 0 错误（14 跳过）
+```

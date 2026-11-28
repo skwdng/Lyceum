@@ -28,8 +28,22 @@ mvn test                     # 赛制与席位判定单测
 | 首次构建卡很久 | Maven 要下 Spring Boot 全套依赖 | 正常，第一次 3–8 分钟；之后走本地仓库很快 |
 | 日志里 `AsyncRequestTimeoutException` | SSE 长连接空闲超时 | 已有 20s 心跳，若仍出现可忽略（不影响对局） |
 
-> 依赖：**H2 内存库**（默认，重启清空）+ **Redis**（社区的浏览计数与去重必需）。
-> MySQL 本期未启用，迁移方案与阻塞清单见 [../docs/migration-mysql/README.md](../docs/migration-mysql/README.md)。
+> 依赖：**MySQL 8**（默认，2026-11-28 切库完成）+ **Redis**（社区的浏览计数与去重必需）。
+
+> 本机起库（一次性）：
+>
+> ```bash
+> docker run -d --name siyige-mysql -e MYSQL_ROOT_PASSWORD=siyige123456 -e MYSQL_DATABASE=siyige \
+>   -p 3308:3306 mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+> ```
+>
+> 首次起来是空库，`mvn spring-boot:run` 会自动建 42 张表并灌种子（辩题/论据/屏蔽词）。
+> 管理员默认**不自动创建**（生产安全考虑）：需要时用
+> `SIYIGE_ADMIN_SEED=true SIYIGE_ADMIN_PASSWORD=admin123 mvn spring-boot:run` 起一次。
+>
+> 换库改环境变量 `SIYIGE_DB_URL` / `SIYIGE_DB_USER` / `SIYIGE_DB_PASSWORD`。
+> H2 现在只给单测用（`src/test/resources/application-test.yml`），切库记录见
+> [../docs/migration-mysql/README.md](../docs/migration-mysql/README.md)。
 
 Redis 不再是可选项（2026-11-02 社区模块并入后）：
 

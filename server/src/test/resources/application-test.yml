@@ -18,6 +18,10 @@ spring:
     username: sa
     password: ""
     driver-class-name: org.h2.Driver
+    hikari:
+      # application.yml 给 MySQL 钉时区用的是 "SET time_zone = '+08:00'"，H2 不认这句（语法错），
+      # 必须在这里覆盖，否则每一条 @SpringBootTest 都起不来（1085 里 18 个 error 就是这个）。
+      connection-init-sql: "SELECT 1"
   sql:
     init:
       mode: always

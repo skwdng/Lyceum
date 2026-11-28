@@ -86,7 +86,7 @@ docker run -d --name siyige-redis -p 6379:6379 redis:7-alpine --requirepass siyi
 
 ## 技术栈
 
-Java 17 · Spring Boot 3.3 · SSE + WebSocket · H2/Redis · Vue 3 + Vite 6（Hash 路由） · DeepSeek
+Java 17 · Spring Boot 3.3 · SSE + WebSocket · MySQL 8 + Redis · Vue 3 + Vite 6（Hash 路由） · DeepSeek
 
 密码 Argon2id 哈希 · 会话 JWT（HS256，2 小时）
 

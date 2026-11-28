@@ -13,16 +13,36 @@ spring:
         period: 0
   application:
     name: siyige
+  # ==========================================================================
+  # 默认数据源：MySQL 8（2026-11-28 起，切库完成）
+  #
+  # 为什么默认就是 MySQL：生产早就用 systemd 注入 --spring.profiles.active=mysql 切过去了，
+  # 而仓库默认这里还写着 H2，结果「本地跑的和线上跑的不是一套库」。现在统一成 MySQL，
+  # 起服务不用再加任何参数。
+  #
+  # H2 没消失，它退化成**单测专用**：src/test/resources/application-test.yml 把 828 个用例
+  # 钉回 H2（test/application.properties 里写了 spring.profiles.active=test）。
+  # 那 16 个 schema-*.sql 也只有单测在用（SchemaParityTest 拿它们跟 MySQL 那份比对）。
+  #
+  # 换库只改环境变量：SIYIGE_DB_URL / SIYIGE_DB_USER / SIYIGE_DB_PASSWORD
+  # ==========================================================================
   datasource:
-    url: jdbc:h2:mem:siyige;DB_CLOSE_DELAY=-1
-    username: sa
-    password: ""
-    driver-class-name: org.h2.Driver
+    url: ${SIYIGE_DB_URL:jdbc:mysql://127.0.0.1:3308/siyige?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=%2B08:00&allowPublicKeyRetrieval=true&useSSL=false}
+    username: ${SIYIGE_DB_USER:root}
+    password: ${SIYIGE_DB_PASSWORD:siyige123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      # 时区：MySQL 的 timestamp 按**会话时区**换算，钉成 +08:00 才和应用写入的本地时间是同一个时钟。
+      # 用数字偏移而不是 Asia/Shanghai —— 服务器上不一定装有 MySQL 时区表，命名时区会 SET 失败。
+      connection-init-sql: "SET time_zone = '+08:00'"
   sql:
     init:
       mode: always
-      # schema-config.sql / schema-word.sql 排最后：它们不引用任何别的表，放末尾不改变既有执行顺序
-      schema-locations: classpath:schema.sql,classpath:schema-community.sql,classpath:schema-tag.sql,classpath:schema-video.sql,classpath:schema-auth.sql,classpath:schema-admin.sql,classpath:schema-security.sql,classpath:schema-pay.sql,classpath:schema-userllm.sql,classpath:schema-notify.sql,classpath:schema-ai.sql,classpath:schema-social.sql,classpath:schema-analytics.sql,classpath:schema-alert.sql,classpath:schema-config.sql,classpath:schema-word.sql
+      # 建表失败要立刻停：否则后面全是「表不存在」的连锁报错，反而难查。
+      continue-on-error: false
+      # MySQL 只有这一份全量 DDL（42 张表，全部 create table if not exists，可重复执行）。
+      # 那 16 个 schema-*.sql 是 H2 方言（identity 列 / create index if not exists），MySQL 下会语法错。
+      schema-locations: classpath:schema-mysql-full.sql
   mvc:
     async:
       request-timeout: 1800000
@@ -40,6 +60,13 @@ spring:
       connect-timeout: 50ms
 
 siyige:
+  # 管理员初始账号：**默认关闭**。生产绝不能开（会用已知密码建超管）。
+  # 本地要在新库上要一个管理员时：SIYIGE_ADMIN_SEED=true SIYIGE_ADMIN_PASSWORD=<8位以上> 起服务。
+  admin:
+    seed:
+      enabled: ${SIYIGE_ADMIN_SEED:false}
+      account: ${SIYIGE_ADMIN_ACCOUNT:admin}
+      password: ${SIYIGE_ADMIN_PASSWORD:}
   # 演示用：把真实时长压缩到 1/20，方便看到 12 步推进
   pace:
     time-scale: 0.05          # 真实环境设 1.0
